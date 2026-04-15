@@ -34,6 +34,10 @@
 	<string>Horcrux uses Face ID to protect your key shards.</string>
 	<key>NSLocalNetworkUsageDescription</key>
 	<string>Horcrux uses local network to discover and communicate with nearby devices.</string>
+	<key>BGTaskSchedulerPermittedIdentifiers</key>
+	<array>
+		<string>com.horcrux.broadcast-retry</string>
+	</array>
 	<key>UILaunchScreen</key>
 	<dict/>
 </dict>

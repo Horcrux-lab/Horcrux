@@ -22,11 +22,11 @@ struct CreateShardFlow: View {
                     DKGErrorView(viewModel: viewModel)
                 }
             }
-            .navigationTitle("Create Wallet")
+            .navigationTitle(L10n.CreateShard.title)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { dismiss() }
+                    Button(L10n.Common.cancel) { dismiss() }
                         .accessibilityIdentifier("createShard_cancelButton")
                 }
             }
@@ -45,15 +45,15 @@ struct ConfigureView: View {
 
     var body: some View {
         Form {
-            Section("Wallet Name") {
-                TextField("My Wallet", text: $viewModel.walletName)
-                    .accessibilityLabel("Wallet name")
-                    .accessibilityHint("Enter a name for your new wallet")
+            Section(L10n.CreateShard.walletName) {
+                TextField(L10n.CreateShard.walletNamePlaceholder, text: $viewModel.walletName)
+                    .accessibilityLabel(L10n.CreateShard.walletNameAccessibility)
+                    .accessibilityHint(L10n.CreateShard.walletNameHint)
                     .accessibilityIdentifier("configure_walletNameField")
             }
 
-            Section("Blockchain") {
-                Picker("Chain", selection: $viewModel.selectedChain) {
+            Section(L10n.CreateShard.blockchain) {
+                Picker(L10n.CreateShard.chain, selection: $viewModel.selectedChain) {
                     ForEach(Chain.allCases) { chain in
                         Label(chain.rawValue, systemImage: chain.iconName)
                             .tag(chain)
@@ -62,22 +62,22 @@ struct ConfigureView: View {
                 .pickerStyle(.inline)
             }
 
-            Section("Threshold") {
-                Stepper("Total Parties: \(viewModel.totalParties)",
+            Section(L10n.CreateShard.threshold) {
+                Stepper(L10n.CreateShard.totalParties(viewModel.totalParties),
                         value: $viewModel.totalParties, in: 2...10)
-                    .accessibilityLabel("Total parties: \(viewModel.totalParties)")
-                    .accessibilityHint("Adjust the total number of devices participating")
-                Stepper("Signing Threshold: \(viewModel.threshold)",
+                    .accessibilityLabel(L10n.CreateShard.totalParties(viewModel.totalParties))
+                    .accessibilityHint(L10n.CreateShard.totalPartiesHint())
+                Stepper(L10n.CreateShard.signingThreshold(viewModel.threshold),
                         value: $viewModel.threshold, in: 2...viewModel.totalParties)
-                    .accessibilityLabel("Signing threshold: \(viewModel.threshold)")
-                    .accessibilityHint("Adjust the minimum number of devices needed to sign")
+                    .accessibilityLabel(L10n.CreateShard.signingThreshold(viewModel.threshold))
+                    .accessibilityHint(L10n.CreateShard.signingThresholdHint())
 
-                Text("Requires **\(viewModel.threshold)** of **\(viewModel.totalParties)** devices to sign")
+                Text(L10n.CreateShard.requiresDevices(viewModel.threshold, viewModel.totalParties))
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
 
-            Section("Communication") {
+            Section(L10n.CreateShard.communication) {
                 ForEach(TransportType.allCases) { transport in
                     Toggle(isOn: Binding(
                         get: { viewModel.selectedTransports.contains(transport) },
@@ -99,13 +99,13 @@ struct ConfigureView: View {
                     viewModel.step = .discover
                     viewModel.startDiscovery()
                 } label: {
-                    Text("Next: Find Peers")
+                    Text(L10n.CreateShard.nextFindPeers)
                         .frame(maxWidth: .infinity)
                         .font(.headline)
                 }
                 .buttonStyle(.borderedProminent)
                 .disabled(viewModel.walletName.isEmpty)
-                .accessibilityHint("Proceed to discover nearby devices for key generation")
+                .accessibilityHint(L10n.CreateShard.findPeersHint)
                 .accessibilityIdentifier("configure_nextButton")
             }
         }
@@ -126,14 +126,14 @@ struct PeerDiscoveryView: View {
                 .scaleEffect(1.5)
                 .padding()
 
-            Text("Looking for nearby devices…")
+            Text(L10n.Discovery.lookingForDevices)
                 .foregroundStyle(.secondary)
 
-            Text("\(viewModel.foundPeers.count) / \(viewModel.totalParties - 1) peers found")
+            Text(L10n.Discovery.peersFound(viewModel.foundPeers.count, viewModel.totalParties - 1))
                 .font(.headline)
-                .accessibilityLabel("\(viewModel.foundPeers.count) of \(viewModel.totalParties - 1) peers found")
+                .accessibilityLabel(L10n.Discovery.peersFoundAccessibility(viewModel.foundPeers.count, viewModel.totalParties - 1))
 
-            Text("Timeout in \(timeRemaining)s")
+            Text(L10n.Discovery.timeoutIn(timeRemaining))
                 .font(.caption)
                 .foregroundStyle(timeRemaining < 15 ? .red : .tertiary)
 
@@ -159,19 +159,17 @@ struct PeerDiscoveryView: View {
                     timerTask?.cancel()
                     viewModel.startDKG()
                 } label: {
-                    Text("Start Key Generation")
+                    Text(L10n.Discovery.startKeyGeneration)
                         .frame(maxWidth: .infinity)
                         .font(.headline)
                 }
                 .buttonStyle(.borderedProminent)
                 .padding(.horizontal)
-                .accessibilityHint("Begin the distributed key generation ceremony with connected peers")
+                .accessibilityHint(L10n.Discovery.startKeyGenHint)
                 .accessibilityIdentifier("discover_startDKGButton")
             }
 
-            Button("Cancel", role: .cancel) {
-                timerTask?.cancel()
-                viewModel.cancel()
+            Button(L10n.Common.cancel, role: .cancel) {
             }
             .foregroundStyle(.secondary)
         }
@@ -183,7 +181,7 @@ struct PeerDiscoveryView: View {
                     timeRemaining -= 1
                 }
                 if timeRemaining <= 0 && !Task.isCancelled {
-                    viewModel.errorMessage = "Peer discovery timed out. Please try again."
+                    viewModel.errorMessage = L10n.DKG.peerTimeout
                     viewModel.step = .error
                 }
             }
@@ -205,11 +203,11 @@ struct DKGProgressView: View {
 
             ProgressRing(progress: viewModel.dkgProgress)
                 .frame(width: 120, height: 120)
-                .accessibilityLabel("Key generation progress")
+                .accessibilityLabel(L10n.DKG.keyGenProgress)
                 .accessibilityValue("\(Int(viewModel.dkgProgress * 100)) percent")
 
             VStack(spacing: 8) {
-                Text("Generating Key Shards")
+                Text(L10n.DKG.generatingKeyShards)
                     .font(.title2.bold())
 
                 Text(viewModel.dkgStatusMessage)
@@ -217,18 +215,18 @@ struct DKGProgressView: View {
                     .multilineTextAlignment(.center)
             }
 
-            Text("Round \(viewModel.currentRound) of \(viewModel.totalRounds)")
+            Text(L10n.DKG.roundOf(viewModel.currentRound, viewModel.totalRounds))
                 .font(.caption)
                 .foregroundStyle(.tertiary)
-                .accessibilityLabel("Key generation round \(viewModel.currentRound) of \(viewModel.totalRounds)")
+                .accessibilityLabel(L10n.DKG.keyGenRound(viewModel.currentRound, viewModel.totalRounds))
 
             Spacer()
 
-            Text("Keep devices nearby until complete")
+            Text(L10n.DKG.keepDevicesNearby)
                 .font(.caption)
                 .foregroundStyle(.secondary)
 
-            Button("Cancel Ceremony", role: .destructive) {
+            Button(L10n.DKG.cancelCeremony, role: .destructive) {
                 viewModel.cancel()
             }
             .font(.caption)
@@ -257,7 +255,7 @@ struct DKGCompleteView: View {
                 .foregroundStyle(.green)
                 .accessibilityHidden(true)
             VStack(spacing: 8) {
-                Text("Wallet Created!")
+                Text(L10n.DKG.walletCreated)
                     .font(.title.bold())
 
                 if let address = viewModel.generatedAddress {
@@ -270,9 +268,9 @@ struct DKGCompleteView: View {
             }
 
             VStack(spacing: 4) {
-                Text("Your shard is #\(viewModel.partyIndex)")
+                Text(L10n.DKG.yourShardIs(viewModel.partyIndex))
                     .font(.headline)
-                Text("\(viewModel.threshold) of \(viewModel.totalParties) threshold")
+                Text(L10n.DKG.thresholdOf(viewModel.threshold, viewModel.totalParties))
                     .foregroundStyle(.secondary)
             }
 
@@ -281,34 +279,34 @@ struct DKGCompleteView: View {
             Button {
                 showPinPrompt = true
             } label: {
-                Text("Save & Encrypt Shard")
+                Text(L10n.DKG.saveEncryptShard)
                     .frame(maxWidth: .infinity)
                     .font(.headline)
             }
             .buttonStyle(.borderedProminent)
             .padding(.horizontal)
-            .accessibilityHint("Enter your PIN to encrypt and save the key shard")
+            .accessibilityHint(L10n.DKG.saveEncryptHint)
             .accessibilityIdentifier("dkgComplete_saveButton")
         }
         .padding()
-        .alert("Enter PIN to encrypt shard", isPresented: $showPinPrompt) {
-            SecureField("PIN", text: $pin)
+        .alert(L10n.DKG.enterPinEncrypt, isPresented: $showPinPrompt) {
+            SecureField(L10n.Common.pin, text: $pin)
                 .keyboardType(.numberPad)
-            Button("Encrypt & Save") {
+            Button(L10n.DKG.encryptSave) {
                 guard appState.verifyPin(pin) else {
-                    pinError = "Incorrect PIN"
+                    pinError = L10n.DKG.incorrectPin
                     return
                 }
                 viewModel.saveWallet(to: appState, pin: pin)
                 pin = ""
                 dismiss()
             }
-            Button("Cancel", role: .cancel) { pin = "" }
+            Button(L10n.Common.cancel, role: .cancel) { pin = "" }
         } message: {
             if let pinError {
                 Text(pinError)
             } else {
-                Text("Your PIN is needed to encrypt the key shard.")
+                Text(L10n.DKG.pinNeededEncrypt)
             }
         }
     }
@@ -328,18 +326,18 @@ struct DKGErrorView: View {
                 .foregroundStyle(.red)
                 .accessibilityHidden(true)
 
-            Text("Key Generation Failed")
+            Text(L10n.DKG.keyGenFailed)
                 .font(.title2.bold())
 
             Text(viewModel.errorMessage)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
 
-            Button("Retry") {
+            Button(L10n.Common.retry) {
                 viewModel.step = .discover
             }
             .buttonStyle(.borderedProminent)
-            .accessibilityHint("Go back and try key generation again")
+            .accessibilityHint(L10n.DKG.retryHint)
             .accessibilityIdentifier("dkgError_retryButton")
 
             Spacer()

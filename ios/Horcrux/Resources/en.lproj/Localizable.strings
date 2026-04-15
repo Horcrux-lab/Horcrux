@@ -1,0 +1,431 @@
+/* Common */
+"common.ok" = "OK";
+"common.cancel" = "Cancel";
+"common.error" = "Error";
+"common.done" = "Done";
+"common.retry" = "Retry";
+"common.delete" = "Delete";
+"common.copy" = "Copy";
+"common.copied" = "Copied!";
+"common.next" = "Next";
+"common.pin" = "PIN";
+"common.test" = "Test";
+
+/* App / Security */
+"app.contentHidden" = "App content hidden for privacy";
+"app.securityViolation" = "Security Violation";
+"app.exitApp" = "Exit App";
+"app.debuggerDetected" = "A debugger or instrumentation tool has been detected. The app cannot run in this environment to protect your key shards.";
+"app.securityWarning" = "Security Warning";
+"app.understandRisk" = "I Understand the Risk";
+"app.deviceCompromised" = "This device may be compromised. Your key shards may be at risk. Use a secure device for production wallets.";
+
+/* Tabs */
+"tab.wallet" = "Wallet";
+"tab.shards" = "Shards";
+"tab.settings" = "Settings";
+
+/* Onboarding */
+"onboarding.welcomeTitle" = "Welcome to Horcrux";
+"onboarding.welcomeSubtitle" = "Your keys are your horcruxes.\nSplit them. Guard them.";
+"onboarding.getStarted" = "Get Started";
+"onboarding.getStartedHint" = "Begin setting up your wallet PIN";
+"onboarding.createPin" = "Create a PIN";
+"onboarding.pinProtects" = "This PIN protects your key shards";
+"onboarding.enterPinPlaceholder" = "Enter PIN (min 4 digits)";
+"onboarding.createPinHint" = "Enter at least 4 digits for your new PIN";
+"onboarding.nextHint" = "Proceed to confirm your PIN";
+"onboarding.confirmPin" = "Confirm PIN";
+"onboarding.enterSamePin" = "Enter the same PIN again";
+"onboarding.confirmPinHint" = "Re-enter your PIN to confirm";
+"onboarding.pinsDontMatch" = "PINs don't match";
+"onboarding.createWallet" = "Create Wallet";
+"onboarding.createWalletHint" = "Save your PIN and create your wallet";
+
+/* Lock Screen */
+"lockScreen.title" = "Horcrux";
+"lockScreen.subtitle" = "Enter PIN to unlock your shards";
+"lockScreen.pinHint" = "Enter your numeric PIN to unlock the app";
+"lockScreen.unlock" = "Unlock";
+"lockScreen.unlockHint" = "Unlock the app with the entered PIN";
+"lockScreen.useFaceID" = "Use Face ID";
+"lockScreen.unlockBiometricHint" = "Use biometric authentication to unlock the app";
+"lockScreen.tooManyAttempts" = "Too many attempts. Try again in %ds";
+"lockScreen.incorrectPin" = "Incorrect PIN (%d attempts left)";
+"lockScreen.dataWiped" = "All data wiped due to too many failed attempts";
+
+/* Wallet Home */
+"walletHome.title" = "Horcrux";
+"walletHome.noWalletsTitle" = "No Wallets Yet";
+"walletHome.noWalletsSubtitle" = "Create your first MPC wallet by\nsplitting a key across devices.";
+"walletHome.createWallet" = "Create Wallet";
+"walletHome.createNewWallet" = "Create new wallet";
+"walletHome.opensCreationFlow" = "Opens the wallet creation flow";
+"walletHome.startMPCHint" = "Start the multi-party key generation process";
+"walletHome.viewDetailsHint" = "View wallet details, send, and receive";
+"walletHome.editWalletList" = "Edit wallet list";
+"walletHome.pendingBroadcasts" = "Pending Broadcasts";
+"walletHome.nodeUnreachable" = "%@ node unreachable";
+"walletHome.nodesUnreachable" = "%@ nodes unreachable";
+"walletHome.networkWarning" = "Network warning: %@ nodes are unreachable";
+"walletHome.loadingBalance" = "Loading balance";
+
+/* Pending Broadcast */
+"pending.retry" = "Retry";
+"pending.discard" = "Discard";
+"pending.attempts" = "Attempts: %d";
+
+/* Wallet Detail */
+"walletDetail.actions" = "Actions";
+"walletDetail.sendTransaction" = "Send Transaction";
+"walletDetail.openSigningHint" = "Open the transaction signing flow";
+"walletDetail.receive" = "Receive";
+"walletDetail.showQRHint" = "Show your QR code and address to receive funds";
+"walletDetail.tokens" = "Tokens";
+"walletDetail.loadingTokens" = "Loading tokens…";
+"walletDetail.noTokens" = "No token balances found";
+"walletDetail.noTokensDescription" = "ERC-20 and SPL tokens will appear here once added.";
+"walletDetail.recentTransactions" = "Recent Transactions";
+"walletDetail.viewAllHistory" = "View All History";
+"walletDetail.transactions" = "Transactions";
+"walletDetail.transactionHistory" = "Transaction History";
+"walletDetail.details" = "Details";
+"walletDetail.chain" = "Chain";
+"walletDetail.threshold" = "Threshold";
+"walletDetail.thresholdValue" = "%d of %d";
+"walletDetail.yourShard" = "Your Shard";
+"walletDetail.shardNumber" = "#%d";
+"walletDetail.created" = "Created";
+"walletDetail.walletAddress" = "Wallet address";
+"walletDetail.copyAddress" = "Copy Address";
+"walletDetail.addressCopied" = "Address copied";
+"walletDetail.copyWalletAddress" = "Copy wallet address";
+"walletDetail.copiesAddressHint" = "Copies the wallet address to clipboard";
+
+/* Receive */
+"receive.title" = "Receive";
+"receive.receiveSymbol" = "Receive %@";
+"receive.qrCodeAccessibility" = "QR code for %@ address";
+"receive.qrShareHint" = "Share this QR code with the sender";
+"receive.qrError" = "QR Error";
+"receive.qrFailed" = "QR code failed to generate";
+"receive.copyAddress" = "Copy Address";
+"receive.addressCopied" = "Address copied";
+"receive.copiedClears" = "Copied (clears in %ds)";
+"receive.copiesHint" = "Copies the wallet address to clipboard";
+"receive.shareAddress" = "Share Address";
+"receive.shareHint" = "Share your wallet address via other apps";
+
+/* Transaction History */
+"txHistory.title" = "History";
+"txHistory.noTransactionsTitle" = "No Transactions Yet";
+"txHistory.noTransactionsSubtitle" = "Transactions will appear here after\nyou send or receive funds.";
+"txHistory.confirming" = "Confirming…";
+"txHistory.sendSymbol" = "Send %@";
+
+/* Transaction Detail */
+"txDetail.title" = "Transaction";
+"txDetail.details" = "Details";
+"txDetail.chain" = "Chain";
+"txDetail.from" = "From";
+"txDetail.to" = "To";
+"txDetail.fee" = "Fee";
+"txDetail.signed" = "Signed";
+"txDetail.broadcast" = "Broadcast";
+"txDetail.transactionHash" = "Transaction Hash";
+"txDetail.copyHash" = "Copy Hash";
+"txDetail.copied" = "Copied";
+"txDetail.viewOnExplorer" = "View on Explorer";
+
+/* Create Shard / DKG */
+"createShard.title" = "Create Wallet";
+"createShard.walletName" = "Wallet Name";
+"createShard.walletNamePlaceholder" = "My Wallet";
+"createShard.walletNameAccessibility" = "Wallet name";
+"createShard.walletNameHint" = "Enter a name for your new wallet";
+"createShard.blockchain" = "Blockchain";
+"createShard.chain" = "Chain";
+"createShard.threshold" = "Threshold";
+"createShard.totalParties" = "Total Parties: %d";
+"createShard.totalPartiesHint" = "Adjust the total number of devices participating";
+"createShard.signingThreshold" = "Signing Threshold: %d";
+"createShard.signingThresholdHint" = "Adjust the minimum number of devices needed to sign";
+"createShard.requiresDevices" = "Requires **%d** of **%d** devices to sign";
+"createShard.communication" = "Communication";
+"createShard.nextFindPeers" = "Next: Find Peers";
+"createShard.findPeersHint" = "Proceed to discover nearby devices for key generation";
+
+/* Peer Discovery */
+"discovery.lookingForDevices" = "Looking for nearby devices…";
+"discovery.peersFound" = "%d / %d peers found";
+"discovery.peersFoundAccessibility" = "%d of %d peers found";
+"discovery.timeoutIn" = "Timeout in %ds";
+"discovery.startKeyGeneration" = "Start Key Generation";
+"discovery.startKeyGenHint" = "Begin the distributed key generation ceremony with connected peers";
+
+/* DKG Progress */
+"dkg.keyGenProgress" = "Key generation progress";
+"dkg.generatingKeyShards" = "Generating Key Shards";
+"dkg.roundOf" = "Round %d of %d";
+"dkg.keyGenRound" = "Key generation round %d of %d";
+"dkg.keepDevicesNearby" = "Keep devices nearby until complete";
+"dkg.cancelCeremony" = "Cancel Ceremony";
+
+/* DKG Status Messages */
+"dkg.searchingDevices" = "Searching for nearby devices…";
+"dkg.initializingKeyGen" = "Initializing key generation…";
+"dkg.exchangingCommitments" = "Exchanging commitments…";
+"dkg.verifyingShares" = "Verifying shares…";
+"dkg.finalizingKeyPackage" = "Finalizing key package…";
+"dkg.computingPaillierKeys" = "Computing Paillier keys…";
+"dkg.generatingZKProofs" = "Generating ZK proofs…";
+"dkg.verifyingProofs" = "Verifying proofs…";
+"dkg.computingAuxInfo" = "Computing auxiliary info…";
+"dkg.finalizingKeyShares" = "Finalizing key shares…";
+"dkg.derivingAddress" = "Deriving address…";
+"dkg.processing" = "Processing…";
+
+/* DKG Complete */
+"dkg.walletCreated" = "Wallet Created!";
+"dkg.yourShardIs" = "Your shard is #%d";
+"dkg.thresholdOf" = "%d of %d threshold";
+"dkg.saveEncryptShard" = "Save & Encrypt Shard";
+"dkg.saveEncryptHint" = "Enter your PIN to encrypt and save the key shard";
+"dkg.enterPinEncrypt" = "Enter PIN to encrypt shard";
+"dkg.encryptSave" = "Encrypt & Save";
+"dkg.incorrectPin" = "Incorrect PIN";
+"dkg.pinNeededEncrypt" = "Your PIN is needed to encrypt the key shard.";
+
+/* DKG Error */
+"dkg.keyGenFailed" = "Key Generation Failed";
+"dkg.retryHint" = "Go back and try key generation again";
+"dkg.ceremonyCancel" = "Ceremony cancelled by user.";
+"dkg.compromisedDevice" = "Key generation is disabled on compromised devices. Use a secure device.";
+"dkg.peerTimeout" = "Peer discovery timed out. Please try again.";
+
+/* Signing */
+"signing.sendSymbol" = "Send %@";
+"signing.recipient" = "Recipient";
+"signing.addressPlaceholder" = "Address";
+"signing.recipientAddress" = "Recipient address";
+"signing.recipientHint" = "Enter the destination wallet address";
+"signing.scanQR" = "Scan QR code";
+"signing.scanQRHint" = "Open camera to scan a wallet address QR code";
+"signing.amount" = "Amount";
+"signing.amountHint" = "Enter the amount to send";
+"signing.gas" = "Gas";
+"signing.estimating" = "Estimating…";
+"signing.gasLimit" = "Gas Limit";
+"signing.estFee" = "Est. Fee";
+"signing.fee" = "Fee";
+"signing.unableToEstimate" = "Unable to estimate";
+"signing.nextInviteCoSigners" = "Next: Invite Co-Signers";
+"signing.inviteHint" = "Proceed to invite co-signers for this transaction";
+
+/* Invite Co-Signers */
+"signing.inviteCoSigners" = "Invite Co-Signers";
+"signing.needMoreSigners" = "Need %d more signer(s)";
+"signing.waitingForCoSigners" = "Waiting for co-signers to join…";
+"signing.signTransaction" = "Sign Transaction";
+"signing.signHint" = "Enter your PIN and sign the transaction with co-signers";
+"signing.enterPinDecrypt" = "Enter PIN to decrypt shard";
+"signing.unlockSign" = "Unlock & Sign";
+"signing.incorrectPin" = "Incorrect PIN";
+"signing.pinNeededDecrypt" = "Your PIN is needed to decrypt the key shard for signing.";
+
+/* Signing Progress */
+"signing.signingProgress" = "Signing progress";
+"signing.signingTransaction" = "Signing Transaction";
+"signing.roundOf" = "Round %d of %d";
+"signing.signingRound" = "Signing round %d of %d";
+"signing.cancelSigning" = "Cancel Signing";
+
+/* Signing Status Messages */
+"signing.initializingProtocol" = "Initializing signing protocol…";
+"signing.broadcastingNonces" = "Broadcasting nonce commitments…";
+"signing.exchangingNonces" = "Exchanging encrypted nonces…";
+"signing.computingSignatureShares" = "Computing signature shares…";
+"signing.computingPartialSigs" = "Computing partial signatures…";
+"signing.combiningSig" = "Combining signature…";
+"signing.verifyingSig" = "Verifying signature…";
+
+/* Signing Complete */
+"signing.transactionSigned" = "Transaction Signed!";
+"signing.broadcasting" = "Broadcasting…";
+"signing.broadcastToNetwork" = "Broadcast to Network";
+"signing.broadcastHint" = "Submit the signed transaction to the blockchain network";
+"signing.saveForLater" = "Save for Later";
+"signing.saveForLaterHint" = "Save the signed transaction and broadcast it later";
+"signing.broadcastingTo" = "Broadcasting to %@ network…";
+
+/* Signing Error */
+"signing.signingFailed" = "Signing Failed";
+"signing.retryHint" = "Go back and try signing again";
+"signing.cancelledByUser" = "Signing cancelled by user.";
+"signing.compromisedDevice" = "Signing is disabled on compromised devices. Use a secure device.";
+
+/* QR Scanner */
+"scanner.title" = "Scan QR Code";
+"scanner.cameraNotAvailable" = "Camera not available";
+"scanner.scanningArea" = "QR code scanning area";
+"scanner.scanningHint" = "Position a QR code within this frame to scan";
+
+/* Shards */
+"shards.title" = "Shards";
+"shards.noShards" = "No Shards";
+"shards.noShardsDescription" = "Create a wallet to generate your first key shard.";
+"shards.importShard" = "Import Shard";
+"shards.shardNumber" = "Shard #%d";
+"shards.walletInfo" = "Wallet Info";
+"shards.wallet" = "Wallet";
+"shards.chain" = "Chain";
+"shards.address" = "Address";
+"shards.threshold" = "Threshold";
+"shards.thresholdValue" = "%d of %d";
+"shards.actions" = "Actions";
+"shards.backupShard" = "Backup Shard";
+"shards.deleteShard" = "Delete Shard";
+"shards.shardDetails" = "Shard Details";
+"shards.deleteShardConfirm" = "Delete Shard?";
+"shards.deleteShardMessage" = "This shard will be permanently removed from this device. Make sure you have a backup.";
+"shards.shardThreshold" = "%d of %d shard threshold";
+
+/* Shard Backup */
+"shardBackup.title" = "Backup Shard";
+"shardBackup.description" = "Your shard will be decrypted and exported as a portable backup file. Keep this file safe.";
+"shardBackup.devicePin" = "Device PIN";
+"shardBackup.enterPin" = "Enter PIN (min 6 digits)";
+"shardBackup.exportEncrypted" = "Export Encrypted Shard";
+"shardBackup.ready" = "Shard backup ready";
+"shardBackup.exportOptions" = "Export Options";
+"shardBackup.saveToFiles" = "Save to Files";
+"shardBackup.copyToClipboard" = "Copy to Clipboard";
+"shardBackup.copiedAutoClears" = "Copied! (auto-clears in %ds)";
+"shardBackup.qrCode" = "QR Code";
+"shardBackup.shardBackupQR" = "Shard backup QR code";
+"shardBackup.unableToGenerateQR" = "Unable to generate QR code";
+
+/* Shard Import */
+"shardImport.title" = "Import Shard";
+"shardImport.description" = "Import a shard backup from a file, clipboard, or QR code.";
+"shardImport.importSource" = "Import Source";
+"shardImport.chooseFile" = "Choose File";
+"shardImport.pasteFromClipboard" = "Paste from Clipboard";
+"shardImport.scanQRCode" = "Scan QR Code";
+"shardImport.backupInfo" = "Backup Info";
+"shardImport.partyIndex" = "Party Index";
+"shardImport.partyIndexValue" = "#%d";
+"shardImport.backupVersion" = "Backup Version";
+"shardImport.backupVersionValue" = "v%d";
+"shardImport.enterDevicePin" = "Enter device PIN (min 6 digits)";
+"shardImport.reEncryptNote" = "The shard will be re-encrypted with this device's credentials.";
+"shardImport.import" = "Import Shard";
+"shardImport.chooseDifferent" = "Choose Different Source";
+"shardImport.shardImported" = "Shard Imported!";
+"shardImport.addedToDevice" = "'%@' has been added to this device.";
+"shardImport.unableToAccessFile" = "Unable to access the selected file";
+"shardImport.noClipboardData" = "No valid backup data found on clipboard";
+"shardImport.invalidQRData" = "Invalid QR code data";
+
+/* Settings */
+"settings.title" = "Settings";
+"settings.security" = "Security";
+"settings.faceIDTouchID" = "Face ID / Touch ID";
+"settings.biometricHint" = "Enable or disable biometric authentication for unlocking";
+"settings.changePin" = "Change PIN";
+"settings.changePinHint" = "Open the PIN change screen";
+"settings.autoLock" = "Auto-Lock";
+"settings.immediately" = "Immediately";
+"settings.oneMinute" = "1 minute";
+"settings.fiveMinutes" = "5 minutes";
+"settings.fifteenMinutes" = "15 minutes";
+"settings.oneHour" = "1 hour";
+"settings.never" = "Never";
+"settings.blockchainNodes" = "Blockchain Nodes";
+"settings.rpcEndpoints" = "RPC Endpoints";
+"settings.rpcEndpointsHint" = "Configure blockchain RPC node endpoints";
+"settings.network" = "Network";
+"settings.relayServer" = "Relay Server";
+"settings.webSocketURL" = "WebSocket URL";
+"settings.relayServerURL" = "Relay server URL";
+"settings.relayURLHint" = "Enter the WebSocket URL for the relay server";
+"settings.communication" = "Communication";
+"settings.transportPreferences" = "Transport Preferences";
+"settings.transportHint" = "Configure Bluetooth, Wi-Fi Direct, and LAN transport options";
+"settings.about" = "About";
+"settings.version" = "Version";
+"settings.coreLibrary" = "Core Library";
+"settings.mpcProtocols" = "MPC Protocols";
+"settings.e2eEncryption" = "E2E Encryption";
+"settings.secureEnclave" = "Secure Enclave";
+"settings.hardwareProtected" = "Hardware Protected";
+"settings.softwareOnly" = "Software Only";
+"settings.openSourceLicenses" = "Open Source Licenses";
+"settings.licensesHint" = "View open source library licenses";
+"settings.dangerZone" = "Danger Zone";
+"settings.wipeAllData" = "Wipe All Data";
+"settings.wipeHint" = "Permanently delete all wallets, key shards, and settings";
+"settings.wipeConfirmTitle" = "Wipe All Data?";
+"settings.wipeEverything" = "Wipe Everything";
+"settings.wipeMessage" = "This will permanently delete all wallets, key shards, and settings from this device. This cannot be undone.";
+"settings.connected" = "Connected";
+"settings.disconnected" = "Disconnected";
+"settings.relayStatusConnected" = "Relay status: Connected";
+"settings.relayStatusDisconnected" = "Relay status: Disconnected";
+
+/* Transport Settings */
+"transport.title" = "Transport";
+"transport.faceToFaceChannels" = "Face-to-Face Channels";
+"transport.ble" = "Bluetooth (BLE)";
+"transport.bleHint" = "Enable or disable Bluetooth for peer-to-peer communication";
+"transport.wifiDirect" = "Wi-Fi Direct";
+"transport.wifiDirectHint" = "Enable or disable Wi-Fi Direct for peer-to-peer communication";
+"transport.wifiLAN" = "Wi-Fi LAN (Bonjour)";
+"transport.wifiLANHint" = "Enable or disable local Wi-Fi network discovery";
+"transport.info" = "BLE works without Wi-Fi. Wi-Fi LAN offers higher throughput for large transactions. Wi-Fi Direct creates a peer-to-peer connection without a router.";
+
+/* Change PIN */
+"changePin.title" = "Change PIN";
+"changePin.currentPin" = "Current PIN";
+"changePin.newPin" = "New PIN";
+"changePin.confirmNewPin" = "Confirm New PIN";
+"changePin.submit" = "Change PIN";
+"changePin.submitHint" = "Save your new PIN";
+"changePin.incorrectCurrent" = "Current PIN is incorrect";
+"changePin.dontMatch" = "New PINs don't match";
+"changePin.saveFailed" = "Failed to save new PIN";
+
+/* Blockchain Node Settings */
+"nodeSettings.title" = "Blockchain Nodes";
+"nodeSettings.quickPresets" = "Quick Presets";
+"nodeSettings.switchTo" = "Switch to %@";
+"nodeSettings.configureInfo" = "Configure RPC endpoints for each blockchain. These are used to query balances, estimate fees, and broadcast signed transactions.";
+"nodeSettings.ethereumEVM" = "Ethereum / EVM";
+"nodeSettings.rpcURL" = "RPC URL";
+"nodeSettings.networkPicker" = "Network";
+"nodeSettings.mainnet" = "Mainnet (Chain ID 1)";
+"nodeSettings.sepoliaTestnet" = "Sepolia Testnet (11155111)";
+"nodeSettings.polygon" = "Polygon (137)";
+"nodeSettings.arbitrumOne" = "Arbitrum One (42161)";
+"nodeSettings.base" = "Base (8453)";
+"nodeSettings.bitcoin" = "Bitcoin";
+"nodeSettings.restAPIURL" = "REST API URL";
+"nodeSettings.testnet" = "Testnet";
+"nodeSettings.testnetHint" = "Switch between Bitcoin mainnet and testnet";
+"nodeSettings.solana" = "Solana";
+"nodeSettings.devnet" = "Devnet";
+"nodeSettings.devnetHint" = "Switch between Solana mainnet and devnet";
+"nodeSettings.resetToDefaults" = "Reset to Defaults";
+"nodeSettings.resetHint" = "Reset all RPC endpoints to default public nodes";
+"nodeSettings.resetConfirmTitle" = "Reset to Defaults?";
+"nodeSettings.reset" = "Reset";
+"nodeSettings.resetMessage" = "This will reset all RPC endpoints to the default public nodes.";
+
+/* Node Status */
+"nodeStatus.notChecked" = "Not checked";
+"nodeStatus.connected" = "Connected";
+"nodeStatus.checking" = "Checking…";
+
+/* Licenses */
+"licenses.title" = "Licenses";
+"licenses.coreDependencies" = "Core Dependencies";

@@ -12,47 +12,47 @@ struct SettingsView: View {
     var body: some View {
         NavigationStack {
             Form {
-                Section("Security") {
-                    Toggle("Face ID / Touch ID", isOn: $biometricEnabled)
-                        .accessibilityHint("Enable or disable biometric authentication for unlocking")
+                Section(L10n.Settings.security) {
+                    Toggle(L10n.Settings.faceIDTouchID, isOn: $biometricEnabled)
+                        .accessibilityHint(L10n.Settings.biometricHint)
                         .accessibilityIdentifier("settings_biometricToggle")
 
-                    Button("Change PIN") {
+                    Button(L10n.Settings.changePin) {
                         showChangePin = true
                     }
-                    .accessibilityHint("Open the PIN change screen")
+                    .accessibilityHint(L10n.Settings.changePinHint)
                     .accessibilityIdentifier("settings_changePinButton")
 
-                    Picker("Auto-Lock", selection: $appState.autoLockTimeout) {
-                        Text("Immediately").tag(TimeInterval(0))
-                        Text("1 minute").tag(TimeInterval(60))
-                        Text("5 minutes").tag(TimeInterval(300))
-                        Text("15 minutes").tag(TimeInterval(900))
-                        Text("1 hour").tag(TimeInterval(3600))
-                        Text("Never").tag(TimeInterval(-1))
+                    Picker(L10n.Settings.autoLock, selection: $appState.autoLockTimeout) {
+                        Text(L10n.Settings.immediately).tag(TimeInterval(0))
+                        Text(L10n.Settings.oneMinute).tag(TimeInterval(60))
+                        Text(L10n.Settings.fiveMinutes).tag(TimeInterval(300))
+                        Text(L10n.Settings.fifteenMinutes).tag(TimeInterval(900))
+                        Text(L10n.Settings.oneHour).tag(TimeInterval(3600))
+                        Text(L10n.Settings.never).tag(TimeInterval(-1))
                     }
                     .accessibilityIdentifier("settings_autoLockPicker")
                 }
 
-                Section("Blockchain Nodes") {
+                Section(L10n.Settings.blockchainNodes) {
                     NavigationLink {
                         BlockchainNodeSettingsView()
                     } label: {
-                        Label("RPC Endpoints", systemImage: "server.rack")
+                        Label(L10n.Settings.rpcEndpoints, systemImage: "server.rack")
                     }
-                    .accessibilityHint("Configure blockchain RPC node endpoints")
+                    .accessibilityHint(L10n.Settings.rpcEndpointsHint)
                     .accessibilityIdentifier("settings_rpcEndpointsLink")
 
                     HStack {
-                        Text("Network")
+                        Text(L10n.Settings.network)
                         Spacer()
                         Text(networkSummary)
                             .foregroundStyle(.secondary)
                     }
                 }
 
-                Section("Relay Server") {
-                    TextField("WebSocket URL", text: $relayURL)
+                Section(L10n.Settings.relayServer) {
+                    TextField(L10n.Settings.webSocketURL, text: $relayURL)
                         .font(.system(.body, design: .monospaced))
                         .autocorrectionDisabled()
                         .textInputAutocapitalization(.never)
@@ -60,8 +60,8 @@ struct SettingsView: View {
                             relayWarning = Self.validateRelayURL(newValue)
                             appState.peerManager.relay.relayURL = newValue
                         }
-                        .accessibilityLabel("Relay server URL")
-                        .accessibilityHint("Enter the WebSocket URL for the relay server")
+                        .accessibilityLabel(L10n.Settings.relayServerURL)
+                        .accessibilityHint(L10n.Settings.relayURLHint)
                         .accessibilityIdentifier("settings_relayURLField")
 
                     if let relayWarning {
@@ -73,31 +73,31 @@ struct SettingsView: View {
                     RelayStatusRow(relay: appState.peerManager.relay)
                 }
 
-                Section("Communication") {
+                Section(L10n.Settings.communication) {
                     NavigationLink {
                         TransportSettingsView()
                     } label: {
-                        Label("Transport Preferences", systemImage: "antenna.radiowaves.left.and.right")
+                        Label(L10n.Settings.transportPreferences, systemImage: "antenna.radiowaves.left.and.right")
                     }
-                    .accessibilityHint("Configure Bluetooth, Wi-Fi Direct, and LAN transport options")
+                    .accessibilityHint(L10n.Settings.transportHint)
                     .accessibilityIdentifier("settings_transportLink")
                 }
 
-                Section("About") {
-                    LabeledContent("Version", value: "0.1.0")
-                    LabeledContent("Core Library", value: "horcrux-core (Rust)")
-                    LabeledContent("MPC Protocols", value: "CGGMP21 + FROST")
-                    LabeledContent("E2E Encryption", value: "Noise Protocol")
+                Section(L10n.Settings.about) {
+                    LabeledContent(L10n.Settings.version, value: "0.1.0")
+                    LabeledContent(L10n.Settings.coreLibrary, value: "horcrux-core (Rust)")
+                    LabeledContent(L10n.Settings.mpcProtocols, value: "CGGMP21 + FROST")
+                    LabeledContent(L10n.Settings.e2eEncryption, value: "Noise Protocol")
 
                     HStack {
-                        Text("Secure Enclave")
+                        Text(L10n.Settings.secureEnclave)
                         Spacer()
                         if SecureEnclaveManager.shared.isAvailable {
-                            Label("Hardware Protected", systemImage: "checkmark.shield.fill")
+                            Label(L10n.Settings.hardwareProtected, systemImage: "checkmark.shield.fill")
                                 .font(.caption)
                                 .foregroundStyle(.green)
                         } else {
-                            Label("Software Only", systemImage: "exclamationmark.triangle")
+                            Label(L10n.Settings.softwareOnly, systemImage: "exclamationmark.triangle")
                                 .font(.caption)
                                 .foregroundStyle(.orange)
                         }
@@ -106,33 +106,33 @@ struct SettingsView: View {
                     NavigationLink {
                         LicensesView()
                     } label: {
-                        Text("Open Source Licenses")
+                        Text(L10n.Settings.openSourceLicenses)
                     }
-                    .accessibilityHint("View open source library licenses")
+                    .accessibilityHint(L10n.Settings.licensesHint)
                     .accessibilityIdentifier("settings_licensesLink")
                 }
 
-                Section("Danger Zone") {
+                Section(L10n.Settings.dangerZone) {
                     Button(role: .destructive) {
                         showWipeConfirmation = true
                     } label: {
-                        Label("Wipe All Data", systemImage: "trash.fill")
+                        Label(L10n.Settings.wipeAllData, systemImage: "trash.fill")
                     }
-                    .accessibilityHint("Permanently delete all wallets, key shards, and settings")
+                    .accessibilityHint(L10n.Settings.wipeHint)
                     .accessibilityIdentifier("settings_wipeButton")
                 }
             }
-            .navigationTitle("Settings")
+            .navigationTitle(L10n.Settings.title)
             .sheet(isPresented: $showChangePin) {
                 ChangePinView()
             }
-            .alert("Wipe All Data?", isPresented: $showWipeConfirmation) {
-                Button("Wipe Everything", role: .destructive) {
+            .alert(L10n.Settings.wipeConfirmTitle, isPresented: $showWipeConfirmation) {
+                Button(L10n.Settings.wipeEverything, role: .destructive) {
                     appState.wipeAllData()
                 }
-                Button("Cancel", role: .cancel) {}
+                Button(L10n.Common.cancel, role: .cancel) {}
             } message: {
-                Text("This will permanently delete all wallets, key shards, and settings from this device. This cannot be undone.")
+                Text(L10n.Settings.wipeMessage)
             }
             .onAppear {
                 relayWarning = Self.validateRelayURL(relayURL)
@@ -177,12 +177,12 @@ struct RelayStatusRow: View {
                 .fill(relay.isConnected ? .green : .red)
                 .frame(width: 8, height: 8)
                 .accessibilityHidden(true)
-            Text(relay.isConnected ? "Connected" : "Disconnected")
+            Text(relay.isConnected ? L10n.Settings.connected : L10n.Settings.disconnected)
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("Relay status: \(relay.isConnected ? "Connected" : "Disconnected")")
+        .accessibilityLabel(relay.isConnected ? L10n.Settings.relayStatusConnected : L10n.Settings.relayStatusDisconnected)
     }
 }
 
@@ -193,30 +193,30 @@ struct TransportSettingsView: View {
 
     var body: some View {
         Form {
-            Section("Face-to-Face Channels") {
+            Section(L10n.Transport.faceToFaceChannels) {
                 Toggle(isOn: $bleEnabled) {
-                    Label("Bluetooth (BLE)", systemImage: "wave.3.right")
+                    Label(L10n.Transport.ble, systemImage: "wave.3.right")
                 }
-                .accessibilityHint("Enable or disable Bluetooth for peer-to-peer communication")
+                .accessibilityHint(L10n.Transport.bleHint)
 
                 Toggle(isOn: $wifiDirectEnabled) {
-                    Label("Wi-Fi Direct", systemImage: "wifi")
+                    Label(L10n.Transport.wifiDirect, systemImage: "wifi")
                 }
-                .accessibilityHint("Enable or disable Wi-Fi Direct for peer-to-peer communication")
+                .accessibilityHint(L10n.Transport.wifiDirectHint)
 
                 Toggle(isOn: $wifiLANEnabled) {
-                    Label("Wi-Fi LAN (Bonjour)", systemImage: "network")
+                    Label(L10n.Transport.wifiLAN, systemImage: "network")
                 }
-                .accessibilityHint("Enable or disable local Wi-Fi network discovery")
+                .accessibilityHint(L10n.Transport.wifiLANHint)
             }
 
             Section {
-                Text("BLE works without Wi-Fi. Wi-Fi LAN offers higher throughput for large transactions. Wi-Fi Direct creates a peer-to-peer connection without a router.")
+                Text(L10n.Transport.info)
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
         }
-        .navigationTitle("Transport")
+        .navigationTitle(L10n.Transport.title)
     }
 }
 
@@ -231,17 +231,17 @@ struct ChangePinView: View {
     var body: some View {
         NavigationStack {
             Form {
-                SecureField("Current PIN", text: $currentPin)
+                SecureField(L10n.ChangePin.currentPin, text: $currentPin)
                     .keyboardType(.numberPad)
-                    .accessibilityLabel("Current PIN")
+                    .accessibilityLabel(L10n.ChangePin.currentPin)
                     .accessibilityIdentifier("changePin_currentField")
-                SecureField("New PIN", text: $newPin)
+                SecureField(L10n.ChangePin.newPin, text: $newPin)
                     .keyboardType(.numberPad)
-                    .accessibilityLabel("New PIN")
+                    .accessibilityLabel(L10n.ChangePin.newPin)
                     .accessibilityIdentifier("changePin_newField")
-                SecureField("Confirm New PIN", text: $confirmPin)
+                SecureField(L10n.ChangePin.confirmNewPin, text: $confirmPin)
                     .keyboardType(.numberPad)
-                    .accessibilityLabel("Confirm new PIN")
+                    .accessibilityLabel(L10n.ChangePin.confirmNewPin)
                     .accessibilityIdentifier("changePin_confirmField")
 
                 if let errorMessage {
@@ -250,17 +250,17 @@ struct ChangePinView: View {
                         .font(.caption)
                 }
 
-                Button("Change PIN") {
+                Button(L10n.ChangePin.submit) {
                     changePin()
                 }
                 .disabled(newPin.count < 4 || newPin != confirmPin || currentPin.isEmpty)
-                .accessibilityHint("Save your new PIN")
+                .accessibilityHint(L10n.ChangePin.submitHint)
                 .accessibilityIdentifier("changePin_submitButton")
             }
-            .navigationTitle("Change PIN")
+            .navigationTitle(L10n.ChangePin.title)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { dismiss() }
+                    Button(L10n.Common.cancel) { dismiss() }
                 }
             }
         }
@@ -268,18 +268,18 @@ struct ChangePinView: View {
 
     private func changePin() {
         guard appState.verifyPin(currentPin) else {
-            errorMessage = "Current PIN is incorrect"
+            errorMessage = L10n.ChangePin.incorrectCurrent
             return
         }
         guard newPin == confirmPin else {
-            errorMessage = "New PINs don't match"
+            errorMessage = L10n.ChangePin.dontMatch
             return
         }
         do {
             try appState.setPin(newPin)
             dismiss()
         } catch {
-            errorMessage = "Failed to save new PIN"
+            errorMessage = L10n.ChangePin.saveFailed
         }
     }
 }
@@ -291,7 +291,7 @@ struct BlockchainNodeSettingsView: View {
 
     var body: some View {
         Form {
-            Section("Quick Presets") {
+            Section(L10n.NodeSettings.quickPresets) {
                 HStack(spacing: 12) {
                     ForEach(NetworkPreset.all) { preset in
                         Button {
@@ -304,20 +304,20 @@ struct BlockchainNodeSettingsView: View {
                         }
                         .buttonStyle(.bordered)
                         .tint(isCurrentPreset(preset) ? .green : .accentColor)
-                        .accessibilityLabel("Switch to \(preset.name)")
+                        .accessibilityLabel(L10n.NodeSettings.switchTo(preset.name))
                     }
                 }
             }
 
             Section {
-                Text("Configure RPC endpoints for each blockchain. These are used to query balances, estimate fees, and broadcast signed transactions.")
+                Text(L10n.NodeSettings.configureInfo)
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
 
-            Section("Ethereum / EVM") {
+            Section(L10n.NodeSettings.ethereumEVM) {
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("RPC URL")
+                    Text(L10n.NodeSettings.rpcURL)
                         .font(.caption)
                         .foregroundStyle(.secondary)
                     TextField("https://eth.llamarpc.com", text: $config.ethereumRPC)
@@ -326,20 +326,20 @@ struct BlockchainNodeSettingsView: View {
                         .textInputAutocapitalization(.never)
                 }
 
-                Picker("Network", selection: $config.evmChainId) {
-                    Text("Mainnet (Chain ID 1)").tag(UInt64(1))
-                    Text("Sepolia Testnet (11155111)").tag(UInt64(11155111))
-                    Text("Polygon (137)").tag(UInt64(137))
-                    Text("Arbitrum One (42161)").tag(UInt64(42161))
-                    Text("Base (8453)").tag(UInt64(8453))
+                Picker(L10n.NodeSettings.networkPicker, selection: $config.evmChainId) {
+                    Text(L10n.NodeSettings.mainnet).tag(UInt64(1))
+                    Text(L10n.NodeSettings.sepoliaTestnet).tag(UInt64(11155111))
+                    Text(L10n.NodeSettings.polygon).tag(UInt64(137))
+                    Text(L10n.NodeSettings.arbitrumOne).tag(UInt64(42161))
+                    Text(L10n.NodeSettings.base).tag(UInt64(8453))
                 }
 
                 NodeStatusRow(chain: .ethereum)
             }
 
-            Section("Bitcoin") {
+            Section(L10n.NodeSettings.bitcoin) {
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("REST API URL")
+                    Text(L10n.NodeSettings.restAPIURL)
                         .font(.caption)
                         .foregroundStyle(.secondary)
                     TextField("https://blockstream.info/api", text: $config.bitcoinAPI)
@@ -348,15 +348,15 @@ struct BlockchainNodeSettingsView: View {
                         .textInputAutocapitalization(.never)
                 }
 
-                Toggle("Testnet", isOn: $config.btcTestnet)
-                    .accessibilityHint("Switch between Bitcoin mainnet and testnet")
+                Toggle(L10n.NodeSettings.testnet, isOn: $config.btcTestnet)
+                    .accessibilityHint(L10n.NodeSettings.testnetHint)
 
                 NodeStatusRow(chain: .bitcoin)
             }
 
-            Section("Solana") {
+            Section(L10n.NodeSettings.solana) {
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("RPC URL")
+                    Text(L10n.NodeSettings.rpcURL)
                         .font(.caption)
                         .foregroundStyle(.secondary)
                     TextField("https://api.mainnet-beta.solana.com", text: $config.solanaRPC)
@@ -365,28 +365,28 @@ struct BlockchainNodeSettingsView: View {
                         .textInputAutocapitalization(.never)
                 }
 
-                Toggle("Devnet", isOn: $config.solDevnet)
-                    .accessibilityHint("Switch between Solana mainnet and devnet")
+                Toggle(L10n.NodeSettings.devnet, isOn: $config.solDevnet)
+                    .accessibilityHint(L10n.NodeSettings.devnetHint)
 
                 NodeStatusRow(chain: .solana)
             }
 
             Section {
-                Button("Reset to Defaults") {
+                Button(L10n.NodeSettings.resetToDefaults) {
                     showResetConfirm = true
                 }
                 .foregroundStyle(.red)
-                .accessibilityHint("Reset all RPC endpoints to default public nodes")
+                .accessibilityHint(L10n.NodeSettings.resetHint)
                 .accessibilityIdentifier("nodeSettings_resetButton")
             }
         }
-        .navigationTitle("Blockchain Nodes")
+        .navigationTitle(L10n.NodeSettings.title)
         .navigationBarTitleDisplayMode(.inline)
-        .alert("Reset to Defaults?", isPresented: $showResetConfirm) {
-            Button("Reset", role: .destructive) { config.resetToDefaults() }
-            Button("Cancel", role: .cancel) {}
+        .alert(L10n.NodeSettings.resetConfirmTitle, isPresented: $showResetConfirm) {
+            Button(L10n.NodeSettings.reset, role: .destructive) { config.resetToDefaults() }
+            Button(L10n.Common.cancel, role: .cancel) {}
         } message: {
-            Text("This will reset all RPC endpoints to the default public nodes.")
+            Text(L10n.NodeSettings.resetMessage)
         }
     }
 
@@ -416,8 +416,8 @@ struct NodeStatusRow: View {
 
         var label: String {
             switch self {
-            case .unknown: return "Not checked"
-            case .connected: return "Connected"
+            case .unknown: return L10n.NodeStatus.notChecked
+            case .connected: return L10n.NodeStatus.connected
             case .error(let msg): return msg
             }
         }
@@ -437,11 +437,11 @@ struct NodeStatusRow: View {
                             .fill(status.color)
                             .frame(width: 8, height: 8)
                     }
-                    Text(checking ? "Checking…" : status.label)
+                    Text(checking ? L10n.NodeStatus.checking : status.label)
                         .font(.caption)
                         .foregroundStyle(.secondary)
                     Spacer()
-                    Text("Test")
+                    Text(L10n.Common.test)
                         .font(.caption)
                         .foregroundStyle(.blue)
                 }
@@ -489,7 +489,7 @@ struct NodeStatusRow: View {
 struct LicensesView: View {
     var body: some View {
         List {
-            Section("Core Dependencies") {
+            Section(L10n.Licenses.coreDependencies) {
                 LicenseRow(name: "cggmp21", license: "MIT", description: "CGGMP21 threshold ECDSA (Kudelski-audited)")
                 LicenseRow(name: "frost-ed25519", license: "MIT/Apache-2.0", description: "IETF FROST RFC 9591")
                 LicenseRow(name: "snow", license: "Apache-2.0", description: "Noise Protocol Framework")
@@ -497,7 +497,7 @@ struct LicensesView: View {
                 LicenseRow(name: "uniffi", license: "MPL-2.0", description: "Mozilla UniFFI bindings")
             }
         }
-        .navigationTitle("Licenses")
+        .navigationTitle(L10n.Licenses.title)
     }
 }
 

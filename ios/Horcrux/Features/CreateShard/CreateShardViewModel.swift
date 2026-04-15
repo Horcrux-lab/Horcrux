@@ -52,14 +52,14 @@ final class CreateShardViewModel: ObservableObject {
 
     func startDiscovery() {
         totalRounds = selectedChain == .solana ? 3 : 7
-        dkgStatusMessage = "Searching for nearby devices…"
+        dkgStatusMessage = L10n.DKG.searchingDevices
         peerManager?.startDiscovery(transports: selectedTransports)
     }
 
     func startDKG() {
         // Block on jailbroken devices
         if SecurityEnvironment.isCompromised {
-            errorMessage = "Key generation is disabled on compromised devices. Use a secure device."
+            errorMessage = L10n.DKG.compromisedDevice
             step = .error
             return
         }
@@ -79,7 +79,7 @@ final class CreateShardViewModel: ObservableObject {
                     curve: selectedChain.curveType
                 )
 
-                dkgStatusMessage = "Initializing key generation…"
+                dkgStatusMessage = L10n.DKG.initializingKeyGen
                 currentRound = 1
 
                 let outgoing = try bridge.startKeygen(
@@ -88,7 +88,7 @@ final class CreateShardViewModel: ObservableObject {
                 )
 
                 dkgProgress = 0.15
-                dkgStatusMessage = "Exchanging commitments…"
+                dkgStatusMessage = L10n.DKG.exchangingCommitments
 
                 await runDKGRounds(initialMessages: outgoing)
 
@@ -109,7 +109,7 @@ final class CreateShardViewModel: ObservableObject {
             bridge.removeSession(sessionId: sessionId)
         }
         step = .error
-        errorMessage = "Ceremony cancelled by user."
+        errorMessage = L10n.DKG.ceremonyCancel
     }
 
     private func runDKGRounds(initialMessages: [FfiMpcMessage]) async {
@@ -163,7 +163,7 @@ final class CreateShardViewModel: ObservableObject {
             }
 
             dkgProgress = 0.95
-            dkgStatusMessage = "Deriving address…"
+            dkgStatusMessage = L10n.DKG.derivingAddress
 
             generatedAddress = try bridge.deriveAddress(
                 chain: selectedChain,
@@ -181,16 +181,16 @@ final class CreateShardViewModel: ObservableObject {
 
     private func updateDKGStatusMessage() {
         switch currentRound {
-        case 1: dkgStatusMessage = "Exchanging commitments…"
-        case 2: dkgStatusMessage = "Verifying shares…"
+        case 1: dkgStatusMessage = L10n.DKG.exchangingCommitments
+        case 2: dkgStatusMessage = L10n.DKG.verifyingShares
         case 3: dkgStatusMessage = selectedChain == .solana
-            ? "Finalizing key package…"
-            : "Computing Paillier keys…"
-        case 4: dkgStatusMessage = "Generating ZK proofs…"
-        case 5: dkgStatusMessage = "Verifying proofs…"
-        case 6: dkgStatusMessage = "Computing auxiliary info…"
-        case 7: dkgStatusMessage = "Finalizing key shares…"
-        default: dkgStatusMessage = "Processing…"
+            ? L10n.DKG.finalizingKeyPackage
+            : L10n.DKG.computingPaillierKeys
+        case 4: dkgStatusMessage = L10n.DKG.generatingZKProofs
+        case 5: dkgStatusMessage = L10n.DKG.verifyingProofs
+        case 6: dkgStatusMessage = L10n.DKG.computingAuxInfo
+        case 7: dkgStatusMessage = L10n.DKG.finalizingKeyShares
+        default: dkgStatusMessage = L10n.DKG.processing
         }
     }
 

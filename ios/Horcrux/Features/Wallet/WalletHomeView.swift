@@ -15,7 +15,7 @@ struct WalletHomeView: View {
                     walletList
                 }
             }
-            .navigationTitle("Horcrux")
+            .navigationTitle(L10n.WalletHome.title)
             .toolbar {
                 ToolbarItem(placement: .primaryAction) {
                     Button {
@@ -23,8 +23,8 @@ struct WalletHomeView: View {
                     } label: {
                         Image(systemName: "plus.circle.fill")
                     }
-                    .accessibilityLabel("Create new wallet")
-                    .accessibilityHint("Opens the wallet creation flow")
+                    .accessibilityLabel(L10n.WalletHome.createNewWallet)
+                    .accessibilityHint(L10n.WalletHome.opensCreationFlow)
                     .accessibilityIdentifier("walletHome_createButton")
                 }
             }
@@ -40,14 +40,16 @@ struct WalletHomeView: View {
                     HStack(spacing: 6) {
                         Image(systemName: "wifi.slash")
                             .font(.caption)
-                        Text("\(offlineChains) node\(offlineChains.contains(",") ? "s" : "") unreachable")
+                        Text(offlineChains.contains(",")
+                             ? L10n.WalletHome.nodesUnreachable(offlineChains)
+                             : L10n.WalletHome.nodeUnreachable(offlineChains))
                             .font(.caption)
                     }
                     .foregroundStyle(.white)
                     .padding(.vertical, 6)
                     .frame(maxWidth: .infinity)
                     .background(.orange.gradient)
-                    .accessibilityLabel("Network warning: \(offlineChains) nodes are unreachable")
+                    .accessibilityLabel(L10n.WalletHome.networkWarning(offlineChains))
                 }
             }
         }
@@ -63,9 +65,9 @@ struct WalletHomeView: View {
                 .accessibilityHidden(true)
 
             VStack(spacing: 8) {
-                Text("No Wallets Yet")
+                Text(L10n.WalletHome.noWalletsTitle)
                     .font(.title2.bold())
-                Text("Create your first MPC wallet by\nsplitting a key across devices.")
+                Text(L10n.WalletHome.noWalletsSubtitle)
                     .multilineTextAlignment(.center)
                     .foregroundStyle(.secondary)
             }
@@ -73,11 +75,11 @@ struct WalletHomeView: View {
             Button {
                 showCreateShard = true
             } label: {
-                Label("Create Wallet", systemImage: "plus.circle.fill")
+                Label(L10n.WalletHome.createWallet, systemImage: "plus.circle.fill")
                     .font(.headline)
             }
             .buttonStyle(.borderedProminent)
-            .accessibilityHint("Start the multi-party key generation process")
+            .accessibilityHint(L10n.WalletHome.startMPCHint)
             .accessibilityIdentifier("walletHome_createWalletButton")
 
             Spacer()
@@ -102,7 +104,7 @@ struct WalletHomeView: View {
                         )
                     }
                 } header: {
-                    Label("Pending Broadcasts", systemImage: "arrow.up.circle.badge.clock")
+                    Label(L10n.WalletHome.pendingBroadcasts, systemImage: "arrow.up.circle.badge.clock")
                 }
             }
 
@@ -113,7 +115,7 @@ struct WalletHomeView: View {
                     WalletRow(wallet: wallet)
                 }
                 .accessibilityLabel("\(wallet.name), \(wallet.chain.rawValue) wallet")
-                .accessibilityHint("View wallet details, send, and receive")
+                .accessibilityHint(L10n.WalletHome.viewDetailsHint)
                 .accessibilityIdentifier("walletHome_walletRow_\(wallet.id)")
             }
             .onDelete { indexSet in
@@ -128,7 +130,7 @@ struct WalletHomeView: View {
         .toolbar {
             ToolbarItem(placement: .topBarLeading) {
                 EditButton()
-                    .accessibilityLabel("Edit wallet list")
+                    .accessibilityLabel(L10n.WalletHome.editWalletList)
             }
         }
     }
@@ -180,7 +182,7 @@ struct PendingBroadcastRow: View {
                     ProgressView()
                         .scaleEffect(0.7)
                 } else {
-                    Button("Retry", systemImage: "arrow.clockwise") {
+                    Button(L10n.Pending.retry, systemImage: "arrow.clockwise") {
                         isRetrying = true
                         onRetry()
                         DispatchQueue.main.asyncAfter(deadline: .now() + 3) { isRetrying = false }
@@ -197,11 +199,11 @@ struct PendingBroadcastRow: View {
                     .lineLimit(1)
             }
             HStack {
-                Text("Attempts: \(transaction.attempts)")
+                Text(L10n.Pending.attempts(transaction.attempts))
                     .font(.caption2)
                     .foregroundStyle(.tertiary)
                 Spacer()
-                Button("Discard", role: .destructive) { onDiscard() }
+                Button(L10n.Pending.discard, role: .destructive) { onDiscard() }
                     .font(.caption2)
             }
         }
@@ -241,7 +243,7 @@ struct WalletRow: View {
                 if isLoading {
                     ProgressView()
                         .scaleEffect(0.7)
-                        .accessibilityLabel("Loading balance")
+                        .accessibilityLabel(L10n.WalletHome.loadingBalance)
                 } else if let balance {
                     Text(balance)
                         .font(.subheadline.bold())
@@ -255,7 +257,7 @@ struct WalletRow: View {
                     threshold: wallet.threshold,
                     total: wallet.totalParties
                 )
-                .accessibilityLabel("\(wallet.threshold) of \(wallet.totalParties) threshold")
+                .accessibilityLabel(L10n.Shards.thresholdValue(Int(wallet.threshold), Int(wallet.totalParties)))
             }
         }
         .padding(.vertical, 4)
@@ -306,7 +308,7 @@ struct WalletDetailView: View {
 
                     if isLoadingBalance {
                         ProgressView()
-                            .accessibilityLabel("Loading balance")
+                            .accessibilityLabel(L10n.WalletHome.loadingBalance)
                     } else if let balance {
                         Text(balance)
                             .font(.title2.bold())
@@ -317,7 +319,7 @@ struct WalletDetailView: View {
                     Text(wallet.address)
                         .font(.system(.caption, design: .monospaced))
                         .multilineTextAlignment(.center)
-                        .accessibilityLabel("Wallet address")
+                        .accessibilityLabel(L10n.WalletDetail.walletAddress)
                         .accessibilityValue(wallet.address)
 
                     Button {
@@ -325,59 +327,59 @@ struct WalletDetailView: View {
                         copiedAddress = true
                         DispatchQueue.main.asyncAfter(deadline: .now() + 2) { copiedAddress = false }
                     } label: {
-                        Label(copiedAddress ? "Copied (clears in \(Int(SecureClipboard.defaultExpireSeconds))s)" : "Copy Address",
+                        Label(copiedAddress ? L10n.Receive.copiedClears(Int(SecureClipboard.defaultExpireSeconds)) : L10n.WalletDetail.copyAddress,
                               systemImage: copiedAddress ? "checkmark" : "doc.on.doc")
                             .font(.caption)
                     }
-                    .accessibilityLabel(copiedAddress ? "Address copied" : "Copy wallet address")
-                    .accessibilityHint("Copies the wallet address to clipboard")
+                    .accessibilityLabel(copiedAddress ? L10n.WalletDetail.addressCopied : L10n.WalletDetail.copyWalletAddress)
+                    .accessibilityHint(L10n.WalletDetail.copiesAddressHint)
                     .accessibilityIdentifier("walletDetail_copyAddressButton")
 
                     ShardStatusBadge(
                         threshold: wallet.threshold,
                         total: wallet.totalParties
                     )
-                    .accessibilityLabel("\(wallet.threshold) of \(wallet.totalParties) shard threshold")
+                    .accessibilityLabel(L10n.Shards.shardThreshold(Int(wallet.threshold), Int(wallet.totalParties)))
                 }
                 .frame(maxWidth: .infinity)
                 .padding()
             }
 
-            Section("Actions") {
+            Section(L10n.WalletDetail.actions) {
                 Button {
                     showSigning = true
                 } label: {
-                    Label("Send Transaction", systemImage: "arrow.up.circle.fill")
+                    Label(L10n.WalletDetail.sendTransaction, systemImage: "arrow.up.circle.fill")
                 }
-                .accessibilityHint("Open the transaction signing flow")
+                .accessibilityHint(L10n.WalletDetail.openSigningHint)
                 .accessibilityIdentifier("walletDetail_sendButton")
 
                 Button {
                     showReceive = true
                 } label: {
-                    Label("Receive", systemImage: "qrcode")
+                    Label(L10n.WalletDetail.receive, systemImage: "qrcode")
                 }
-                .accessibilityHint("Show your QR code and address to receive funds")
+                .accessibilityHint(L10n.WalletDetail.showQRHint)
                 .accessibilityIdentifier("walletDetail_receiveButton")
             }
 
             // Token balances (ERC-20 / SPL)
             if wallet.chain != .bitcoin {
-                Section("Tokens") {
+                Section(L10n.WalletDetail.tokens) {
                     if isLoadingTokens {
                         HStack {
                             ProgressView().scaleEffect(0.7)
-                            Text("Loading tokens…").font(.caption).foregroundStyle(.secondary)
+                            Text(L10n.WalletDetail.loadingTokens).font(.caption).foregroundStyle(.secondary)
                         }
                     } else if tokenBalances.isEmpty {
                         VStack(spacing: 8) {
                             Image(systemName: "plus.circle")
                                 .font(.system(size: 28))
                                 .foregroundStyle(.tertiary)
-                            Text("No Tokens")
+                            Text(L10n.WalletDetail.noTokens)
                                 .font(.subheadline.bold())
                                 .foregroundStyle(.secondary)
-                            Text("ERC-20 and SPL tokens will appear here once added.")
+                            Text(L10n.WalletDetail.noTokensDescription)
                                 .font(.caption)
                                 .foregroundStyle(.tertiary)
                                 .multilineTextAlignment(.center)
@@ -402,7 +404,7 @@ struct WalletDetailView: View {
             // Recent transactions
             let recentTxs = appState.transactionStore.records(for: wallet.id).prefix(5)
             if !recentTxs.isEmpty {
-                Section("Recent Transactions") {
+                Section(L10n.WalletDetail.recentTransactions) {
                     ForEach(Array(recentTxs)) { tx in
                         NavigationLink {
                             TransactionDetailView(transaction: tx)
@@ -414,26 +416,26 @@ struct WalletDetailView: View {
                     NavigationLink {
                         TransactionHistoryView(wallet: wallet)
                     } label: {
-                        Text("View All History")
+                        Text(L10n.WalletDetail.viewAllHistory)
                             .font(.subheadline)
                             .foregroundStyle(.blue)
                     }
                 }
             } else {
-                Section("Transactions") {
+                Section(L10n.WalletDetail.transactions) {
                     NavigationLink {
                         TransactionHistoryView(wallet: wallet)
                     } label: {
-                        Label("Transaction History", systemImage: "clock.arrow.circlepath")
+                        Label(L10n.WalletDetail.transactionHistory, systemImage: "clock.arrow.circlepath")
                     }
                 }
             }
 
-            Section("Details") {
-                LabeledContent("Chain", value: wallet.chain.rawValue)
-                LabeledContent("Threshold", value: "\(wallet.threshold) of \(wallet.totalParties)")
-                LabeledContent("Your Shard", value: "#\(wallet.partyIndex)")
-                LabeledContent("Created", value: wallet.createdAt.formatted(date: .abbreviated, time: .shortened))
+            Section(L10n.WalletDetail.details) {
+                LabeledContent(L10n.WalletDetail.chain, value: wallet.chain.rawValue)
+                LabeledContent(L10n.WalletDetail.threshold, value: L10n.WalletDetail.thresholdValue(Int(wallet.threshold), Int(wallet.totalParties)))
+                LabeledContent(L10n.WalletDetail.yourShard, value: L10n.WalletDetail.shardNumber(Int(wallet.partyIndex)))
+                LabeledContent(L10n.WalletDetail.created, value: wallet.createdAt.formatted(date: .abbreviated, time: .shortened))
             }
         }
         .navigationTitle(wallet.name)

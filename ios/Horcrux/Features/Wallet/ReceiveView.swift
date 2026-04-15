@@ -15,7 +15,7 @@ struct ReceiveView: View {
                 ChainIcon(chain: wallet.chain, size: 48)
                     .accessibilityHidden(true)
 
-                Text("Receive \(wallet.chain.symbol)")
+                Text(L10n.Receive.receiveSymbol(wallet.chain.symbol))
                     .font(.title2.bold())
 
                 // QR Code
@@ -28,18 +28,18 @@ struct ReceiveView: View {
                         .padding(16)
                         .background(.white, in: RoundedRectangle(cornerRadius: 16))
                         .shadow(color: .black.opacity(0.1), radius: 8, y: 4)
-                        .accessibilityLabel("QR code for \(wallet.chain.symbol) address")
-                        .accessibilityHint("Share this QR code with the sender")
+                        .accessibilityLabel(L10n.Receive.qrCodeAccessibility(wallet.chain.symbol))
+                        .accessibilityHint(L10n.Receive.qrShareHint)
                         .accessibilityIdentifier("receive_qrCode")
                 } else {
                     RoundedRectangle(cornerRadius: 16)
                         .fill(.quaternary)
                         .frame(width: 220, height: 220)
                         .overlay {
-                            Text("QR Error")
+                            Text(L10n.Receive.qrError)
                                 .foregroundStyle(.secondary)
                         }
-                        .accessibilityLabel("QR code failed to generate")
+                        .accessibilityLabel(L10n.Receive.qrFailed)
                 }
 
                 // Address
@@ -48,7 +48,7 @@ struct ReceiveView: View {
                     .multilineTextAlignment(.center)
                     .padding(.horizontal, 32)
                     .textSelection(.enabled)
-                    .accessibilityLabel("Wallet address")
+                    .accessibilityLabel(L10n.WalletDetail.walletAddress)
                     .accessibilityValue(wallet.address)
                     .accessibilityIdentifier("receive_addressText")
 
@@ -58,36 +58,36 @@ struct ReceiveView: View {
                     copiedAddress = true
                     DispatchQueue.main.asyncAfter(deadline: .now() + 2) { copiedAddress = false }
                 } label: {
-                    Label(copiedAddress ? "Copied (clears in \(Int(SecureClipboard.defaultExpireSeconds))s)" : "Copy Address",
+                    Label(copiedAddress ? L10n.Receive.copiedClears(Int(SecureClipboard.defaultExpireSeconds)) : L10n.Receive.copyAddress,
                           systemImage: copiedAddress ? "checkmark.circle.fill" : "doc.on.doc")
                         .frame(maxWidth: .infinity)
                         .font(.headline)
                 }
                 .buttonStyle(.borderedProminent)
                 .padding(.horizontal, 32)
-                .accessibilityLabel(copiedAddress ? "Address copied" : "Copy address")
-                .accessibilityHint("Copies the wallet address to clipboard")
+                .accessibilityLabel(copiedAddress ? L10n.Receive.addressCopied : L10n.Receive.copyAddress)
+                .accessibilityHint(L10n.Receive.copiesHint)
                 .accessibilityIdentifier("receive_copyButton")
 
                 // Share button
                 ShareLink(item: wallet.address) {
-                    Label("Share Address", systemImage: "square.and.arrow.up")
+                    Label(L10n.Receive.shareAddress, systemImage: "square.and.arrow.up")
                         .frame(maxWidth: .infinity)
                         .font(.headline)
                 }
                 .buttonStyle(.bordered)
                 .padding(.horizontal, 32)
-                .accessibilityLabel("Share address")
-                .accessibilityHint("Share your wallet address via other apps")
+                .accessibilityLabel(L10n.Receive.shareAddress)
+                .accessibilityHint(L10n.Receive.shareHint)
                 .accessibilityIdentifier("receive_shareButton")
 
                 Spacer()
             }
-            .navigationTitle("Receive")
+            .navigationTitle(L10n.Receive.title)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Done") { dismiss() }
+                    Button(L10n.Common.done) { dismiss() }
                         .accessibilityIdentifier("receive_doneButton")
                 }
             }

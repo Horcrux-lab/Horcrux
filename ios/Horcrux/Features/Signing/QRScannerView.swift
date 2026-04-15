@@ -55,7 +55,7 @@ final class QRScannerViewController: UIViewController, AVCaptureMetadataOutputOb
 
         guard let device = AVCaptureDevice.default(for: .video),
               let input = try? AVCaptureDeviceInput(device: device) else {
-            showError("Camera not available")
+            showError(L10n.Scanner.cameraNotAvailable)
             return
         }
 
@@ -82,8 +82,8 @@ final class QRScannerViewController: UIViewController, AVCaptureMetadataOutputOb
         guide.layer.cornerRadius = 12
         guide.translatesAutoresizingMaskIntoConstraints = false
         guide.isAccessibilityElement = true
-        guide.accessibilityLabel = "QR code scanning area"
-        guide.accessibilityHint = "Position a QR code within this frame to scan"
+        guide.accessibilityLabel = L10n.Scanner.scanningArea
+        guide.accessibilityHint = L10n.Scanner.scanningHint
         view.addSubview(guide)
         NSLayoutConstraint.activate([
             guide.centerXAnchor.constraint(equalTo: view.centerXAnchor),
@@ -163,11 +163,11 @@ struct QRScannerSheet: View {
                 onScan(code)
                 dismiss()
             }
-            .navigationTitle("Scan QR Code")
+            .navigationTitle(L10n.Scanner.title)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { dismiss() }
+                    Button(L10n.Common.cancel) { dismiss() }
                         .accessibilityIdentifier("qrScanner_cancelButton")
                 }
             }

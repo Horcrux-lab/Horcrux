@@ -16,10 +16,10 @@ struct ContentView: View {
                 LockScreenView()
             }
         }
-        .alert("Security Warning", isPresented: $showJailbreakWarning) {
-            Button("I Understand the Risk", role: .destructive) {}
+        .alert(L10n.App.securityWarning, isPresented: $showJailbreakWarning) {
+            Button(L10n.App.understandRisk, role: .destructive) {}
         } message: {
-            Text("This device may be compromised:\n\n• \(jailbreakReasons.joined(separator: "\n• "))\n\nYour key shards may be at risk. Use a secure device for production wallets.")
+            Text("This device may be compromised:\n\n• \(jailbreakReasons.joined(separator: "\n• "))\n\n\(L10n.App.deviceCompromised)")
         }
         .dynamicTypeSize(...DynamicTypeSize.accessibility2)
         .task {
@@ -37,17 +37,17 @@ struct MainTabView: View {
         TabView {
             WalletHomeView()
                 .tabItem {
-                    Label("Wallet", systemImage: "creditcard.fill")
+                    Label(L10n.Tab.wallet, systemImage: "creditcard.fill")
                 }
 
             ShardsListView()
                 .tabItem {
-                    Label("Shards", systemImage: "shield.lefthalf.filled")
+                    Label(L10n.Tab.shards, systemImage: "shield.lefthalf.filled")
                 }
 
             SettingsView()
                 .tabItem {
-                    Label("Settings", systemImage: "gear")
+                    Label(L10n.Tab.settings, systemImage: "gear")
                 }
         }
         .tint(HorcruxTheme.accentColor)
@@ -78,74 +78,74 @@ struct OnboardingView: View {
             switch step {
             case .welcome:
                 VStack(spacing: 12) {
-                    Text("Welcome to Horcrux")
+                    Text(L10n.Onboarding.welcomeTitle)
                         .font(.largeTitle.bold())
-                    Text("Your keys are your horcruxes.\nSplit them. Guard them.")
+                    Text(L10n.Onboarding.welcomeSubtitle)
                         .multilineTextAlignment(.center)
                         .foregroundStyle(.secondary)
                 }
 
-                Button("Get Started") { step = .createPin }
+                Button(L10n.Onboarding.getStarted) { step = .createPin }
                     .buttonStyle(.borderedProminent)
-                    .accessibilityHint("Begin setting up your wallet PIN")
+                    .accessibilityHint(L10n.Onboarding.getStartedHint)
                     .accessibilityIdentifier("onboarding_getStartedButton")
 
             case .createPin:
                 VStack(spacing: 12) {
-                    Text("Create a PIN")
+                    Text(L10n.Onboarding.createPin)
                         .font(.title2.bold())
-                    Text("This PIN protects your key shards")
+                    Text(L10n.Onboarding.pinProtects)
                         .foregroundStyle(.secondary)
                 }
 
-                SecureField("Enter PIN (min 4 digits)", text: $pin)
+                SecureField(L10n.Onboarding.enterPinPlaceholder, text: $pin)
                     .keyboardType(.numberPad)
                     .textFieldStyle(.roundedBorder)
                     .frame(maxWidth: 240)
                     .multilineTextAlignment(.center)
-                    .accessibilityLabel("Create PIN")
-                    .accessibilityHint("Enter at least 4 digits for your new PIN")
+                    .accessibilityLabel(L10n.Onboarding.createPin)
+                    .accessibilityHint(L10n.Onboarding.createPinHint)
                     .accessibilityIdentifier("onboarding_createPinField")
 
-                Button("Next") {
+                Button(L10n.Common.next) {
                     step = .confirmPin
                 }
                 .buttonStyle(.borderedProminent)
                 .disabled(pin.count < 4)
-                .accessibilityHint("Proceed to confirm your PIN")
+                .accessibilityHint(L10n.Onboarding.nextHint)
                 .accessibilityIdentifier("onboarding_nextButton")
 
             case .confirmPin:
                 VStack(spacing: 12) {
-                    Text("Confirm PIN")
+                    Text(L10n.Onboarding.confirmPin)
                         .font(.title2.bold())
-                    Text("Enter the same PIN again")
+                    Text(L10n.Onboarding.enterSamePin)
                         .foregroundStyle(.secondary)
                 }
 
-                SecureField("Confirm PIN", text: $confirmPin)
+                SecureField(L10n.Onboarding.confirmPin, text: $confirmPin)
                     .keyboardType(.numberPad)
                     .textFieldStyle(.roundedBorder)
                     .frame(maxWidth: 240)
                     .multilineTextAlignment(.center)
-                    .accessibilityLabel("Confirm PIN")
-                    .accessibilityHint("Re-enter your PIN to confirm")
+                    .accessibilityLabel(L10n.Onboarding.confirmPin)
+                    .accessibilityHint(L10n.Onboarding.confirmPinHint)
                     .accessibilityIdentifier("onboarding_confirmPinField")
 
                 if !confirmPin.isEmpty && confirmPin != pin {
-                    Text("PINs don't match")
+                    Text(L10n.Onboarding.pinsDontMatch)
                         .font(.caption)
                         .foregroundStyle(.red)
                 }
 
-                Button("Create Wallet") {
+                Button(L10n.Onboarding.createWallet) {
                     guard pin == confirmPin else { return }
                     try? appState.setPin(pin)
                     appState.isUnlocked = true
                 }
                 .buttonStyle(.borderedProminent)
                 .disabled(confirmPin.count < 4 || pin != confirmPin)
-                .accessibilityHint("Save your PIN and create your wallet")
+                .accessibilityHint(L10n.Onboarding.createWalletHint)
                 .accessibilityIdentifier("onboarding_createWalletButton")
             }
 
@@ -172,20 +172,20 @@ struct LockScreenView: View {
                 .foregroundStyle(HorcruxTheme.accentColor)
                 .accessibilityHidden(true)
 
-            Text("Horcrux")
+            Text(L10n.LockScreen.title)
                 .font(.largeTitle.bold())
 
-            Text("Enter PIN to unlock your shards")
+            Text(L10n.LockScreen.subtitle)
                 .foregroundStyle(.secondary)
 
-            SecureField("PIN", text: $pin)
+            SecureField(L10n.Common.pin, text: $pin)
                 .keyboardType(.numberPad)
                 .textFieldStyle(.roundedBorder)
                 .frame(maxWidth: 200)
                 .multilineTextAlignment(.center)
                 .onSubmit { unlock() }
-                .accessibilityLabel("PIN")
-                .accessibilityHint("Enter your numeric PIN to unlock the app")
+                .accessibilityLabel(L10n.Common.pin)
+                .accessibilityHint(L10n.LockScreen.pinHint)
                 .accessibilityIdentifier("lockScreen_pinField")
 
             if let errorMessage {
@@ -195,19 +195,19 @@ struct LockScreenView: View {
                     .accessibilityLabel(errorMessage)
             }
 
-            Button("Unlock") { unlock() }
+            Button(L10n.LockScreen.unlock) { unlock() }
                 .buttonStyle(.borderedProminent)
                 .disabled(pin.count < 4)
-                .accessibilityLabel("Unlock")
-                .accessibilityHint("Unlock the app with the entered PIN")
+                .accessibilityLabel(L10n.LockScreen.unlock)
+                .accessibilityHint(L10n.LockScreen.unlockHint)
                 .accessibilityIdentifier("lockScreen_unlockButton")
 
             if UserDefaults.standard.bool(forKey: "biometricEnabled"),
                BiometricAuth.shared.availableType != .none {
-                Button("Use Face ID") { unlockBiometric() }
+                Button(L10n.LockScreen.useFaceID) { unlockBiometric() }
                     .foregroundStyle(HorcruxTheme.accentColor)
-                    .accessibilityLabel("Unlock with Face ID")
-                    .accessibilityHint("Use biometric authentication to unlock the app")
+                    .accessibilityLabel(L10n.LockScreen.useFaceID)
+                    .accessibilityHint(L10n.LockScreen.unlockBiometricHint)
                     .accessibilityIdentifier("lockScreen_biometricButton")
             }
 
@@ -225,7 +225,7 @@ struct LockScreenView: View {
     private func unlock() {
         if appState.isLockedOut {
             let secs = Int(appState.lockoutRemaining)
-            errorMessage = "Too many attempts. Try again in \(secs)s"
+            errorMessage = L10n.LockScreen.tooManyAttempts(secs)
             pin = ""
             return
         }
@@ -235,9 +235,9 @@ struct LockScreenView: View {
         } else {
             let remaining = AppState.maxFailedAttempts - appState.failedAttempts
             if remaining > 0 {
-                errorMessage = "Incorrect PIN (\(remaining) attempts left)"
+                errorMessage = L10n.LockScreen.incorrectPin(remaining)
             } else {
-                errorMessage = "All data wiped due to too many failed attempts"
+                errorMessage = L10n.LockScreen.dataWiped
             }
             pin = ""
         }

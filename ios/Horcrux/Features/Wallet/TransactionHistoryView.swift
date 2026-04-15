@@ -17,7 +17,7 @@ struct TransactionHistoryView: View {
                 transactionList
             }
         }
-        .navigationTitle("History")
+        .navigationTitle(L10n.TxHistory.title)
         .navigationBarTitleDisplayMode(.inline)
     }
 
@@ -27,10 +27,10 @@ struct TransactionHistoryView: View {
             Image(systemName: "clock.arrow.circlepath")
                 .font(.system(size: 48))
                 .foregroundStyle(.tertiary)
-            Text("No Transactions Yet")
+            Text(L10n.TxHistory.noTransactionsTitle)
                 .font(.headline)
                 .foregroundStyle(.secondary)
-            Text("Transactions will appear here after\nyou send or receive funds.")
+            Text(L10n.TxHistory.noTransactionsSubtitle)
                 .font(.caption)
                 .foregroundStyle(.tertiary)
                 .multilineTextAlignment(.center)
@@ -71,10 +71,10 @@ struct TransactionRow: View {
 
             VStack(alignment: .leading, spacing: 4) {
                 HStack {
-                    Text("Send \(transaction.chain.symbol)")
+                    Text(L10n.TxHistory.sendSymbol(transaction.chain.symbol))
                         .font(.subheadline.bold())
                     if transaction.status == .broadcast {
-                        Text("Confirming…")
+                        Text(L10n.TxHistory.confirming)
                             .font(.caption2)
                             .foregroundStyle(.blue)
                             .padding(.horizontal, 6)
@@ -139,11 +139,11 @@ struct TransactionDetailView: View {
                 .padding(.vertical)
             }
 
-            Section("Details") {
-                LabeledContent("Chain", value: transaction.chain.rawValue)
+            Section(L10n.TxDetail.details) {
+                LabeledContent(L10n.TxDetail.chain, value: transaction.chain.rawValue)
 
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("From")
+                    Text(L10n.TxDetail.from)
                         .font(.caption)
                         .foregroundStyle(.secondary)
                     Text(transaction.fromAddress)
@@ -152,7 +152,7 @@ struct TransactionDetailView: View {
                 }
 
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("To")
+                    Text(L10n.TxDetail.to)
                         .font(.caption)
                         .foregroundStyle(.secondary)
                     Text(transaction.toAddress)
@@ -161,18 +161,18 @@ struct TransactionDetailView: View {
                 }
 
                 if let fee = transaction.fee {
-                    LabeledContent("Fee", value: fee)
+                    LabeledContent(L10n.TxDetail.fee, value: fee)
                 }
 
-                LabeledContent("Signed", value: transaction.createdAt.formatted(date: .abbreviated, time: .standard))
+                LabeledContent(L10n.TxDetail.signed, value: transaction.createdAt.formatted(date: .abbreviated, time: .standard))
 
                 if let broadcastAt = transaction.broadcastAt {
-                    LabeledContent("Broadcast", value: broadcastAt.formatted(date: .abbreviated, time: .standard))
+                    LabeledContent(L10n.TxDetail.broadcast, value: broadcastAt.formatted(date: .abbreviated, time: .standard))
                 }
             }
 
             if let txHash = transaction.txHash, !txHash.isEmpty {
-                Section("Transaction Hash") {
+                Section(L10n.TxDetail.transactionHash) {
                     Text(txHash)
                         .font(.system(.caption2, design: .monospaced))
                         .textSelection(.enabled)
@@ -182,18 +182,18 @@ struct TransactionDetailView: View {
                         copiedHash = true
                         DispatchQueue.main.asyncAfter(deadline: .now() + 2) { copiedHash = false }
                     } label: {
-                        Label(copiedHash ? "Copied" : "Copy Hash", systemImage: copiedHash ? "checkmark" : "doc.on.doc")
+                        Label(copiedHash ? L10n.TxDetail.copied : L10n.TxDetail.copyHash, systemImage: copiedHash ? "checkmark" : "doc.on.doc")
                     }
 
                     if let url = transaction.explorerURL {
                         Link(destination: url) {
-                            Label("View on Explorer", systemImage: "safari")
+                            Label(L10n.TxDetail.viewOnExplorer, systemImage: "safari")
                         }
                     }
                 }
             }
         }
-        .navigationTitle("Transaction")
+        .navigationTitle(L10n.TxDetail.title)
         .navigationBarTitleDisplayMode(.inline)
     }
 

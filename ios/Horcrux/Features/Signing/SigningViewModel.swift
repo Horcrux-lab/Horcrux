@@ -128,7 +128,7 @@ final class SigningViewModel: ObservableObject {
                 }
             } catch {
                 await MainActor.run {
-                    estimatedFee = "Unable to estimate"
+                    estimatedFee = L10n.Signing.unableToEstimate
                     isEstimatingGas = false
                 }
             }
@@ -142,7 +142,7 @@ final class SigningViewModel: ObservableObject {
     func startSigning() {
         // Block on jailbroken devices
         if SecurityEnvironment.isCompromised {
-            errorMessage = "Signing is disabled on compromised devices. Use a secure device."
+            errorMessage = L10n.Signing.compromisedDevice
             step = .error
             return
         }
@@ -175,7 +175,7 @@ final class SigningViewModel: ObservableObject {
                 // Collect participant indices
                 let participants = [wallet.partyIndex] + joinedSigners.prefix(Int(wallet.threshold) - 1).enumerated().map { UInt16($0.offset + 1) }
 
-                signingStatusMessage = "Initializing signing protocol…"
+                signingStatusMessage = L10n.Signing.initializingProtocol
                 currentRound = 1
 
                 let outgoing = try bridge.startSigning(
@@ -205,7 +205,7 @@ final class SigningViewModel: ObservableObject {
         if let sessionId {
             bridge?.removeSession(sessionId: sessionId)
         }
-        errorMessage = "Signing cancelled by user."
+        errorMessage = L10n.Signing.cancelledByUser
         step = .error
     }
 
@@ -243,7 +243,7 @@ final class SigningViewModel: ObservableObject {
 
                     if let result = bridge.getSigningResult(sessionId: sessionId!) {
                         signingProgress = 0.95
-                        signingStatusMessage = "Verifying signature…"
+                        signingStatusMessage = L10n.Signing.verifyingSig
 
                         txHash = "0x" + result.signature.map { String(format: "%02x", $0) }.joined()
 
@@ -280,13 +280,13 @@ final class SigningViewModel: ObservableObject {
 
     private func updateSigningStatusMessage() {
         switch currentRound {
-        case 1: signingStatusMessage = "Broadcasting nonce commitments…"
+        case 1: signingStatusMessage = L10n.Signing.broadcastingNonces
         case 2: signingStatusMessage = wallet.chain == .solana
-            ? "Computing signature shares…"
-            : "Exchanging encrypted nonces…"
-        case 3: signingStatusMessage = "Computing partial signatures…"
-        case 4: signingStatusMessage = "Combining signature…"
-        default: signingStatusMessage = "Processing…"
+            ? L10n.Signing.computingSignatureShares
+            : L10n.Signing.exchangingNonces
+        case 3: signingStatusMessage = L10n.Signing.computingPartialSigs
+        case 4: signingStatusMessage = L10n.Signing.combiningSig
+        default: signingStatusMessage = L10n.DKG.processing
         }
     }
 
@@ -342,7 +342,7 @@ final class SigningViewModel: ObservableObject {
     func broadcastTransaction() {
         guard let blockchainService, let networkConfig, let txHash else { return }
         isBroadcasting = true
-        broadcastStatus = "Broadcasting to \(wallet.chain.rawValue) network…"
+        broadcastStatus = L10n.Signing.broadcastingTo(wallet.chain.rawValue)
 
         Task {
             do {

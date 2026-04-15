@@ -26,11 +26,11 @@ struct SigningView: View {
                     SigningErrorView(viewModel: viewModel)
                 }
             }
-            .navigationTitle("Send \(viewModel.wallet.chain.symbol)")
+            .navigationTitle(L10n.Signing.sendSymbol(viewModel.wallet.chain.symbol))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { dismiss() }
+                    Button(L10n.Common.cancel) { dismiss() }
                         .accessibilityIdentifier("signing_cancelButton")
                 }
             }
@@ -54,14 +54,14 @@ struct ComposeTransactionView: View {
 
     var body: some View {
         Form {
-            Section("Recipient") {
+            Section(L10n.Signing.recipient) {
                 HStack {
-                    TextField("Address", text: $viewModel.recipientAddress)
+                    TextField(L10n.Signing.addressPlaceholder, text: $viewModel.recipientAddress)
                         .font(.system(.body, design: .monospaced))
                         .autocorrectionDisabled()
                         .textInputAutocapitalization(.never)
-                        .accessibilityLabel("Recipient address")
-                        .accessibilityHint("Enter the destination wallet address")
+                        .accessibilityLabel(L10n.Signing.recipientAddress)
+                        .accessibilityHint(L10n.Signing.recipientHint)
                         .accessibilityIdentifier("compose_recipientField")
 
                     Button {
@@ -72,8 +72,8 @@ struct ComposeTransactionView: View {
                             .foregroundStyle(.blue)
                     }
                     .buttonStyle(.plain)
-                    .accessibilityLabel("Scan QR code")
-                    .accessibilityHint("Open camera to scan a wallet address QR code")
+                    .accessibilityLabel(L10n.Signing.scanQR)
+                    .accessibilityHint(L10n.Signing.scanQRHint)
                     .accessibilityIdentifier("compose_scanQRButton")
                 }
 
@@ -84,12 +84,12 @@ struct ComposeTransactionView: View {
                 }
             }
 
-            Section("Amount") {
+            Section(L10n.Signing.amount) {
                 HStack {
                     TextField("0.0", text: $viewModel.amount)
                         .keyboardType(.decimalPad)
-                        .accessibilityLabel("Amount")
-                        .accessibilityHint("Enter the amount to send")
+                        .accessibilityLabel(L10n.Signing.amount)
+                        .accessibilityHint(L10n.Signing.amountHint)
                         .accessibilityIdentifier("compose_amountField")
                     Text(viewModel.wallet.chain.symbol)
                         .foregroundStyle(.secondary)
@@ -97,30 +97,30 @@ struct ComposeTransactionView: View {
             }
 
             if viewModel.wallet.chain == .ethereum {
-                Section("Gas") {
+                Section(L10n.Signing.gas) {
                     if viewModel.isEstimatingGas {
                         HStack {
-                            Text("Estimating…")
+                            Text(L10n.Signing.estimating)
                             Spacer()
                             ProgressView()
                                 .scaleEffect(0.7)
                         }
                     } else {
-                        LabeledContent("Gas Limit", value: viewModel.estimatedGas)
-                        LabeledContent("Est. Fee", value: viewModel.estimatedFee)
+                        LabeledContent(L10n.Signing.gasLimit, value: viewModel.estimatedGas)
+                        LabeledContent(L10n.Signing.estFee, value: viewModel.estimatedFee)
                     }
                 }
             } else if viewModel.wallet.chain == .bitcoin || viewModel.wallet.chain == .solana {
-                Section("Fee") {
+                Section(L10n.Signing.fee) {
                     if viewModel.isEstimatingGas {
                         HStack {
-                            Text("Estimating…")
+                            Text(L10n.Signing.estimating)
                             Spacer()
                             ProgressView()
                                 .scaleEffect(0.7)
                         }
                     } else {
-                        LabeledContent("Est. Fee", value: viewModel.estimatedFee)
+                        LabeledContent(L10n.Signing.estFee, value: viewModel.estimatedFee)
                     }
                 }
             }
@@ -130,13 +130,13 @@ struct ComposeTransactionView: View {
                     viewModel.estimateGas()
                     viewModel.step = .invite
                 } label: {
-                    Text("Next: Invite Co-Signers")
+                    Text(L10n.Signing.nextInviteCoSigners)
                         .frame(maxWidth: .infinity)
                         .font(.headline)
                 }
                 .buttonStyle(.borderedProminent)
                 .disabled(viewModel.recipientAddress.isEmpty || viewModel.amount.isEmpty || addressError != nil)
-                .accessibilityHint("Proceed to invite co-signers for this transaction")
+                .accessibilityHint(L10n.Signing.inviteHint)
                 .accessibilityIdentifier("compose_nextButton")
             }
         }
@@ -160,10 +160,10 @@ struct InviteSignersView: View {
     var body: some View {
         VStack(spacing: 20) {
             VStack(spacing: 8) {
-                Text("Invite Co-Signers")
+                Text(L10n.Signing.inviteCoSigners)
                     .font(.title2.bold())
 
-                Text("Need \(viewModel.wallet.threshold - 1) more signer(s)")
+                Text(L10n.Signing.needMoreSigners(Int(viewModel.wallet.threshold) - 1))
                     .foregroundStyle(.secondary)
             }
 
@@ -182,7 +182,7 @@ struct InviteSignersView: View {
             ProgressView()
                 .padding()
 
-            Text("Waiting for co-signers to join…")
+            Text(L10n.Signing.waitingForCoSigners)
                 .foregroundStyle(.secondary)
 
             List(viewModel.joinedSigners) { peer in
@@ -200,23 +200,23 @@ struct InviteSignersView: View {
                 Button {
                     showPinPrompt = true
                 } label: {
-                    Text("Sign Transaction")
+                    Text(L10n.Signing.signTransaction)
                         .frame(maxWidth: .infinity)
                         .font(.headline)
                 }
                 .buttonStyle(.borderedProminent)
                 .padding(.horizontal)
-                .accessibilityHint("Enter your PIN and sign the transaction with co-signers")
+                .accessibilityHint(L10n.Signing.signHint)
                 .accessibilityIdentifier("invite_signButton")
             }
         }
         .padding()
-        .alert("Enter PIN to decrypt shard", isPresented: $showPinPrompt) {
-            SecureField("PIN", text: $pin)
+        .alert(L10n.Signing.enterPinDecrypt, isPresented: $showPinPrompt) {
+            SecureField(L10n.Common.pin, text: $pin)
                 .keyboardType(.numberPad)
-            Button("Unlock & Sign") {
+            Button(L10n.Signing.unlockSign) {
                 guard appState.verifyPin(pin) else {
-                    pinError = "Incorrect PIN"
+                    pinError = L10n.Signing.incorrectPin
                     pin = ""
                     showPinPrompt = true
                     return
@@ -225,12 +225,12 @@ struct InviteSignersView: View {
                 pin = ""
                 viewModel.startSigning()
             }
-            Button("Cancel", role: .cancel) { pin = "" }
+            Button(L10n.Common.cancel, role: .cancel) { pin = "" }
         } message: {
             if let pinError {
                 Text(pinError)
             } else {
-                Text("Your PIN is needed to decrypt the key shard for signing.")
+                Text(L10n.Signing.pinNeededDecrypt)
             }
         }
     }
@@ -247,25 +247,25 @@ struct SigningProgressView: View {
 
             ProgressRing(progress: viewModel.signingProgress)
                 .frame(width: 120, height: 120)
-                .accessibilityLabel("Signing progress")
+                .accessibilityLabel(L10n.Signing.signingProgress)
                 .accessibilityValue("\(Int(viewModel.signingProgress * 100)) percent")
 
             VStack(spacing: 8) {
-                Text("Signing Transaction")
+                Text(L10n.Signing.signingTransaction)
                     .font(.title2.bold())
 
                 Text(viewModel.signingStatusMessage)
                     .foregroundStyle(.secondary)
             }
 
-            Text("Round \(viewModel.currentRound) of \(viewModel.totalRounds)")
+            Text(L10n.Signing.roundOf(viewModel.currentRound, viewModel.totalRounds))
                 .font(.caption)
                 .foregroundStyle(.tertiary)
-                .accessibilityLabel("Signing round \(viewModel.currentRound) of \(viewModel.totalRounds)")
+                .accessibilityLabel(L10n.Signing.signingRound(viewModel.currentRound, viewModel.totalRounds))
 
             Spacer()
 
-            Button("Cancel Signing", role: .destructive) {
+            Button(L10n.Signing.cancelSigning, role: .destructive) {
                 viewModel.cancelSigning()
             }
             .font(.caption)
@@ -291,7 +291,7 @@ struct SigningCompleteView: View {
                 .foregroundStyle(.green)
                 .accessibilityHidden(true)
             VStack(spacing: 8) {
-                Text("Transaction Signed!")
+                Text(L10n.Signing.transactionSigned)
                     .font(.title.bold())
 
                 Text(CurrencyFormatter.crypto(Double(viewModel.amount) ?? 0, symbol: viewModel.wallet.chain.symbol))
@@ -309,7 +309,7 @@ struct SigningCompleteView: View {
             VStack(spacing: 12) {
                 if viewModel.isBroadcasting {
                     ProgressView()
-                    Text(viewModel.broadcastStatus ?? "Broadcasting…")
+                    Text(viewModel.broadcastStatus ?? L10n.Signing.broadcasting)
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 } else if let status = viewModel.broadcastStatus {
@@ -321,27 +321,27 @@ struct SigningCompleteView: View {
                     Button {
                         viewModel.broadcastTransaction()
                     } label: {
-                        Label("Broadcast to Network", systemImage: "antenna.radiowaves.left.and.right")
+                        Label(L10n.Signing.broadcastToNetwork, systemImage: "antenna.radiowaves.left.and.right")
                             .frame(maxWidth: .infinity)
                             .font(.headline)
                     }
                     .buttonStyle(.borderedProminent)
                     .tint(.green)
                     .padding(.horizontal)
-                    .accessibilityHint("Submit the signed transaction to the blockchain network")
+                    .accessibilityHint(L10n.Signing.broadcastHint)
                     .accessibilityIdentifier("complete_broadcastButton")
 
                     Button {
                         viewModel.saveForLaterBroadcast(queue: appState.pendingBroadcastQueue)
                         dismiss()
                     } label: {
-                        Label("Save for Later", systemImage: "clock.arrow.circlepath")
+                        Label(L10n.Signing.saveForLater, systemImage: "clock.arrow.circlepath")
                             .frame(maxWidth: .infinity)
                             .font(.subheadline)
                     }
                     .buttonStyle(.bordered)
                     .padding(.horizontal)
-                    .accessibilityHint("Save the signed transaction and broadcast it later")
+                    .accessibilityHint(L10n.Signing.saveForLaterHint)
                     .accessibilityIdentifier("complete_saveForLaterButton")
                 }
             }
@@ -349,7 +349,7 @@ struct SigningCompleteView: View {
             Spacer()
 
             Button { dismiss() } label: {
-                Text("Done")
+                Text(L10n.Common.done)
                     .frame(maxWidth: .infinity)
                     .font(.headline)
             }
@@ -373,14 +373,14 @@ struct SigningErrorView: View {
                 .font(.system(size: 64))
                 .foregroundStyle(.red)
                 .accessibilityHidden(true)
-            Text("Signing Failed")
+            Text(L10n.Signing.signingFailed)
                 .font(.title2.bold())
             Text(viewModel.errorMessage)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
-            Button("Retry") { viewModel.step = .invite }
+            Button(L10n.Common.retry) { viewModel.step = .invite }
                 .buttonStyle(.borderedProminent)
-                .accessibilityHint("Go back and try signing again")
+                .accessibilityHint(L10n.Signing.retryHint)
                 .accessibilityIdentifier("signingError_retryButton")
             Spacer()
         }

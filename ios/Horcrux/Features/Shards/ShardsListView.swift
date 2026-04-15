@@ -15,9 +15,9 @@ struct ShardsListView: View {
             List {
                 if appState.walletStore.wallets.isEmpty {
                     ContentUnavailableView(
-                        "No Shards",
+                        L10n.Shards.noShards,
                         systemImage: "shield.slash",
-                        description: Text("Create a wallet to generate your first key shard.")
+                        description: Text(L10n.Shards.noShardsDescription)
                     )
                 } else {
                     ForEach(appState.walletStore.wallets) { wallet in
@@ -29,13 +29,13 @@ struct ShardsListView: View {
                     }
                 }
             }
-            .navigationTitle("Shards")
+            .navigationTitle(L10n.Shards.title)
             .toolbar {
                 ToolbarItem(placement: .primaryAction) {
                     Button {
                         showImportSheet = true
                     } label: {
-                        Label("Import Shard", systemImage: "square.and.arrow.down")
+                        Label(L10n.Shards.importShard, systemImage: "square.and.arrow.down")
                     }
                 }
             }
@@ -61,7 +61,7 @@ struct ShardRow: View {
                 .foregroundStyle(wallet.chain.color)
 
             VStack(alignment: .leading, spacing: 4) {
-                Text("Shard #\(wallet.partyIndex)")
+                Text(L10n.Shards.shardNumber(Int(wallet.partyIndex)))
                     .font(.headline)
 
                 Text(wallet.name)
@@ -101,7 +101,7 @@ struct ShardDetailView: View {
                         .font(.system(size: 48))
                         .foregroundStyle(wallet.chain.color)
 
-                    Text("Shard #\(wallet.partyIndex)")
+                    Text(L10n.Shards.shardNumber(Int(wallet.partyIndex)))
                         .font(.title2.bold())
 
                     ShardStatusBadge(
@@ -113,44 +113,44 @@ struct ShardDetailView: View {
                 .padding()
             }
 
-            Section("Wallet Info") {
-                LabeledContent("Wallet", value: wallet.name)
-                LabeledContent("Chain", value: wallet.chain.rawValue)
-                LabeledContent("Address") {
+            Section(L10n.Shards.walletInfo) {
+                LabeledContent(L10n.Shards.wallet, value: wallet.name)
+                LabeledContent(L10n.Shards.chain, value: wallet.chain.rawValue)
+                LabeledContent(L10n.Shards.address) {
                     Text(wallet.address)
                         .font(.caption2)
                         .monospaced()
                         .lineLimit(1)
                         .truncationMode(.middle)
                 }
-                LabeledContent("Threshold", value: "\(wallet.threshold) of \(wallet.totalParties)")
+                LabeledContent(L10n.Shards.threshold, value: L10n.Shards.thresholdValue(Int(wallet.threshold), Int(wallet.totalParties)))
             }
 
-            Section("Actions") {
+            Section(L10n.Shards.actions) {
                 Button {
                     showBackupSheet = true
                 } label: {
-                    Label("Backup Shard", systemImage: "arrow.down.doc.fill")
+                    Label(L10n.Shards.backupShard, systemImage: "arrow.down.doc.fill")
                 }
 
                 Button(role: .destructive) {
                     showDeleteAlert = true
                 } label: {
-                    Label("Delete Shard", systemImage: "trash.fill")
+                    Label(L10n.Shards.deleteShard, systemImage: "trash.fill")
                 }
             }
         }
-        .navigationTitle("Shard Details")
+        .navigationTitle(L10n.Shards.shardDetails)
         .sheet(isPresented: $showBackupSheet) {
             ShardBackupView(wallet: wallet, viewModel: viewModel)
         }
-        .alert("Delete Shard?", isPresented: $showDeleteAlert) {
-            Button("Delete", role: .destructive) {
+        .alert(L10n.Shards.deleteShardConfirm, isPresented: $showDeleteAlert) {
+            Button(L10n.Common.delete, role: .destructive) {
                 viewModel.deleteShard(wallet: wallet)
             }
-            Button("Cancel", role: .cancel) {}
+            Button(L10n.Common.cancel, role: .cancel) {}
         } message: {
-            Text("This shard will be permanently removed from this device. Make sure you have a backup.")
+            Text(L10n.Shards.deleteShardMessage)
         }
     }
 }
@@ -192,18 +192,18 @@ struct ShardBackupView: View {
                     }
                 }
             }
-            .navigationTitle("Backup Shard")
+            .navigationTitle(L10n.ShardBackup.title)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") {
+                    Button(L10n.Common.cancel) {
                         viewModel.clearExport()
                         dismiss()
                     }
                 }
                 if viewModel.exportData != nil {
                     ToolbarItem(placement: .confirmationAction) {
-                        Button("Done") {
+                        Button(L10n.Common.done) {
                             viewModel.clearExport()
                             dismiss()
                         }
@@ -228,12 +228,12 @@ struct ShardBackupView: View {
     @ViewBuilder
     private var pinEntrySection: some View {
         Section {
-            Text("Your shard will be decrypted and exported as a portable backup file. Keep this file safe.")
+            Text(L10n.ShardBackup.description)
                 .foregroundStyle(.secondary)
         }
 
-        Section("Device PIN") {
-            SecureField("Enter PIN (min 6 digits)", text: $pin)
+        Section(L10n.ShardBackup.devicePin) {
+            SecureField(L10n.ShardBackup.enterPin, text: $pin)
                 .keyboardType(.numberPad)
         }
 
@@ -247,7 +247,7 @@ struct ShardBackupView: View {
                     ProgressView()
                         .frame(maxWidth: .infinity)
                 } else {
-                    Text("Export Encrypted Shard")
+                    Text(L10n.ShardBackup.exportEncrypted)
                         .frame(maxWidth: .infinity)
                 }
             }
@@ -261,7 +261,7 @@ struct ShardBackupView: View {
     @ViewBuilder
     private var exportResultsSection: some View {
         Section {
-            Label("Shard backup ready", systemImage: "checkmark.circle.fill")
+            Label(L10n.ShardBackup.ready, systemImage: "checkmark.circle.fill")
                 .foregroundStyle(.green)
 
             if let status = viewModel.backupStatus {
@@ -271,11 +271,11 @@ struct ShardBackupView: View {
             }
         }
 
-        Section("Export Options") {
+        Section(L10n.ShardBackup.exportOptions) {
             Button {
                 showFileExporter = true
             } label: {
-                Label("Save to Files", systemImage: "folder.fill")
+                Label(L10n.ShardBackup.saveToFiles, systemImage: "folder.fill")
             }
 
             Button {
@@ -286,7 +286,7 @@ struct ShardBackupView: View {
                 }
             } label: {
                 Label(
-                    copiedToClipboard ? "Copied! (auto-clears in \(Int(SecureClipboard.defaultExpireSeconds))s)" : "Copy to Clipboard",
+                    copiedToClipboard ? L10n.ShardBackup.copiedAutoClears(Int(SecureClipboard.defaultExpireSeconds)) : L10n.ShardBackup.copyToClipboard,
                     systemImage: copiedToClipboard ? "checkmark" : "doc.on.doc"
                 )
             }
@@ -294,7 +294,7 @@ struct ShardBackupView: View {
         }
 
         if let data = viewModel.exportData, data.count < 2048 {
-            Section("QR Code") {
+            Section(L10n.ShardBackup.qrCode) {
                 if let qrImage = Self.generateQRCode(from: data) {
                     Image(uiImage: qrImage)
                         .interpolation(.none)
@@ -303,9 +303,9 @@ struct ShardBackupView: View {
                         .frame(maxWidth: 250, maxHeight: 250)
                         .frame(maxWidth: .infinity)
                         .padding()
-                        .accessibilityLabel("Shard backup QR code")
+                        .accessibilityLabel(L10n.ShardBackup.shardBackupQR)
                 } else {
-                    Text("Unable to generate QR code")
+                    Text(L10n.ShardBackup.unableToGenerateQR)
                         .foregroundStyle(.secondary)
                 }
             }
@@ -383,11 +383,11 @@ struct ShardImportView: View {
                     }
                 }
             }
-            .navigationTitle("Import Shard")
+            .navigationTitle(L10n.ShardImport.title)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button(importSuccess ? "Done" : "Cancel") { dismiss() }
+                    Button(importSuccess ? L10n.Common.done : L10n.Common.cancel) { dismiss() }
                 }
             }
             .fileImporter(
@@ -410,27 +410,27 @@ struct ShardImportView: View {
     @ViewBuilder
     private var sourceSelectionSection: some View {
         Section {
-            Text("Import a shard backup from a file, clipboard, or QR code.")
+            Text(L10n.ShardImport.description)
                 .foregroundStyle(.secondary)
         }
 
-        Section("Import Source") {
+        Section(L10n.ShardImport.importSource) {
             Button {
                 showFileImporter = true
             } label: {
-                Label("Choose File", systemImage: "doc.fill")
+                Label(L10n.ShardImport.chooseFile, systemImage: "doc.fill")
             }
 
             Button {
                 pasteFromClipboard()
             } label: {
-                Label("Paste from Clipboard", systemImage: "doc.on.clipboard")
+                Label(L10n.ShardImport.pasteFromClipboard, systemImage: "doc.on.clipboard")
             }
 
             Button {
                 showQRScanner = true
             } label: {
-                Label("Scan QR Code", systemImage: "qrcode.viewfinder")
+                Label(L10n.ShardImport.scanQRCode, systemImage: "qrcode.viewfinder")
             }
         }
     }
@@ -439,12 +439,12 @@ struct ShardImportView: View {
 
     @ViewBuilder
     private func previewSection(_ backup: ShardBackup) -> some View {
-        Section("Backup Info") {
-            LabeledContent("Wallet", value: backup.walletName)
-            LabeledContent("Chain", value: backup.chain.rawValue)
-            LabeledContent("Party Index", value: "#\(backup.partyIndex)")
-            LabeledContent("Threshold", value: "\(backup.threshold) of \(backup.totalParties)")
-            LabeledContent("Address") {
+        Section(L10n.ShardImport.backupInfo) {
+            LabeledContent(L10n.Shards.wallet, value: backup.walletName)
+            LabeledContent(L10n.Shards.chain, value: backup.chain.rawValue)
+            LabeledContent(L10n.ShardImport.partyIndex, value: L10n.ShardImport.partyIndexValue(Int(backup.partyIndex)))
+            LabeledContent(L10n.Shards.threshold, value: L10n.Shards.thresholdValue(Int(backup.threshold), Int(backup.totalParties)))
+            LabeledContent(L10n.Shards.address) {
                 Text(backup.address)
                     .font(.caption2)
                     .monospaced()
@@ -452,15 +452,15 @@ struct ShardImportView: View {
                     .truncationMode(.middle)
             }
             if backup.version > 0 {
-                LabeledContent("Backup Version", value: "v\(backup.version)")
+                LabeledContent(L10n.ShardImport.backupVersion, value: L10n.ShardImport.backupVersionValue(backup.version))
             }
         }
 
-        Section("Device PIN") {
-            SecureField("Enter device PIN (min 6 digits)", text: $pin)
+        Section(L10n.ShardBackup.devicePin) {
+            SecureField(L10n.ShardImport.enterDevicePin, text: $pin)
                 .keyboardType(.numberPad)
 
-            Text("The shard will be re-encrypted with this device's credentials.")
+            Text(L10n.ShardImport.reEncryptNote)
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }
@@ -473,7 +473,7 @@ struct ShardImportView: View {
                     ProgressView()
                         .frame(maxWidth: .infinity)
                 } else {
-                    Text("Import Shard")
+                    Text(L10n.ShardImport.importShard)
                         .frame(maxWidth: .infinity)
                 }
             }
@@ -482,7 +482,7 @@ struct ShardImportView: View {
         }
 
         Section {
-            Button("Choose Different Source", role: .cancel) {
+            Button(L10n.ShardImport.chooseDifferent, role: .cancel) {
                 importData = nil
                 parsedBackup = nil
                 pin = ""
@@ -501,11 +501,11 @@ struct ShardImportView: View {
                     .font(.system(size: 48))
                     .foregroundStyle(.green)
 
-                Text("Shard Imported!")
+                Text(L10n.ShardImport.shardImported)
                     .font(.title2.bold())
 
                 if let backup = parsedBackup {
-                    Text("'\(backup.walletName)' has been added to this device.")
+                    Text(L10n.ShardImport.addedToDevice(backup.walletName))
                         .foregroundStyle(.secondary)
                         .multilineTextAlignment(.center)
                 }
@@ -523,7 +523,7 @@ struct ShardImportView: View {
         case .success(let urls):
             guard let url = urls.first else { return }
             guard url.startAccessingSecurityScopedResource() else {
-                importError = "Unable to access the selected file"
+                importError = L10n.ShardImport.unableToAccessFile
                 return
             }
             defer { url.stopAccessingSecurityScopedResource() }
@@ -544,7 +544,7 @@ struct ShardImportView: View {
         importError = nil
         guard let clipString = UIPasteboard.general.string,
               let data = clipString.data(using: .utf8) else {
-            importError = "No valid backup data found on clipboard"
+            importError = L10n.ShardImport.noClipboardData
             return
         }
         loadBackup(from: data)
@@ -553,7 +553,7 @@ struct ShardImportView: View {
     private func handleScannedData(_ scannedString: String) {
         importError = nil
         guard let data = scannedString.data(using: .utf8) else {
-            importError = "Invalid QR code data"
+            importError = L10n.ShardImport.invalidQRData
             return
         }
         loadBackup(from: data)
