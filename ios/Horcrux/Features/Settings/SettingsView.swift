@@ -291,6 +291,24 @@ struct BlockchainNodeSettingsView: View {
 
     var body: some View {
         Form {
+            Section("Quick Presets") {
+                HStack(spacing: 12) {
+                    ForEach(NetworkPreset.all) { preset in
+                        Button {
+                            config.applyPreset(preset)
+                        } label: {
+                            Text(preset.name)
+                                .font(.subheadline.bold())
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 8)
+                        }
+                        .buttonStyle(.bordered)
+                        .tint(isCurrentPreset(preset) ? .green : .accentColor)
+                        .accessibilityLabel("Switch to \(preset.name)")
+                    }
+                }
+            }
+
             Section {
                 Text("Configure RPC endpoints for each blockchain. These are used to query balances, estimate fees, and broadcast signed transactions.")
                     .font(.caption)
@@ -370,6 +388,12 @@ struct BlockchainNodeSettingsView: View {
         } message: {
             Text("This will reset all RPC endpoints to the default public nodes.")
         }
+    }
+
+    private func isCurrentPreset(_ preset: NetworkPreset) -> Bool {
+        config.ethereumRPC == preset.ethereumRPC &&
+        config.bitcoinAPI == preset.bitcoinAPI &&
+        config.solanaRPC == preset.solanaRPC
     }
 }
 

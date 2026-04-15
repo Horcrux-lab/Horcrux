@@ -57,35 +57,68 @@ actor BlockchainService {
     }
 
     /// Estimate gas parameters for a simple transfer.
-    func ethEstimateGas(from: String, to: String, valueWei: String, rpcURL: String) async throws -> EvmGasEstimate {
+    func ethEstimateGas(from: String, to: String, valueWei: String, data txData: String? = nil, rpcURL: String) async throws -> EvmGasEstimate {
         let nonce = try await ethNonce(address: from, rpcURL: rpcURL)
 
         // Gas limit: use eth_estimateGas
         let valueHex = "0x" + String(UInt64(valueWei) ?? 0, radix: 16)
-        let estimateParams: [[String: String]] = [["from": from, "to": to, "value": valueHex]]
+        var txObj: [String: String] = ["from": from, "to": to, "value": valueHex]
+        if let txData, !txData.isEmpty { txObj["data"] = txData }
+        let estimateParams: [[String: String]] = [txObj]
         let gasHex: String = try await ethCall(
             method: "eth_estimateGas",
             params: estimateParams,
             rpcURL: rpcURL
         )
-        let gasLimit = UInt64(hexToDecimal(gasHex)) ?? 21000
+        // Add 20% safety margin to gas limit
+        let rawGas = UInt64(hexToDecimal(gasHex)) ?? 21000
+        let gasLimit = rawGas + rawGas / 5
 
-        // Fee: use eth_gasPrice as fallback, or eth_maxPriorityFeePerGas
+        // EIP-1559 fees: fetch both base fee and priority fee
         let gasPriceHex: String = try await ethCall(
             method: "eth_gasPrice",
             params: [] as [String],
             rpcURL: rpcURL
         )
-        let gasPrice = hexToDecimal(gasPriceHex)
+        let gasPrice = UInt64(hexToDecimal(gasPriceHex)) ?? 0
 
-        // For EIP-1559, set maxFeePerGas = 2 * baseFee, maxPriorityFeePerGas = 1.5 gwei
-        let priorityFee = "1500000000" // 1.5 gwei
+        // Try to get real maxPriorityFeePerGas from node
+        var priorityFeeWei: UInt64 = 1_500_000_000 // 1.5 gwei default
+        do {
+            let tipHex: String = try await ethCall(
+                method: "eth_maxPriorityFeePerGas",
+                params: [] as [String],
+                rpcURL: rpcURL
+            )
+            priorityFeeWei = UInt64(hexToDecimal(tipHex)) ?? priorityFeeWei
+        } catch {
+            SecureLog.info("eth_maxPriorityFeePerGas not supported, using default")
+        }
+
+        // maxFeePerGas = 2 * baseFee + maxPriorityFeePerGas
+        let maxFee = gasPrice * 2 + priorityFeeWei
 
         return EvmGasEstimate(
             nonce: nonce,
             gasLimit: gasLimit,
-            maxFeePerGas: gasPrice,
-            maxPriorityFeePerGas: priorityFee
+            maxFeePerGas: "\(maxFee)",
+            maxPriorityFeePerGas: "\(priorityFeeWei)"
+        )
+    }
+
+    /// Human-readable fee estimate for display (in ETH).
+    func ethFeeEstimateDisplay(from: String, to: String, valueWei: String, rpcURL: String) async throws -> FeeEstimate {
+        let gas = try await ethEstimateGas(from: from, to: to, valueWei: valueWei, rpcURL: rpcURL)
+        let maxCostWei = gas.gasLimit * (UInt64(gas.maxFeePerGas) ?? 0)
+        let ethCost = Decimal(maxCostWei) / Decimal(1_000_000_000_000_000_000)
+        let formatter = NumberFormatter()
+        formatter.maximumFractionDigits = 8
+        formatter.minimumFractionDigits = 4
+        let formatted = formatter.string(from: ethCost as NSDecimalNumber) ?? "\(ethCost)"
+        return FeeEstimate(
+            chain: .ethereum,
+            estimatedFee: "\(formatted) ETH",
+            feeDetails: "Gas: \(gas.gasLimit) × \(gas.maxFeePerGas) wei"
         )
     }
 
@@ -108,6 +141,26 @@ actor BlockchainService {
             let confirmed: Bool
         }
         let status: Status
+    }
+
+    /// Human-readable BTC fee estimate.
+    func btcFeeEstimateDisplay(inputCount: Int, outputCount: Int, apiURL: String) async throws -> FeeEstimate {
+        let rates = try await btcFeeEstimate(apiURL: apiURL)
+        // Estimate vbytes: ~68 per input + 31 per output + 10 overhead (P2WPKH)
+        let vbytes = UInt64(inputCount * 68 + outputCount * 31 + 10)
+        let fastSats = vbytes * rates.fastestFee
+        let medSats = vbytes * rates.halfHourFee
+        let btcFast = Decimal(fastSats) / Decimal(100_000_000)
+        let btcMed = Decimal(medSats) / Decimal(100_000_000)
+        let formatter = NumberFormatter()
+        formatter.maximumFractionDigits = 8
+        let fastStr = formatter.string(from: btcFast as NSDecimalNumber) ?? "\(btcFast)"
+        let medStr = formatter.string(from: btcMed as NSDecimalNumber) ?? "\(btcMed)"
+        return FeeEstimate(
+            chain: .bitcoin,
+            estimatedFee: "\(medStr) – \(fastStr) BTC",
+            feeDetails: "~\(vbytes) vB × \(rates.halfHourFee)–\(rates.fastestFee) sat/vB"
+        )
     }
 
     /// Fetch BTC balance in satoshis.
@@ -184,6 +237,40 @@ actor BlockchainService {
             rpcURL: rpcURL
         )
         return result.value.blockhash
+    }
+
+    /// Estimate Solana transaction fee (base fee + priority).
+    func solFeeEstimateDisplay(rpcURL: String) async throws -> FeeEstimate {
+        // Solana base fee is 5000 lamports per signature (fixed)
+        // Try to get priority fee for better estimates
+        var priorityLamports: UInt64 = 0
+        do {
+            struct PriorityFee: Decodable { let prioritizationFee: UInt64 }
+            let fees: [PriorityFee] = try await solanaCall(
+                method: "getRecentPrioritizationFees",
+                params: [] as [String],
+                rpcURL: rpcURL
+            )
+            // Use median priority fee
+            let sorted = fees.map(\.prioritizationFee).sorted()
+            if !sorted.isEmpty {
+                priorityLamports = sorted[sorted.count / 2]
+            }
+        } catch {
+            SecureLog.info("getRecentPrioritizationFees not available, using base fee only")
+        }
+
+        let totalLamports = 5000 + priorityLamports
+        let sol = Decimal(totalLamports) / Decimal(1_000_000_000)
+        let formatter = NumberFormatter()
+        formatter.maximumFractionDigits = 9
+        formatter.minimumFractionDigits = 6
+        let formatted = formatter.string(from: sol as NSDecimalNumber) ?? "\(sol)"
+        return FeeEstimate(
+            chain: .solana,
+            estimatedFee: "\(formatted) SOL",
+            feeDetails: "Base: 5000 + Priority: \(priorityLamports) lamports"
+        )
     }
 
     /// Broadcast a signed Solana transaction (base64). Returns the signature.
@@ -433,6 +520,14 @@ actor BlockchainService {
         if sol < 0.0001 { return String(format: "%.9f SOL", sol) }
         return String(format: "%.4f SOL", sol)
     }
+}
+
+// MARK: - Fee Estimate Model
+
+struct FeeEstimate {
+    let chain: Chain
+    let estimatedFee: String
+    let feeDetails: String
 }
 
 // MARK: - Errors

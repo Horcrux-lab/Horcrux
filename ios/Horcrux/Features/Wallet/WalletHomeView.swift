@@ -4,6 +4,7 @@ import SwiftUI
 struct WalletHomeView: View {
     @EnvironmentObject private var appState: AppState
     @State private var showCreateShard = false
+    @State private var networkReachable: [Chain: Bool] = [:]
 
     var body: some View {
         NavigationStack {
@@ -29,6 +30,25 @@ struct WalletHomeView: View {
             }
             .sheet(isPresented: $showCreateShard) {
                 CreateShardFlow()
+            }
+            .task {
+                networkReachable = await NetworkStatus.shared.checkAll(config: appState.networkConfig)
+            }
+            .safeAreaInset(edge: .top) {
+                if !networkReachable.isEmpty, networkReachable.values.contains(false) {
+                    let offlineChains = networkReachable.filter { !$0.value }.map(\.key.symbol).sorted().joined(separator: ", ")
+                    HStack(spacing: 6) {
+                        Image(systemName: "wifi.slash")
+                            .font(.caption)
+                        Text("\(offlineChains) node\(offlineChains.contains(",") ? "s" : "") unreachable")
+                            .font(.caption)
+                    }
+                    .foregroundStyle(.white)
+                    .padding(.vertical, 6)
+                    .frame(maxWidth: .infinity)
+                    .background(.orange.gradient)
+                    .accessibilityLabel("Network warning: \(offlineChains) nodes are unreachable")
+                }
             }
         }
     }
@@ -76,6 +96,20 @@ struct WalletHomeView: View {
                 .accessibilityLabel("\(wallet.name), \(wallet.chain.rawValue) wallet")
                 .accessibilityHint("View wallet details, send, and receive")
                 .accessibilityIdentifier("walletHome_walletRow_\(wallet.id)")
+            }
+            .onDelete { indexSet in
+                for index in indexSet {
+                    appState.walletStore.remove(id: appState.walletStore.wallets[index].id)
+                }
+            }
+            .onMove { source, destination in
+                appState.walletStore.move(from: source, to: destination)
+            }
+        }
+        .toolbar {
+            ToolbarItem(placement: .topBarLeading) {
+                EditButton()
+                    .accessibilityLabel("Edit wallet list")
             }
         }
     }

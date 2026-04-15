@@ -32,6 +32,27 @@ final class WalletStore: ObservableObject {
         wallets.first { $0.id == id }
     }
 
+    func rename(id: String, newName: String) {
+        guard let idx = wallets.firstIndex(where: { $0.id == id }) else { return }
+        wallets[idx] = Wallet(
+            id: wallets[idx].id,
+            name: newName,
+            chain: wallets[idx].chain,
+            address: wallets[idx].address,
+            groupPublicKey: wallets[idx].groupPublicKey,
+            threshold: wallets[idx].threshold,
+            totalParties: wallets[idx].totalParties,
+            partyIndex: wallets[idx].partyIndex,
+            createdAt: wallets[idx].createdAt
+        )
+        save()
+    }
+
+    func move(from source: IndexSet, to destination: Int) {
+        wallets.move(fromOffsets: source, toOffset: destination)
+        save()
+    }
+
     // MARK: - Key Share Storage (Keychain)
 
     /// Store an encrypted key share in the Keychain (with enhanced protection).

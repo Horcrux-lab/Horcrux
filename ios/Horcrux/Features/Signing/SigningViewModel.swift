@@ -96,28 +96,32 @@ final class SigningViewModel: ObservableObject {
                         valueWei: weiAmount,
                         rpcURL: networkConfig.ethereumRPC
                     )
+                    let feeDisplay = try await blockchainService.ethFeeEstimateDisplay(
+                        from: wallet.address,
+                        to: recipientAddress,
+                        valueWei: weiAmount,
+                        rpcURL: networkConfig.ethereumRPC
+                    )
                     await MainActor.run {
                         estimatedGas = "\(estimate.gasLimit)"
-                        let feeWei = Decimal(estimate.gasLimit) * (Decimal(string: estimate.maxFeePerGas) ?? 0)
-                        let weiPerEth = Decimal(sign: .plus, exponent: 18, significand: 1)
-                        let feeEth = feeWei / weiPerEth
-                        estimatedFee = "≈ \(NSDecimalNumber(decimal: feeEth).stringValue) ETH"
+                        estimatedFee = "≈ \(feeDisplay.estimatedFee)"
                         isEstimatingGas = false
                     }
                 case .bitcoin:
-                    let fees = try await blockchainService.btcFeeEstimate(
+                    let feeDisplay = try await blockchainService.btcFeeEstimateDisplay(
+                        inputCount: 1, outputCount: 2,
                         apiURL: networkConfig.bitcoinAPI
                     )
                     await MainActor.run {
-                        // Rough estimate: P2WPKH tx ~140 vBytes
-                        let feeSats = fees.halfHourFee * 140
-                        let feeBtc = Double(feeSats) / 1e8
-                        estimatedFee = String(format: "≈ %.8f BTC (%d sat/vB)", feeBtc, fees.halfHourFee)
+                        estimatedFee = "≈ \(feeDisplay.estimatedFee)"
                         isEstimatingGas = false
                     }
                 case .solana:
+                    let feeDisplay = try await blockchainService.solFeeEstimateDisplay(
+                        rpcURL: networkConfig.solanaRPC
+                    )
                     await MainActor.run {
-                        estimatedFee = "≈ 0.000005 SOL (5000 lamports)"
+                        estimatedFee = "≈ \(feeDisplay.estimatedFee)"
                         isEstimatingGas = false
                     }
                 }

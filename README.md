@@ -41,7 +41,12 @@ All channels use **Noise Protocol** (Noise_XX_25519_ChaChaPoly_SHA256) for E2E e
 
 - Private keys **never exist** — MPC signing uses only shards.
 - **Noise Protocol** E2E encryption with forward secrecy on all channels.
-- **AES-256-GCM** shard encryption at rest (PIN-derived key).
+- **AES-256-GCM** shard encryption at rest (PIN-derived key via HKDF).
+- **Secure Enclave** — device key sealed via ECIES (P-256 hardware ECDH).
+- **PBKDF2** PIN hashing (100k iterations HMAC-SHA256 + random salt).
+- **Certificate pinning** (SPKI SHA-256) on all RPC endpoints.
+- **Traffic padding** — message bucket sizes + timing jitter.
+- **Anti-debug** — ptrace denial + environment checks (release builds).
 - **Zero-knowledge relay** — server forwards ciphertext only.
 - **Identifiable abort** — malicious participants are detected.
 
@@ -53,11 +58,25 @@ See [docs/security-model.md](docs/security-model.md) for the full threat model.
 # Build the workspace
 cargo build
 
-# Run all tests (109 tests: 90 core + 19 relay)
+# Run all tests
 cargo test --workspace
+
+# Run clippy (expect 0 warnings)
+cargo clippy --workspace
 
 # Run the relay server
 cargo run -p horcrux-relay
+```
+
+### iOS App
+
+See [ios/README.md](ios/README.md) for full setup instructions.
+
+```bash
+cd ios
+./build-rust.sh          # Cross-compile Rust → XCFramework
+xcodegen generate        # Generate Xcode project
+open Horcrux.xcodeproj   # Build & run (⌘R)
 ```
 
 ### Generate Mobile Bindings
@@ -81,8 +100,14 @@ cargo run -p uniffi-bindgen generate \
 | 1. Core crypto (CGGMP21 + FROST) | ✅ Complete |
 | 2. Relay server (Noise E2E) | ✅ Complete |
 | 3. UniFFI mobile bindings | ✅ Complete |
-| 4. iOS app (Swift/SwiftUI) | 🔜 Planned |
+| 4. iOS app (Swift/SwiftUI) | ✅ Complete |
 | 5. Android app (Kotlin/Compose) | 🔜 Planned |
+
+## CI/CD
+
+GitHub Actions runs on every push and PR:
+- **Rust**: `cargo test` + `cargo clippy` + `cargo fmt --check`
+- **iOS**: Xcode build + unit tests on simulator
 
 ## Documentation
 
