@@ -13,6 +13,7 @@ struct ReceiveView: View {
                 Spacer()
 
                 ChainIcon(chain: wallet.chain, size: 48)
+                    .accessibilityHidden(true)
 
                 Text("Receive \(wallet.chain.symbol)")
                     .font(.title2.bold())
@@ -27,6 +28,9 @@ struct ReceiveView: View {
                         .padding(16)
                         .background(.white, in: RoundedRectangle(cornerRadius: 16))
                         .shadow(color: .black.opacity(0.1), radius: 8, y: 4)
+                        .accessibilityLabel("QR code for \(wallet.chain.symbol) address")
+                        .accessibilityHint("Share this QR code with the sender")
+                        .accessibilityIdentifier("receive_qrCode")
                 } else {
                     RoundedRectangle(cornerRadius: 16)
                         .fill(.quaternary)
@@ -35,6 +39,7 @@ struct ReceiveView: View {
                             Text("QR Error")
                                 .foregroundStyle(.secondary)
                         }
+                        .accessibilityLabel("QR code failed to generate")
                 }
 
                 // Address
@@ -43,6 +48,9 @@ struct ReceiveView: View {
                     .multilineTextAlignment(.center)
                     .padding(.horizontal, 32)
                     .textSelection(.enabled)
+                    .accessibilityLabel("Wallet address")
+                    .accessibilityValue(wallet.address)
+                    .accessibilityIdentifier("receive_addressText")
 
                 // Copy button
                 Button {
@@ -57,6 +65,9 @@ struct ReceiveView: View {
                 }
                 .buttonStyle(.borderedProminent)
                 .padding(.horizontal, 32)
+                .accessibilityLabel(copiedAddress ? "Address copied" : "Copy address")
+                .accessibilityHint("Copies the wallet address to clipboard")
+                .accessibilityIdentifier("receive_copyButton")
 
                 // Share button
                 ShareLink(item: wallet.address) {
@@ -66,6 +77,9 @@ struct ReceiveView: View {
                 }
                 .buttonStyle(.bordered)
                 .padding(.horizontal, 32)
+                .accessibilityLabel("Share address")
+                .accessibilityHint("Share your wallet address via other apps")
+                .accessibilityIdentifier("receive_shareButton")
 
                 Spacer()
             }
@@ -74,6 +88,7 @@ struct ReceiveView: View {
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Done") { dismiss() }
+                        .accessibilityIdentifier("receive_doneButton")
                 }
             }
         }

@@ -27,6 +27,7 @@ struct CreateShardFlow: View {
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { dismiss() }
+                        .accessibilityIdentifier("createShard_cancelButton")
                 }
             }
             .environmentObject(appState)
@@ -46,6 +47,9 @@ struct ConfigureView: View {
         Form {
             Section("Wallet Name") {
                 TextField("My Wallet", text: $viewModel.walletName)
+                    .accessibilityLabel("Wallet name")
+                    .accessibilityHint("Enter a name for your new wallet")
+                    .accessibilityIdentifier("configure_walletNameField")
             }
 
             Section("Blockchain") {
@@ -61,8 +65,12 @@ struct ConfigureView: View {
             Section("Threshold") {
                 Stepper("Total Parties: \(viewModel.totalParties)",
                         value: $viewModel.totalParties, in: 2...10)
+                    .accessibilityLabel("Total parties: \(viewModel.totalParties)")
+                    .accessibilityHint("Adjust the total number of devices participating")
                 Stepper("Signing Threshold: \(viewModel.threshold)",
                         value: $viewModel.threshold, in: 2...viewModel.totalParties)
+                    .accessibilityLabel("Signing threshold: \(viewModel.threshold)")
+                    .accessibilityHint("Adjust the minimum number of devices needed to sign")
 
                 Text("Requires **\(viewModel.threshold)** of **\(viewModel.totalParties)** devices to sign")
                     .font(.caption)
@@ -97,6 +105,8 @@ struct ConfigureView: View {
                 }
                 .buttonStyle(.borderedProminent)
                 .disabled(viewModel.walletName.isEmpty)
+                .accessibilityHint("Proceed to discover nearby devices for key generation")
+                .accessibilityIdentifier("configure_nextButton")
             }
         }
     }
@@ -120,6 +130,7 @@ struct PeerDiscoveryView: View {
 
             Text("\(viewModel.foundPeers.count) / \(viewModel.totalParties - 1) peers found")
                 .font(.headline)
+                .accessibilityLabel("\(viewModel.foundPeers.count) of \(viewModel.totalParties - 1) peers found")
 
             List(viewModel.foundPeers) { peer in
                 HStack {
@@ -148,6 +159,8 @@ struct PeerDiscoveryView: View {
                 }
                 .buttonStyle(.borderedProminent)
                 .padding(.horizontal)
+                .accessibilityHint("Begin the distributed key generation ceremony with connected peers")
+                .accessibilityIdentifier("discover_startDKGButton")
             }
         }
         .padding()
@@ -165,6 +178,8 @@ struct DKGProgressView: View {
 
             ProgressRing(progress: viewModel.dkgProgress)
                 .frame(width: 120, height: 120)
+                .accessibilityLabel("Key generation progress")
+                .accessibilityValue("\(Int(viewModel.dkgProgress * 100)) percent")
 
             VStack(spacing: 8) {
                 Text("Generating Key Shards")
@@ -178,6 +193,7 @@ struct DKGProgressView: View {
             Text("Round \(viewModel.currentRound) of \(viewModel.totalRounds)")
                 .font(.caption)
                 .foregroundStyle(.tertiary)
+                .accessibilityLabel("Key generation round \(viewModel.currentRound) of \(viewModel.totalRounds)")
 
             Spacer()
 
@@ -206,7 +222,7 @@ struct DKGCompleteView: View {
             Image(systemName: "checkmark.seal.fill")
                 .font(.system(size: 72))
                 .foregroundStyle(.green)
-
+                .accessibilityHidden(true)
             VStack(spacing: 8) {
                 Text("Wallet Created!")
                     .font(.title.bold())
@@ -238,6 +254,8 @@ struct DKGCompleteView: View {
             }
             .buttonStyle(.borderedProminent)
             .padding(.horizontal)
+            .accessibilityHint("Enter your PIN to encrypt and save the key shard")
+            .accessibilityIdentifier("dkgComplete_saveButton")
         }
         .padding()
         .alert("Enter PIN to encrypt shard", isPresented: $showPinPrompt) {
@@ -275,6 +293,7 @@ struct DKGErrorView: View {
             Image(systemName: "exclamationmark.triangle.fill")
                 .font(.system(size: 64))
                 .foregroundStyle(.red)
+                .accessibilityHidden(true)
 
             Text("Key Generation Failed")
                 .font(.title2.bold())
@@ -287,6 +306,8 @@ struct DKGErrorView: View {
                 viewModel.step = .discover
             }
             .buttonStyle(.borderedProminent)
+            .accessibilityHint("Go back and try key generation again")
+            .accessibilityIdentifier("dkgError_retryButton")
 
             Spacer()
         }

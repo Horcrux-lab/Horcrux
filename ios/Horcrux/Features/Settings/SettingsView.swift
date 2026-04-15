@@ -14,10 +14,14 @@ struct SettingsView: View {
             Form {
                 Section("Security") {
                     Toggle("Face ID / Touch ID", isOn: $biometricEnabled)
+                        .accessibilityHint("Enable or disable biometric authentication for unlocking")
+                        .accessibilityIdentifier("settings_biometricToggle")
 
                     Button("Change PIN") {
                         showChangePin = true
                     }
+                    .accessibilityHint("Open the PIN change screen")
+                    .accessibilityIdentifier("settings_changePinButton")
 
                     Picker("Auto-Lock", selection: $appState.autoLockTimeout) {
                         Text("Immediately").tag(TimeInterval(0))
@@ -27,6 +31,7 @@ struct SettingsView: View {
                         Text("1 hour").tag(TimeInterval(3600))
                         Text("Never").tag(TimeInterval(-1))
                     }
+                    .accessibilityIdentifier("settings_autoLockPicker")
                 }
 
                 Section("Blockchain Nodes") {
@@ -35,6 +40,8 @@ struct SettingsView: View {
                     } label: {
                         Label("RPC Endpoints", systemImage: "server.rack")
                     }
+                    .accessibilityHint("Configure blockchain RPC node endpoints")
+                    .accessibilityIdentifier("settings_rpcEndpointsLink")
 
                     HStack {
                         Text("Network")
@@ -53,6 +60,9 @@ struct SettingsView: View {
                             relayWarning = Self.validateRelayURL(newValue)
                             appState.peerManager.relay.relayURL = newValue
                         }
+                        .accessibilityLabel("Relay server URL")
+                        .accessibilityHint("Enter the WebSocket URL for the relay server")
+                        .accessibilityIdentifier("settings_relayURLField")
 
                     if let relayWarning {
                         Label(relayWarning, systemImage: "exclamationmark.triangle.fill")
@@ -69,6 +79,8 @@ struct SettingsView: View {
                     } label: {
                         Label("Transport Preferences", systemImage: "antenna.radiowaves.left.and.right")
                     }
+                    .accessibilityHint("Configure Bluetooth, Wi-Fi Direct, and LAN transport options")
+                    .accessibilityIdentifier("settings_transportLink")
                 }
 
                 Section("About") {
@@ -96,6 +108,8 @@ struct SettingsView: View {
                     } label: {
                         Text("Open Source Licenses")
                     }
+                    .accessibilityHint("View open source library licenses")
+                    .accessibilityIdentifier("settings_licensesLink")
                 }
 
                 Section("Danger Zone") {
@@ -104,6 +118,8 @@ struct SettingsView: View {
                     } label: {
                         Label("Wipe All Data", systemImage: "trash.fill")
                     }
+                    .accessibilityHint("Permanently delete all wallets, key shards, and settings")
+                    .accessibilityIdentifier("settings_wipeButton")
                 }
             }
             .navigationTitle("Settings")
@@ -160,10 +176,13 @@ struct RelayStatusRow: View {
             Circle()
                 .fill(relay.isConnected ? .green : .red)
                 .frame(width: 8, height: 8)
+                .accessibilityHidden(true)
             Text(relay.isConnected ? "Connected" : "Disconnected")
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("Relay status: \(relay.isConnected ? "Connected" : "Disconnected")")
     }
 }
 
@@ -178,14 +197,17 @@ struct TransportSettingsView: View {
                 Toggle(isOn: $bleEnabled) {
                     Label("Bluetooth (BLE)", systemImage: "wave.3.right")
                 }
+                .accessibilityHint("Enable or disable Bluetooth for peer-to-peer communication")
 
                 Toggle(isOn: $wifiDirectEnabled) {
                     Label("Wi-Fi Direct", systemImage: "wifi")
                 }
+                .accessibilityHint("Enable or disable Wi-Fi Direct for peer-to-peer communication")
 
                 Toggle(isOn: $wifiLANEnabled) {
                     Label("Wi-Fi LAN (Bonjour)", systemImage: "network")
                 }
+                .accessibilityHint("Enable or disable local Wi-Fi network discovery")
             }
 
             Section {
@@ -211,10 +233,16 @@ struct ChangePinView: View {
             Form {
                 SecureField("Current PIN", text: $currentPin)
                     .keyboardType(.numberPad)
+                    .accessibilityLabel("Current PIN")
+                    .accessibilityIdentifier("changePin_currentField")
                 SecureField("New PIN", text: $newPin)
                     .keyboardType(.numberPad)
+                    .accessibilityLabel("New PIN")
+                    .accessibilityIdentifier("changePin_newField")
                 SecureField("Confirm New PIN", text: $confirmPin)
                     .keyboardType(.numberPad)
+                    .accessibilityLabel("Confirm new PIN")
+                    .accessibilityIdentifier("changePin_confirmField")
 
                 if let errorMessage {
                     Text(errorMessage)
@@ -226,6 +254,8 @@ struct ChangePinView: View {
                     changePin()
                 }
                 .disabled(newPin.count < 4 || newPin != confirmPin || currentPin.isEmpty)
+                .accessibilityHint("Save your new PIN")
+                .accessibilityIdentifier("changePin_submitButton")
             }
             .navigationTitle("Change PIN")
             .toolbar {
@@ -301,6 +331,7 @@ struct BlockchainNodeSettingsView: View {
                 }
 
                 Toggle("Testnet", isOn: $config.btcTestnet)
+                    .accessibilityHint("Switch between Bitcoin mainnet and testnet")
 
                 NodeStatusRow(chain: .bitcoin)
             }
@@ -317,6 +348,7 @@ struct BlockchainNodeSettingsView: View {
                 }
 
                 Toggle("Devnet", isOn: $config.solDevnet)
+                    .accessibilityHint("Switch between Solana mainnet and devnet")
 
                 NodeStatusRow(chain: .solana)
             }
@@ -326,6 +358,8 @@ struct BlockchainNodeSettingsView: View {
                     showResetConfirm = true
                 }
                 .foregroundStyle(.red)
+                .accessibilityHint("Reset all RPC endpoints to default public nodes")
+                .accessibilityIdentifier("nodeSettings_resetButton")
             }
         }
         .navigationTitle("Blockchain Nodes")

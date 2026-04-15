@@ -81,6 +81,9 @@ final class QRScannerViewController: UIViewController, AVCaptureMetadataOutputOb
         guide.layer.borderWidth = 2
         guide.layer.cornerRadius = 12
         guide.translatesAutoresizingMaskIntoConstraints = false
+        guide.isAccessibilityElement = true
+        guide.accessibilityLabel = "QR code scanning area"
+        guide.accessibilityHint = "Position a QR code within this frame to scan"
         view.addSubview(guide)
         NSLayoutConstraint.activate([
             guide.centerXAnchor.constraint(equalTo: view.centerXAnchor),
@@ -165,6 +168,7 @@ struct QRScannerSheet: View {
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { dismiss() }
+                        .accessibilityIdentifier("qrScanner_cancelButton")
                 }
             }
         }

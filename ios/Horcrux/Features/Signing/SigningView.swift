@@ -31,6 +31,7 @@ struct SigningView: View {
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { dismiss() }
+                        .accessibilityIdentifier("signing_cancelButton")
                 }
             }
             .onAppear {
@@ -59,6 +60,9 @@ struct ComposeTransactionView: View {
                         .font(.system(.body, design: .monospaced))
                         .autocorrectionDisabled()
                         .textInputAutocapitalization(.never)
+                        .accessibilityLabel("Recipient address")
+                        .accessibilityHint("Enter the destination wallet address")
+                        .accessibilityIdentifier("compose_recipientField")
 
                     Button {
                         showQRScanner = true
@@ -68,6 +72,9 @@ struct ComposeTransactionView: View {
                             .foregroundStyle(.blue)
                     }
                     .buttonStyle(.plain)
+                    .accessibilityLabel("Scan QR code")
+                    .accessibilityHint("Open camera to scan a wallet address QR code")
+                    .accessibilityIdentifier("compose_scanQRButton")
                 }
 
                 if let addressError {
@@ -81,6 +88,9 @@ struct ComposeTransactionView: View {
                 HStack {
                     TextField("0.0", text: $viewModel.amount)
                         .keyboardType(.decimalPad)
+                        .accessibilityLabel("Amount")
+                        .accessibilityHint("Enter the amount to send")
+                        .accessibilityIdentifier("compose_amountField")
                     Text(viewModel.wallet.chain.symbol)
                         .foregroundStyle(.secondary)
                 }
@@ -126,6 +136,8 @@ struct ComposeTransactionView: View {
                 }
                 .buttonStyle(.borderedProminent)
                 .disabled(viewModel.recipientAddress.isEmpty || viewModel.amount.isEmpty || addressError != nil)
+                .accessibilityHint("Proceed to invite co-signers for this transaction")
+                .accessibilityIdentifier("compose_nextButton")
             }
         }
         .sheet(isPresented: $showQRScanner) {
@@ -194,6 +206,8 @@ struct InviteSignersView: View {
                 }
                 .buttonStyle(.borderedProminent)
                 .padding(.horizontal)
+                .accessibilityHint("Enter your PIN and sign the transaction with co-signers")
+                .accessibilityIdentifier("invite_signButton")
             }
         }
         .padding()
@@ -233,6 +247,8 @@ struct SigningProgressView: View {
 
             ProgressRing(progress: viewModel.signingProgress)
                 .frame(width: 120, height: 120)
+                .accessibilityLabel("Signing progress")
+                .accessibilityValue("\(Int(viewModel.signingProgress * 100)) percent")
 
             VStack(spacing: 8) {
                 Text("Signing Transaction")
@@ -245,6 +261,7 @@ struct SigningProgressView: View {
             Text("Round \(viewModel.currentRound) of \(viewModel.totalRounds)")
                 .font(.caption)
                 .foregroundStyle(.tertiary)
+                .accessibilityLabel("Signing round \(viewModel.currentRound) of \(viewModel.totalRounds)")
 
             Spacer()
         }
@@ -266,7 +283,7 @@ struct SigningCompleteView: View {
             Image(systemName: "checkmark.seal.fill")
                 .font(.system(size: 72))
                 .foregroundStyle(.green)
-
+                .accessibilityHidden(true)
             VStack(spacing: 8) {
                 Text("Transaction Signed!")
                     .font(.title.bold())
@@ -305,6 +322,8 @@ struct SigningCompleteView: View {
                     .buttonStyle(.borderedProminent)
                     .tint(.green)
                     .padding(.horizontal)
+                    .accessibilityHint("Submit the signed transaction to the blockchain network")
+                    .accessibilityIdentifier("complete_broadcastButton")
 
                     Button {
                         viewModel.saveForLaterBroadcast(queue: appState.pendingBroadcastQueue)
@@ -316,6 +335,8 @@ struct SigningCompleteView: View {
                     }
                     .buttonStyle(.bordered)
                     .padding(.horizontal)
+                    .accessibilityHint("Save the signed transaction and broadcast it later")
+                    .accessibilityIdentifier("complete_saveForLaterButton")
                 }
             }
 
@@ -328,6 +349,7 @@ struct SigningCompleteView: View {
             }
             .buttonStyle(.borderedProminent)
             .padding(.horizontal)
+            .accessibilityIdentifier("complete_doneButton")
         }
         .padding()
     }
@@ -344,6 +366,7 @@ struct SigningErrorView: View {
             Image(systemName: "xmark.circle.fill")
                 .font(.system(size: 64))
                 .foregroundStyle(.red)
+                .accessibilityHidden(true)
             Text("Signing Failed")
                 .font(.title2.bold())
             Text(viewModel.errorMessage)
@@ -351,6 +374,8 @@ struct SigningErrorView: View {
                 .multilineTextAlignment(.center)
             Button("Retry") { viewModel.step = .invite }
                 .buttonStyle(.borderedProminent)
+                .accessibilityHint("Go back and try signing again")
+                .accessibilityIdentifier("signingError_retryButton")
             Spacer()
         }
         .padding()

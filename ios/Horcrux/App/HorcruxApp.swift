@@ -3,6 +3,7 @@ import SwiftUI
 @main
 struct HorcruxApp: App {
     @StateObject private var appState = AppState()
+    @StateObject private var deepLinkRouter = DeepLinkRouter.shared
     @Environment(\.scenePhase) private var scenePhase
     @State private var blurRadius: CGFloat = 0
     @State private var showDebuggerWarning = false
@@ -16,8 +17,16 @@ struct HorcruxApp: App {
         WindowGroup {
             ContentView()
                 .environmentObject(appState)
+                .environmentObject(deepLinkRouter)
                 .blur(radius: blurRadius)
                 .animation(.easeInOut(duration: 0.15), value: blurRadius)
+                .accessibilityElement(children: blurRadius > 0 ? .ignore : .contain)
+                .accessibilityLabel(blurRadius > 0 ? "App content hidden for privacy" : "")
+                .onOpenURL { url in
+                    if let link = deepLinkRouter.parseURL(url) {
+                        deepLinkRouter.handle(link)
+                    }
+                }
                 .onReceive(NotificationCenter.default.publisher(for: UIApplication.willResignActiveNotification)) { _ in
                     blurRadius = 30
                 }
@@ -52,6 +61,10 @@ struct HorcruxApp: App {
                             showDebuggerWarning = true
                         }
                     }
+                }
+                .task {
+                    // Request notification permission on first launch
+                    await NotificationManager.shared.requestAuthorization()
                 }
                 .alert("Security Violation", isPresented: $showDebuggerWarning) {
                     Button("Exit App", role: .destructive) {

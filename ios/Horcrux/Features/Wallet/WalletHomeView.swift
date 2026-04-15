@@ -22,6 +22,9 @@ struct WalletHomeView: View {
                     } label: {
                         Image(systemName: "plus.circle.fill")
                     }
+                    .accessibilityLabel("Create new wallet")
+                    .accessibilityHint("Opens the wallet creation flow")
+                    .accessibilityIdentifier("walletHome_createButton")
                 }
             }
             .sheet(isPresented: $showCreateShard) {
@@ -37,6 +40,7 @@ struct WalletHomeView: View {
             Image(systemName: "shield.lefthalf.filled")
                 .font(.system(size: 64))
                 .foregroundStyle(.tertiary)
+                .accessibilityHidden(true)
 
             VStack(spacing: 8) {
                 Text("No Wallets Yet")
@@ -53,6 +57,8 @@ struct WalletHomeView: View {
                     .font(.headline)
             }
             .buttonStyle(.borderedProminent)
+            .accessibilityHint("Start the multi-party key generation process")
+            .accessibilityIdentifier("walletHome_createWalletButton")
 
             Spacer()
         }
@@ -67,6 +73,9 @@ struct WalletHomeView: View {
                 } label: {
                     WalletRow(wallet: wallet)
                 }
+                .accessibilityLabel("\(wallet.name), \(wallet.chain.rawValue) wallet")
+                .accessibilityHint("View wallet details, send, and receive")
+                .accessibilityIdentifier("walletHome_walletRow_\(wallet.id)")
             }
         }
     }
@@ -81,6 +90,7 @@ struct WalletRow: View {
     var body: some View {
         HStack(spacing: 12) {
             ChainIcon(chain: wallet.chain, size: 44)
+                .accessibilityHidden(true)
 
             VStack(alignment: .leading, spacing: 4) {
                 Text(wallet.name)
@@ -98,9 +108,11 @@ struct WalletRow: View {
                 if isLoading {
                     ProgressView()
                         .scaleEffect(0.7)
+                        .accessibilityLabel("Loading balance")
                 } else if let balance {
                     Text(balance)
                         .font(.subheadline.bold())
+                        .accessibilityLabel("Balance: \(balance)")
                 } else {
                     Text(wallet.chain.symbol)
                         .font(.subheadline.bold())
@@ -110,9 +122,11 @@ struct WalletRow: View {
                     threshold: wallet.threshold,
                     total: wallet.totalParties
                 )
+                .accessibilityLabel("\(wallet.threshold) of \(wallet.totalParties) threshold")
             }
         }
         .padding(.vertical, 4)
+        .accessibilityElement(children: .combine)
         .task {
             await fetchBalance()
         }
@@ -155,17 +169,23 @@ struct WalletDetailView: View {
             Section {
                 VStack(spacing: 16) {
                     ChainIcon(chain: wallet.chain, size: 64)
+                        .accessibilityHidden(true)
 
                     if isLoadingBalance {
                         ProgressView()
+                            .accessibilityLabel("Loading balance")
                     } else if let balance {
                         Text(balance)
                             .font(.title2.bold())
+                            .accessibilityLabel("Balance: \(balance)")
+                            .accessibilityIdentifier("walletDetail_balance")
                     }
 
                     Text(wallet.address)
                         .font(.system(.caption, design: .monospaced))
                         .multilineTextAlignment(.center)
+                        .accessibilityLabel("Wallet address")
+                        .accessibilityValue(wallet.address)
 
                     Button {
                         SecureClipboard.copy(wallet.address)
@@ -176,11 +196,15 @@ struct WalletDetailView: View {
                               systemImage: copiedAddress ? "checkmark" : "doc.on.doc")
                             .font(.caption)
                     }
+                    .accessibilityLabel(copiedAddress ? "Address copied" : "Copy wallet address")
+                    .accessibilityHint("Copies the wallet address to clipboard")
+                    .accessibilityIdentifier("walletDetail_copyAddressButton")
 
                     ShardStatusBadge(
                         threshold: wallet.threshold,
                         total: wallet.totalParties
                     )
+                    .accessibilityLabel("\(wallet.threshold) of \(wallet.totalParties) shard threshold")
                 }
                 .frame(maxWidth: .infinity)
                 .padding()
@@ -192,12 +216,16 @@ struct WalletDetailView: View {
                 } label: {
                     Label("Send Transaction", systemImage: "arrow.up.circle.fill")
                 }
+                .accessibilityHint("Open the transaction signing flow")
+                .accessibilityIdentifier("walletDetail_sendButton")
 
                 Button {
                     showReceive = true
                 } label: {
                     Label("Receive", systemImage: "qrcode")
                 }
+                .accessibilityHint("Show your QR code and address to receive funds")
+                .accessibilityIdentifier("walletDetail_receiveButton")
             }
 
             // Token balances (ERC-20 / SPL)

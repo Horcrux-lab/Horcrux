@@ -72,6 +72,7 @@ struct OnboardingView: View {
             Image(systemName: "shield.lefthalf.filled")
                 .font(.system(size: 72))
                 .foregroundStyle(HorcruxTheme.accentColor)
+                .accessibilityHidden(true)
 
             switch step {
             case .welcome:
@@ -85,6 +86,8 @@ struct OnboardingView: View {
 
                 Button("Get Started") { step = .createPin }
                     .buttonStyle(.borderedProminent)
+                    .accessibilityHint("Begin setting up your wallet PIN")
+                    .accessibilityIdentifier("onboarding_getStartedButton")
 
             case .createPin:
                 VStack(spacing: 12) {
@@ -99,12 +102,17 @@ struct OnboardingView: View {
                     .textFieldStyle(.roundedBorder)
                     .frame(maxWidth: 240)
                     .multilineTextAlignment(.center)
+                    .accessibilityLabel("Create PIN")
+                    .accessibilityHint("Enter at least 4 digits for your new PIN")
+                    .accessibilityIdentifier("onboarding_createPinField")
 
                 Button("Next") {
                     step = .confirmPin
                 }
                 .buttonStyle(.borderedProminent)
                 .disabled(pin.count < 4)
+                .accessibilityHint("Proceed to confirm your PIN")
+                .accessibilityIdentifier("onboarding_nextButton")
 
             case .confirmPin:
                 VStack(spacing: 12) {
@@ -119,6 +127,9 @@ struct OnboardingView: View {
                     .textFieldStyle(.roundedBorder)
                     .frame(maxWidth: 240)
                     .multilineTextAlignment(.center)
+                    .accessibilityLabel("Confirm PIN")
+                    .accessibilityHint("Re-enter your PIN to confirm")
+                    .accessibilityIdentifier("onboarding_confirmPinField")
 
                 if !confirmPin.isEmpty && confirmPin != pin {
                     Text("PINs don't match")
@@ -133,6 +144,8 @@ struct OnboardingView: View {
                 }
                 .buttonStyle(.borderedProminent)
                 .disabled(confirmPin.count < 4 || pin != confirmPin)
+                .accessibilityHint("Save your PIN and create your wallet")
+                .accessibilityIdentifier("onboarding_createWalletButton")
             }
 
             Spacer()
@@ -156,6 +169,7 @@ struct LockScreenView: View {
             Image(systemName: "shield.lefthalf.filled")
                 .font(.system(size: 72))
                 .foregroundStyle(HorcruxTheme.accentColor)
+                .accessibilityHidden(true)
 
             Text("Horcrux")
                 .font(.largeTitle.bold())
@@ -169,21 +183,31 @@ struct LockScreenView: View {
                 .frame(maxWidth: 200)
                 .multilineTextAlignment(.center)
                 .onSubmit { unlock() }
+                .accessibilityLabel("PIN")
+                .accessibilityHint("Enter your numeric PIN to unlock the app")
+                .accessibilityIdentifier("lockScreen_pinField")
 
             if let errorMessage {
                 Text(errorMessage)
                     .font(.caption)
                     .foregroundStyle(.red)
+                    .accessibilityLabel(errorMessage)
             }
 
             Button("Unlock") { unlock() }
                 .buttonStyle(.borderedProminent)
                 .disabled(pin.count < 4)
+                .accessibilityLabel("Unlock")
+                .accessibilityHint("Unlock the app with the entered PIN")
+                .accessibilityIdentifier("lockScreen_unlockButton")
 
             if UserDefaults.standard.bool(forKey: "biometricEnabled"),
                BiometricAuth.shared.availableType != .none {
                 Button("Use Face ID") { unlockBiometric() }
                     .foregroundStyle(HorcruxTheme.accentColor)
+                    .accessibilityLabel("Unlock with Face ID")
+                    .accessibilityHint("Use biometric authentication to unlock the app")
+                    .accessibilityIdentifier("lockScreen_biometricButton")
             }
 
             Spacer()
