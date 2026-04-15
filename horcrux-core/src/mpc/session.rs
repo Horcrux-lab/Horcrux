@@ -3,17 +3,14 @@
 //! Dispatches based on CurveType:
 //! - **Secp256k1**: Uses CGGMP21 threshold ECDSA (ecdsa.rs)
 //!   Falls back to Feldman VSS Schnorr if `use_ecdsa` is false
-//!   Supports presign + 1-round signing for low latency
 //! - **Ed25519**: Uses IETF FROST (frost.rs)
 
 use super::{CurveType, HorcruxConfig, MpcError};
 use super::keygen::KeygenSession;
 use super::signing::SigningSession;
 use super::frost::{FrostDkgSession, FrostSigningSession};
-use super::ecdsa::{EcdsaDkgSession, EcdsaSigningSession, EcdsaPresignSession, EcdsaPresignedSigningSession};
+use super::ecdsa::{EcdsaDkgSession, EcdsaSigningSession};
 use super::types::{KeygenResult, MpcMessage, SigningResult};
-use generic_ec::{NonZero, Point};
-use cggmp21::supported_curves::Secp256k1;
 use std::collections::HashMap;
 
 /// Abstracts over different DKG session types.
@@ -28,8 +25,6 @@ enum SignSessionKind {
     Schnorr(SigningSession),
     Frost(FrostSigningSession),
     Ecdsa(EcdsaSigningSession),
-    EcdsaPresign(EcdsaPresignSession),
-    EcdsaPresigned(EcdsaPresignedSigningSession),
 }
 
 /// Manages multiple concurrent MPC sessions.
@@ -45,7 +40,7 @@ impl Default for SessionManager {
         Self {
             keygen_sessions: HashMap::new(),
             signing_sessions: HashMap::new(),
-            use_ecdsa: true,
+            use_ecdsa: true, // default to production ECDSA
         }
     }
 }
@@ -82,7 +77,7 @@ impl SessionManager {
         Ok(msgs)
     }
 
-    /// Create and start a new signing session (full 4-round).
+    /// Create and start a new signing session.
     pub fn create_signing(
         &mut self,
         session_id: String,
@@ -94,69 +89,36 @@ impl SessionManager {
         let (kind, msgs) = match config.curve {
             CurveType::Ed25519 => {
                 let mut session = FrostSigningSession::new(
-                    config, message_hash, shard_data, participants,
+                    config,
+                    message_hash,
+                    shard_data,
+                    participants,
                 )?;
                 let msgs = session.start(&session_id)?;
                 (SignSessionKind::Frost(session), msgs)
             }
             CurveType::Secp256k1 if self.use_ecdsa => {
                 let mut session = EcdsaSigningSession::new(
-                    config, message_hash, shard_data, participants,
+                    config,
+                    message_hash,
+                    shard_data,
+                    participants,
                 )?;
                 let msgs = session.start(&session_id)?;
                 (SignSessionKind::Ecdsa(session), msgs)
             }
             CurveType::Secp256k1 => {
                 let mut session = SigningSession::new(
-                    config, message_hash, shard_data, participants,
+                    config,
+                    message_hash,
+                    shard_data,
+                    participants,
                 )?;
                 let msgs = session.start(&session_id)?;
                 (SignSessionKind::Schnorr(session), msgs)
             }
         };
         self.signing_sessions.insert(session_id, kind);
-        Ok(msgs)
-    }
-
-    /// Create and start a presignature generation session (offline, 3-round MPC).
-    ///
-    /// After completion, retrieve the presignature with `presignature_bytes()`
-    /// and cache it for later 1-round signing via `create_presigned_signing()`.
-    pub fn create_presign(
-        &mut self,
-        session_id: String,
-        config: HorcruxConfig,
-        shard_data: Vec<u8>,
-        participants: Vec<u16>,
-    ) -> Result<Vec<MpcMessage>, MpcError> {
-        let mut session = EcdsaPresignSession::new(config, shard_data, participants)?;
-        let msgs = session.start(&session_id)?;
-        self.signing_sessions
-            .insert(session_id, SignSessionKind::EcdsaPresign(session));
-        Ok(msgs)
-    }
-
-    /// Create and start a presigned signing session (online, 1 broadcast round).
-    ///
-    /// Uses a cached presignature from a prior `create_presign()` session.
-    /// ⚠️ Never reuse presignatures!
-    pub fn create_presigned_signing(
-        &mut self,
-        session_id: String,
-        config: HorcruxConfig,
-        message_hash: Vec<u8>,
-        presignature_bytes: &[u8],
-        group_public_key: NonZero<Point<Secp256k1>>,
-    ) -> Result<Vec<MpcMessage>, MpcError> {
-        let mut session = EcdsaPresignedSigningSession::new(
-            config,
-            message_hash,
-            presignature_bytes,
-            group_public_key,
-        )?;
-        let msgs = session.start(&session_id)?;
-        self.signing_sessions
-            .insert(session_id, SignSessionKind::EcdsaPresigned(session));
         Ok(msgs)
     }
 
@@ -174,8 +136,6 @@ impl SessionManager {
                 SignSessionKind::Schnorr(s) => s.process_message(msg),
                 SignSessionKind::Frost(s) => s.process_message(msg),
                 SignSessionKind::Ecdsa(s) => s.process_message(msg),
-                SignSessionKind::EcdsaPresign(s) => s.process_message(msg),
-                SignSessionKind::EcdsaPresigned(s) => s.process_message(msg),
             };
         }
         Err(MpcError::SessionError(format!(
@@ -198,24 +158,6 @@ impl SessionManager {
             SignSessionKind::Schnorr(s) => s.result(),
             SignSessionKind::Frost(s) => s.result(),
             SignSessionKind::Ecdsa(s) => s.result(),
-            SignSessionKind::EcdsaPresign(_) => None, // presign doesn't produce SigningResult
-            SignSessionKind::EcdsaPresigned(s) => s.result(),
-        })
-    }
-
-    /// Get presignature bytes if presign session is complete.
-    pub fn presignature_bytes(&self, session_id: &str) -> Option<Vec<u8>> {
-        self.signing_sessions.get(session_id).and_then(|s| match s {
-            SignSessionKind::EcdsaPresign(s) => s.presignature_bytes().map(|b| b.to_vec()),
-            _ => None,
-        })
-    }
-
-    /// Get group public key from a presign session.
-    pub fn presign_public_key(&self, session_id: &str) -> Option<NonZero<Point<Secp256k1>>> {
-        self.signing_sessions.get(session_id).and_then(|s| match s {
-            SignSessionKind::EcdsaPresign(s) => Some(*s.group_public_key()),
-            _ => None,
         })
     }
 
