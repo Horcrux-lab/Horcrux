@@ -58,8 +58,13 @@ final class CreateShardViewModel: ObservableObject {
 
     func startDKG() {
         // Block on jailbroken devices
-        if SecurityEnvironment.isCompromised {
+        guard !SecurityEnvironment.isCompromised else {
             errorMessage = L10n.DKG.compromisedDevice
+            step = .error
+            return
+        }
+        guard bridge != nil else {
+            errorMessage = "Bridge not initialized"
             step = .error
             return
         }
@@ -217,7 +222,7 @@ final class CreateShardViewModel: ObservableObject {
             let encrypted = try appState.bridge.encryptShard(
                 plaintext: result.shardData,
                 deviceKey: deviceKey,
-                pin: AppState.pinKeyMaterial(pin)
+                pin: try AppState.pinKeyMaterial(pin)
             )
             let encoded = try JSONEncoder().encode(EncryptedShardDTO(encrypted))
             try appState.walletStore.storeKeyShare(encoded, walletId: wallet.id)

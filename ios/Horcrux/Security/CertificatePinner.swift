@@ -26,6 +26,7 @@ final class CertificatePinner: NSObject {
     private override init() {
         super.init()
         loadTOFUPins()
+        registerKnownPins()
     }
 
     // MARK: - Pin Management
@@ -138,32 +139,33 @@ final class CertificatePinner: NSObject {
         return keyData
     }
 
+    // MARK: - Known Pin Registration
+
+    /// Pre-pin known RPC endpoint certificates.
+    /// In production, replace placeholder hashes with real SPKI hashes.
+    private func registerKnownPins() {
+        // TODO: Replace with actual SPKI hashes from provider certificates
+        // pinnedHashes["eth.llamarpc.com"] = ["<base64-spki-hash>"]
+        // pinnedHashes["blockstream.info"] = ["<base64-spki-hash>"]
+        // pinnedHashes["api.mainnet-beta.solana.com"] = ["<base64-spki-hash>"]
+    }
+
     // MARK: - TOFU Persistence
 
     private func loadTOFUPins() {
-        guard let data = UserDefaults.standard.data(forKey: tofuKey) else {
+        guard let data = try? KeychainManager.shared.retrieve(key: tofuKey),
+              let decoded = try? JSONDecoder().decode([String: [String]].self, from: data) else {
             return
         }
-        let stored: [String: [String]]
-        do {
-            stored = try JSONDecoder().decode([String: [String]].self, from: data)
-        } catch {
-            SecureLog.error("Failed to decode TOFU certificate pins: \(error.localizedDescription)")
-            return
-        }
-        for (host, hashes) in stored {
+        for (host, hashes) in decoded {
             pinnedHashes[host] = Set(hashes)
         }
     }
 
     private func saveTOFUPins() {
         let serializable = pinnedHashes.mapValues { Array($0) }
-        do {
-            let data = try JSONEncoder().encode(serializable)
-            UserDefaults.standard.set(data, forKey: tofuKey)
-        } catch {
-            SecureLog.error("Failed to encode TOFU certificate pins: \(error.localizedDescription)")
-        }
+        guard let data = try? JSONEncoder().encode(serializable) else { return }
+        try? KeychainManager.shared.store(key: tofuKey, data: data)
     }
 }
 

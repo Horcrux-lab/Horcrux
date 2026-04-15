@@ -38,7 +38,7 @@ final class ShardsViewModel: ObservableObject {
             let plaintext = try appState.bridge.decryptShard(
                 encrypted: dto.toFfi(),
                 deviceKey: deviceKey,
-                pin: AppState.pinKeyMaterial(pin)
+                pin: try AppState.pinKeyMaterial(pin)
             )
 
             let encoder = JSONEncoder()
@@ -93,7 +93,7 @@ final class ShardsViewModel: ObservableObject {
 
         // Re-encrypt the shard with this device's credentials
         let deviceKey = try appState.deviceKey
-        let pinData = AppState.pinKeyMaterial(pin)
+        let pinData = try AppState.pinKeyMaterial(pin)
         let encrypted = try appState.bridge.encryptShard(
             plaintext: backup.encryptedShard,
             deviceKey: deviceKey,

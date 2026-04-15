@@ -124,35 +124,33 @@ final class AppState: ObservableObject {
     /// Derive encryption key material from PIN using PBKDF2.
     /// Uses the stored salt from the PIN hash to ensure consistent derivation.
     /// Returns 32 bytes of key material suitable for shard encryption.
-    static func pinKeyMaterial(_ pin: String) -> Data {
+    static func pinKeyMaterial(_ pin: String) throws -> Data {
         // Retrieve stored salt from Keychain PIN hash (first 16 bytes)
-        if let stored = try? KeychainManager.shared.retrieve(key: KeychainKeys.pinHash),
-           stored.count >= saltSize {
-            let salt = Data(stored.prefix(saltSize))
-            // Derive a separate key using a different info context
-            let pinData = Data(pin.utf8)
-            var derivedKey = Data(count: 32)
-            derivedKey.withUnsafeMutableBytes { derivedBuf in
-                pinData.withUnsafeBytes { pinBuf in
-                    salt.withUnsafeBytes { saltBuf in
-                        CCKeyDerivationPBKDF(
-                            CCPBKDFAlgorithm(kCCPBKDF2),
-                            pinBuf.baseAddress?.assumingMemoryBound(to: Int8.self),
-                            pinData.count,
-                            saltBuf.baseAddress?.assumingMemoryBound(to: UInt8.self),
-                            salt.count,
-                            CCPseudoRandomAlgorithm(kCCPRFHmacAlgSHA256),
-                            pbkdf2Iterations,
-                            derivedBuf.baseAddress?.assumingMemoryBound(to: UInt8.self),
-                            32
-                        )
-                    }
+        guard let stored = try? KeychainManager.shared.retrieve(key: KeychainKeys.pinHash),
+              stored.count >= saltSize else {
+            throw AppError.keychainUnavailable("PIN salt not found — cannot derive key material")
+        }
+        let salt = Data(stored.prefix(saltSize))
+        let pinData = Data(pin.utf8)
+        var derivedKey = Data(count: 32)
+        derivedKey.withUnsafeMutableBytes { derivedBuf in
+            pinData.withUnsafeBytes { pinBuf in
+                salt.withUnsafeBytes { saltBuf in
+                    CCKeyDerivationPBKDF(
+                        CCPBKDFAlgorithm(kCCPBKDF2),
+                        pinBuf.baseAddress?.assumingMemoryBound(to: Int8.self),
+                        pinData.count,
+                        saltBuf.baseAddress?.assumingMemoryBound(to: UInt8.self),
+                        salt.count,
+                        CCPseudoRandomAlgorithm(kCCPRFHmacAlgSHA256),
+                        pbkdf2Iterations,
+                        derivedBuf.baseAddress?.assumingMemoryBound(to: UInt8.self),
+                        32
+                    )
                 }
             }
-            return derivedKey
         }
-        // Fallback: raw bytes (should not happen if PIN was set)
-        return Data(pin.utf8)
+        return derivedKey
     }
 
     // MARK: - Brute-Force Protection
@@ -228,6 +226,9 @@ final class AppState: ObservableObject {
     /// A stable device key stored in Keychain, sealed by Secure Enclave when available.
     /// On SE-capable devices the raw key is encrypted under an SE P-256 key,
     /// so extracting it requires biometric authentication at the hardware level.
+    ///
+    /// - Warning: Callers **must** zero the returned key after use:
+    ///   `defer { var k = key; k.resetBytes(in: 0..<k.count) }`
     var deviceKey: Data {
         get throws {
             // Try SE-sealed path first
@@ -323,6 +324,18 @@ final class AppState: ObservableObject {
         failedAttempts = 0
         lockoutUntil = nil
         isUnlocked = false
+    }
+}
+
+// MARK: - App Errors
+
+enum AppError: LocalizedError {
+    case keychainUnavailable(String)
+
+    var errorDescription: String? {
+        switch self {
+        case .keychainUnavailable(let message): return message
+        }
     }
 }
 

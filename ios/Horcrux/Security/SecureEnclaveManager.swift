@@ -73,7 +73,11 @@ final class SecureEnclaveManager {
             kSecAttrApplicationTag as String: Data(keyTag.utf8),
             kSecAttrKeyClass as String: kSecAttrKeyClassPrivate,
             kSecReturnRef as String: true,
-            kSecUseAuthenticationContext as String: LAContext()
+            kSecUseAuthenticationContext as String: {
+                let context = LAContext()
+                context.localizedReason = "Authenticate to access your key shard"
+                return context
+            }()
         ]
 
         var item: CFTypeRef?

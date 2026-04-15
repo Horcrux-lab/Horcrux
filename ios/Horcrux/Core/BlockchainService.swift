@@ -5,14 +5,30 @@ import Foundation
 actor BlockchainService {
     private let session: URLSession
 
+    /// Limits concurrent RPC requests to prevent endpoint rate-limiting.
+    private let maxConcurrentRequests = 3
+    private var activeRequests = 0
+
+    private func waitForSlot() async {
+        while activeRequests >= maxConcurrentRequests {
+            try? await Task.sleep(nanoseconds: 50_000_000) // 50ms backoff
+        }
+        activeRequests += 1
+    }
+
+    private func releaseSlot() {
+        activeRequests = max(0, activeRequests - 1)
+    }
+
     init(session: URLSession? = nil) {
         // Use certificate-pinned session by default
         self.session = session ?? PinnedURLSession.shared.session
     }
 
-    /// Validate and construct a URL, rejecting non-HTTPS for RPC endpoints.
+    /// Validate and construct a URL, rejecting non-HTTPS schemes.
     private static func validatedURL(_ urlString: String) throws -> URL {
-        guard let url = URL(string: urlString) else {
+        guard let url = URL(string: urlString),
+              url.scheme?.lowercased() == "https" else {
             throw BlockchainError.invalidURL(urlString)
         }
         return url
@@ -438,6 +454,9 @@ actor BlockchainService {
     // MARK: - Private Helpers
 
     private func ethCall<P: Encodable, R: Decodable>(method: String, params: P, rpcURL: String) async throws -> R {
+        await waitForSlot()
+        defer { releaseSlot() }
+
         let body: [String: Any] = [
             "jsonrpc": "2.0",
             "id": 1,

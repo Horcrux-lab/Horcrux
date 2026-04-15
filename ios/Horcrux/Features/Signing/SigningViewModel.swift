@@ -84,6 +84,10 @@ final class SigningViewModel: ObservableObject {
     func estimateGas() {
         guard !recipientAddress.isEmpty, !amount.isEmpty,
               let blockchainService, let networkConfig else { return }
+        guard let amountDecimal = Decimal(string: amount), amountDecimal > 0 else {
+            errorMessage = "Invalid amount"
+            return
+        }
 
         isEstimatingGas = true
         Task {
@@ -143,6 +147,11 @@ final class SigningViewModel: ObservableObject {
         // Block on jailbroken devices
         if SecurityEnvironment.isCompromised {
             errorMessage = L10n.Signing.compromisedDevice
+            step = .error
+            return
+        }
+        guard let amountDecimal = Decimal(string: amount), amountDecimal > 0 else {
+            errorMessage = "Invalid amount"
             step = .error
             return
         }
@@ -301,7 +310,7 @@ final class SigningViewModel: ObservableObject {
         return try bridge.decryptShard(
             encrypted: encrypted,
             deviceKey: deviceKey,
-            pin: AppState.pinKeyMaterial(pin)
+            pin: try AppState.pinKeyMaterial(pin)
         )
     }
 

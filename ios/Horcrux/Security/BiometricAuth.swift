@@ -25,7 +25,7 @@ final class BiometricAuth {
 
     func authenticate(reason: String = "Unlock Horcrux to access your key shards") async -> Bool {
         let context = LAContext()
-        context.localizedFallbackTitle = "Use PIN"
+        context.localizedFallbackTitle = ""
 
         do {
             return try await context.evaluatePolicy(
