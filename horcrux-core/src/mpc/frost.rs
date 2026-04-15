@@ -15,6 +15,7 @@ use frost::keys::dkg as frost_dkg;
 use frost::{Identifier, SigningPackage};
 use rand::rngs::OsRng;
 use std::collections::BTreeMap;
+use zeroize::Zeroize;
 
 // --- DKG wire types ---
 
@@ -411,7 +412,16 @@ impl FrostSigningSession {
             result: None,
         })
     }
+}
 
+/// Zeroize message data on drop.
+impl Drop for FrostSigningSession {
+    fn drop(&mut self) {
+        self.message.zeroize();
+    }
+}
+
+impl FrostSigningSession {
     /// Start signing: generate nonce commitment and broadcast.
     pub fn start(&mut self, session_id: &str) -> Result<Vec<MpcMessage>, MpcError> {
         if self.state != FrostSignState::Init {

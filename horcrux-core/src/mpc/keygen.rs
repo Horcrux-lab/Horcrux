@@ -14,6 +14,7 @@ use k256::elliptic_curve::{Field, PrimeField};
 use k256::elliptic_curve::sec1::FromEncodedPoint;
 use rand::thread_rng;
 use sha2::{Sha256, Digest};
+use zeroize::Zeroize;
 
 /// Serializable round-1 broadcast: commitments to polynomial coefficients.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
@@ -77,6 +78,21 @@ impl KeygenSession {
             keygen_result: None,
         }
     }
+}
+
+/// Zeroize secret polynomial coefficients and received shares on drop.
+impl Drop for KeygenSession {
+    fn drop(&mut self) {
+        for coeff in &mut self.coefficients {
+            coeff.zeroize();
+        }
+        for share in &mut self.round2_shares {
+            share.share.zeroize();
+        }
+    }
+}
+
+impl KeygenSession {
 
     pub fn start(&mut self, session_id: &str) -> Result<Vec<MpcMessage>, MpcError> {
         if self.state != KeygenState::WaitingForParties {

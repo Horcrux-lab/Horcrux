@@ -21,6 +21,7 @@ use k256::{ProjectivePoint, Scalar, AffinePoint, elliptic_curve::group::GroupEnc
 use k256::elliptic_curve::{Field, PrimeField};
 use rand::thread_rng;
 use sha2::{Sha256, Digest};
+use zeroize::Zeroize;
 
 /// Round 1: nonce commitment broadcast.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
@@ -97,7 +98,18 @@ impl SigningSession {
             signing_result: None,
         })
     }
+}
 
+/// Zeroize nonce secret, shard data, and message hash on drop.
+impl Drop for SigningSession {
+    fn drop(&mut self) {
+        self.nonce_secret.zeroize();
+        self.shard_data.zeroize();
+        self.message_hash.zeroize();
+    }
+}
+
+impl SigningSession {
     pub fn start(&mut self, session_id: &str) -> Result<Vec<MpcMessage>, MpcError> {
         if self.state != SigningState::WaitingForParties {
             return Err(MpcError::SessionError("signing session already started".into()));
