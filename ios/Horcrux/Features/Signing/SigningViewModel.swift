@@ -366,6 +366,21 @@ final class SigningViewModel: ObservableObject {
         let wei = eth * weiPerEth
         return NSDecimalNumber(decimal: wei).stringValue
     }
+
+    /// Save signed transaction for later broadcast (offline mode).
+    func saveForLaterBroadcast(queue: PendingBroadcastQueue) {
+        guard let txHash else { return }
+        let pending = PendingBroadcastQueue.PendingTransaction(
+            id: currentRecordId ?? UUID().uuidString,
+            walletId: wallet.id,
+            chain: wallet.chain,
+            signedPayload: txHash,
+            toAddress: recipientAddress,
+            amount: amount,
+            createdAt: Date()
+        )
+        queue.enqueue(pending)
+    }
 }
 
 private enum SigningError: LocalizedError {

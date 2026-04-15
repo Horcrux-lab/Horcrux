@@ -129,10 +129,12 @@ final class PeerManager: ObservableObject {
         try await channel.send(encoded, to: peer)
     }
 
-    /// Broadcast MPC data to all connected peers.
+    /// Broadcast MPC data to all connected peers, with retry on failure.
     func broadcastMpcMessage(_ data: Data) async throws {
         for peer in connectedPeers {
-            try await sendMpcMessage(data, to: peer)
+            try await MpcRetryPolicy.withRetry {
+                try await self.sendMpcMessage(data, to: peer)
+            }
         }
     }
 

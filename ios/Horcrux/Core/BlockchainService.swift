@@ -211,6 +211,143 @@ actor BlockchainService {
         }
     }
 
+    // MARK: - Token Balances
+
+    /// Fetch ERC-20 token balance via eth_call to balanceOf(address).
+    func erc20Balance(tokenContract: String, ownerAddress: String, rpcURL: String) async throws -> String {
+        // balanceOf(address) selector = 0x70a08231, address padded to 32 bytes
+        let cleanAddr = ownerAddress.hasPrefix("0x") ? String(ownerAddress.dropFirst(2)) : ownerAddress
+        let paddedAddress = String(repeating: "0", count: 64 - cleanAddr.count) + cleanAddr
+        let callData = "0x70a08231" + paddedAddress
+
+        // eth_call with [{ to, data }, "latest"]
+        let body: [String: Any] = [
+            "jsonrpc": "2.0", "id": 1,
+            "method": "eth_call",
+            "params": [["to": tokenContract, "data": callData], "latest"]
+        ]
+        let jsonBody = try JSONSerialization.data(withJSONObject: body)
+        guard let url = URL(string: rpcURL) else { throw BlockchainError.invalidURL(rpcURL) }
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.httpBody = jsonBody
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        let (data, response) = try await session.data(for: request)
+        try validateHTTP(response)
+
+        struct RPCResult: Decodable {
+            let result: String?
+        }
+        let rpc = try JSONDecoder().decode(RPCResult.self, from: data)
+        guard let hex = rpc.result else { return "0" }
+        return hexToDecimal(hex)
+    }
+
+    /// Fetch multiple ERC-20 token balances.
+    func erc20Balances(tokens: [Token], ownerAddress: String, rpcURL: String) async -> [TokenBalance] {
+        await withTaskGroup(of: TokenBalance?.self) { group in
+            for token in tokens {
+                group.addTask {
+                    do {
+                        let raw = try await self.erc20Balance(
+                            tokenContract: token.id,
+                            ownerAddress: ownerAddress,
+                            rpcURL: rpcURL
+                        )
+                        guard raw != "0" else { return nil }
+                        return TokenBalance(token: token, balance: raw)
+                    } catch {
+                        return nil
+                    }
+                }
+            }
+            var results: [TokenBalance] = []
+            for await result in group {
+                if let tb = result { results.append(tb) }
+            }
+            return results.sorted { $0.token.symbol < $1.token.symbol }
+        }
+    }
+
+    /// Fetch SPL token balances for a Solana address.
+    func splTokenBalances(tokens: [Token], ownerAddress: String, rpcURL: String) async -> [TokenBalance] {
+        // Use getTokenAccountsByOwner to get all SPL token accounts
+        struct TokenAccountResult: Decodable {
+            struct Value: Decodable {
+                struct Account: Decodable {
+                    struct Data: Decodable {
+                        struct Parsed: Decodable {
+                            struct Info: Decodable {
+                                let mint: String
+                                struct TokenAmount: Decodable {
+                                    let amount: String
+                                }
+                                let tokenAmount: TokenAmount
+                            }
+                            let info: Info
+                        }
+                        let parsed: Parsed
+                    }
+                    let data: Data
+                }
+                let account: Account
+            }
+            let value: [Value]
+        }
+
+        do {
+            let params: [Any] = [
+                ownerAddress,
+                ["programId": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"],
+                ["encoding": "jsonParsed"]
+            ]
+            // Manual JSON-RPC call for complex params
+            let body: [String: Any] = [
+                "jsonrpc": "2.0", "id": 1,
+                "method": "getTokenAccountsByOwner",
+                "params": params
+            ]
+            let jsonBody = try JSONSerialization.data(withJSONObject: body)
+            guard let url = URL(string: rpcURL) else { return [] }
+            var request = URLRequest(url: url)
+            request.httpMethod = "POST"
+            request.httpBody = jsonBody
+            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+            let (data, _) = try await session.data(for: request)
+
+            struct RPCWrap: Decodable {
+                let result: TokenAccountResult?
+            }
+            let decoded = try JSONDecoder().decode(RPCWrap.self, from: data)
+            guard let accounts = decoded.result?.value else { return [] }
+
+            let tokenMap = Dictionary(uniqueKeysWithValues: tokens.map { ($0.id, $0) })
+            return accounts.compactMap { account in
+                let mint = account.account.data.parsed.info.mint
+                let amount = account.account.data.parsed.info.tokenAmount.amount
+                guard let token = tokenMap[mint], amount != "0" else { return nil }
+                return TokenBalance(token: token, balance: amount)
+            }.sorted { $0.token.symbol < $1.token.symbol }
+        } catch {
+            return []
+        }
+    }
+
+    /// Fetch all token balances for a wallet.
+    func tokenBalances(for wallet: Wallet, config: NetworkConfig) async -> [TokenBalance] {
+        let tokens = TokenList.tokens(for: wallet.chain)
+        guard !tokens.isEmpty else { return [] }
+
+        switch wallet.chain {
+        case .ethereum:
+            return await erc20Balances(tokens: tokens, ownerAddress: wallet.address, rpcURL: config.ethereumRPC)
+        case .solana:
+            return await splTokenBalances(tokens: tokens, ownerAddress: wallet.address, rpcURL: config.solanaRPC)
+        case .bitcoin:
+            return []
+        }
+    }
+
     // MARK: - Private Helpers
 
     private func ethCall<P: Encodable, R: Decodable>(method: String, params: P, rpcURL: String) async throws -> R {

@@ -147,6 +147,8 @@ struct WalletDetailView: View {
     @State private var balance: String?
     @State private var isLoadingBalance = false
     @State private var copiedAddress = false
+    @State private var tokenBalances: [TokenBalance] = []
+    @State private var isLoadingTokens = false
 
     var body: some View {
         List {
@@ -198,6 +200,33 @@ struct WalletDetailView: View {
                 }
             }
 
+            // Token balances (ERC-20 / SPL)
+            if wallet.chain != .bitcoin {
+                Section("Tokens") {
+                    if isLoadingTokens {
+                        HStack {
+                            ProgressView().scaleEffect(0.7)
+                            Text("Loading tokens…").font(.caption).foregroundStyle(.secondary)
+                        }
+                    } else if tokenBalances.isEmpty {
+                        Text("No token balances found")
+                            .font(.caption)
+                            .foregroundStyle(.tertiary)
+                    } else {
+                        ForEach(tokenBalances) { tb in
+                            HStack {
+                                Text(tb.token.symbol)
+                                    .font(.subheadline.bold())
+                                Spacer()
+                                Text(tb.displayBalance)
+                                    .font(.subheadline)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                    }
+                }
+            }
+
             // Recent transactions
             let recentTxs = appState.transactionStore.records(for: wallet.id).prefix(5)
             if !recentTxs.isEmpty {
@@ -244,9 +273,11 @@ struct WalletDetailView: View {
         }
         .task {
             await fetchBalance()
+            await fetchTokenBalances()
         }
         .refreshable {
             await fetchBalance()
+            await fetchTokenBalances()
         }
     }
 
@@ -261,5 +292,15 @@ struct WalletDetailView: View {
         } catch {
             balance = nil
         }
+    }
+
+    private func fetchTokenBalances() async {
+        guard wallet.chain != .bitcoin else { return }
+        isLoadingTokens = true
+        defer { isLoadingTokens = false }
+        tokenBalances = await appState.blockchainService.tokenBalances(
+            for: wallet,
+            config: appState.networkConfig
+        )
     }
 }

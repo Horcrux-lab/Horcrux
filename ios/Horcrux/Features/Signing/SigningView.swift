@@ -255,6 +255,7 @@ struct SigningProgressView: View {
 // MARK: - Step 4: Complete
 
 struct SigningCompleteView: View {
+    @EnvironmentObject private var appState: AppState
     @ObservedObject var viewModel: SigningViewModel
     let dismiss: DismissAction
 
@@ -303,6 +304,17 @@ struct SigningCompleteView: View {
                     }
                     .buttonStyle(.borderedProminent)
                     .tint(.green)
+                    .padding(.horizontal)
+
+                    Button {
+                        viewModel.saveForLaterBroadcast(queue: appState.pendingBroadcastQueue)
+                        dismiss()
+                    } label: {
+                        Label("Save for Later", systemImage: "clock.arrow.circlepath")
+                            .frame(maxWidth: .infinity)
+                            .font(.subheadline)
+                    }
+                    .buttonStyle(.bordered)
                     .padding(.horizontal)
                 }
             }

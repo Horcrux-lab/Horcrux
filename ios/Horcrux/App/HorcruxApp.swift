@@ -32,6 +32,21 @@ struct HorcruxApp: App {
                         appState.onEnterBackground()
                     } else if newPhase == .active {
                         appState.checkAutoLock()
+                        // Start confirmation poller + broadcast pending queue
+                        if appState.isUnlocked {
+                            Task {
+                                await appState.confirmationPoller.start(
+                                    store: appState.transactionStore,
+                                    service: appState.blockchainService,
+                                    config: appState.networkConfig
+                                )
+                                await appState.pendingBroadcastQueue.broadcastAll(
+                                    service: appState.blockchainService,
+                                    config: appState.networkConfig,
+                                    transactionStore: appState.transactionStore
+                                )
+                            }
+                        }
                         // Periodic debugger check on foreground
                         if AntiDebug.performChecks() {
                             showDebuggerWarning = true
