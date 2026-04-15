@@ -1,0 +1,96 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  rust-tests:
+    name: Rust Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: cargo-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Run tests
+        run: cargo test --workspace
+
+      - name: Check formatting
+        run: cargo fmt --all -- --check
+
+      - name: Clippy lints
+        run: cargo clippy --workspace -- -D warnings
+
+  ios-build:
+    name: iOS Build & Test
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-ios-sim
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Cache cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: cargo-ios-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Build Rust library for iOS Simulator
+        run: cargo build --lib -p horcrux-core --target aarch64-apple-ios-sim
+
+      - name: Copy library to Frameworks
+        run: |
+          mkdir -p ios/Horcrux/Core/Frameworks
+          cp target/aarch64-apple-ios-sim/debug/libhorcrux_core.a ios/Horcrux/Core/Frameworks/
+
+      - name: Generate Xcode project
+        working-directory: ios
+        run: xcodegen generate
+
+      - name: Build iOS app
+        working-directory: ios
+        run: |
+          xcodebuild build-for-testing \
+            -project Horcrux.xcodeproj \
+            -scheme Horcrux \
+            -destination 'platform=iOS Simulator,name=iPhone 16,OS=latest' \
+            -skipPackagePluginValidation \
+            CODE_SIGNING_ALLOWED=NO \
+            | xcpretty || true
+
+      - name: Run unit tests
+        working-directory: ios
+        run: |
+          xcodebuild test \
+            -project Horcrux.xcodeproj \
+            -scheme Horcrux \
+            -destination 'platform=iOS Simulator,name=iPhone 16,OS=latest' \
+            -skipPackagePluginValidation \
+            CODE_SIGNING_ALLOWED=NO \
+            | xcpretty || true

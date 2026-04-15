@@ -43,6 +43,10 @@ targets:
         CFBundleShortVersionString: "0.1.0"
         CFBundleVersion: "1"
         UILaunchScreen: {}
+        CFBundleURLTypes:
+          - CFBundleURLSchemes:
+              - horcrux
+            CFBundleURLName: com.horcrux.wallet
         NSBluetoothAlwaysUsageDescription: "Horcrux uses Bluetooth to communicate with nearby devices for key shard creation and signing."
         NSBluetoothPeripheralUsageDescription: "Horcrux uses Bluetooth to communicate with nearby devices."
         NSLocalNetworkUsageDescription: "Horcrux uses local network to discover and communicate with nearby devices."
