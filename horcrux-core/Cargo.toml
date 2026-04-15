@@ -42,6 +42,12 @@ zeroize = { version = "1", features = ["derive"] }
 # Base64
 base64 = "0.22"
 
+# Chain-specific encoding
+tiny-keccak = { version = "2", features = ["keccak"] }
+bs58 = "0.5"
+bech32 = "0.11"
+ripemd = "0.1"
+
 [build-dependencies]
 uniffi = { version = "0.28", features = ["build"] }
 

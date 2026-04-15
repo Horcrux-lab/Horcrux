@@ -37,8 +37,9 @@ impl SessionManager {
         config: HorcruxConfig,
         message_hash: Vec<u8>,
         shard_data: Vec<u8>,
+        participants: Vec<u16>,
     ) -> Result<Vec<MpcMessage>, MpcError> {
-        let mut session = SigningSession::new(config, message_hash, shard_data);
+        let mut session = SigningSession::new(config, message_hash, shard_data, participants)?;
         let msgs = session.start(&session_id)?;
         self.signing_sessions.insert(session_id, session);
         Ok(msgs)
@@ -55,6 +56,16 @@ impl SessionManager {
         Err(MpcError::SessionError(format!(
             "unknown session: {}", msg.session_id
         )))
+    }
+
+    /// Get keygen result if the session is complete.
+    pub fn keygen_result(&self, session_id: &str) -> Option<super::types::KeygenResult> {
+        self.keygen_sessions.get(session_id).and_then(|s| s.result())
+    }
+
+    /// Get signing result if the session is complete.
+    pub fn signing_result(&self, session_id: &str) -> Option<super::types::SigningResult> {
+        self.signing_sessions.get(session_id).and_then(|s| s.result())
     }
 
     /// Remove a completed session.

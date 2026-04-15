@@ -33,9 +33,6 @@ uuid = { version = "1", features = ["v4", "serde"] }
 # Futures utilities for stream splitting
 futures-util = "0.3"
 
-# Time
-chrono = { version = "0.4", features = ["serde"] }
-
 [dev-dependencies]
 tokio = { version = "1", features = ["full", "test-util"] }
 tokio-tungstenite = "0.24"
