@@ -7,6 +7,7 @@ use super::{ChainError, ChainType, Transaction, TransactionBuilder};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
+/// Bitcoin P2WPKH transaction parameters (inputs + outputs).
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BtcTxParams {
     pub inputs: Vec<BtcInput>,
@@ -14,6 +15,7 @@ pub struct BtcTxParams {
     pub testnet: bool,
 }
 
+/// A UTXO input reference (txid:vout) with value for sighash computation.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BtcInput {
     /// Previous transaction id (hex, big-endian display order).
@@ -28,6 +30,7 @@ pub struct BtcInput {
     pub pubkey_hash: Option<Vec<u8>>,
 }
 
+/// A Bitcoin transaction output (destination address + satoshi amount).
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BtcOutput {
     pub address: String,
@@ -37,6 +40,7 @@ pub struct BtcOutput {
     pub script_pubkey: Option<Vec<u8>>,
 }
 
+/// Builds a P2WPKH SegWit Bitcoin transaction.
 pub struct BtcTransactionBuilder;
 
 /// SIGHASH_ALL

@@ -6,6 +6,7 @@
 use super::{keccak256, ChainError, ChainType, Transaction, TransactionBuilder};
 use serde::{Deserialize, Serialize};
 
+/// EIP-1559 Ethereum transaction parameters.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct EvmTxParams {
     pub to: String,
@@ -18,6 +19,7 @@ pub struct EvmTxParams {
     pub data: Vec<u8>,
 }
 
+/// Builds an EIP-1559 Ethereum transaction and computes the keccak256 signing hash.
 pub struct EvmTransactionBuilder;
 
 impl TransactionBuilder for EvmTransactionBuilder {

@@ -59,6 +59,49 @@ struct Room {
 }
 
 impl Room {
+    /// Verify token and join an existing room. Returns sender/receiver on success.
+    async fn try_join(
+        &self,
+        token: Option<&str>,
+        device_id: &str,
+        max_participants: usize,
+    ) -> Result<(broadcast::Sender<RoomMessage>, broadcast::Receiver<RoomMessage>), RoomError> {
+        // Verify access token
+        if let Some(ref stored_hash) = self.token_hash {
+            let provided_hash = token.map(RoomManagerInner::hash_token);
+            match provided_hash {
+                Some(h) if constant_time_eq(&h, stored_hash) => {}
+                _ => {
+                    METRICS.auth_failures.fetch_add(1, Ordering::Relaxed);
+                    return Err(RoomError::InvalidToken);
+                }
+            }
+        }
+
+        let current = self.participant_count.load(Ordering::Relaxed);
+        if current >= max_participants {
+            return Err(RoomError::RoomFull);
+        }
+
+        if !device_id.is_empty() {
+            let devs = self.devices.lock().await;
+            if devs.iter().any(|d| d == device_id) {
+                return Err(RoomError::DuplicateDevice);
+            }
+            drop(devs);
+        }
+
+        self.participant_count.fetch_add(1, Ordering::Relaxed);
+        self.touch();
+        let rx = self.tx.subscribe();
+
+        if !device_id.is_empty() {
+            self.devices.lock().await.push(device_id.to_string());
+        }
+
+        Ok((self.tx.clone(), rx))
+    }
+
     fn touch(&self) {
         let now_ms = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
@@ -142,43 +185,10 @@ impl RoomManagerInner {
         {
             let rooms = self.rooms.read().await;
             if let Some(room) = rooms.get(room_id) {
-                // Verify access token
-                if let Some(ref stored_hash) = room.token_hash {
-                    let provided_hash = token.map(Self::hash_token);
-                    match provided_hash {
-                        Some(h) if constant_time_eq(&h, stored_hash) => {}
-                        _ => {
-                            METRICS.auth_failures.fetch_add(1, Ordering::Relaxed);
-                            return Err(RoomError::InvalidToken);
-                        }
-                    }
-                }
-
-                let current = room.participant_count.load(Ordering::Relaxed);
-                if current >= self.max_participants {
-                    return Err(RoomError::RoomFull);
-                }
-
-                // Reject duplicate device_id
-                if !device_id.is_empty() {
-                    let devs = room.devices.lock().await;
-                    if devs.iter().any(|d| d == device_id) {
-                        return Err(RoomError::DuplicateDevice);
-                    }
-                    drop(devs);
-                }
-
-                room.participant_count.fetch_add(1, Ordering::Relaxed);
-                room.touch();
-                let rx = room.tx.subscribe();
-
-                if !device_id.is_empty() {
-                    room.devices.lock().await.push(device_id.to_string());
-                }
-
+                let result = room.try_join(token, device_id, self.max_participants).await?;
                 let count = room.participant_count.load(Ordering::Relaxed);
                 tracing::info!(room = room_id, participants = count, "participant joined");
-                return Ok((room.tx.clone(), rx));
+                return Ok(result);
             }
         }
 
@@ -186,34 +196,7 @@ impl RoomManagerInner {
         let mut rooms = self.rooms.write().await;
         // Double-check after acquiring write lock
         if let Some(room) = rooms.get(room_id) {
-            if let Some(ref stored_hash) = room.token_hash {
-                let provided_hash = token.map(Self::hash_token);
-                match provided_hash {
-                    Some(h) if constant_time_eq(&h, stored_hash) => {}
-                    _ => {
-                        METRICS.auth_failures.fetch_add(1, Ordering::Relaxed);
-                        return Err(RoomError::InvalidToken);
-                    }
-                }
-            }
-            let current = room.participant_count.load(Ordering::Relaxed);
-            if current >= self.max_participants {
-                return Err(RoomError::RoomFull);
-            }
-            if !device_id.is_empty() {
-                let devs = room.devices.lock().await;
-                if devs.iter().any(|d| d == device_id) {
-                    return Err(RoomError::DuplicateDevice);
-                }
-                drop(devs);
-            }
-            room.participant_count.fetch_add(1, Ordering::Relaxed);
-            room.touch();
-            let rx = room.tx.subscribe();
-            if !device_id.is_empty() {
-                room.devices.lock().await.push(device_id.to_string());
-            }
-            return Ok((room.tx.clone(), rx));
+            return room.try_join(token, device_id, self.max_participants).await;
         }
 
         let (tx, rx) = broadcast::channel(256);

@@ -171,6 +171,51 @@ impl RateLimiter {
     }
 }
 
+/// Validate, parse, and relay an incoming message (shared by Text + Binary paths).
+/// Returns `Some(msg)` if valid, `None` if rejected (oversized, rate-limited, replayed, malformed).
+async fn process_incoming(
+    raw: &[u8],
+    device_id: &str,
+    room_id: &str,
+    max_msg_size: usize,
+    rate_limiter: &mut RateLimiter,
+    rooms: &RoomManager,
+) -> Option<RoomMessage> {
+    if raw.len() > max_msg_size {
+        METRICS.messages_rejected.fetch_add(1, Ordering::Relaxed);
+        tracing::warn!(room = %room_id, size = raw.len(), "oversized");
+        return None;
+    }
+
+    if !rate_limiter.try_consume() {
+        METRICS.rate_limited.fetch_add(1, Ordering::Relaxed);
+        tracing::warn!(room = %room_id, device = %device_id, "rate limited");
+        return None;
+    }
+
+    let mut room_msg: RoomMessage = match serde_json::from_slice(raw) {
+        Ok(m) => m,
+        Err(e) => {
+            METRICS.messages_rejected.fetch_add(1, Ordering::Relaxed);
+            tracing::warn!(room = %room_id, error = %e, "malformed JSON");
+            return None;
+        }
+    };
+
+    // Server-side enforcement: overwrite `from` with the authenticated device_id.
+    room_msg.from = device_id.to_string();
+
+    // Replay protection: reject out-of-order messages.
+    if !rooms.check_sequence(room_id, device_id, room_msg.seq).await {
+        METRICS.messages_rejected.fetch_add(1, Ordering::Relaxed);
+        tracing::warn!(room = %room_id, device = %device_id, seq = room_msg.seq, "replayed message rejected");
+        return None;
+    }
+
+    rooms.touch(room_id).await;
+    Some(room_msg)
+}
+
 async fn handle_socket(
     socket: WebSocket,
     room_id: String,
@@ -240,68 +285,21 @@ async fn handle_socket(
 
                         match msg {
                             Message::Text(text) => {
-                                if text.len() > max_msg_size {
-                                    METRICS.messages_rejected.fetch_add(1, Ordering::Relaxed);
-                                    tracing::warn!(room = %room_id, size = text.len(), "oversized");
-                                    continue;
-                                }
-
-                                if !rate_limiter.try_consume() {
-                                    METRICS.rate_limited.fetch_add(1, Ordering::Relaxed);
-                                    tracing::warn!(room = %room_id, device = %device_id, "rate limited");
-                                    continue;
-                                }
-
-                                match serde_json::from_str::<RoomMessage>(&text) {
-                                    Ok(mut room_msg) => {
-                                        // SERVER-SIDE ENFORCEMENT: overwrite `from` with
-                                        // the authenticated device_id. Clients cannot
-                                        // spoof the sender identity.
-                                        room_msg.from = device_id.clone();
-
-                                        // Replay protection: reject out-of-order messages
-                                        if !rooms.check_sequence(&room_id, &device_id, room_msg.seq).await {
-                                            METRICS.messages_rejected.fetch_add(1, Ordering::Relaxed);
-                                            tracing::warn!(room = %room_id, device = %device_id, seq = room_msg.seq, "replayed message rejected");
-                                            continue;
-                                        }
-
-                                        rooms.touch(&room_id).await;
-                                        let _ = tx.send(room_msg);
-                                        METRICS.messages_relayed.fetch_add(1, Ordering::Relaxed);
-                                    }
-                                    Err(e) => {
-                                        METRICS.messages_rejected.fetch_add(1, Ordering::Relaxed);
-                                        tracing::warn!(room = %room_id, error = %e, "malformed JSON");
-                                    }
+                                if let Some(room_msg) = process_incoming(
+                                    text.as_bytes(), &device_id, &room_id, max_msg_size,
+                                    &mut rate_limiter, &rooms,
+                                ).await {
+                                    let _ = tx.send(room_msg);
+                                    METRICS.messages_relayed.fetch_add(1, Ordering::Relaxed);
                                 }
                             }
                             Message::Binary(data) => {
-                                if data.len() > max_msg_size {
-                                    METRICS.messages_rejected.fetch_add(1, Ordering::Relaxed);
-                                    continue;
-                                }
-                                if !rate_limiter.try_consume() {
-                                    METRICS.rate_limited.fetch_add(1, Ordering::Relaxed);
-                                    continue;
-                                }
-                                match serde_json::from_slice::<RoomMessage>(&data) {
-                                    Ok(mut room_msg) => {
-                                        // Enforce sender identity
-                                        room_msg.from = device_id.clone();
-
-                                        if !rooms.check_sequence(&room_id, &device_id, room_msg.seq).await {
-                                            METRICS.messages_rejected.fetch_add(1, Ordering::Relaxed);
-                                            continue;
-                                        }
-
-                                        rooms.touch(&room_id).await;
-                                        let _ = tx.send(room_msg);
-                                        METRICS.messages_relayed.fetch_add(1, Ordering::Relaxed);
-                                    }
-                                    Err(_) => {
-                                        METRICS.messages_rejected.fetch_add(1, Ordering::Relaxed);
-                                    }
+                                if let Some(room_msg) = process_incoming(
+                                    &data, &device_id, &room_id, max_msg_size,
+                                    &mut rate_limiter, &rooms,
+                                ).await {
+                                    let _ = tx.send(room_msg);
+                                    METRICS.messages_relayed.fetch_add(1, Ordering::Relaxed);
                                 }
                             }
                             Message::Pong(_) | Message::Ping(_) => {}

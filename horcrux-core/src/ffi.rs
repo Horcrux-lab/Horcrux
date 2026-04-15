@@ -122,6 +122,7 @@ impl From<E2EError> for FfiE2EError {
 // FFI data types — flat structs for the FFI boundary
 // ============================================================================
 
+/// MPC ceremony configuration passed from the host application.
 #[derive(uniffi::Record)]
 pub struct FfiHorcruxConfig {
     pub threshold: u16,
@@ -130,6 +131,7 @@ pub struct FfiHorcruxConfig {
     pub curve: FfiCurveType,
 }
 
+/// Elliptic curve type selector for the FFI boundary.
 #[derive(uniffi::Enum)]
 pub enum FfiCurveType {
     Secp256k1,
@@ -154,6 +156,7 @@ impl From<CurveType> for FfiCurveType {
     }
 }
 
+/// An MPC protocol message serialized for the FFI boundary.
 #[derive(uniffi::Record)]
 pub struct FfiMpcMessage {
     pub from_party: u16,
@@ -187,6 +190,7 @@ impl From<FfiMpcMessage> for MpcMessage {
     }
 }
 
+/// Result of a distributed key generation ceremony.
 #[derive(uniffi::Record)]
 pub struct FfiKeygenResult {
     pub public_key: Vec<u8>,
@@ -208,6 +212,7 @@ impl From<KeygenResult> for FfiKeygenResult {
     }
 }
 
+/// Result of a threshold signing ceremony (ECDSA / EdDSA).
 #[derive(uniffi::Record)]
 pub struct FfiSigningResult {
     pub signature: Vec<u8>,
@@ -227,6 +232,7 @@ impl From<SigningResult> for FfiSigningResult {
     }
 }
 
+/// AES-256-GCM encrypted shard with nonce and PBKDF2 salt.
 #[derive(uniffi::Record)]
 pub struct FfiEncryptedShard {
     pub nonce: Vec<u8>,
@@ -254,6 +260,7 @@ impl From<FfiEncryptedShard> for EncryptedShard {
     }
 }
 
+/// Metadata about a stored key shard (no secret material).
 #[derive(uniffi::Record)]
 pub struct FfiShardInfo {
     pub shard_id: String,
@@ -296,6 +303,7 @@ impl From<FfiShardInfo> for ShardInfo {
     }
 }
 
+/// Noise-encrypted message envelope (handshake or transport payload).
 #[derive(uniffi::Record)]
 pub struct FfiSealedEnvelope {
     pub ciphertext: Vec<u8>,
@@ -320,12 +328,14 @@ impl From<FfiSealedEnvelope> for SealedEnvelope {
     }
 }
 
+/// Curve25519 static keypair for Noise protocol (FFI-safe, not zeroized).
 #[derive(uniffi::Record)]
 pub struct FfiNoiseKeypair {
     pub private_key: Vec<u8>,
     pub public_key: Vec<u8>,
 }
 
+/// Session token containing room credentials for relay access control.
 #[derive(uniffi::Record)]
 pub struct FfiSessionToken {
     pub room_secret: Vec<u8>,
@@ -337,6 +347,7 @@ pub struct FfiSessionToken {
 // EVM / BTC / Solana transaction params
 // ============================================================================
 
+/// EIP-1559 Ethereum transaction parameters.
 #[derive(uniffi::Record)]
 pub struct FfiEvmTxParams {
     pub to: String,
@@ -349,6 +360,7 @@ pub struct FfiEvmTxParams {
     pub data: Vec<u8>,
 }
 
+/// A Bitcoin UTXO input reference.
 #[derive(uniffi::Record)]
 pub struct FfiBtcInput {
     pub txid: String,
@@ -357,6 +369,7 @@ pub struct FfiBtcInput {
     pub pubkey_hash: Option<Vec<u8>>,
 }
 
+/// A Bitcoin transaction output (destination + amount).
 #[derive(uniffi::Record)]
 pub struct FfiBtcOutput {
     pub address: String,
@@ -364,6 +377,7 @@ pub struct FfiBtcOutput {
     pub script_pubkey: Option<Vec<u8>>,
 }
 
+/// Bitcoin P2WPKH transaction parameters.
 #[derive(uniffi::Record)]
 pub struct FfiBtcTxParams {
     pub inputs: Vec<FfiBtcInput>,
@@ -371,6 +385,7 @@ pub struct FfiBtcTxParams {
     pub testnet: bool,
 }
 
+/// Solana native SOL transfer parameters.
 #[derive(uniffi::Record)]
 pub struct FfiSolanaTxParams {
     pub from_address: String,
@@ -380,6 +395,7 @@ pub struct FfiSolanaTxParams {
     pub devnet: bool,
 }
 
+/// Chain-agnostic built transaction: raw serialized bytes + hash to sign.
 #[derive(uniffi::Record)]
 pub struct FfiTransaction {
     pub chain_type: String,
@@ -391,16 +407,19 @@ pub struct FfiTransaction {
 // Namespace functions (free functions exposed via FFI)
 // ============================================================================
 
+/// Derive an Ethereum address from an uncompressed secp256k1 public key (65 bytes).
 #[uniffi::export]
 pub fn horcrux_evm_address(uncompressed_pubkey: Vec<u8>) -> Result<String, ChainError> {
     chain::evm_address_from_pubkey(&uncompressed_pubkey).map_err(Into::into)
 }
 
+/// Derive a bech32m Bitcoin address from a compressed secp256k1 public key (33 bytes).
 #[uniffi::export]
 pub fn horcrux_btc_address(compressed_pubkey: Vec<u8>, hrp: String) -> Result<String, ChainError> {
     chain::btc_address_from_pubkey(&compressed_pubkey, &hrp).map_err(Into::into)
 }
 
+/// Derive a base58 Solana address from an Ed25519 public key (32 bytes).
 #[uniffi::export]
 pub fn horcrux_solana_address(pubkey: Vec<u8>) -> Result<String, ChainError> {
     if pubkey.len() != 32 {
@@ -413,11 +432,13 @@ pub fn horcrux_solana_address(pubkey: Vec<u8>) -> Result<String, ChainError> {
     Ok(chain::solana_address_from_pubkey(&arr))
 }
 
+/// Compute Keccak-256 hash (used for Ethereum address derivation and signing).
 #[uniffi::export]
 pub fn horcrux_keccak256(data: Vec<u8>) -> Vec<u8> {
     chain::keccak256(&data).to_vec()
 }
 
+/// Encrypt a key shard using AES-256-GCM with PBKDF2-derived key (device_key + PIN).
 #[uniffi::export]
 pub fn horcrux_encrypt_shard(
     plaintext: Vec<u8>,
@@ -429,6 +450,7 @@ pub fn horcrux_encrypt_shard(
         .map_err(|e| HorcruxError::EncryptionFailed { msg: e })
 }
 
+/// Decrypt a previously encrypted key shard.
 #[uniffi::export]
 pub fn horcrux_decrypt_shard(
     encrypted: FfiEncryptedShard,
@@ -440,6 +462,7 @@ pub fn horcrux_decrypt_shard(
         .map_err(|e| HorcruxError::DecryptionFailed { msg: e })
 }
 
+/// Generate a fresh Curve25519 Noise keypair for E2E encrypted communication.
 #[uniffi::export]
 pub fn horcrux_generate_noise_keypair() -> Result<FfiNoiseKeypair, FfiE2EError> {
     let kp = NoiseKeypair::generate()?;
@@ -449,6 +472,7 @@ pub fn horcrux_generate_noise_keypair() -> Result<FfiNoiseKeypair, FfiE2EError> 
     })
 }
 
+/// Generate a random session token (room_id, room_secret, access_token) for relay access.
 #[uniffi::export]
 pub fn horcrux_generate_session_token() -> FfiSessionToken {
     let st = SessionToken::generate();
@@ -534,6 +558,10 @@ pub fn horcrux_build_solana_transaction(params: FfiSolanaTxParams) -> Result<Ffi
 // HorcruxSessionManager — object with methods
 // ============================================================================
 
+/// Thread-safe MPC session manager exposed to the host application via UniFFI.
+///
+/// Manages concurrent DKG and signing sessions. All access goes through a Mutex
+/// to protect the internal state machines (which may use non-Send types).
 #[derive(uniffi::Object)]
 pub struct HorcruxSessionManager {
     inner: Mutex<SessionManager>,
@@ -560,6 +588,7 @@ impl HorcruxSessionManager {
         }
     }
 
+    /// Initiate a distributed key generation session. Returns initial outgoing messages.
     pub fn create_keygen(
         &self,
         session_id: String,
@@ -576,6 +605,7 @@ impl HorcruxSessionManager {
         Ok(msgs.into_iter().map(Into::into).collect())
     }
 
+    /// Start a threshold signing session. Requires the local shard and participant list.
     pub fn create_signing(
         &self,
         session_id: String,
@@ -595,22 +625,26 @@ impl HorcruxSessionManager {
         Ok(msgs.into_iter().map(Into::into).collect())
     }
 
+    /// Process an inbound MPC protocol message and return any outgoing responses.
     pub fn handle_message(&self, msg: FfiMpcMessage) -> Result<Vec<FfiMpcMessage>, HorcruxError> {
         let mut mgr = lock_or_err!(self.inner, HorcruxError, SessionError)?;
         let msgs = mgr.handle_message(msg.into())?;
         Ok(msgs.into_iter().map(Into::into).collect())
     }
 
+    /// Retrieve the DKG result (public key + shard). Returns `None` if still in progress.
     pub fn get_keygen_result(&self, session_id: String) -> Option<FfiKeygenResult> {
         let mgr = self.inner.lock().ok()?;
         mgr.keygen_result(&session_id).map(Into::into)
     }
 
+    /// Retrieve the signing result (signature). Returns `None` if still in progress.
     pub fn get_signing_result(&self, session_id: String) -> Option<FfiSigningResult> {
         let mgr = self.inner.lock().ok()?;
         mgr.signing_result(&session_id).map(Into::into)
     }
 
+    /// Remove a completed or abandoned session from memory.
     pub fn remove_session(&self, session_id: String) {
         if let Ok(mut mgr) = self.inner.lock() {
             mgr.remove_session(&session_id);
@@ -622,6 +656,7 @@ impl HorcruxSessionManager {
 // HorcruxShardManager
 // ============================================================================
 
+/// Thread-safe shard registry for tracking key shards across wallets.
 #[derive(uniffi::Object)]
 pub struct HorcruxShardManager {
     inner: Mutex<ShardManager>,
@@ -642,12 +677,14 @@ impl HorcruxShardManager {
         }
     }
 
+    /// Register a shard in the in-memory registry.
     pub fn add_shard(&self, info: FfiShardInfo) {
         if let Ok(mut mgr) = self.inner.lock() {
             mgr.add_shard(info.into());
         }
     }
 
+    /// List all registered shards.
     pub fn list_shards(&self) -> Vec<FfiShardInfo> {
         match self.inner.lock() {
             Ok(mgr) => mgr.list_shards().iter().map(Into::into).collect(),
@@ -655,6 +692,7 @@ impl HorcruxShardManager {
         }
     }
 
+    /// Filter shards by their associated public key.
     pub fn shards_for_key(&self, public_key: Vec<u8>) -> Vec<FfiShardInfo> {
         match self.inner.lock() {
             Ok(mgr) => mgr.shards_for_key(&public_key).into_iter().map(Into::into).collect(),
@@ -667,6 +705,10 @@ impl HorcruxShardManager {
 // HorcruxNoiseChannel — E2E encrypted communication
 // ============================================================================
 
+/// E2E encrypted Noise channel exposed to the host application.
+///
+/// Wraps the Noise_XX state machine (Curve25519 + ChaChaPoly + SHA-256).
+/// Progress: `new_initiator/new_responder` → handshake → `seal`/`open`.
 #[derive(uniffi::Object)]
 pub struct HorcruxNoiseChannel {
     inner: Mutex<NoiseChannel>,
@@ -700,29 +742,35 @@ impl HorcruxNoiseChannel {
         })
     }
 
+    /// Write the next handshake message (caller → peer).
     pub fn write_handshake(&self, payload: Vec<u8>) -> Result<Vec<u8>, FfiE2EError> {
         let mut ch = lock_or_err!(self.inner, FfiE2EError, Handshake)?;
         ch.write_handshake(&payload).map_err(Into::into)
     }
 
+    /// Read a handshake message from the peer and return the decrypted payload.
     pub fn read_handshake(&self, message: Vec<u8>) -> Result<Vec<u8>, FfiE2EError> {
         let mut ch = lock_or_err!(self.inner, FfiE2EError, Handshake)?;
         ch.read_handshake(&message).map_err(Into::into)
     }
 
+    /// Check whether the Noise handshake is complete (channel in transport mode).
     pub fn is_handshake_finished(&self) -> bool {
         self.inner.lock().map(|ch| ch.is_handshake_finished()).unwrap_or(false)
     }
 
+    /// Get the peer's static public key (available after handshake completes).
     pub fn remote_static_key(&self) -> Option<Vec<u8>> {
         self.inner.lock().ok()?.remote_static_key()
     }
 
+    /// Encrypt a message for transport (post-handshake).
     pub fn seal(&self, plaintext: Vec<u8>) -> Result<FfiSealedEnvelope, FfiE2EError> {
         let mut ch = lock_or_err!(self.inner, FfiE2EError, Handshake)?;
         ch.seal(&plaintext).map(Into::into).map_err(Into::into)
     }
 
+    /// Decrypt a sealed envelope from the peer (post-handshake).
     pub fn open(&self, envelope: FfiSealedEnvelope) -> Result<Vec<u8>, FfiE2EError> {
         let mut ch = lock_or_err!(self.inner, FfiE2EError, Handshake)?;
         let se: SealedEnvelope = envelope.into();

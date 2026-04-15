@@ -13,6 +13,7 @@ const SYSTEM_PROGRAM_ID: [u8; 32] = [0u8; 32];
 /// System Program "Transfer" instruction index.
 const TRANSFER_INSTRUCTION: u32 = 2;
 
+/// Solana native SOL transfer parameters.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SolanaTxParams {
     /// Sender public key (base58).
@@ -26,6 +27,7 @@ pub struct SolanaTxParams {
     pub devnet: bool,
 }
 
+/// Builds a Solana System Program transfer instruction and serializes the transaction.
 pub struct SolanaTransactionBuilder;
 
 impl TransactionBuilder for SolanaTransactionBuilder {
