@@ -1,46 +1,49 @@
-//! End-to-end encryption for Horcrux transport channels.
+//! End-to-end encryption for Horcrux transport channels using the
+//! **Noise Protocol Framework** (Noise_XX pattern).
 //!
-//! Provides authenticated encryption between two devices so that the relay
-//! server (or any network observer) cannot read or tamper with messages.
+//! This replaces the hand-rolled X25519 + AES-256-GCM + Ed25519 layer with
+//! the same proven protocol used by **Signal**, **WireGuard**, and
+//! **Lightning Network**.
 //!
-//! Protocol:
-//!   1. Each device generates an X25519 keypair (ephemeral per session)
-//!   2. Devices exchange public keys via a trusted channel (face-to-face QR,
-//!      BLE, or pre-shared out-of-band)
-//!   3. Shared secret is derived via X25519 DH → HKDF-SHA256
-//!   4. All messages are encrypted with AES-256-GCM using the derived key
-//!   5. Each message is signed with the sender's Ed25519 identity key
-//!      so the recipient can verify authenticity (anti-MITM)
+//! ## Why Noise_XX?
+//!
+//! - **XX pattern**: mutual authentication — both sides prove their identity
+//!   via static Curve25519 keys, with full forward secrecy.
+//! - **3-message handshake**: `→ e`, `← e, ee, s, es`, `→ s, se`
+//! - After handshake, both sides hold `TransportState` with split
+//!   CipherState pairs (ChaChaPoly-1305 by default).
+//! - **Built-in replay protection** via internal nonce counters.
+//! - **Forward secrecy**: ephemeral keys are discarded after handshake.
+//!
+//! ## Protocol flow
+//!
+//! 1. Each device generates a static Curve25519 keypair (persisted as identity).
+//! 2. **Initiator** creates handshake, writes message 1 (`→ e`).
+//! 3. **Responder** reads message 1, writes message 2 (`← e, ee, s, es`).
+//! 4. **Initiator** reads message 2, writes message 3 (`→ s, se`).
+//! 5. Both call `into_transport_mode()` — all subsequent messages are
+//!    encrypted + authenticated with ChaChaPoly-1305.
+//!
+//! Static keys are exchanged out-of-band (QR code, BLE) for MITM resistance,
+//! same as before.
 
-use aes_gcm::{Aes256Gcm, Key, Nonce};
-use aes_gcm::aead::{Aead, KeyInit};
-use hkdf::Hkdf;
-use rand::RngCore;
-use sha2::Sha256;
-use x25519_dalek::{EphemeralSecret, PublicKey, SharedSecret};
-use ed25519_dalek::{SigningKey, VerifyingKey, Signature, Signer, Verifier};
 use serde::{Deserialize, Serialize};
-use zeroize::Zeroize;
+use snow::{Builder, HandshakeState, TransportState};
 
-const NONCE_SIZE: usize = 12;
-const KEY_SIZE: usize = 32;
+/// Noise protocol pattern: XX with Curve25519, ChaChaPoly, SHA-256.
+/// XX = mutual authentication, both sides transmit their static key.
+const NOISE_PATTERN: &str = "Noise_XX_25519_ChaChaPoly_SHA256";
 
-/// An E2E encrypted + signed message ready for transport.
+/// Maximum Noise message overhead (for ChaChaPoly: 16 bytes MAC + handshake headers).
+const MAX_NOISE_OVERHEAD: usize = 128;
+
+/// An encrypted message ready for transport.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SealedEnvelope {
-    /// Sender's Ed25519 public key (32 bytes) — identity verification
-    pub sender_identity: Vec<u8>,
-    /// Sender's X25519 ephemeral public key (32 bytes) — for initial handshake
-    /// Only present in the first message (key exchange phase).
-    pub ephemeral_pubkey: Option<Vec<u8>>,
-    /// AES-256-GCM nonce (12 bytes)
-    pub nonce: Vec<u8>,
-    /// AES-256-GCM ciphertext (encrypted payload + auth tag)
+    /// Noise ciphertext (encrypted payload + MAC tag).
     pub ciphertext: Vec<u8>,
-    /// Ed25519 signature over (nonce || ciphertext) — proves sender identity
-    pub signature: Vec<u8>,
-    /// Monotonic sequence number (included in AAD to prevent replay/reorder)
-    pub seq: u64,
+    /// Whether this is a handshake message (true) or transport message (false).
+    pub handshake: bool,
 }
 
 /// Session token for room access control.
@@ -56,215 +59,205 @@ pub struct SessionToken {
     pub room_id: String,
 }
 
-/// Manages the E2E encrypted channel state for one peer.
-pub struct E2EChannel {
-    /// Our Ed25519 signing key (identity)
-    our_signing_key: SigningKey,
-    /// Peer's Ed25519 verifying key (identity)
-    peer_verifying_key: Option<VerifyingKey>,
-    /// Derived AES-256 symmetric key from X25519 DH
-    symmetric_key: Option<[u8; KEY_SIZE]>,
-    /// Message sequence counter
-    seq_counter: u64,
-    /// Highest sequence number seen from peer (replay protection)
-    peer_max_seq: u64,
+/// Noise channel state — progresses from Handshake → Transport.
+pub enum NoiseChannel {
+    /// Handshake in progress.
+    Handshake(HandshakeState),
+    /// Handshake complete — encrypted transport ready.
+    Transport(TransportState),
 }
 
-impl E2EChannel {
-    /// Create a new E2E channel with a fresh identity.
-    pub fn new() -> Self {
-        let signing_key = SigningKey::generate(&mut rand::thread_rng());
+/// Static keypair for Noise (Curve25519).
+pub struct NoiseKeypair {
+    pub private: Vec<u8>,
+    pub public: Vec<u8>,
+}
+
+impl NoiseKeypair {
+    /// Generate a fresh Curve25519 keypair.
+    pub fn generate() -> Self {
+        let builder = Builder::new(NOISE_PATTERN.parse().unwrap());
+        let kp = builder.generate_keypair().unwrap();
         Self {
-            our_signing_key: signing_key,
-            peer_verifying_key: None,
-            symmetric_key: None,
-            seq_counter: 0,
-            peer_max_seq: 0,
+            private: kp.private,
+            public: kp.public,
+        }
+    }
+}
+
+impl NoiseChannel {
+    /// Create an initiator (the device that starts the handshake).
+    /// `local_keypair`: our persistent Curve25519 identity.
+    pub fn initiator(local_keypair: &NoiseKeypair) -> Result<Self, E2EError> {
+        let params = NOISE_PATTERN.parse()
+            .map_err(|e| E2EError::Handshake(format!("parse pattern: {}", e)))?;
+        let hs = Builder::new(params)
+            .local_private_key(&local_keypair.private)
+            .map_err(|e| E2EError::Handshake(format!("set key: {}", e)))?
+            .build_initiator()
+            .map_err(|e| E2EError::Handshake(format!("build initiator: {}", e)))?;
+        Ok(NoiseChannel::Handshake(hs))
+    }
+
+    /// Create a responder (the device that receives the first handshake message).
+    /// `local_keypair`: our persistent Curve25519 identity.
+    pub fn responder(local_keypair: &NoiseKeypair) -> Result<Self, E2EError> {
+        let params = NOISE_PATTERN.parse()
+            .map_err(|e| E2EError::Handshake(format!("parse pattern: {}", e)))?;
+        let hs = Builder::new(params)
+            .local_private_key(&local_keypair.private)
+            .map_err(|e| E2EError::Handshake(format!("set key: {}", e)))?
+            .build_responder()
+            .map_err(|e| E2EError::Handshake(format!("build responder: {}", e)))?;
+        Ok(NoiseChannel::Handshake(hs))
+    }
+
+    /// Write a handshake message (or empty payload during handshake).
+    /// Returns the message to send to the peer.
+    pub fn write_handshake(&mut self, payload: &[u8]) -> Result<Vec<u8>, E2EError> {
+        match self {
+            NoiseChannel::Handshake(hs) => {
+                let mut buf = vec![0u8; payload.len() + MAX_NOISE_OVERHEAD + 256];
+                let len = hs.write_message(payload, &mut buf)
+                    .map_err(|e| E2EError::Handshake(format!("write: {}", e)))?;
+                buf.truncate(len);
+                Ok(buf)
+            }
+            NoiseChannel::Transport(_) => Err(E2EError::HandshakeComplete),
         }
     }
 
-    /// Create from an existing Ed25519 signing key.
-    pub fn from_identity(signing_key: SigningKey) -> Self {
-        Self {
-            our_signing_key: signing_key,
-            peer_verifying_key: None,
-            symmetric_key: None,
-            seq_counter: 0,
-            peer_max_seq: 0,
+    /// Read a handshake message from the peer.
+    /// Returns the decrypted payload (often empty during handshake).
+    pub fn read_handshake(&mut self, message: &[u8]) -> Result<Vec<u8>, E2EError> {
+        match self {
+            NoiseChannel::Handshake(hs) => {
+                let mut buf = vec![0u8; message.len() + MAX_NOISE_OVERHEAD];
+                let len = hs.read_message(message, &mut buf)
+                    .map_err(|e| E2EError::Handshake(format!("read: {}", e)))?;
+                buf.truncate(len);
+                Ok(buf)
+            }
+            NoiseChannel::Transport(_) => Err(E2EError::HandshakeComplete),
         }
     }
 
-    /// Our Ed25519 public identity key (for sharing with peers).
-    pub fn our_identity(&self) -> Vec<u8> {
-        self.our_signing_key.verifying_key().to_bytes().to_vec()
+    /// Check if the handshake is complete and ready to transition.
+    pub fn is_handshake_finished(&self) -> bool {
+        match self {
+            NoiseChannel::Handshake(hs) => hs.is_handshake_finished(),
+            NoiseChannel::Transport(_) => true,
+        }
     }
 
-    /// Set the peer's identity key (must be verified out-of-band for MITM resistance).
-    pub fn set_peer_identity(&mut self, peer_pubkey: &[u8]) -> Result<(), E2EError> {
-        let bytes: [u8; 32] = peer_pubkey.try_into()
-            .map_err(|_| E2EError::InvalidKey("peer identity must be 32 bytes".into()))?;
-        let vk = VerifyingKey::from_bytes(&bytes)
-            .map_err(|e| E2EError::InvalidKey(format!("invalid ed25519 key: {}", e)))?;
-        self.peer_verifying_key = Some(vk);
-        Ok(())
+    /// Transition from handshake to transport mode.
+    /// Must be called after the handshake is complete.
+    pub fn into_transport(self) -> Result<Self, E2EError> {
+        match self {
+            NoiseChannel::Handshake(hs) => {
+                if !hs.is_handshake_finished() {
+                    return Err(E2EError::HandshakeIncomplete);
+                }
+                let ts = hs.into_transport_mode()
+                    .map_err(|e| E2EError::Handshake(format!("transport transition: {}", e)))?;
+                Ok(NoiseChannel::Transport(ts))
+            }
+            NoiseChannel::Transport(_) => Ok(self), // already in transport mode
+        }
     }
 
-    /// Perform X25519 key exchange. Returns our ephemeral public key.
-    /// Call this, send the public key to the peer, then call `complete_handshake`
-    /// with the peer's ephemeral public key.
-    pub fn begin_handshake(&self) -> (EphemeralSecret, Vec<u8>) {
-        let secret = EphemeralSecret::random_from_rng(rand::thread_rng());
-        let public = PublicKey::from(&secret);
-        (secret, public.to_bytes().to_vec())
+    /// Get the remote peer's static public key (available after handshake).
+    pub fn remote_static_key(&self) -> Option<Vec<u8>> {
+        match self {
+            NoiseChannel::Handshake(hs) => hs.get_remote_static().map(|k| k.to_vec()),
+            NoiseChannel::Transport(ts) => ts.get_remote_static().map(|k| k.to_vec()),
+        }
     }
 
-    /// Complete the handshake with the peer's X25519 public key.
-    /// Derives the shared symmetric key via HKDF.
-    pub fn complete_handshake(
-        &mut self,
-        our_secret: EphemeralSecret,
-        peer_x25519_pubkey: &[u8],
-        session_context: &[u8],
-    ) -> Result<(), E2EError> {
-        let peer_bytes: [u8; 32] = peer_x25519_pubkey.try_into()
-            .map_err(|_| E2EError::InvalidKey("X25519 public key must be 32 bytes".into()))?;
-        let peer_public = PublicKey::from(peer_bytes);
-
-        let shared_secret: SharedSecret = our_secret.diffie_hellman(&peer_public);
-
-        // Derive AES key via HKDF with session context as info
-        let hk = Hkdf::<Sha256>::new(None, shared_secret.as_bytes());
-        let mut key = [0u8; KEY_SIZE];
-        hk.expand(session_context, &mut key)
-            .map_err(|_| E2EError::KeyDerivation("HKDF expand failed".into()))?;
-
-        self.symmetric_key = Some(key);
-        self.seq_counter = 0;
-        self.peer_max_seq = 0;
-
-        Ok(())
-    }
-
-    /// Set symmetric key directly (for testing or when key is pre-shared).
-    pub fn set_symmetric_key(&mut self, key: [u8; KEY_SIZE]) {
-        self.symmetric_key = Some(key);
-    }
-
-    /// Encrypt and sign a message.
+    /// Encrypt a message (transport mode only).
     pub fn seal(&mut self, plaintext: &[u8]) -> Result<SealedEnvelope, E2EError> {
-        let key = self.symmetric_key
-            .as_ref()
-            .ok_or(E2EError::NoSession)?;
-
-        let cipher = Aes256Gcm::new(Key::<Aes256Gcm>::from_slice(key));
-
-        let mut nonce_bytes = [0u8; NONCE_SIZE];
-        rand::thread_rng().fill_bytes(&mut nonce_bytes);
-        let nonce = Nonce::from_slice(&nonce_bytes);
-
-        // Additional authenticated data: sequence number (prevents replay/reorder)
-        let seq = self.seq_counter;
-        self.seq_counter += 1;
-
-        // Encrypt with AAD = seq as big-endian bytes
-        let aad = seq.to_be_bytes();
-        let ciphertext = cipher
-            .encrypt(nonce, aes_gcm::aead::Payload { msg: plaintext, aad: &aad })
-            .map_err(|e| E2EError::Encryption(format!("AES-GCM encrypt failed: {}", e)))?;
-
-        // Sign (nonce || ciphertext || seq) with our Ed25519 key
-        let mut sign_data = Vec::with_capacity(NONCE_SIZE + ciphertext.len() + 8);
-        sign_data.extend_from_slice(&nonce_bytes);
-        sign_data.extend_from_slice(&ciphertext);
-        sign_data.extend_from_slice(&aad);
-        let signature = self.our_signing_key.sign(&sign_data);
-
-        Ok(SealedEnvelope {
-            sender_identity: self.our_identity(),
-            ephemeral_pubkey: None,
-            nonce: nonce_bytes.to_vec(),
-            ciphertext,
-            signature: signature.to_bytes().to_vec(),
-            seq,
-        })
+        match self {
+            NoiseChannel::Transport(ts) => {
+                let mut buf = vec![0u8; plaintext.len() + 16]; // 16 bytes for ChaChaPoly MAC
+                let len = ts.write_message(plaintext, &mut buf)
+                    .map_err(|e| E2EError::Encryption(format!("{}", e)))?;
+                buf.truncate(len);
+                Ok(SealedEnvelope {
+                    ciphertext: buf,
+                    handshake: false,
+                })
+            }
+            NoiseChannel::Handshake(_) => Err(E2EError::HandshakeIncomplete),
+        }
     }
 
-    /// Verify signature and decrypt a message.
+    /// Decrypt a message (transport mode only).
     pub fn open(&mut self, envelope: &SealedEnvelope) -> Result<Vec<u8>, E2EError> {
-        let key = self.symmetric_key
-            .as_ref()
-            .ok_or(E2EError::NoSession)?;
-
-        // Verify sender identity
-        let peer_vk = self.peer_verifying_key
-            .as_ref()
-            .ok_or(E2EError::NoPeerIdentity)?;
-
-        // Check that sender_identity matches our known peer
-        let sender_bytes: [u8; 32] = envelope.sender_identity.clone().try_into()
-            .map_err(|_| E2EError::InvalidKey("sender identity bad size".into()))?;
-        let sender_vk = VerifyingKey::from_bytes(&sender_bytes)
-            .map_err(|_| E2EError::InvalidKey("invalid sender identity".into()))?;
-        if sender_vk != *peer_vk {
-            return Err(E2EError::IdentityMismatch);
+        if envelope.handshake {
+            return Err(E2EError::Handshake("unexpected handshake message in transport mode".into()));
         }
-
-        // Replay protection: sequence must be strictly increasing
-        if envelope.seq <= self.peer_max_seq && self.peer_max_seq > 0 {
-            return Err(E2EError::ReplayDetected(envelope.seq));
-        }
-
-        // Verify signature
-        let aad = envelope.seq.to_be_bytes();
-        let mut sign_data = Vec::with_capacity(envelope.nonce.len() + envelope.ciphertext.len() + 8);
-        sign_data.extend_from_slice(&envelope.nonce);
-        sign_data.extend_from_slice(&envelope.ciphertext);
-        sign_data.extend_from_slice(&aad);
-
-        let sig_bytes: [u8; 64] = envelope.signature.clone().try_into()
-            .map_err(|_| E2EError::InvalidSignature("signature must be 64 bytes".into()))?;
-        let signature = Signature::from_bytes(&sig_bytes);
-
-        peer_vk.verify(&sign_data, &signature)
-            .map_err(|_| E2EError::InvalidSignature("Ed25519 verification failed".into()))?;
-
-        // Decrypt
-        let cipher = Aes256Gcm::new(Key::<Aes256Gcm>::from_slice(key));
-        let nonce = Nonce::from_slice(&envelope.nonce);
-
-        let plaintext = cipher
-            .decrypt(nonce, aes_gcm::aead::Payload { msg: &envelope.ciphertext, aad: &aad })
-            .map_err(|e| E2EError::Decryption(format!("AES-GCM decrypt failed: {}", e)))?;
-
-        self.peer_max_seq = envelope.seq;
-
-        Ok(plaintext)
-    }
-}
-
-impl Drop for E2EChannel {
-    fn drop(&mut self) {
-        if let Some(ref mut key) = self.symmetric_key {
-            key.zeroize();
+        match self {
+            NoiseChannel::Transport(ts) => {
+                let mut buf = vec![0u8; envelope.ciphertext.len()];
+                let len = ts.read_message(&envelope.ciphertext, &mut buf)
+                    .map_err(|e| E2EError::Decryption(format!("{}", e)))?;
+                buf.truncate(len);
+                Ok(buf)
+            }
+            NoiseChannel::Handshake(_) => Err(E2EError::HandshakeIncomplete),
         }
     }
 }
 
-// --- Session Token ---
+// --- Convenience: full XX handshake helper ---
+
+/// Perform a complete Noise_XX handshake between initiator and responder.
+/// Returns both channels in transport mode.
+///
+/// This is a helper for testing and for face-to-face (synchronous) channels.
+/// For async relay usage, use the step-by-step write/read_handshake methods.
+pub fn complete_xx_handshake(
+    initiator_key: &NoiseKeypair,
+    responder_key: &NoiseKeypair,
+) -> Result<(NoiseChannel, NoiseChannel), E2EError> {
+    let mut initiator = NoiseChannel::initiator(initiator_key)?;
+    let mut responder = NoiseChannel::responder(responder_key)?;
+
+    // → e
+    let msg1 = initiator.write_handshake(&[])?;
+    responder.read_handshake(&msg1)?;
+
+    // ← e, ee, s, es
+    let msg2 = responder.write_handshake(&[])?;
+    initiator.read_handshake(&msg2)?;
+
+    // → s, se
+    let msg3 = initiator.write_handshake(&[])?;
+    responder.read_handshake(&msg3)?;
+
+    let initiator = initiator.into_transport()?;
+    let responder = responder.into_transport()?;
+
+    Ok((initiator, responder))
+}
+
+// --- Session Token (unchanged from before) ---
 
 impl SessionToken {
     /// Generate a new random session token.
     pub fn generate() -> Self {
+        use hkdf::Hkdf;
+        use rand::RngCore;
+        use sha2::Sha256;
+
         let mut room_secret = [0u8; 32];
         rand::thread_rng().fill_bytes(&mut room_secret);
 
-        // Derive room_id from secret (first 16 bytes of HKDF, hex-encoded)
         let hk = Hkdf::<Sha256>::new(None, &room_secret);
         let mut room_id_bytes = [0u8; 16];
         hk.expand(b"horcrux-room-id", &mut room_id_bytes).unwrap();
         let room_id = hex::encode(&room_id_bytes);
 
-        // Derive access token
         let mut access_bytes = [0u8; 32];
         hk.expand(b"horcrux-access-token", &mut access_bytes).unwrap();
 
@@ -277,7 +270,6 @@ impl SessionToken {
 
     /// Verify that an access token is valid for this session.
     pub fn verify_access(&self, token: &[u8]) -> bool {
-        // Constant-time comparison
         if token.len() != self.access_token.len() {
             return false;
         }
@@ -291,24 +283,16 @@ impl SessionToken {
 
 #[derive(Debug, thiserror::Error)]
 pub enum E2EError {
-    #[error("invalid key: {0}")]
-    InvalidKey(String),
-    #[error("key derivation failed: {0}")]
-    KeyDerivation(String),
-    #[error("no E2E session established")]
-    NoSession,
-    #[error("peer identity not set")]
-    NoPeerIdentity,
-    #[error("sender identity does not match known peer")]
-    IdentityMismatch,
+    #[error("handshake error: {0}")]
+    Handshake(String),
+    #[error("handshake not yet complete")]
+    HandshakeIncomplete,
+    #[error("handshake already complete — use transport methods")]
+    HandshakeComplete,
     #[error("encryption failed: {0}")]
     Encryption(String),
     #[error("decryption failed: {0}")]
     Decryption(String),
-    #[error("invalid signature: {0}")]
-    InvalidSignature(String),
-    #[error("replay detected: seq {0}")]
-    ReplayDetected(u64),
 }
 
 #[cfg(test)]
@@ -316,138 +300,188 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_e2e_channel_roundtrip() {
-        let mut alice = E2EChannel::new();
-        let mut bob = E2EChannel::new();
+    fn test_noise_xx_handshake_and_roundtrip() {
+        let alice_key = NoiseKeypair::generate();
+        let bob_key = NoiseKeypair::generate();
 
-        // Exchange identities (in real usage, verified face-to-face or via QR)
-        bob.set_peer_identity(&alice.our_identity()).unwrap();
-        alice.set_peer_identity(&bob.our_identity()).unwrap();
-
-        // X25519 handshake
-        let (alice_secret, alice_pubkey) = alice.begin_handshake();
-        let (bob_secret, bob_pubkey) = bob.begin_handshake();
-
-        let context = b"horcrux-e2e-test-session";
-        alice.complete_handshake(alice_secret, &bob_pubkey, context).unwrap();
-        bob.complete_handshake(bob_secret, &alice_pubkey, context).unwrap();
-
-        // Alice sends to Bob
-        let message = b"Hello from Alice! This is a secret MPC message.";
-        let sealed = alice.seal(message).unwrap();
-
-        // Verify it's actually encrypted (ciphertext != plaintext)
-        assert_ne!(sealed.ciphertext, message.to_vec());
-
-        // Bob opens
-        let decrypted = bob.open(&sealed).unwrap();
-        assert_eq!(decrypted, message.to_vec());
-    }
-
-    #[test]
-    fn test_e2e_bidirectional() {
-        let mut alice = E2EChannel::new();
-        let mut bob = E2EChannel::new();
-
-        bob.set_peer_identity(&alice.our_identity()).unwrap();
-        alice.set_peer_identity(&bob.our_identity()).unwrap();
-
-        let (as_, ap) = alice.begin_handshake();
-        let (bs, bp) = bob.begin_handshake();
-        alice.complete_handshake(as_, &bp, b"session").unwrap();
-        bob.complete_handshake(bs, &ap, b"session").unwrap();
+        let (mut alice, mut bob) = complete_xx_handshake(&alice_key, &bob_key).unwrap();
 
         // Alice → Bob
-        let sealed1 = alice.seal(b"msg from alice").unwrap();
-        assert_eq!(bob.open(&sealed1).unwrap(), b"msg from alice");
+        let msg = b"Hello from Alice via Noise!";
+        let sealed = alice.seal(msg).unwrap();
+        assert_ne!(sealed.ciphertext, msg.to_vec());
+        assert!(!sealed.handshake);
 
-        // Bob → Alice
-        let sealed2 = bob.seal(b"msg from bob").unwrap();
-        assert_eq!(alice.open(&sealed2).unwrap(), b"msg from bob");
+        let decrypted = bob.open(&sealed).unwrap();
+        assert_eq!(decrypted, msg.to_vec());
     }
 
     #[test]
-    fn test_e2e_tampered_ciphertext_rejected() {
-        let mut alice = E2EChannel::new();
-        let mut bob = E2EChannel::new();
+    fn test_noise_bidirectional() {
+        let ak = NoiseKeypair::generate();
+        let bk = NoiseKeypair::generate();
+        let (mut a, mut b) = complete_xx_handshake(&ak, &bk).unwrap();
 
-        bob.set_peer_identity(&alice.our_identity()).unwrap();
-        alice.set_peer_identity(&bob.our_identity()).unwrap();
+        // Alice → Bob
+        let s1 = a.seal(b"msg from alice").unwrap();
+        assert_eq!(b.open(&s1).unwrap(), b"msg from alice");
 
-        let (as_, ap) = alice.begin_handshake();
-        let (bs, bp) = bob.begin_handshake();
-        alice.complete_handshake(as_, &bp, b"s").unwrap();
-        bob.complete_handshake(bs, &ap, b"s").unwrap();
+        // Bob → Alice
+        let s2 = b.seal(b"msg from bob").unwrap();
+        assert_eq!(a.open(&s2).unwrap(), b"msg from bob");
 
-        let mut sealed = alice.seal(b"secret").unwrap();
+        // Multiple messages
+        for i in 0..10 {
+            let msg = format!("message {}", i);
+            let s = a.seal(msg.as_bytes()).unwrap();
+            assert_eq!(b.open(&s).unwrap(), msg.as_bytes());
+        }
+    }
+
+    #[test]
+    fn test_noise_tampered_ciphertext_rejected() {
+        let ak = NoiseKeypair::generate();
+        let bk = NoiseKeypair::generate();
+        let (mut a, mut b) = complete_xx_handshake(&ak, &bk).unwrap();
+
+        let mut sealed = a.seal(b"secret data").unwrap();
         // Tamper with ciphertext
         if let Some(byte) = sealed.ciphertext.first_mut() {
             *byte ^= 0xFF;
         }
 
-        // Bob should reject — either signature fails or AEAD fails
-        assert!(bob.open(&sealed).is_err());
+        assert!(b.open(&sealed).is_err());
     }
 
     #[test]
-    fn test_e2e_wrong_identity_rejected() {
-        let mut alice = E2EChannel::new();
-        let mut bob = E2EChannel::new();
-        let eve = E2EChannel::new();
+    fn test_noise_replay_rejected() {
+        let ak = NoiseKeypair::generate();
+        let bk = NoiseKeypair::generate();
+        let (mut a, mut b) = complete_xx_handshake(&ak, &bk).unwrap();
 
-        // Bob thinks he's talking to Eve, not Alice
-        bob.set_peer_identity(&eve.our_identity()).unwrap();
-        alice.set_peer_identity(&bob.our_identity()).unwrap();
-
-        let (as_, ap) = alice.begin_handshake();
-        let (bs, bp) = bob.begin_handshake();
-        alice.complete_handshake(as_, &bp, b"s").unwrap();
-        bob.complete_handshake(bs, &ap, b"s").unwrap();
-
-        let sealed = alice.seal(b"hello").unwrap();
-        // Bob rejects because sender_identity is Alice, not Eve
-        let result = bob.open(&sealed);
-        assert!(result.is_err());
-        match result.unwrap_err() {
-            E2EError::IdentityMismatch => {} // expected
-            other => panic!("expected IdentityMismatch, got {:?}", other),
-        }
-    }
-
-    #[test]
-    fn test_e2e_replay_rejected() {
-        let mut alice = E2EChannel::new();
-        let mut bob = E2EChannel::new();
-
-        bob.set_peer_identity(&alice.our_identity()).unwrap();
-        alice.set_peer_identity(&bob.our_identity()).unwrap();
-
-        let (as_, ap) = alice.begin_handshake();
-        let (bs, bp) = bob.begin_handshake();
-        alice.complete_handshake(as_, &bp, b"s").unwrap();
-        bob.complete_handshake(bs, &ap, b"s").unwrap();
-
-        let sealed1 = alice.seal(b"msg 1").unwrap();
-        let sealed2 = alice.seal(b"msg 2").unwrap();
+        let s1 = a.seal(b"msg 1").unwrap();
+        let s2 = a.seal(b"msg 2").unwrap();
 
         // Process in order
-        bob.open(&sealed1).unwrap();
-        bob.open(&sealed2).unwrap();
+        b.open(&s1).unwrap();
+        b.open(&s2).unwrap();
 
-        // Replay sealed1 — should be rejected (seq too low)
-        let result = bob.open(&sealed1);
-        assert!(result.is_err());
-        match result.unwrap_err() {
-            E2EError::ReplayDetected(_) => {} // expected
-            other => panic!("expected ReplayDetected, got {:?}", other),
-        }
+        // Replay s1 — Noise's internal nonce counter rejects this
+        // (ChaChaPoly nonce is incremented per message; replaying produces wrong nonce)
+        assert!(b.open(&s1).is_err());
     }
 
     #[test]
-    fn test_e2e_no_session_fails() {
-        let mut alice = E2EChannel::new();
-        // No handshake done
-        assert!(alice.seal(b"test").is_err());
+    fn test_noise_wrong_key_cannot_decrypt() {
+        let ak = NoiseKeypair::generate();
+        let bk = NoiseKeypair::generate();
+        let ek = NoiseKeypair::generate(); // Eve
+
+        let (mut a, _b) = complete_xx_handshake(&ak, &bk).unwrap();
+
+        // Eve creates her own session with her key — she can't decrypt Alice's messages
+        let (_, mut eve) = complete_xx_handshake(&ek, &NoiseKeypair::generate()).unwrap();
+
+        let sealed = a.seal(b"for bob only").unwrap();
+        assert!(eve.open(&sealed).is_err());
+    }
+
+    #[test]
+    fn test_noise_mutual_authentication() {
+        let ak = NoiseKeypair::generate();
+        let bk = NoiseKeypair::generate();
+
+        let (a, b) = complete_xx_handshake(&ak, &bk).unwrap();
+
+        // After XX handshake, both sides know each other's static key
+        assert_eq!(a.remote_static_key().unwrap(), bk.public);
+        assert_eq!(b.remote_static_key().unwrap(), ak.public);
+    }
+
+    #[test]
+    fn test_noise_step_by_step_handshake() {
+        let ak = NoiseKeypair::generate();
+        let bk = NoiseKeypair::generate();
+
+        let mut initiator = NoiseChannel::initiator(&ak).unwrap();
+        let mut responder = NoiseChannel::responder(&bk).unwrap();
+
+        // Step 1: → e
+        assert!(!initiator.is_handshake_finished());
+        let msg1 = initiator.write_handshake(&[]).unwrap();
+
+        responder.read_handshake(&msg1).unwrap();
+
+        // Step 2: ← e, ee, s, es
+        let msg2 = responder.write_handshake(&[]).unwrap();
+        initiator.read_handshake(&msg2).unwrap();
+
+        // Step 3: → s, se
+        let msg3 = initiator.write_handshake(&[]).unwrap();
+        responder.read_handshake(&msg3).unwrap();
+
+        assert!(initiator.is_handshake_finished());
+        assert!(responder.is_handshake_finished());
+
+        let mut initiator = initiator.into_transport().unwrap();
+        let mut responder = responder.into_transport().unwrap();
+
+        // Now we can send encrypted messages
+        let sealed = initiator.seal(b"step by step works!").unwrap();
+        let plaintext = responder.open(&sealed).unwrap();
+        assert_eq!(plaintext, b"step by step works!");
+    }
+
+    #[test]
+    fn test_noise_handshake_with_payload() {
+        // Noise XX allows embedding payloads in handshake messages
+        let ak = NoiseKeypair::generate();
+        let bk = NoiseKeypair::generate();
+
+        let mut initiator = NoiseChannel::initiator(&ak).unwrap();
+        let mut responder = NoiseChannel::responder(&bk).unwrap();
+
+        // → e (with payload)
+        let msg1 = initiator.write_handshake(b"hello from initiator").unwrap();
+        let payload1 = responder.read_handshake(&msg1).unwrap();
+        assert_eq!(payload1, b"hello from initiator");
+
+        // ← e, ee, s, es (with payload)
+        let msg2 = responder.write_handshake(b"hello back").unwrap();
+        let payload2 = initiator.read_handshake(&msg2).unwrap();
+        assert_eq!(payload2, b"hello back");
+
+        // → s, se
+        let msg3 = initiator.write_handshake(b"ready").unwrap();
+        let payload3 = responder.read_handshake(&msg3).unwrap();
+        assert_eq!(payload3, b"ready");
+
+        let mut initiator = initiator.into_transport().unwrap();
+        let mut responder = responder.into_transport().unwrap();
+
+        let s = initiator.seal(b"transport ok").unwrap();
+        assert_eq!(responder.open(&s).unwrap(), b"transport ok");
+    }
+
+    #[test]
+    fn test_seal_before_handshake_fails() {
+        let ak = NoiseKeypair::generate();
+        let mut ch = NoiseChannel::initiator(&ak).unwrap();
+        assert!(ch.seal(b"too early").is_err());
+    }
+
+    #[test]
+    fn test_sealed_envelope_serialization() {
+        let ak = NoiseKeypair::generate();
+        let bk = NoiseKeypair::generate();
+        let (mut a, mut b) = complete_xx_handshake(&ak, &bk).unwrap();
+
+        let sealed = a.seal(b"serialize me").unwrap();
+        let json = serde_json::to_string(&sealed).unwrap();
+        let deserialized: SealedEnvelope = serde_json::from_str(&json).unwrap();
+
+        let plaintext = b.open(&deserialized).unwrap();
+        assert_eq!(plaintext, b"serialize me");
     }
 
     #[test]
@@ -455,9 +489,7 @@ mod tests {
         let token = SessionToken::generate();
         assert_eq!(token.room_secret.len(), 32);
         assert_eq!(token.access_token.len(), 32);
-        assert_eq!(token.room_id.len(), 32); // 16 bytes hex-encoded
-
-        // Verify access
+        assert_eq!(token.room_id.len(), 32);
         assert!(token.verify_access(&token.access_token));
         assert!(!token.verify_access(&[0u8; 32]));
     }
@@ -468,29 +500,5 @@ mod tests {
         let t2 = SessionToken::generate();
         assert_ne!(t1.room_id, t2.room_id);
         assert_ne!(t1.access_token, t2.access_token);
-    }
-
-    #[test]
-    fn test_sealed_envelope_serialization() {
-        let mut alice = E2EChannel::new();
-        let mut bob = E2EChannel::new();
-
-        bob.set_peer_identity(&alice.our_identity()).unwrap();
-        alice.set_peer_identity(&bob.our_identity()).unwrap();
-
-        let (as_, ap) = alice.begin_handshake();
-        let (bs, bp) = bob.begin_handshake();
-        alice.complete_handshake(as_, &bp, b"s").unwrap();
-        bob.complete_handshake(bs, &ap, b"s").unwrap();
-
-        let sealed = alice.seal(b"serialize me").unwrap();
-
-        // Serialize to JSON (this is what goes over the wire)
-        let json = serde_json::to_string(&sealed).unwrap();
-        let deserialized: SealedEnvelope = serde_json::from_str(&json).unwrap();
-
-        // Bob can still open the deserialized envelope
-        let plaintext = bob.open(&deserialized).unwrap();
-        assert_eq!(plaintext, b"serialize me");
     }
 }

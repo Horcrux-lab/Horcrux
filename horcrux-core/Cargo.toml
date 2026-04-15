@@ -36,7 +36,8 @@ vsss-rs = { version = "4", features = ["std"] }
 # UniFFI for mobile bindings
 uniffi = { version = "0.28", features = ["cli"] }
 
-# Zeroize secrets in memory
+# Noise Protocol Framework (E2E encryption — replaces hand-rolled X25519+AES-GCM+Ed25519)
+snow = "0.10"
 zeroize = { version = "1", features = ["derive"] }
 
 # Base64
