@@ -169,7 +169,7 @@ struct InviteSignersView: View {
 
             // Transaction summary
             VStack(spacing: 4) {
-                Text("\(viewModel.amount) \(viewModel.wallet.chain.symbol)")
+                Text(CurrencyFormatter.crypto(Double(viewModel.amount) ?? 0, symbol: viewModel.wallet.chain.symbol))
                     .font(.title.bold())
                 Text("→ \(viewModel.shortRecipient)")
                     .font(.caption)
@@ -294,7 +294,7 @@ struct SigningCompleteView: View {
                 Text("Transaction Signed!")
                     .font(.title.bold())
 
-                Text("\(viewModel.amount) \(viewModel.wallet.chain.symbol)")
+                Text(CurrencyFormatter.crypto(Double(viewModel.amount) ?? 0, symbol: viewModel.wallet.chain.symbol))
                     .font(.title2)
 
                 if let txHash = viewModel.txHash {

@@ -168,7 +168,7 @@ struct PendingBroadcastRow: View {
             HStack {
                 ChainIcon(chain: transaction.chain, size: 28)
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("\(transaction.amount) \(transaction.chain.symbol)")
+                    Text(CurrencyFormatter.crypto(Double(transaction.amount) ?? 0, symbol: transaction.chain.symbol))
                         .font(.subheadline.bold())
                     Text("→ \(shortAddress(transaction.toAddress))")
                         .font(.caption)
@@ -370,9 +370,20 @@ struct WalletDetailView: View {
                             Text("Loading tokens…").font(.caption).foregroundStyle(.secondary)
                         }
                     } else if tokenBalances.isEmpty {
-                        Text("No token balances found")
-                            .font(.caption)
-                            .foregroundStyle(.tertiary)
+                        VStack(spacing: 8) {
+                            Image(systemName: "plus.circle")
+                                .font(.system(size: 28))
+                                .foregroundStyle(.tertiary)
+                            Text("No Tokens")
+                                .font(.subheadline.bold())
+                                .foregroundStyle(.secondary)
+                            Text("ERC-20 and SPL tokens will appear here once added.")
+                                .font(.caption)
+                                .foregroundStyle(.tertiary)
+                                .multilineTextAlignment(.center)
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 8)
                     } else {
                         ForEach(tokenBalances) { tb in
                             HStack {

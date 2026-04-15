@@ -32,6 +32,7 @@
 		E027D29039D918F64A755AC1 /* Components.swift in Sources */ = {isa = PBXBuildFile; fileRef = D886FBBE2DF6B3AA6FA5A29C /* Components.swift */; };
 		E85D8AFAAED7835EB9BA6C5F /* SigningViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4B97A4C60C8B4D040DBB1906 /* SigningViewModel.swift */; };
 		FB3401D2DF72092E03109173 /* CreateShardFlow.swift in Sources */ = {isa = PBXBuildFile; fileRef = CCAE5E8780140EF078CA194B /* CreateShardFlow.swift */; };
+		2B2F3D2AFF9D3A8F5307419F /* CurrencyFormatter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 08990698B518337C3E98D3CE /* CurrencyFormatter.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -62,6 +63,7 @@
 		E40F5C82E2B2A23A01ACEDF5 /* KeychainManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainManager.swift; sourceTree = "<group>"; };
 		F01AE22958DB93BC491B9519 /* ShardsListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShardsListView.swift; sourceTree = "<group>"; };
 		F8D5302000BBC22EADA2A1F6 /* HorcruxApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HorcruxApp.swift; sourceTree = "<group>"; };
+		08990698B518337C3E98D3CE /* CurrencyFormatter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CurrencyFormatter.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXGroup section */
@@ -150,6 +152,7 @@
 				72A66C7D9607CB2B55039EE6 /* Security */,
 				674CB10F07EBF3F26D7A9C0C /* Transport */,
 				83CFF762112E98080C177AE4 /* UI */,
+				AF47AFE154D782C04C1E1D16 /* Utilities */,
 			);
 			path = Horcrux;
 			sourceTree = "<group>";
@@ -232,6 +235,14 @@
 				C583709075015A9792E114A7 /* Horcrux.app */,
 			);
 			name = Products;
+			sourceTree = "<group>";
+		};
+		AF47AFE154D782C04C1E1D16 /* Utilities */ = {
+			isa = PBXGroup;
+			children = (
+				08990698B518337C3E98D3CE /* CurrencyFormatter.swift */,
+			);
+			path = Utilities;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -328,6 +339,7 @@
 				B0EC72ECD24C2209F5A88423 /* WiFiDirectTransport.swift in Sources */,
 				15A5B160337F5ACA4625D4C0 /* WiFiLANTransport.swift in Sources */,
 				4473C32496DD313F260D2116 /* horcrux_core.swift in Sources */,
+				2B2F3D2AFF9D3A8F5307419F /* CurrencyFormatter.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

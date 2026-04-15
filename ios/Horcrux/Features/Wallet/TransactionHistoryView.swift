@@ -30,7 +30,7 @@ struct TransactionHistoryView: View {
             Text("No Transactions Yet")
                 .font(.headline)
                 .foregroundStyle(.secondary)
-            Text("Signed and broadcast transactions\nwill appear here.")
+            Text("Transactions will appear here after\nyou send or receive funds.")
                 .font(.caption)
                 .foregroundStyle(.tertiary)
                 .multilineTextAlignment(.center)
@@ -82,7 +82,7 @@ struct TransactionRow: View {
                             .background(.blue.opacity(0.1), in: Capsule())
                     }
                     Spacer()
-                    Text(transaction.amount + " " + transaction.chain.symbol)
+                    Text(CurrencyFormatter.crypto(Double(transaction.amount) ?? 0, symbol: transaction.chain.symbol))
                         .font(.subheadline.bold())
                 }
 
@@ -130,7 +130,7 @@ struct TransactionDetailView: View {
                         .font(.system(size: 48))
                         .foregroundStyle(detailStatusColor)
 
-                    Text(transaction.amount + " " + transaction.chain.symbol)
+                    Text(CurrencyFormatter.crypto(Double(transaction.amount) ?? 0, symbol: transaction.chain.symbol))
                         .font(.title2.bold())
 
                     statusBadge
