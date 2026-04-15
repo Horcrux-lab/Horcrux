@@ -1,0 +1,60 @@
+// UniFFI UDL — interface definition for Swift and Kotlin bindings.
+// This defines what the mobile apps can access from horcrux-core.
+
+namespace horcrux {
+    // Version info
+    string version();
+};
+
+// -- MPC Configuration --
+
+enum CurveType {
+    "Secp256k1",
+    "Ed25519",
+};
+
+dictionary HorcruxConfig {
+    u16 threshold;
+    u16 total_parties;
+    u16 party_index;
+    CurveType curve;
+};
+
+// -- Transport Protocol --
+
+enum MessageType {
+    "Hello",
+    "Dkg",
+    "Sign",
+    "Refresh",
+    "Control",
+    "Ack",
+};
+
+enum ChannelType {
+    "Ble",
+    "WifiDirect",
+    "WifiLan",
+    "QrCode",
+    "Relay",
+};
+
+// -- Shard Crypto --
+
+dictionary EncryptedShard {
+    bytes nonce;
+    bytes ciphertext;
+    bytes salt;
+};
+
+// -- Error types --
+
+[Error]
+enum HorcruxError {
+    "InvalidConfig",
+    "KeygenFailed",
+    "SigningFailed",
+    "EncryptionFailed",
+    "DecryptionFailed",
+    "StorageError",
+};

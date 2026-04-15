@@ -1,0 +1,49 @@
+[package]
+name = "horcrux-core"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+description = "MPC threshold signature core library for the Horcrux wallet"
+
+[lib]
+crate-type = ["lib", "staticlib", "cdylib"]
+name = "horcrux_core"
+
+[dependencies]
+# Workspace deps
+serde.workspace = true
+serde_json.workspace = true
+tokio.workspace = true
+rand.workspace = true
+sha2.workspace = true
+aes-gcm.workspace = true
+hkdf.workspace = true
+x25519-dalek.workspace = true
+k256.workspace = true
+ed25519-dalek.workspace = true
+thiserror.workspace = true
+anyhow.workspace = true
+tracing.workspace = true
+hex.workspace = true
+
+# MPC protocol deps (will be expanded in Phase 1.2)
+# curv-kzen = { version = "0.10" }
+
+# Shamir secret sharing
+vsss-rs = { version = "4", features = ["std"] }
+
+# UniFFI for mobile bindings
+uniffi = { version = "0.28", features = ["cli"] }
+
+# Zeroize secrets in memory
+zeroize = { version = "1", features = ["derive"] }
+
+# Base64
+base64 = "0.22"
+
+[build-dependencies]
+uniffi = { version = "0.28", features = ["build"] }
+
+[dev-dependencies]
+tokio = { version = "1", features = ["full", "test-util"] }
