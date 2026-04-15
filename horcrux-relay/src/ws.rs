@@ -1,14 +1,12 @@
 //! WebSocket handler — upgrades HTTP to WS and relays E2E encrypted messages.
 //!
-//! Security: rooms are access-controlled via token query parameter.
-//! All payloads are opaque E2E encrypted — the relay cannot read them.
-//!
-//! Optimizations over the initial version:
-//! - Proper WS Ping/Pong heartbeat (not broadcast-based)
-//! - Unicast filtering: `to` field routes to a single recipient
+//! Security hardening:
+//! - Server enforces `from == device_id` (prevents sender spoofing)
+//! - Token accepted via Sec-WebSocket-Protocol header (keeps URLs clean)
 //! - Per-connection token-bucket rate limiting
+//! - Duplicate device_id rejection within same room
+//! - Unicast filtering: `to` field routes to a single recipient
 //! - Graceful handling of broadcast lag (slow consumers)
-//! - Metrics integration
 
 use axum::{
     extract::{
@@ -16,7 +14,7 @@ use axum::{
         WebSocketUpgrade,
         ws::{Message, WebSocket},
     },
-    http::StatusCode,
+    http::{HeaderMap, StatusCode},
     response::IntoResponse,
 };
 use futures_util::{SinkExt, StreamExt};
@@ -31,20 +29,41 @@ use crate::room::{RoomManager, RoomMessage, RoomError};
 #[derive(serde::Deserialize)]
 pub struct WsQuery {
     pub device_id: Option<String>,
+    /// Token via query param (discouraged — prefer Sec-WebSocket-Protocol header).
     pub token: Option<String>,
+}
+
+/// Extract token from Sec-WebSocket-Protocol header.
+/// Client sends: `Sec-WebSocket-Protocol: horcrux-token.{actual_token}`
+/// This avoids putting the token in the URL (which leaks to logs/referer).
+fn extract_token_from_headers(headers: &HeaderMap) -> Option<String> {
+    headers
+        .get("sec-websocket-protocol")
+        .and_then(|v| v.to_str().ok())
+        .and_then(|protocols| {
+            protocols
+                .split(',')
+                .map(|p| p.trim())
+                .find(|p| p.starts_with("horcrux-token."))
+                .map(|p| p.strip_prefix("horcrux-token.").unwrap().to_string())
+        })
 }
 
 pub async fn ws_handler(
     ws: WebSocketUpgrade,
     Path(room_id): Path<String>,
     Query(query): Query<WsQuery>,
+    headers: HeaderMap,
     State((rooms, config)): State<(RoomManager, RelayConfig)>,
 ) -> Result<impl IntoResponse, StatusCode> {
-    let device_id = query.device_id.unwrap_or_default();
-    let token = query.token;
+    let device_id = query.device_id.clone().unwrap_or_default();
+
+    // Prefer token from header, fall back to query param
+    let token = extract_token_from_headers(&headers).or(query.token);
 
     // Validate room_id format
     if room_id.len() > 128
+        || room_id.is_empty()
         || !room_id
             .bytes()
             .all(|b| b.is_ascii_alphanumeric() || b == b'-' || b == b'_')
@@ -53,8 +72,21 @@ pub async fn ws_handler(
         return Err(StatusCode::BAD_REQUEST);
     }
 
-    if device_id.len() > 128 {
+    // Validate device_id — must be non-empty and reasonable
+    if device_id.is_empty() || device_id.len() > 128 {
         return Err(StatusCode::BAD_REQUEST);
+    }
+
+    // Validate Origin header (CSWSH protection)
+    if let Some(ref allowed) = config.allowed_origins {
+        let origin = headers
+            .get("origin")
+            .and_then(|v| v.to_str().ok())
+            .unwrap_or("");
+        if !allowed.iter().any(|o| o == origin || o == "*") {
+            tracing::warn!(origin = origin, "rejected — origin not allowed");
+            return Err(StatusCode::FORBIDDEN);
+        }
     }
 
     let join_result = rooms
@@ -66,7 +98,16 @@ pub async fn ws_handler(
             tracing::info!(room = %room_id, device = %device_id, "WebSocket upgrade");
             METRICS.connections_total.fetch_add(1, Ordering::Relaxed);
             METRICS.connections_active.fetch_add(1, Ordering::Relaxed);
-            Ok(ws.on_upgrade(move |socket| {
+
+            // If token was provided via header protocol, echo it back so the
+            // handshake succeeds (browser requires server to select a sub-protocol).
+            let upgrade = if extract_token_from_headers(&headers).is_some() {
+                ws.protocols(["horcrux-token"])
+            } else {
+                ws
+            };
+
+            Ok(upgrade.on_upgrade(move |socket| {
                 handle_socket(socket, room_id, device_id, rooms, tx, rx, config)
             }))
         }
@@ -78,6 +119,10 @@ pub async fn ws_handler(
         Err(RoomError::RoomFull) => {
             tracing::warn!(room = %room_id, "room full");
             Err(StatusCode::SERVICE_UNAVAILABLE)
+        }
+        Err(RoomError::DuplicateDevice) => {
+            tracing::warn!(room = %room_id, device = %device_id, "duplicate device_id");
+            Err(StatusCode::CONFLICT)
         }
     }
 }
@@ -100,7 +145,6 @@ impl RateLimiter {
         }
     }
 
-    /// Try to consume one token. Returns false if rate-limited.
     fn try_consume(&mut self) -> bool {
         let now = Instant::now();
         let elapsed = now.duration_since(self.last_refill);
@@ -136,7 +180,7 @@ async fn handle_socket(
             match rx.recv().await {
                 Ok(msg) => {
                     // Don't echo to sender
-                    if !device_id_for_relay.is_empty() && msg.from == device_id_for_relay {
+                    if msg.from == device_id_for_relay {
                         continue;
                     }
                     // Unicast: if `to` is set, only deliver to the intended recipient
@@ -157,39 +201,32 @@ async fn handle_socket(
                         skipped = n,
                         "slow consumer — skipped messages"
                     );
-                    // Continue — broadcast channel auto-skips to the latest
                 }
                 Err(RecvError::Closed) => break,
             }
         }
     });
 
-    // --- Client → room broadcast with ping/pong + rate limiting ---
+    // --- Client → room broadcast with rate limiting ---
     let mut ping_interval = tokio::time::interval(config.ping_interval);
     ping_interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
-    let mut last_pong = Instant::now();
-    let pong_timeout = config.pong_timeout;
+    let mut last_activity = Instant::now();
+    let idle_timeout = config.ping_interval + config.pong_timeout;
     let mut rate_limiter = RateLimiter::new(config.rate_limit_count, config.rate_limit_window);
 
     loop {
         tokio::select! {
             _ = ping_interval.tick() => {
-                // Check pong timeout
-                if last_pong.elapsed() > config.ping_interval + pong_timeout {
-                    tracing::warn!(room = %room_id, device = %device_id, "pong timeout");
+                if last_activity.elapsed() > idle_timeout {
+                    tracing::warn!(room = %room_id, device = %device_id, "idle timeout");
                     break;
                 }
-                // Note: we can't send WS Ping from here because ws_sink is in
-                // the relay_to_client task. Instead we rely on TCP keepalive and
-                // the read timeout. If the client is truly dead, ws_stream.next()
-                // will return None or Err, which breaks the loop.
             }
 
             frame = ws_stream.next() => {
                 match frame {
                     Some(Ok(msg)) => {
-                        // Any frame = client is alive
-                        last_pong = Instant::now();
+                        last_activity = Instant::now();
 
                         match msg {
                             Message::Text(text) => {
@@ -206,7 +243,12 @@ async fn handle_socket(
                                 }
 
                                 match serde_json::from_str::<RoomMessage>(&text) {
-                                    Ok(room_msg) => {
+                                    Ok(mut room_msg) => {
+                                        // SERVER-SIDE ENFORCEMENT: overwrite `from` with
+                                        // the authenticated device_id. Clients cannot
+                                        // spoof the sender identity.
+                                        room_msg.from = device_id.clone();
+
                                         rooms.touch(&room_id).await;
                                         let _ = tx.send(room_msg);
                                         METRICS.messages_relayed.fetch_add(1, Ordering::Relaxed);
@@ -227,7 +269,10 @@ async fn handle_socket(
                                     continue;
                                 }
                                 match serde_json::from_slice::<RoomMessage>(&data) {
-                                    Ok(room_msg) => {
+                                    Ok(mut room_msg) => {
+                                        // Enforce sender identity
+                                        room_msg.from = device_id.clone();
+
                                         rooms.touch(&room_id).await;
                                         let _ = tx.send(room_msg);
                                         METRICS.messages_relayed.fetch_add(1, Ordering::Relaxed);
@@ -237,13 +282,7 @@ async fn handle_socket(
                                     }
                                 }
                             }
-                            Message::Pong(_) => {
-                                last_pong = Instant::now();
-                            }
-                            Message::Ping(_) => {
-                                // axum auto-replies Pong
-                                last_pong = Instant::now();
-                            }
+                            Message::Pong(_) | Message::Ping(_) => {}
                             Message::Close(_) => break,
                         }
                     }

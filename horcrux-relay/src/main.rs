@@ -98,12 +98,17 @@ async fn health() -> &'static str {
     "horcrux-relay ok"
 }
 
-/// Prometheus-compatible metrics endpoint.
-async fn metrics_handler() -> impl IntoResponse {
-    (
+/// Prometheus-compatible metrics endpoint (admin-protected when token is set).
+async fn metrics_handler(
+    headers: HeaderMap,
+    Query(query): Query<AdminQuery>,
+    State((_rooms, config)): State<AppState>,
+) -> Result<impl IntoResponse, StatusCode> {
+    verify_admin_token(&headers, &query, &config)?;
+    Ok((
         [(axum::http::header::CONTENT_TYPE, "text/plain; version=0.0.4")],
         METRICS.render(),
-    )
+    ))
 }
 
 /// Admin query parameters.
@@ -118,7 +123,22 @@ async fn admin_rooms_handler(
     Query(query): Query<AdminQuery>,
     State((rooms, config)): State<AppState>,
 ) -> Result<impl IntoResponse, StatusCode> {
-    // Check admin token
+    verify_admin_token(&headers, &query, &config)?;
+
+    let stats = rooms.room_stats().await;
+    let count = rooms.room_count().await;
+    Ok(Json(serde_json::json!({
+        "count": count,
+        "rooms": stats,
+    })))
+}
+
+/// Verify admin token using constant-time comparison.
+fn verify_admin_token(
+    headers: &HeaderMap,
+    query: &AdminQuery,
+    config: &RelayConfig,
+) -> Result<(), StatusCode> {
     if let Some(ref expected) = config.admin_token {
         let provided = query
             .admin_token
@@ -129,15 +149,22 @@ async fn admin_rooms_handler(
                     .and_then(|v| v.to_str().ok())
             });
         match provided {
-            Some(t) if t == expected => {}
-            _ => return Err(StatusCode::FORBIDDEN),
+            Some(t) if constant_time_str_eq(t, expected) => Ok(()),
+            _ => Err(StatusCode::FORBIDDEN),
         }
+    } else {
+        Ok(())
     }
+}
 
-    let stats = rooms.room_stats().await;
-    let count = rooms.room_count().await;
-    Ok(Json(serde_json::json!({
-        "count": count,
-        "rooms": stats,
-    })))
+/// Constant-time string comparison (prevents timing attacks on admin tokens).
+fn constant_time_str_eq(a: &str, b: &str) -> bool {
+    if a.len() != b.len() {
+        return false;
+    }
+    let mut diff = 0u8;
+    for (x, y) in a.bytes().zip(b.bytes()) {
+        diff |= x ^ y;
+    }
+    diff == 0
 }

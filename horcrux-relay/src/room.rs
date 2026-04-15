@@ -95,6 +95,8 @@ pub enum RoomError {
     InvalidToken,
     #[error("room is full")]
     RoomFull,
+    #[error("device_id already connected to this room")]
+    DuplicateDevice,
 }
 
 impl RoomManagerInner {
@@ -141,6 +143,15 @@ impl RoomManagerInner {
                     return Err(RoomError::RoomFull);
                 }
 
+                // Reject duplicate device_id
+                if !device_id.is_empty() {
+                    let devs = room.devices.lock().await;
+                    if devs.iter().any(|d| d == device_id) {
+                        return Err(RoomError::DuplicateDevice);
+                    }
+                    drop(devs);
+                }
+
                 room.participant_count.fetch_add(1, Ordering::Relaxed);
                 room.touch();
                 let rx = room.tx.subscribe();
@@ -172,6 +183,13 @@ impl RoomManagerInner {
             let current = room.participant_count.load(Ordering::Relaxed);
             if current >= self.max_participants {
                 return Err(RoomError::RoomFull);
+            }
+            if !device_id.is_empty() {
+                let devs = room.devices.lock().await;
+                if devs.iter().any(|d| d == device_id) {
+                    return Err(RoomError::DuplicateDevice);
+                }
+                drop(devs);
             }
             room.participant_count.fetch_add(1, Ordering::Relaxed);
             room.touch();
@@ -499,5 +517,32 @@ mod tests {
         );
         // If we get here, no deadlock
         let _ = (r1, r2);
+    }
+
+    #[tokio::test]
+    async fn test_duplicate_device_id_rejected() {
+        let mgr = new(&test_config());
+        let (_tx, _rx) = mgr.join_room_with_token("dup-room", None, "device-A").await.unwrap();
+
+        // Same device_id should be rejected
+        let result = mgr.join_room_with_token("dup-room", None, "device-A").await;
+        assert!(result.is_err());
+        assert!(matches!(result.unwrap_err(), RoomError::DuplicateDevice));
+
+        // Different device_id should work fine
+        let result = mgr.join_room_with_token("dup-room", None, "device-B").await;
+        assert!(result.is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_device_id_reusable_after_leave() {
+        let mgr = new(&test_config());
+        let (_tx, _rx) = mgr.join_room_with_token("reuse-room", None, "phone-1").await.unwrap();
+        mgr.leave_room("reuse-room", "phone-1").await;
+
+        // After leaving, same device_id can reconnect
+        // Room was removed (last participant), so this creates a new room
+        let result = mgr.join_room_with_token("reuse-room", None, "phone-1").await;
+        assert!(result.is_ok());
     }
 }

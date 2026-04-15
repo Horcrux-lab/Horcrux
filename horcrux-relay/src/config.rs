@@ -25,6 +25,10 @@ pub struct RelayConfig {
     pub rate_limit_window: Duration,
     /// Whether /admin endpoints require the admin token.
     pub admin_token: Option<String>,
+    /// Allowed WebSocket origins for CSWSH protection.
+    /// None = allow all (development mode).
+    /// Some(["https://app.horcrux.io"]) = only allow listed origins.
+    pub allowed_origins: Option<Vec<String>>,
 }
 
 impl Default for RelayConfig {
@@ -41,6 +45,7 @@ impl Default for RelayConfig {
             rate_limit_count: 100,
             rate_limit_window: Duration::from_secs(10),
             admin_token: None,
+            allowed_origins: None,
         }
     }
 }
@@ -67,6 +72,11 @@ impl RelayConfig {
         }
         if let Ok(v) = std::env::var("RELAY_ADMIN_TOKEN") {
             cfg.admin_token = Some(v);
+        }
+        if let Ok(v) = std::env::var("RELAY_ALLOWED_ORIGINS") {
+            cfg.allowed_origins = Some(
+                v.split(',').map(|s| s.trim().to_string()).collect()
+            );
         }
         cfg
     }
