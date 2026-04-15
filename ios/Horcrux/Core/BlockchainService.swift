@@ -5,8 +5,9 @@ import Foundation
 actor BlockchainService {
     private let session: URLSession
 
-    init(session: URLSession = .shared) {
-        self.session = session
+    init(session: URLSession? = nil) {
+        // Use certificate-pinned session by default
+        self.session = session ?? PinnedURLSession.shared.session
     }
 
     /// Validate and construct a URL, rejecting non-HTTPS for RPC endpoints.

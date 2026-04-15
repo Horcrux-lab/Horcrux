@@ -407,7 +407,7 @@ struct NodeStatusRow: View {
                 case .bitcoin:
                     let urlString = "\(config.bitcoinAPI)/blocks/tip/hash"
                     guard let url = URL(string: urlString) else { throw BlockchainError.invalidURL(urlString) }
-                    let (_, response) = try await URLSession.shared.data(from: url)
+                    let (_, response) = try await PinnedURLSession.shared.session.data(from: url)
                     guard let http = response as? HTTPURLResponse, (200...299).contains(http.statusCode) else {
                         throw BlockchainError.httpError(statusCode: (response as? HTTPURLResponse)?.statusCode ?? 0)
                     }
