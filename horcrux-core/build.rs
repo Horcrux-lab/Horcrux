@@ -1,4 +1,4 @@
 fn main() {
-    // UniFFI will be configured here for binding generation
-    println!("cargo:rerun-if-changed=uniffi/horcrux.udl");
+    // Using UniFFI proc-macro approach — no UDL scaffolding generation needed.
+    // The UDL file is kept as documentation of the FFI interface.
 }

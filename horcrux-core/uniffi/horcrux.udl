@@ -1,79 +1,47 @@
-// UniFFI UDL — interface definition for Swift and Kotlin bindings.
-// This defines what the mobile apps can access from horcrux-core.
+// UniFFI UDL — Horcrux MPC Wallet interface for Swift and Kotlin.
+//
+// This file defines the FFI boundary. Mobile apps use these types and
+// functions to interact with the Rust core library.
 
-namespace horcrux {};
+namespace horcrux {
+    // -- Address derivation --
+    [Throws=ChainError]
+    string evm_address_from_pubkey(bytes uncompressed_pubkey);
 
-// -- Enums --
+    [Throws=ChainError]
+    string btc_address_from_pubkey(bytes compressed_pubkey, string hrp);
+
+    string solana_address_from_pubkey(bytes pubkey);
+
+    bytes keccak256(bytes data);
+
+    // -- Shard encryption --
+    [Throws=HorcruxError]
+    EncryptedShard encrypt_shard(bytes plaintext, bytes device_key, bytes pin);
+
+    [Throws=HorcruxError]
+    bytes decrypt_shard(EncryptedShard encrypted, bytes device_key, bytes pin);
+};
+
+// ============================================================================
+// Enums
+// ============================================================================
 
 enum CurveType {
     "Secp256k1",
     "Ed25519",
 };
 
-enum MessageType {
-    "Hello",
-    "Dkg",
-    "Sign",
-    "Refresh",
-    "Control",
-    "Ack",
+enum ParticipantState {
+    "Idle",
+    "Active",
+    "Completed",
+    "Failed",
 };
 
-enum ChannelType {
-    "Ble",
-    "WifiDirect",
-    "WifiLan",
-    "QrCode",
-    "Relay",
-};
-
-// -- MPC Configuration --
-
-dictionary HorcruxConfig {
-    u16 threshold;
-    u16 total_parties;
-    u16 party_index;
-    CurveType curve;
-};
-
-// -- MPC Messages --
-
-dictionary MpcMessage {
-    u16 from_party;
-    u16 to_party;
-    u32 round;
-    string session_id;
-    bytes payload;
-};
-
-// -- Keygen Result --
-
-dictionary KeygenResult {
-    bytes public_key;
-    bytes shard_data;
-    u16 party_index;
-    u16 threshold;
-    u16 total_parties;
-};
-
-// -- Signing Result --
-
-dictionary SigningResult {
-    bytes signature;
-    bytes r;
-    bytes s;
-    u8? recovery_id;
-};
-
-// -- Shard Crypto --
-
-dictionary EncryptedShard {
-    bytes nonce;
-    bytes ciphertext;
-    bytes salt;
-};
-
-// -- Error types --
+// ============================================================================
+// Error types
+// ============================================================================
 
 [Error]
 enum HorcruxError {
@@ -85,4 +53,232 @@ enum HorcruxError {
     "StorageError",
     "ProtocolError",
     "SessionError",
+    "InsufficientParties",
+};
+
+[Error]
+enum ChainError {
+    "InvalidAddress",
+    "EncodingError",
+    "InsufficientBalance",
+    "Other",
+};
+
+[Error]
+enum E2EError {
+    "Handshake",
+    "HandshakeIncomplete",
+    "HandshakeComplete",
+    "Encryption",
+    "Decryption",
+};
+
+// ============================================================================
+// MPC types
+// ============================================================================
+
+dictionary HorcruxConfig {
+    u16 threshold;
+    u16 total_parties;
+    u16 party_index;
+    CurveType curve;
+};
+
+dictionary MpcMessage {
+    u16 from_party;
+    u16 to_party;
+    u32 round;
+    string session_id;
+    bytes payload;
+};
+
+dictionary KeygenResult {
+    bytes public_key;
+    bytes shard_data;
+    u16 party_index;
+    u16 threshold;
+    u16 total_parties;
+};
+
+dictionary SigningResult {
+    bytes signature;
+    bytes r;
+    bytes s;
+    u8? recovery_id;
+};
+
+// ============================================================================
+// Shard types
+// ============================================================================
+
+dictionary EncryptedShard {
+    bytes nonce;
+    bytes ciphertext;
+    bytes salt;
+};
+
+dictionary ShardInfo {
+    string shard_id;
+    bytes public_key;
+    u16 party_index;
+    u16 threshold;
+    u16 total_parties;
+    CurveType curve;
+    u64 created_at;
+    boolean is_local;
+};
+
+// ============================================================================
+// Chain types
+// ============================================================================
+
+dictionary Transaction {
+    string chain_type;
+    bytes raw_data;
+    bytes sign_hash;
+};
+
+dictionary EvmTxParams {
+    string to;
+    u64 value_low;
+    u64 value_high;
+    u64 nonce;
+    u64 gas_limit;
+    u64 max_fee_per_gas_low;
+    u64 max_fee_per_gas_high;
+    u64 max_priority_fee_per_gas_low;
+    u64 max_priority_fee_per_gas_high;
+    u64 chain_id;
+    bytes data;
+};
+
+dictionary BtcInput {
+    string txid;
+    u32 vout;
+    u64 value;
+    bytes? pubkey_hash;
+};
+
+dictionary BtcOutput {
+    string address;
+    u64 value;
+    bytes? script_pubkey;
+};
+
+dictionary BtcTxParams {
+    sequence<BtcInput> inputs;
+    sequence<BtcOutput> outputs;
+    boolean testnet;
+};
+
+dictionary SolanaTxParams {
+    string from_address;
+    string to_address;
+    u64 lamports;
+    string recent_blockhash;
+    boolean devnet;
+};
+
+// ============================================================================
+// E2E encryption types
+// ============================================================================
+
+dictionary SealedEnvelope {
+    bytes ciphertext;
+    boolean handshake;
+};
+
+dictionary NoiseKeypairData {
+    bytes private_key;
+    bytes public_key;
+};
+
+dictionary SessionTokenData {
+    bytes room_secret;
+    bytes access_token;
+    string room_id;
+};
+
+// ============================================================================
+// Interfaces (objects with methods)
+// ============================================================================
+
+interface HorcruxSessionManager {
+    constructor();
+
+    [Throws=HorcruxError]
+    sequence<MpcMessage> create_keygen(string session_id, HorcruxConfig config);
+
+    [Throws=HorcruxError]
+    sequence<MpcMessage> create_signing(
+        string session_id,
+        HorcruxConfig config,
+        bytes message_hash,
+        bytes shard_data,
+        sequence<u16> participants
+    );
+
+    [Throws=HorcruxError]
+    sequence<MpcMessage> handle_message(MpcMessage msg);
+
+    KeygenResult? get_keygen_result(string session_id);
+
+    SigningResult? get_signing_result(string session_id);
+
+    void remove_session(string session_id);
+};
+
+interface HorcruxShardManager {
+    constructor();
+
+    void add_shard(ShardInfo info);
+
+    sequence<ShardInfo> list_shards();
+
+    sequence<ShardInfo> shards_for_key(bytes public_key);
+};
+
+interface HorcruxNoiseChannel {
+    [Name=new_initiator, Throws=E2EError]
+    constructor(NoiseKeypairData keypair);
+
+    [Throws=E2EError]
+    bytes write_handshake(bytes payload);
+
+    [Throws=E2EError]
+    bytes read_handshake(bytes message);
+
+    boolean is_handshake_finished();
+
+    [Throws=E2EError]
+    void finalize_handshake();
+
+    bytes? remote_static_key();
+
+    [Throws=E2EError]
+    SealedEnvelope seal(bytes plaintext);
+
+    [Throws=E2EError]
+    bytes open(SealedEnvelope envelope);
+};
+
+interface HorcruxEvmBuilder {
+    constructor();
+
+    [Throws=ChainError]
+    Transaction build_transaction(EvmTxParams params);
+};
+
+interface HorcruxBtcBuilder {
+    constructor();
+
+    [Throws=ChainError]
+    Transaction build_transaction(BtcTxParams params);
+};
+
+interface HorcruxSolanaBuilder {
+    constructor();
+
+    [Throws=ChainError]
+    Transaction build_transaction(SolanaTxParams params);
 };

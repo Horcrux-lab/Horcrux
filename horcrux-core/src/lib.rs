@@ -7,6 +7,9 @@ pub mod mpc;
 pub mod chain;
 pub mod shard;
 pub mod transport;
+pub mod ffi;
 
 pub use mpc::HorcruxConfig;
 pub use shard::ShardManager;
+
+uniffi::setup_scaffolding!();
