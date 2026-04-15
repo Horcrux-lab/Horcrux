@@ -56,15 +56,31 @@ struct TransactionRow: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            Image(systemName: transaction.statusIcon)
-                .font(.title3)
-                .foregroundStyle(statusColor)
-                .frame(width: 32)
+            ZStack {
+                Image(systemName: transaction.statusIcon)
+                    .font(.title3)
+                    .foregroundStyle(statusColor)
+                    .frame(width: 32)
+
+                if transaction.status == .broadcast {
+                    ProgressView()
+                        .scaleEffect(0.6)
+                        .offset(x: 12, y: 10)
+                }
+            }
 
             VStack(alignment: .leading, spacing: 4) {
                 HStack {
                     Text("Send \(transaction.chain.symbol)")
                         .font(.subheadline.bold())
+                    if transaction.status == .broadcast {
+                        Text("Confirming…")
+                            .font(.caption2)
+                            .foregroundStyle(.blue)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2)
+                            .background(.blue.opacity(0.1), in: Capsule())
+                    }
                     Spacer()
                     Text(transaction.amount + " " + transaction.chain.symbol)
                         .font(.subheadline.bold())

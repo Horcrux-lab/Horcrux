@@ -60,8 +60,8 @@ actor CeremonyStateManager {
             .sorted { $0.lastUpdated > $1.lastUpdated }
     }
 
-    /// Clean up stale sessions older than the given interval (default: 1 hour).
-    func cleanupStale(olderThan interval: TimeInterval = 3600) {
+    /// Clean up stale sessions older than the given interval (default: 10 minutes).
+    func cleanupStale(olderThan interval: TimeInterval = 600) {
         let cutoff = Date().addingTimeInterval(-interval)
         sessions = sessions.filter { $0.value.lastUpdated > cutoff }
         persistToDisk()

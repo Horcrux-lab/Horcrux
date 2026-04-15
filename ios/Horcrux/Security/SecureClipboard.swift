@@ -3,19 +3,17 @@ import UIKit
 /// Clipboard security — copies sensitive data with auto-expiration.
 enum SecureClipboard {
 
-    /// Copy text to clipboard with automatic clearing after `expireSeconds`.
-    /// Default: 60 seconds.
-    static func copy(_ text: String, expireSeconds: TimeInterval = 60) {
-        UIPasteboard.general.string = text
+    /// Default clipboard expiration time.
+    static let defaultExpireSeconds: TimeInterval = 60
 
-        // Schedule clipboard clearing
-        let expirationItem = [UIPasteboard.general.changeCount]
-        DispatchQueue.main.asyncAfter(deadline: .now() + expireSeconds) {
-            // Only clear if clipboard hasn't been changed since our copy
-            if UIPasteboard.general.changeCount == expirationItem[0] {
-                UIPasteboard.general.string = ""
-            }
-        }
+    /// Copy text to clipboard with automatic clearing after `expireSeconds`.
+    /// Uses UIPasteboard expiration API for background safety (no Timer/GCD needed).
+    static func copy(_ text: String, expireSeconds: TimeInterval = defaultExpireSeconds) {
+        let items: [[String: Any]] = [[UIPasteboard.typeListString[0] as String: text]]
+        let options: [UIPasteboard.OptionsKey: Any] = [
+            .expirationDate: Date().addingTimeInterval(expireSeconds)
+        ]
+        UIPasteboard.general.setItems(items, options: options)
     }
 
     /// Clear clipboard immediately.

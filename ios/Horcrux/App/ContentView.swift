@@ -21,6 +21,7 @@ struct ContentView: View {
         } message: {
             Text("This device may be compromised:\n\n• \(jailbreakReasons.joined(separator: "\n• "))\n\nYour key shards may be at risk. Use a secure device for production wallets.")
         }
+        .dynamicTypeSize(...DynamicTypeSize.accessibility2)
         .task {
             let result = SecurityEnvironment.check()
             if result.isCompromised {

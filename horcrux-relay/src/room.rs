@@ -54,6 +54,8 @@ struct Room {
     token_hash: Option<[u8; 32]>,
     /// Set of connected device IDs (for unicast routing)
     devices: Mutex<Vec<String>>,
+    /// Per-device sequence tracking for replay protection
+    device_sequences: Mutex<HashMap<String, u64>>,
 }
 
 impl Room {
@@ -72,6 +74,20 @@ impl Room {
             .as_millis() as u64;
         let last = self.last_activity_ms.load(Ordering::Relaxed);
         now_ms.saturating_sub(last) > ttl.as_millis() as u64
+    }
+
+    /// Check and advance sequence counter for replay protection.
+    /// Returns true if the message is valid (seq > last seen), false if replayed.
+    async fn check_sequence(&self, device_id: &str, seq: u64) -> bool {
+        if device_id.is_empty() { return true; }
+        let mut seqs = self.device_sequences.lock().await;
+        let last = seqs.entry(device_id.to_string()).or_insert(0);
+        if seq > *last {
+            *last = seq;
+            true
+        } else {
+            false
+        }
     }
 }
 
@@ -220,6 +236,7 @@ impl RoomManagerInner {
                 last_activity_ms: AtomicU64::new(now_ms),
                 token_hash,
                 devices: Mutex::new(initial_devices),
+                device_sequences: Mutex::new(HashMap::new()),
             },
         );
         METRICS.rooms_created.fetch_add(1, Ordering::Relaxed);
@@ -274,6 +291,16 @@ impl RoomManagerInner {
         let rooms = self.rooms.read().await;
         if let Some(room) = rooms.get(room_id) {
             room.touch();
+        }
+    }
+
+    /// Check message sequence for replay protection. Returns false if replayed.
+    pub async fn check_sequence(&self, room_id: &str, device_id: &str, seq: u64) -> bool {
+        let rooms = self.rooms.read().await;
+        if let Some(room) = rooms.get(room_id) {
+            room.check_sequence(device_id, seq).await
+        } else {
+            true // Room not found — let other code handle that
         }
     }
 

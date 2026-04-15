@@ -10,6 +10,7 @@
 //! - Graceful shutdown (SIGINT/SIGTERM drains connections)
 
 mod config;
+mod ip_ratelimit;
 mod metrics;
 mod room;
 mod ws;
@@ -21,16 +22,18 @@ use axum::{
     routing::get,
     Json, Router,
 };
+use std::net::SocketAddr;
 use tower_http::cors::CorsLayer;
 use tower_http::trace::TraceLayer;
 use tracing_subscriber::EnvFilter;
 
 use crate::config::RelayConfig;
+use crate::ip_ratelimit::IpRateLimiter;
 use crate::metrics::METRICS;
 use crate::room::RoomManager;
 
 /// App state passed to all handlers.
-type AppState = (RoomManager, RelayConfig);
+type AppState = (RoomManager, RelayConfig, std::sync::Arc<IpRateLimiter>);
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -43,10 +46,26 @@ async fn main() -> anyhow::Result<()> {
     let config = RelayConfig::from_env();
     let room_state = room::new(&config);
     let _cleanup_handle = room::spawn_cleanup_task(room_state.clone());
+    let ip_limiter = std::sync::Arc::new(IpRateLimiter::new(
+        config.ip_rate_limit_creates,
+        config.ip_rate_limit_window,
+    ));
+    // GC stale IP entries alongside room cleanup
+    {
+        let limiter = ip_limiter.clone();
+        let interval_dur = config.cleanup_interval;
+        tokio::spawn(async move {
+            let mut interval = tokio::time::interval(interval_dur);
+            loop {
+                interval.tick().await;
+                limiter.gc();
+            }
+        });
+    }
 
     let addr = format!("{}:{}", config.host, config.port);
 
-    let state: AppState = (room_state, config);
+    let state: AppState = (room_state, config, ip_limiter);
 
     let app = Router::new()
         .route("/health", get(health))
@@ -62,9 +81,12 @@ async fn main() -> anyhow::Result<()> {
     let listener = tokio::net::TcpListener::bind(&addr).await?;
 
     // Graceful shutdown on SIGINT / SIGTERM
-    axum::serve(listener, app)
-        .with_graceful_shutdown(shutdown_signal())
-        .await?;
+    axum::serve(
+        listener,
+        app.into_make_service_with_connect_info::<SocketAddr>(),
+    )
+    .with_graceful_shutdown(shutdown_signal())
+    .await?;
 
     tracing::info!("Relay shut down gracefully");
     Ok(())
@@ -102,7 +124,7 @@ async fn health() -> &'static str {
 async fn metrics_handler(
     headers: HeaderMap,
     Query(query): Query<AdminQuery>,
-    State((_rooms, config)): State<AppState>,
+    State((_rooms, config, _ip)): State<AppState>,
 ) -> Result<impl IntoResponse, StatusCode> {
     verify_admin_token(&headers, &query, &config)?;
     Ok((
@@ -121,7 +143,7 @@ struct AdminQuery {
 async fn admin_rooms_handler(
     headers: HeaderMap,
     Query(query): Query<AdminQuery>,
-    State((rooms, config)): State<AppState>,
+    State((rooms, config, _ip)): State<AppState>,
 ) -> Result<impl IntoResponse, StatusCode> {
     verify_admin_token(&headers, &query, &config)?;
 

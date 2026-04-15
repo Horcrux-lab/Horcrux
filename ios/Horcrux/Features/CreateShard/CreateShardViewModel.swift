@@ -57,6 +57,13 @@ final class CreateShardViewModel: ObservableObject {
     }
 
     func startDKG() {
+        // Block on jailbroken devices
+        if SecurityEnvironment.isCompromised {
+            errorMessage = "Key generation is disabled on compromised devices. Use a secure device."
+            step = .error
+            return
+        }
+
         step = .dkg
         sessionId = UUID().uuidString
         peerManager?.stopDiscovery()

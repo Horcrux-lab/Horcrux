@@ -10,7 +10,7 @@
 
 use axum::{
     extract::{
-        Path, Query, State,
+        ConnectInfo, Path, Query, State,
         WebSocketUpgrade,
         ws::{Message, WebSocket},
     },
@@ -18,11 +18,13 @@ use axum::{
     response::IntoResponse,
 };
 use futures_util::{SinkExt, StreamExt};
+use std::net::SocketAddr;
 use std::sync::atomic::Ordering;
 use std::time::{Duration, Instant};
 use tokio::sync::broadcast::error::RecvError;
 
 use crate::config::RelayConfig;
+use crate::ip_ratelimit::IpRateLimiter;
 use crate::metrics::METRICS;
 use crate::room::{RoomManager, RoomMessage, RoomError};
 
@@ -54,7 +56,8 @@ pub async fn ws_handler(
     Path(room_id): Path<String>,
     Query(query): Query<WsQuery>,
     headers: HeaderMap,
-    State((rooms, config)): State<(RoomManager, RelayConfig)>,
+    ConnectInfo(addr): ConnectInfo<SocketAddr>,
+    State((rooms, config, ip_limiter)): State<(RoomManager, RelayConfig, std::sync::Arc<IpRateLimiter>)>,
 ) -> Result<impl IntoResponse, StatusCode> {
     let device_id = query.device_id.clone().unwrap_or_default();
 
@@ -87,6 +90,13 @@ pub async fn ws_handler(
             tracing::warn!(origin = origin, "rejected — origin not allowed");
             return Err(StatusCode::FORBIDDEN);
         }
+    }
+
+    // Per-IP connection rate limiting (prevents DoS room creation floods)
+    if !ip_limiter.try_create(addr.ip()) {
+        METRICS.rate_limited.fetch_add(1, Ordering::Relaxed);
+        tracing::warn!(ip = %addr.ip(), room = %room_id, "IP rate limited");
+        return Err(StatusCode::TOO_MANY_REQUESTS);
     }
 
     let join_result = rooms
@@ -249,6 +259,13 @@ async fn handle_socket(
                                         // spoof the sender identity.
                                         room_msg.from = device_id.clone();
 
+                                        // Replay protection: reject out-of-order messages
+                                        if !rooms.check_sequence(&room_id, &device_id, room_msg.seq).await {
+                                            METRICS.messages_rejected.fetch_add(1, Ordering::Relaxed);
+                                            tracing::warn!(room = %room_id, device = %device_id, seq = room_msg.seq, "replayed message rejected");
+                                            continue;
+                                        }
+
                                         rooms.touch(&room_id).await;
                                         let _ = tx.send(room_msg);
                                         METRICS.messages_relayed.fetch_add(1, Ordering::Relaxed);
@@ -272,6 +289,11 @@ async fn handle_socket(
                                     Ok(mut room_msg) => {
                                         // Enforce sender identity
                                         room_msg.from = device_id.clone();
+
+                                        if !rooms.check_sequence(&room_id, &device_id, room_msg.seq).await {
+                                            METRICS.messages_rejected.fetch_add(1, Ordering::Relaxed);
+                                            continue;
+                                        }
 
                                         rooms.touch(&room_id).await;
                                         let _ = tx.send(room_msg);

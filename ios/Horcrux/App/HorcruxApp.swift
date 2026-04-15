@@ -60,6 +60,10 @@ struct HorcruxApp: App {
                         if AntiDebug.performChecks() {
                             showDebuggerWarning = true
                         }
+                        // Auto-expire stale ceremony sessions (10 min TTL)
+                        Task {
+                            await appState.ceremonyState.cleanupStale()
+                        }
                     }
                 }
                 .task {

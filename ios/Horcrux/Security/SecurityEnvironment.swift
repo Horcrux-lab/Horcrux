@@ -25,6 +25,12 @@ enum SecurityEnvironment {
         return CheckResult(isCompromised: !reasons.isEmpty, reasons: reasons)
     }
 
+    /// Quick check — returns true if device appears jailbroken.
+    /// Use to gate sensitive operations like DKG and signing.
+    static var isCompromised: Bool {
+        check().isCompromised
+    }
+
     // MARK: - Checks
 
     private static let jailbreakPaths = [

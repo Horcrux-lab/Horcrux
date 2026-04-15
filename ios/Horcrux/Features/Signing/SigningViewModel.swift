@@ -140,6 +140,13 @@ final class SigningViewModel: ObservableObject {
     }
 
     func startSigning() {
+        // Block on jailbroken devices
+        if SecurityEnvironment.isCompromised {
+            errorMessage = "Signing is disabled on compromised devices. Use a secure device."
+            step = .error
+            return
+        }
+
         step = .signing
         sessionId = UUID().uuidString
 

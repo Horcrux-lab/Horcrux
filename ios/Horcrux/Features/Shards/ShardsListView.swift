@@ -286,7 +286,7 @@ struct ShardBackupView: View {
                 }
             } label: {
                 Label(
-                    copiedToClipboard ? "Copied! (auto-clears in 60s)" : "Copy to Clipboard",
+                    copiedToClipboard ? "Copied! (auto-clears in \(Int(SecureClipboard.defaultExpireSeconds))s)" : "Copy to Clipboard",
                     systemImage: copiedToClipboard ? "checkmark" : "doc.on.doc"
                 )
             }

@@ -5,6 +5,7 @@ struct ProgressRing: View {
     let progress: Double
     var lineWidth: CGFloat = 12
     var color: Color = HorcruxTheme.accentColor
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         ZStack {
@@ -15,7 +16,7 @@ struct ProgressRing: View {
                 .trim(from: 0, to: progress)
                 .stroke(color, style: StrokeStyle(lineWidth: lineWidth, lineCap: .round))
                 .rotationEffect(.degrees(-90))
-                .animation(.easeInOut(duration: 0.3), value: progress)
+                .animation(reduceMotion ? nil : .easeInOut(duration: 0.3), value: progress)
 
             Text("\(Int(progress * 100))%")
                 .font(.title2.bold().monospacedDigit())
@@ -42,11 +43,18 @@ struct ShardStatusBadge: View {
 struct ChainIcon: View {
     let chain: Chain
     var size: CGFloat = 32
+    @ScaledMetric private var scaledSize: CGFloat = 32
+
+    init(chain: Chain, size: CGFloat = 32) {
+        self.chain = chain
+        self.size = size
+        self._scaledSize = ScaledMetric(wrappedValue: size)
+    }
 
     var body: some View {
         Image(systemName: chain.iconName)
-            .font(.system(size: size * 0.5))
-            .frame(width: size, height: size)
+            .font(.system(size: scaledSize * 0.5))
+            .frame(width: scaledSize, height: scaledSize)
             .background(chain.color.opacity(0.15), in: Circle())
             .foregroundStyle(chain.color)
     }

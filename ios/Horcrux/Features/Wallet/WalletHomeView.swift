@@ -87,6 +87,25 @@ struct WalletHomeView: View {
 
     private var walletList: some View {
         List {
+            // Pending broadcasts section
+            if !appState.pendingBroadcastQueue.pending.isEmpty {
+                Section {
+                    ForEach(appState.pendingBroadcastQueue.pending) { tx in
+                        PendingBroadcastRow(
+                            transaction: tx,
+                            onRetry: {
+                                Task { await retryBroadcast(tx) }
+                            },
+                            onDiscard: {
+                                appState.pendingBroadcastQueue.dequeue(id: tx.id)
+                            }
+                        )
+                    }
+                } header: {
+                    Label("Pending Broadcasts", systemImage: "arrow.up.circle.badge.clock")
+                }
+            }
+
             ForEach(appState.walletStore.wallets) { wallet in
                 NavigationLink {
                     WalletDetailView(wallet: wallet)
@@ -112,6 +131,86 @@ struct WalletHomeView: View {
                     .accessibilityLabel("Edit wallet list")
             }
         }
+    }
+
+    private func retryBroadcast(_ tx: PendingBroadcastQueue.PendingTransaction) async {
+        do {
+            let result: String
+            switch tx.chain {
+            case .ethereum:
+                result = try await appState.blockchainService.ethSendRawTransaction(
+                    signedTxHex: tx.signedPayload, rpcURL: appState.networkConfig.ethereumRPC)
+            case .bitcoin:
+                result = try await appState.blockchainService.btcBroadcast(
+                    signedTxHex: tx.signedPayload, apiURL: appState.networkConfig.bitcoinAPI)
+            case .solana:
+                result = try await appState.blockchainService.solSendTransaction(
+                    signedTxBase64: tx.signedPayload, rpcURL: appState.networkConfig.solanaRPC)
+            }
+            appState.transactionStore.updateStatus(id: tx.id, status: .broadcast, txHash: result)
+            appState.pendingBroadcastQueue.dequeue(id: tx.id)
+        } catch {
+            appState.pendingBroadcastQueue.markAttempt(id: tx.id, error: error.localizedDescription)
+        }
+    }
+}
+
+// MARK: - Pending Broadcast Row
+
+struct PendingBroadcastRow: View {
+    let transaction: PendingBroadcastQueue.PendingTransaction
+    let onRetry: () -> Void
+    let onDiscard: () -> Void
+    @State private var isRetrying = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack {
+                ChainIcon(chain: transaction.chain, size: 28)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("\(transaction.amount) \(transaction.chain.symbol)")
+                        .font(.subheadline.bold())
+                    Text("→ \(shortAddress(transaction.toAddress))")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .monospaced()
+                }
+                Spacer()
+                if isRetrying {
+                    ProgressView()
+                        .scaleEffect(0.7)
+                } else {
+                    Button("Retry", systemImage: "arrow.clockwise") {
+                        isRetrying = true
+                        onRetry()
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 3) { isRetrying = false }
+                    }
+                    .font(.caption)
+                    .buttonStyle(.bordered)
+                    .tint(.blue)
+                }
+            }
+            if let error = transaction.lastError {
+                Text(error)
+                    .font(.caption2)
+                    .foregroundStyle(.red)
+                    .lineLimit(1)
+            }
+            HStack {
+                Text("Attempts: \(transaction.attempts)")
+                    .font(.caption2)
+                    .foregroundStyle(.tertiary)
+                Spacer()
+                Button("Discard", role: .destructive) { onDiscard() }
+                    .font(.caption2)
+            }
+        }
+        .padding(.vertical, 4)
+    }
+
+    private func shortAddress(_ address: String) -> String {
+        guard address.count > 12 else { return address }
+        return "\(address.prefix(6))…\(address.suffix(4))"
     }
 }
 
@@ -226,7 +325,7 @@ struct WalletDetailView: View {
                         copiedAddress = true
                         DispatchQueue.main.asyncAfter(deadline: .now() + 2) { copiedAddress = false }
                     } label: {
-                        Label(copiedAddress ? "Copied (clears in 60s)" : "Copy Address",
+                        Label(copiedAddress ? "Copied (clears in \(Int(SecureClipboard.defaultExpireSeconds))s)" : "Copy Address",
                               systemImage: copiedAddress ? "checkmark" : "doc.on.doc")
                             .font(.caption)
                     }

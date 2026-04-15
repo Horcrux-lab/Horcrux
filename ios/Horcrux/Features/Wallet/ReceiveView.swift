@@ -58,7 +58,7 @@ struct ReceiveView: View {
                     copiedAddress = true
                     DispatchQueue.main.asyncAfter(deadline: .now() + 2) { copiedAddress = false }
                 } label: {
-                    Label(copiedAddress ? "Copied (clears in 60s)" : "Copy Address",
+                    Label(copiedAddress ? "Copied (clears in \(Int(SecureClipboard.defaultExpireSeconds))s)" : "Copy Address",
                           systemImage: copiedAddress ? "checkmark.circle.fill" : "doc.on.doc")
                         .frame(maxWidth: .infinity)
                         .font(.headline)

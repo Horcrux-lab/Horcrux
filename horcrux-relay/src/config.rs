@@ -29,6 +29,10 @@ pub struct RelayConfig {
     /// None = allow all (development mode).
     /// Some(["https://app.horcrux.io"]) = only allow listed origins.
     pub allowed_origins: Option<Vec<String>>,
+    /// Max WS connections per IP within the rate-limit window.
+    pub ip_rate_limit_creates: u32,
+    /// IP rate-limit sliding window.
+    pub ip_rate_limit_window: Duration,
 }
 
 impl Default for RelayConfig {
@@ -46,6 +50,8 @@ impl Default for RelayConfig {
             rate_limit_window: Duration::from_secs(10),
             admin_token: None,
             allowed_origins: None,
+            ip_rate_limit_creates: 20,
+            ip_rate_limit_window: Duration::from_secs(60),
         }
     }
 }
