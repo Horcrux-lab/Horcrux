@@ -35,6 +35,7 @@ final class CreateShardViewModel: ObservableObject {
     private var peerManager: PeerManager?
     private var bridge: HorcruxBridge?
     private var cancellables = Set<AnyCancellable>()
+    private var ceremonyTask: Task<Void, Never>?
 
     func bind(to appState: AppState) {
         self.peerManager = appState.peerManager
@@ -60,7 +61,7 @@ final class CreateShardViewModel: ObservableObject {
         sessionId = UUID().uuidString
         peerManager?.stopDiscovery()
 
-        Task {
+        ceremonyTask = Task {
             do {
                 guard let bridge else { throw DKGError.notInitialized }
 
@@ -85,10 +86,23 @@ final class CreateShardViewModel: ObservableObject {
                 await runDKGRounds(initialMessages: outgoing)
 
             } catch {
-                errorMessage = error.localizedDescription
-                step = .error
+                if !Task.isCancelled {
+                    errorMessage = error.localizedDescription
+                    step = .error
+                }
             }
         }
+    }
+
+    func cancel() {
+        ceremonyTask?.cancel()
+        ceremonyTask = nil
+        peerManager?.stopDiscovery()
+        if let sessionId, let bridge {
+            bridge.removeSession(sessionId: sessionId)
+        }
+        step = .error
+        errorMessage = "Ceremony cancelled by user."
     }
 
     private func runDKGRounds(initialMessages: [FfiMpcMessage]) async {

@@ -264,6 +264,12 @@ struct SigningProgressView: View {
                 .accessibilityLabel("Signing round \(viewModel.currentRound) of \(viewModel.totalRounds)")
 
             Spacer()
+
+            Button("Cancel Signing", role: .destructive) {
+                viewModel.cancelSigning()
+            }
+            .font(.caption)
+            .padding(.bottom)
         }
         .padding()
     }

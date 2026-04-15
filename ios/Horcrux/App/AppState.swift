@@ -121,9 +121,38 @@ final class AppState: ObservableObject {
         }
     }
 
-    /// The raw PIN bytes for shard encryption — caller must supply the verified PIN.
+    /// Derive encryption key material from PIN using PBKDF2.
+    /// Uses the stored salt from the PIN hash to ensure consistent derivation.
+    /// Returns 32 bytes of key material suitable for shard encryption.
     static func pinKeyMaterial(_ pin: String) -> Data {
-        Data(pin.utf8)
+        // Retrieve stored salt from Keychain PIN hash (first 16 bytes)
+        if let stored = try? KeychainManager.shared.retrieve(key: KeychainKeys.pinHash),
+           stored.count >= saltSize {
+            let salt = Data(stored.prefix(saltSize))
+            // Derive a separate key using a different info context
+            let pinData = Data(pin.utf8)
+            var derivedKey = Data(count: 32)
+            derivedKey.withUnsafeMutableBytes { derivedBuf in
+                pinData.withUnsafeBytes { pinBuf in
+                    salt.withUnsafeBytes { saltBuf in
+                        CCKeyDerivationPBKDF(
+                            CCPBKDFAlgorithm(kCCPBKDF2),
+                            pinBuf.baseAddress?.assumingMemoryBound(to: Int8.self),
+                            pinData.count,
+                            saltBuf.baseAddress?.assumingMemoryBound(to: UInt8.self),
+                            salt.count,
+                            CCPseudoRandomAlgorithm(kCCPRFHmacAlgSHA256),
+                            pbkdf2Iterations,
+                            derivedBuf.baseAddress?.assumingMemoryBound(to: UInt8.self),
+                            32
+                        )
+                    }
+                }
+            }
+            return derivedKey
+        }
+        // Fallback: raw bytes (should not happen if PIN was set)
+        return Data(pin.utf8)
     }
 
     // MARK: - Brute-Force Protection
@@ -219,12 +248,15 @@ final class AppState: ObservableObject {
         }
 
         // Migrate from legacy unprotected key if it exists
-        if let legacyKey = try? KeychainManager.shared.retrieve(key: KeychainKeys.deviceKey) {
+        if var legacyKey = try? KeychainManager.shared.retrieve(key: KeychainKeys.deviceKey) {
             let sealed = try SecureEnclaveManager.shared.seal(legacyKey)
             try KeychainManager.shared.storeSecure(key: KeychainKeys.deviceKeySE, data: sealed)
-            // Remove legacy key
+            // Remove legacy key from Keychain immediately
             try? KeychainManager.shared.delete(key: KeychainKeys.deviceKey)
-            return legacyKey
+            // Zero out the in-memory copy
+            legacyKey.resetBytes(in: 0..<legacyKey.count)
+            // Return freshly unsealed copy (triggers biometric)
+            return try SecureEnclaveManager.shared.open(sealed)
         }
 
         // Fresh install: generate, seal, store

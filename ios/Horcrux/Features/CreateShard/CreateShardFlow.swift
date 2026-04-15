@@ -117,10 +117,11 @@ struct ConfigureView: View {
 struct PeerDiscoveryView: View {
     @EnvironmentObject private var appState: AppState
     @ObservedObject var viewModel: CreateShardViewModel
+    @State private var timeRemaining = 90
+    @State private var timerTask: Task<Void, Never>?
 
     var body: some View {
         VStack(spacing: 20) {
-            // Scanning animation
             ProgressView()
                 .scaleEffect(1.5)
                 .padding()
@@ -131,6 +132,10 @@ struct PeerDiscoveryView: View {
             Text("\(viewModel.foundPeers.count) / \(viewModel.totalParties - 1) peers found")
                 .font(.headline)
                 .accessibilityLabel("\(viewModel.foundPeers.count) of \(viewModel.totalParties - 1) peers found")
+
+            Text("Timeout in \(timeRemaining)s")
+                .font(.caption)
+                .foregroundStyle(timeRemaining < 15 ? .red : .tertiary)
 
             List(viewModel.foundPeers) { peer in
                 HStack {
@@ -151,6 +156,7 @@ struct PeerDiscoveryView: View {
 
             if viewModel.foundPeers.count >= viewModel.totalParties - 1 {
                 Button {
+                    timerTask?.cancel()
                     viewModel.startDKG()
                 } label: {
                     Text("Start Key Generation")
@@ -162,8 +168,29 @@ struct PeerDiscoveryView: View {
                 .accessibilityHint("Begin the distributed key generation ceremony with connected peers")
                 .accessibilityIdentifier("discover_startDKGButton")
             }
+
+            Button("Cancel", role: .cancel) {
+                timerTask?.cancel()
+                viewModel.cancel()
+            }
+            .foregroundStyle(.secondary)
         }
         .padding()
+        .onAppear {
+            timerTask = Task {
+                while timeRemaining > 0 && !Task.isCancelled {
+                    try? await Task.sleep(nanoseconds: 1_000_000_000)
+                    timeRemaining -= 1
+                }
+                if timeRemaining <= 0 && !Task.isCancelled {
+                    viewModel.errorMessage = "Peer discovery timed out. Please try again."
+                    viewModel.step = .error
+                }
+            }
+        }
+        .onDisappear {
+            timerTask?.cancel()
+        }
     }
 }
 
@@ -200,6 +227,12 @@ struct DKGProgressView: View {
             Text("Keep devices nearby until complete")
                 .font(.caption)
                 .foregroundStyle(.secondary)
+
+            Button("Cancel Ceremony", role: .destructive) {
+                viewModel.cancel()
+            }
+            .font(.caption)
+            .padding(.bottom)
         }
         .padding()
     }

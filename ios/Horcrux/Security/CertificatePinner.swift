@@ -176,6 +176,9 @@ final class PinnedURLSession: NSObject, URLSessionDelegate {
     lazy var session: URLSession = {
         let config = URLSessionConfiguration.ephemeral
         config.tlsMinimumSupportedProtocolVersion = .TLSv12
+        config.timeoutIntervalForRequest = 30
+        config.timeoutIntervalForResource = 60
+        config.waitsForConnectivity = true
         return URLSession(configuration: config, delegate: self, delegateQueue: nil)
     }()
 

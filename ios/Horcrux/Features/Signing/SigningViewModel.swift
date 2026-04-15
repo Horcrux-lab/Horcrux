@@ -36,6 +36,7 @@ final class SigningViewModel: ObservableObject {
     private var signingPin: String?
     private var currentRecordId: String?
     private var cancellables = Set<AnyCancellable>()
+    private var signingTask: Task<Void, Never>?
 
     // Gas estimation (EVM)
     @Published var estimatedGas: String = "—"
@@ -142,7 +143,7 @@ final class SigningViewModel: ObservableObject {
         step = .signing
         sessionId = UUID().uuidString
 
-        Task {
+        signingTask = Task {
             do {
                 guard let bridge, let peerManager, let deviceKey else {
                     throw SigningError.notInitialized
@@ -183,10 +184,22 @@ final class SigningViewModel: ObservableObject {
                 await runSigningRounds(initialMessages: outgoing)
 
             } catch {
-                errorMessage = error.localizedDescription
-                step = .error
+                if !Task.isCancelled {
+                    errorMessage = error.localizedDescription
+                    step = .error
+                }
             }
         }
+    }
+
+    func cancelSigning() {
+        signingTask?.cancel()
+        signingTask = nil
+        if let sessionId {
+            bridge?.removeSession(sessionId: sessionId)
+        }
+        errorMessage = "Signing cancelled by user."
+        step = .error
     }
 
     private func runSigningRounds(initialMessages: [FfiMpcMessage]) async {
