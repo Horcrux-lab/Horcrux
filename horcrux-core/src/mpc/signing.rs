@@ -59,6 +59,7 @@ pub struct SigningSession {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[allow(dead_code)]
 enum SigningState {
     WaitingForParties,
     Round1,
@@ -162,7 +163,7 @@ impl SigningSession {
 
         // Generate random nonce k_i
         let k = Scalar::random(&mut rng);
-        let r_point = ProjectivePoint::GENERATOR * &k;
+        let r_point = ProjectivePoint::GENERATOR * k;
 
         self.nonce_secret = k.to_bytes().to_vec();
 
@@ -383,8 +384,8 @@ pub fn verify_threshold_signature(
     let e = scalar_from_hash(&e_hash);
 
     // Verify: s*G == R + e*PK
-    let lhs = ProjectivePoint::GENERATOR * &s;
-    let rhs = r + pk * &e;
+    let lhs = ProjectivePoint::GENERATOR * s;
+    let rhs = r + pk * e;
 
     Ok(lhs == rhs)
 }

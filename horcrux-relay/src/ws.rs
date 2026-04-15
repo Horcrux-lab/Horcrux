@@ -191,7 +191,7 @@ async fn handle_socket(
                         Ok(j) => j,
                         Err(_) => continue,
                     };
-                    if ws_sink.send(Message::Text(json.into())).await.is_err() {
+                    if ws_sink.send(Message::Text(json)).await.is_err() {
                         break;
                     }
                 }

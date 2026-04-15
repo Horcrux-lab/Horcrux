@@ -54,6 +54,7 @@ pub struct KeygenSession {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[allow(dead_code)]
 enum KeygenState {
     WaitingForParties,
     Round1,
@@ -131,7 +132,7 @@ impl KeygenSession {
 
         // Schnorr proof of knowledge for a_0 (the secret)
         let k = Scalar::random(&mut rng);
-        let r_point = ProjectivePoint::GENERATOR * &k;
+        let r_point = ProjectivePoint::GENERATOR * k;
         let r_bytes = r_point.to_affine().to_bytes();
 
         // Challenge: H(party_index || R || C_0)
@@ -255,8 +256,8 @@ impl KeygenSession {
         let challenge = scalar_from_hash(&challenge_hash);
 
         // Verify: s*G == R + challenge*C_0
-        let lhs = ProjectivePoint::GENERATOR * &s;
-        let rhs = r_point + c0 * &challenge;
+        let lhs = ProjectivePoint::GENERATOR * s;
+        let rhs = r_point + c0 * challenge;
 
         if lhs != rhs {
             return Err(MpcError::ProtocolError(
@@ -403,8 +404,8 @@ impl KeygenSession {
             if c.is_none().into() {
                 return Err(MpcError::ProtocolError("invalid commitment point".into()));
             }
-            rhs += ProjectivePoint::from(c.unwrap()) * &x_pow;
-            x_pow *= &x;
+            rhs += ProjectivePoint::from(c.unwrap()) * x_pow;
+            x_pow *= x;
         }
 
         if lhs != rhs {

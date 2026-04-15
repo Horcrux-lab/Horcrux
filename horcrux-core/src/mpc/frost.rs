@@ -119,12 +119,12 @@ impl FrostDkgSession {
         }
         self.session_id = session_id.to_string();
 
-        let mut rng = OsRng;
+        let rng = OsRng;
         let (secret_package, round1_package) = frost_dkg::part1(
             self.our_id,
             self.config.total_parties,
             self.config.threshold,
-            &mut rng,
+            rng,
         )
         .map_err(|e| MpcError::KeygenFailed(format!("FROST DKG part1: {e}")))?;
 
@@ -206,7 +206,7 @@ impl FrostDkgSession {
         // Send each recipient their specific round2 package
         let mut msgs = Vec::new();
         for (recipient_id, r2_pkg) in &round2_packages {
-            let recipient_index = u16::from(identifier_to_u16(*recipient_id)?);
+            let recipient_index = identifier_to_u16(*recipient_id)?;
 
             let pkg_bytes = serde_json::to_vec(r2_pkg)
                 .map_err(|e| MpcError::ProtocolError(format!("serialize round2 pkg: {e}")))?;
@@ -427,7 +427,7 @@ impl FrostSigningSession {
 
         // Store our own commitment
         self.received_commitments
-            .insert(self.our_id, commitments.clone());
+            .insert(self.our_id, commitments);
 
         let commit_bytes = serde_json::to_vec(&commitments)
             .map_err(|e| MpcError::ProtocolError(format!("serialize commitments: {e}")))?;

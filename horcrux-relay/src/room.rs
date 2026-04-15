@@ -228,6 +228,7 @@ impl RoomManagerInner {
     }
 
     /// Legacy: join without token (for backward-compatible tests).
+    #[cfg(test)]
     pub async fn join_room(
         &self,
         room_id: &str,
@@ -282,6 +283,7 @@ impl RoomManagerInner {
     }
 
     /// List active room IDs (admin only — don't expose publicly).
+    #[cfg(test)]
     pub async fn room_ids(&self) -> Vec<String> {
         self.rooms.read().await.keys().cloned().collect()
     }

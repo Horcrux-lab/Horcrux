@@ -7,6 +7,7 @@
 use std::sync::Mutex;
 
 use crate::chain;
+use crate::chain::TransactionBuilder;
 use crate::mpc::{CurveType, HorcruxConfig, MpcError};
 use crate::mpc::session::SessionManager;
 use crate::mpc::types::{KeygenResult, MpcMessage, SigningResult};
@@ -445,6 +446,72 @@ pub fn horcrux_generate_session_token() -> FfiSessionToken {
     }
 }
 
+/// Build an EVM (EIP-1559) transaction and return the signing hash.
+#[uniffi::export]
+pub fn horcrux_build_evm_transaction(params: FfiEvmTxParams) -> Result<FfiTransaction, ChainError> {
+    let evm_params = chain::evm::EvmTxParams {
+        to: params.to,
+        value: params.value_wei.parse::<u128>().unwrap_or(0),
+        nonce: params.nonce,
+        gas_limit: params.gas_limit,
+        max_fee_per_gas: params.max_fee_per_gas.parse::<u128>().unwrap_or(0),
+        max_priority_fee_per_gas: params.max_priority_fee_per_gas.parse::<u128>().unwrap_or(0),
+        chain_id: params.chain_id,
+        data: params.data,
+    };
+    let tx = chain::evm::EvmTransactionBuilder.build(evm_params)?;
+    Ok(FfiTransaction {
+        chain_type: format!("evm:{}", params.chain_id),
+        raw_data: tx.raw_data,
+        sign_hash: tx.sign_hash,
+    })
+}
+
+/// Build a Bitcoin transaction (P2WPKH segwit) and return the BIP-143 sighash for a given input.
+#[uniffi::export]
+pub fn horcrux_build_btc_transaction(params: FfiBtcTxParams, input_index: u32) -> Result<FfiTransaction, ChainError> {
+    let testnet = params.testnet;
+    let btc_params = chain::bitcoin::BtcTxParams {
+        inputs: params.inputs.into_iter().map(|i| chain::bitcoin::BtcInput {
+            txid: i.txid,
+            vout: i.vout,
+            value: i.value,
+            pubkey_hash: i.pubkey_hash,
+        }).collect(),
+        outputs: params.outputs.into_iter().map(|o| chain::bitcoin::BtcOutput {
+            address: o.address,
+            value: o.value,
+            script_pubkey: o.script_pubkey,
+        }).collect(),
+        testnet,
+    };
+    let tx = chain::bitcoin::BtcTransactionBuilder.build(btc_params.clone())?;
+    let sighash = chain::bitcoin::bip143_sighash(&btc_params, input_index as usize)?;
+    Ok(FfiTransaction {
+        chain_type: if testnet { "btc:testnet".into() } else { "btc:mainnet".into() },
+        raw_data: tx.raw_data,
+        sign_hash: sighash.to_vec(),
+    })
+}
+
+/// Build a Solana transfer transaction and return the signing hash.
+#[uniffi::export]
+pub fn horcrux_build_solana_transaction(params: FfiSolanaTxParams) -> Result<FfiTransaction, ChainError> {
+    let sol_params = chain::solana::SolanaTxParams {
+        from: params.from_address,
+        to: params.to_address,
+        lamports: params.lamports,
+        recent_blockhash: params.recent_blockhash,
+        devnet: params.devnet,
+    };
+    let tx = chain::solana::SolanaTransactionBuilder.build(sol_params)?;
+    Ok(FfiTransaction {
+        chain_type: if params.devnet { "sol:devnet".into() } else { "sol:mainnet".into() },
+        raw_data: tx.raw_data,
+        sign_hash: tx.sign_hash,
+    })
+}
+
 // ============================================================================
 // HorcruxSessionManager — object with methods
 // ============================================================================
@@ -459,6 +526,12 @@ pub struct HorcruxSessionManager {
 // our Mutex prevents any concurrent access to those internals.
 unsafe impl Send for HorcruxSessionManager {}
 unsafe impl Sync for HorcruxSessionManager {}
+
+impl Default for HorcruxSessionManager {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 
 #[uniffi::export]
 impl HorcruxSessionManager {
@@ -533,6 +606,12 @@ impl HorcruxSessionManager {
 #[derive(uniffi::Object)]
 pub struct HorcruxShardManager {
     inner: Mutex<ShardManager>,
+}
+
+impl Default for HorcruxShardManager {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 #[uniffi::export]

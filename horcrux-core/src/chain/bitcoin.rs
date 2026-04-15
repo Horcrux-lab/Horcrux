@@ -223,6 +223,7 @@ fn serialize_witness_tx(params: &BtcTxParams) -> Result<Vec<u8>, ChainError> {
         push_var_bytes(&mut buf, spk);
     }
     // witness (empty placeholders — real witness is added after signing)
+    #[allow(clippy::same_item_push)]
     for _ in &params.inputs {
         buf.push(0x00); // 0 witness items
     }

@@ -31,16 +31,17 @@ impl TransactionBuilder for EvmTransactionBuilder {
         // RLP-encode the EIP-1559 inner list:
         // [chain_id, nonce, max_priority_fee_per_gas, max_fee_per_gas,
         //  gas_limit, to, value, data, access_list(empty)]
-        let mut items: Vec<Vec<u8>> = Vec::with_capacity(9);
-        items.push(rlp_encode_u64(params.chain_id));
-        items.push(rlp_encode_u64(params.nonce));
-        items.push(rlp_encode_u128(params.max_priority_fee_per_gas));
-        items.push(rlp_encode_u128(params.max_fee_per_gas));
-        items.push(rlp_encode_u64(params.gas_limit));
-        items.push(rlp_encode_bytes(&to_bytes));
-        items.push(rlp_encode_u128(params.value));
-        items.push(rlp_encode_bytes(&params.data));
-        items.push(rlp_encode_list(&[])); // empty access_list
+        let items: Vec<Vec<u8>> = vec![
+            rlp_encode_u64(params.chain_id),
+            rlp_encode_u64(params.nonce),
+            rlp_encode_u128(params.max_priority_fee_per_gas),
+            rlp_encode_u128(params.max_fee_per_gas),
+            rlp_encode_u64(params.gas_limit),
+            rlp_encode_bytes(&to_bytes),
+            rlp_encode_u128(params.value),
+            rlp_encode_bytes(&params.data),
+            rlp_encode_list(&[]), // empty access_list
+        ];
 
         let inner_payload = rlp_encode_list_raw(&items);
 

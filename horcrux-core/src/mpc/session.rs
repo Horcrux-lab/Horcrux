@@ -14,6 +14,7 @@ use super::types::{KeygenResult, MpcMessage, SigningResult};
 use std::collections::HashMap;
 
 /// Abstracts over different DKG session types.
+#[allow(clippy::large_enum_variant)]
 enum DkgSessionKind {
     Schnorr(KeygenSession),
     Frost(FrostDkgSession),
@@ -21,6 +22,7 @@ enum DkgSessionKind {
 }
 
 /// Abstracts over different signing session types.
+#[allow(clippy::large_enum_variant)]
 enum SignSessionKind {
     Schnorr(SigningSession),
     Frost(FrostSigningSession),

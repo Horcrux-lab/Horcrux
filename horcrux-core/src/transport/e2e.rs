@@ -60,6 +60,7 @@ pub struct SessionToken {
 }
 
 /// Noise channel state — progresses from Handshake → Transport.
+#[allow(clippy::large_enum_variant)]
 pub enum NoiseChannel {
     /// Handshake in progress.
     Handshake(HandshakeState),
@@ -256,7 +257,7 @@ impl SessionToken {
         let hk = Hkdf::<Sha256>::new(None, &room_secret);
         let mut room_id_bytes = [0u8; 16];
         hk.expand(b"horcrux-room-id", &mut room_id_bytes).unwrap();
-        let room_id = hex::encode(&room_id_bytes);
+        let room_id = hex::encode(room_id_bytes);
 
         let mut access_bytes = [0u8; 32];
         hk.expand(b"horcrux-access-token", &mut access_bytes).unwrap();
