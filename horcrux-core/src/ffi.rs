@@ -16,6 +16,19 @@ use crate::shard::{ShardInfo, ShardManager};
 use crate::transport::e2e::{E2EError, NoiseChannel, NoiseKeypair, SealedEnvelope, SessionToken};
 
 // ============================================================================
+// Helpers
+// ============================================================================
+
+/// Safely lock a mutex, returning an error instead of panicking on poison.
+macro_rules! lock_or_err {
+    ($mutex:expr, $err_type:ident, $variant:ident) => {
+        $mutex.lock().map_err(|_| $err_type::$variant {
+            msg: "internal mutex poisoned".into(),
+        })
+    };
+}
+
+// ============================================================================
 // Error adapters — UniFFI needs simple string-carrying enums
 // ============================================================================
 
@@ -428,34 +441,39 @@ pub fn horcrux_decrypt_shard(
 }
 
 #[uniffi::export]
-pub fn horcrux_generate_noise_keypair() -> FfiNoiseKeypair {
-    let kp = NoiseKeypair::generate();
-    FfiNoiseKeypair {
-        private_key: kp.private,
-        public_key: kp.public,
-    }
+pub fn horcrux_generate_noise_keypair() -> Result<FfiNoiseKeypair, FfiE2EError> {
+    let kp = NoiseKeypair::generate()?;
+    Ok(FfiNoiseKeypair {
+        private_key: kp.private.clone(),
+        public_key: kp.public.clone(),
+    })
 }
 
 #[uniffi::export]
 pub fn horcrux_generate_session_token() -> FfiSessionToken {
     let st = SessionToken::generate();
     FfiSessionToken {
-        room_secret: st.room_secret,
-        access_token: st.access_token,
-        room_id: st.room_id,
+        room_secret: st.room_secret.clone(),
+        access_token: st.access_token.clone(),
+        room_id: st.room_id.clone(),
     }
 }
 
 /// Build an EVM (EIP-1559) transaction and return the signing hash.
 #[uniffi::export]
 pub fn horcrux_build_evm_transaction(params: FfiEvmTxParams) -> Result<FfiTransaction, ChainError> {
+    let parse_u128 = |s: &str, name: &str| -> Result<u128, ChainError> {
+        s.parse::<u128>().map_err(|_| ChainError::Other {
+            msg: format!("invalid {name}: '{s}' is not a valid u128"),
+        })
+    };
     let evm_params = chain::evm::EvmTxParams {
         to: params.to,
-        value: params.value_wei.parse::<u128>().unwrap_or(0),
+        value: parse_u128(&params.value_wei, "value_wei")?,
         nonce: params.nonce,
         gas_limit: params.gas_limit,
-        max_fee_per_gas: params.max_fee_per_gas.parse::<u128>().unwrap_or(0),
-        max_priority_fee_per_gas: params.max_priority_fee_per_gas.parse::<u128>().unwrap_or(0),
+        max_fee_per_gas: parse_u128(&params.max_fee_per_gas, "max_fee_per_gas")?,
+        max_priority_fee_per_gas: parse_u128(&params.max_priority_fee_per_gas, "max_priority_fee_per_gas")?,
         chain_id: params.chain_id,
         data: params.data,
     };
@@ -553,7 +571,7 @@ impl HorcruxSessionManager {
             config.party_index,
             config.curve.into(),
         )?;
-        let mut mgr = self.inner.lock().unwrap();
+        let mut mgr = lock_or_err!(self.inner, HorcruxError, SessionError)?;
         let msgs = mgr.create_keygen(session_id, cfg)?;
         Ok(msgs.into_iter().map(Into::into).collect())
     }
@@ -572,30 +590,31 @@ impl HorcruxSessionManager {
             config.party_index,
             config.curve.into(),
         )?;
-        let mut mgr = self.inner.lock().unwrap();
+        let mut mgr = lock_or_err!(self.inner, HorcruxError, SessionError)?;
         let msgs = mgr.create_signing(session_id, cfg, message_hash, shard_data, participants)?;
         Ok(msgs.into_iter().map(Into::into).collect())
     }
 
     pub fn handle_message(&self, msg: FfiMpcMessage) -> Result<Vec<FfiMpcMessage>, HorcruxError> {
-        let mut mgr = self.inner.lock().unwrap();
+        let mut mgr = lock_or_err!(self.inner, HorcruxError, SessionError)?;
         let msgs = mgr.handle_message(msg.into())?;
         Ok(msgs.into_iter().map(Into::into).collect())
     }
 
     pub fn get_keygen_result(&self, session_id: String) -> Option<FfiKeygenResult> {
-        let mgr = self.inner.lock().unwrap();
+        let mgr = self.inner.lock().ok()?;
         mgr.keygen_result(&session_id).map(Into::into)
     }
 
     pub fn get_signing_result(&self, session_id: String) -> Option<FfiSigningResult> {
-        let mgr = self.inner.lock().unwrap();
+        let mgr = self.inner.lock().ok()?;
         mgr.signing_result(&session_id).map(Into::into)
     }
 
     pub fn remove_session(&self, session_id: String) {
-        let mut mgr = self.inner.lock().unwrap();
-        mgr.remove_session(&session_id);
+        if let Ok(mut mgr) = self.inner.lock() {
+            mgr.remove_session(&session_id);
+        }
     }
 }
 
@@ -624,21 +643,23 @@ impl HorcruxShardManager {
     }
 
     pub fn add_shard(&self, info: FfiShardInfo) {
-        let mut mgr = self.inner.lock().unwrap();
-        mgr.add_shard(info.into());
+        if let Ok(mut mgr) = self.inner.lock() {
+            mgr.add_shard(info.into());
+        }
     }
 
     pub fn list_shards(&self) -> Vec<FfiShardInfo> {
-        let mgr = self.inner.lock().unwrap();
-        mgr.list_shards().iter().map(Into::into).collect()
+        match self.inner.lock() {
+            Ok(mgr) => mgr.list_shards().iter().map(Into::into).collect(),
+            Err(_) => Vec::new(),
+        }
     }
 
     pub fn shards_for_key(&self, public_key: Vec<u8>) -> Vec<FfiShardInfo> {
-        let mgr = self.inner.lock().unwrap();
-        mgr.shards_for_key(&public_key)
-            .into_iter()
-            .map(Into::into)
-            .collect()
+        match self.inner.lock() {
+            Ok(mgr) => mgr.shards_for_key(&public_key).into_iter().map(Into::into).collect(),
+            Err(_) => Vec::new(),
+        }
     }
 }
 
@@ -680,32 +701,30 @@ impl HorcruxNoiseChannel {
     }
 
     pub fn write_handshake(&self, payload: Vec<u8>) -> Result<Vec<u8>, FfiE2EError> {
-        let mut ch = self.inner.lock().unwrap();
+        let mut ch = lock_or_err!(self.inner, FfiE2EError, Handshake)?;
         ch.write_handshake(&payload).map_err(Into::into)
     }
 
     pub fn read_handshake(&self, message: Vec<u8>) -> Result<Vec<u8>, FfiE2EError> {
-        let mut ch = self.inner.lock().unwrap();
+        let mut ch = lock_or_err!(self.inner, FfiE2EError, Handshake)?;
         ch.read_handshake(&message).map_err(Into::into)
     }
 
     pub fn is_handshake_finished(&self) -> bool {
-        let ch = self.inner.lock().unwrap();
-        ch.is_handshake_finished()
+        self.inner.lock().map(|ch| ch.is_handshake_finished()).unwrap_or(false)
     }
 
     pub fn remote_static_key(&self) -> Option<Vec<u8>> {
-        let ch = self.inner.lock().unwrap();
-        ch.remote_static_key()
+        self.inner.lock().ok()?.remote_static_key()
     }
 
     pub fn seal(&self, plaintext: Vec<u8>) -> Result<FfiSealedEnvelope, FfiE2EError> {
-        let mut ch = self.inner.lock().unwrap();
+        let mut ch = lock_or_err!(self.inner, FfiE2EError, Handshake)?;
         ch.seal(&plaintext).map(Into::into).map_err(Into::into)
     }
 
     pub fn open(&self, envelope: FfiSealedEnvelope) -> Result<Vec<u8>, FfiE2EError> {
-        let mut ch = self.inner.lock().unwrap();
+        let mut ch = lock_or_err!(self.inner, FfiE2EError, Handshake)?;
         let se: SealedEnvelope = envelope.into();
         ch.open(&se).map_err(Into::into)
     }
@@ -716,3 +735,156 @@ impl HorcruxNoiseChannel {
 // ============================================================================
 
 // Note: uniffi::setup_scaffolding!() is in lib.rs (crate root)
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // ---- EVM transaction tests ----
+
+    fn valid_evm_params() -> FfiEvmTxParams {
+        FfiEvmTxParams {
+            to: "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045".into(),
+            value_wei: "1000000000000000000".into(), // 1 ETH
+            nonce: 0,
+            gas_limit: 21000,
+            max_fee_per_gas: "30000000000".into(),
+            max_priority_fee_per_gas: "1000000000".into(),
+            chain_id: 1,
+            data: vec![],
+        }
+    }
+
+    #[test]
+    fn test_ffi_build_evm_transaction_valid() {
+        let tx = horcrux_build_evm_transaction(valid_evm_params()).unwrap();
+        assert!(tx.chain_type.starts_with("evm:"));
+        assert_eq!(tx.chain_type, "evm:1");
+        assert!(!tx.raw_data.is_empty());
+        assert!(!tx.sign_hash.is_empty());
+        assert_eq!(tx.sign_hash.len(), 32);
+    }
+
+    #[test]
+    fn test_ffi_build_evm_transaction_invalid_value_wei() {
+        let mut params = valid_evm_params();
+        params.value_wei = "not_a_number".into();
+        let err = horcrux_build_evm_transaction(params).unwrap_err();
+        assert!(matches!(err, ChainError::Other { .. }));
+    }
+
+    #[test]
+    fn test_ffi_build_evm_transaction_invalid_max_fee() {
+        let mut params = valid_evm_params();
+        params.max_fee_per_gas = "bad_fee".into();
+        assert!(horcrux_build_evm_transaction(params).is_err());
+    }
+
+    #[test]
+    fn test_ffi_build_evm_transaction_invalid_priority_fee() {
+        let mut params = valid_evm_params();
+        params.max_priority_fee_per_gas = "xyz".into();
+        assert!(horcrux_build_evm_transaction(params).is_err());
+    }
+
+    #[test]
+    fn test_ffi_build_evm_transaction_zero_value() {
+        let mut params = valid_evm_params();
+        params.value_wei = "0".into();
+        let tx = horcrux_build_evm_transaction(params).unwrap();
+        assert!(tx.chain_type.starts_with("evm:"));
+        assert!(!tx.raw_data.is_empty());
+        assert_eq!(tx.sign_hash.len(), 32);
+    }
+
+    // ---- BTC transaction tests ----
+
+    fn valid_btc_params() -> FfiBtcTxParams {
+        FfiBtcTxParams {
+            inputs: vec![FfiBtcInput {
+                txid: "aa".repeat(32),
+                vout: 0,
+                value: 100_000,
+                pubkey_hash: Some(vec![0xab; 20]),
+            }],
+            outputs: vec![FfiBtcOutput {
+                address: "tb1qw508d6qejxtdg4y5r3zarvary0c5xw7kxpjzsx".into(),
+                value: 90_000,
+                script_pubkey: Some(vec![
+                    0x00, 0x14, // witness v0, push 20
+                    0x75, 0x1e, 0x76, 0xe8, 0x19, 0x91, 0x96, 0xd4,
+                    0x54, 0x94, 0x1c, 0x45, 0xd1, 0xb3, 0xa3, 0x23,
+                    0xf1, 0x43, 0x3b, 0xd6,
+                ]),
+            }],
+            testnet: true,
+        }
+    }
+
+    #[test]
+    fn test_ffi_build_btc_transaction_valid() {
+        let tx = horcrux_build_btc_transaction(valid_btc_params(), 0).unwrap();
+        assert_eq!(tx.chain_type, "btc:testnet");
+        assert!(!tx.raw_data.is_empty());
+        assert!(!tx.sign_hash.is_empty());
+        assert_eq!(tx.sign_hash.len(), 32);
+    }
+
+    #[test]
+    fn test_ffi_build_btc_transaction_mainnet() {
+        let mut params = valid_btc_params();
+        params.testnet = false;
+        let tx = horcrux_build_btc_transaction(params, 0).unwrap();
+        assert_eq!(tx.chain_type, "btc:mainnet");
+    }
+
+    // ---- Solana transaction tests ----
+
+    fn valid_solana_params() -> FfiSolanaTxParams {
+        FfiSolanaTxParams {
+            from_address: bs58::encode([1u8; 32]).into_string(),
+            to_address: bs58::encode([2u8; 32]).into_string(),
+            lamports: 1_000_000,
+            recent_blockhash: bs58::encode([3u8; 32]).into_string(),
+            devnet: true,
+        }
+    }
+
+    #[test]
+    fn test_ffi_build_solana_transaction_valid() {
+        let tx = horcrux_build_solana_transaction(valid_solana_params()).unwrap();
+        assert!(tx.chain_type.contains("sol:"));
+        assert_eq!(tx.chain_type, "sol:devnet");
+        assert!(!tx.raw_data.is_empty());
+        assert!(!tx.sign_hash.is_empty());
+    }
+
+    #[test]
+    fn test_ffi_build_solana_transaction_mainnet() {
+        let mut params = valid_solana_params();
+        params.devnet = false;
+        let tx = horcrux_build_solana_transaction(params).unwrap();
+        assert_eq!(tx.chain_type, "sol:mainnet");
+    }
+
+    // ---- Noise keypair & session token tests ----
+
+    #[test]
+    fn test_ffi_generate_noise_keypair() {
+        let kp = horcrux_generate_noise_keypair().unwrap();
+        assert_eq!(kp.private_key.len(), 32);
+        assert_eq!(kp.public_key.len(), 32);
+        // Two keypairs should differ
+        let kp2 = horcrux_generate_noise_keypair().unwrap();
+        assert_ne!(kp.private_key, kp2.private_key);
+        assert_ne!(kp.public_key, kp2.public_key);
+    }
+
+    #[test]
+    fn test_ffi_generate_session_token() {
+        let st = horcrux_generate_session_token();
+        assert!(!st.room_secret.is_empty());
+        assert!(!st.access_token.is_empty());
+        assert!(!st.room_id.is_empty());
+    }
+}
