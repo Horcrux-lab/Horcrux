@@ -8,7 +8,7 @@ struct WalletHomeView: View {
     var body: some View {
         NavigationStack {
             Group {
-                if appState.wallets.isEmpty {
+                if appState.walletStore.wallets.isEmpty {
                     emptyState
                 } else {
                     walletList
@@ -61,7 +61,7 @@ struct WalletHomeView: View {
 
     private var walletList: some View {
         List {
-            ForEach(appState.wallets) { wallet in
+            ForEach(appState.walletStore.wallets) { wallet in
                 NavigationLink {
                     WalletDetailView(wallet: wallet)
                 } label: {

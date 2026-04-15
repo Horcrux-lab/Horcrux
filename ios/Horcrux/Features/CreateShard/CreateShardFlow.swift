@@ -30,6 +30,9 @@ struct CreateShardFlow: View {
                 }
             }
             .environmentObject(appState)
+            .onAppear {
+                viewModel.bind(to: appState)
+            }
         }
     }
 }

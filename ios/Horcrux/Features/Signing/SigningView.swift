@@ -33,6 +33,9 @@ struct SigningView: View {
                     Button("Cancel") { dismiss() }
                 }
             }
+            .onAppear {
+                viewModel.bind(to: appState)
+            }
         }
     }
 }

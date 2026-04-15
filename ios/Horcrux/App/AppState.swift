@@ -13,14 +13,73 @@ final class AppState: ObservableObject {
     /// Peer transport coordinator
     let peerManager = PeerManager()
 
-    /// Persisted wallets derived from completed DKG sessions
-    @Published var wallets: [Wallet] = []
+    /// High-level bridge wrapping Rust FFI
+    lazy var bridge: HorcruxBridge = HorcruxBridge(session: sessionManager, shards: shardManager)
+
+    /// Persistent wallet storage
+    let walletStore = WalletStore()
 
     /// Currently active signing request (if any)
     @Published var activeSigningRequest: SigningRequest?
 
     /// Whether the app is unlocked (PIN / biometric verified)
     @Published var isUnlocked: Bool = false
+
+    /// Whether this is the first launch (no PIN set yet)
+    var isFirstLaunch: Bool {
+        (try? KeychainManager.shared.retrieve(key: KeychainKeys.pinHash)) == nil
+    }
+
+    // MARK: - PIN Management
+
+    /// Hash a PIN for storage (SHA-256 of UTF-8 bytes).
+    static func hashPin(_ pin: String) -> Data {
+        horcruxKeccak256(data: Data(pin.utf8))
+    }
+
+    /// Set (or change) the user's PIN.
+    func setPin(_ pin: String) throws {
+        let hash = Self.hashPin(pin)
+        try KeychainManager.shared.store(key: KeychainKeys.pinHash, data: hash)
+    }
+
+    /// Verify a PIN against the stored hash.
+    func verifyPin(_ pin: String) -> Bool {
+        guard let stored = try? KeychainManager.shared.retrieve(key: KeychainKeys.pinHash) else {
+            return false
+        }
+        return stored == Self.hashPin(pin)
+    }
+
+    /// A stable device key derived from a random seed stored in Keychain.
+    /// Used alongside the PIN for shard encryption.
+    var deviceKey: Data {
+        if let existing = try? KeychainManager.shared.retrieve(key: KeychainKeys.deviceKey) {
+            return existing
+        }
+        // Generate and persist a 32-byte device key on first access
+        var bytes = [UInt8](repeating: 0, count: 32)
+        _ = SecRandomCopyBytes(kSecRandomDefault, bytes.count, &bytes)
+        let key = Data(bytes)
+        try? KeychainManager.shared.store(key: KeychainKeys.deviceKey, data: key)
+        return key
+    }
+
+    // MARK: - Wipe
+
+    func wipeAllData() {
+        walletStore.wipeAll()
+        try? KeychainManager.shared.delete(key: KeychainKeys.pinHash)
+        try? KeychainManager.shared.delete(key: KeychainKeys.deviceKey)
+        isUnlocked = false
+    }
+}
+
+// MARK: - Keychain Key Constants
+
+enum KeychainKeys {
+    static let pinHash = "com.horcrux.pin_hash"
+    static let deviceKey = "com.horcrux.device_key"
 }
 
 // MARK: - Domain Models

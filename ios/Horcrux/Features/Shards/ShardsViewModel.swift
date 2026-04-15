@@ -3,17 +3,25 @@ import Foundation
 /// View model for shard management operations.
 @MainActor
 final class ShardsViewModel: ObservableObject {
-    private let bridge = HorcruxBridge()
-
     @Published var backupStatus: String?
     @Published var error: String?
 
-    func backupShard(wallet: Wallet, pin: String) {
-        do {
-            let shardData = wallet.groupPublicKey // In production: actual key share bytes
-            let encrypted = try bridge.encryptShard(data: shardData, pin: pin)
+    private var appState: AppState?
 
-            // In production: save encrypted shard to a file / iCloud / share sheet
+    func bind(to appState: AppState) {
+        self.appState = appState
+    }
+
+    func backupShard(wallet: Wallet, pin: String) {
+        guard let appState else { return }
+
+        do {
+            // Load the encrypted shard from Keychain
+            guard let storedData = try appState.walletStore.loadKeyShare(walletId: wallet.id) else {
+                error = "Key shard not found"
+                return
+            }
+
             let exportData = try JSONEncoder().encode(ShardBackup(
                 walletId: wallet.id,
                 walletName: wallet.name,
@@ -21,32 +29,22 @@ final class ShardsViewModel: ObservableObject {
                 partyIndex: wallet.partyIndex,
                 threshold: wallet.threshold,
                 totalParties: wallet.totalParties,
-                encrypted: ShardBackup.EncryptedData(
-                    ciphertext: encrypted.ciphertext,
-                    nonce: encrypted.nonce,
-                    salt: encrypted.salt
-                )
+                encryptedShard: storedData
             ))
 
+            // In production: present share sheet / save to iCloud
             backupStatus = "Shard exported (\(exportData.count) bytes)"
         } catch {
             self.error = error.localizedDescription
         }
     }
 
-    func restoreShard(from data: Data, pin: String) throws -> ShardBackup {
-        let backup = try JSONDecoder().decode(ShardBackup.self, from: data)
-        let encrypted = FfiEncryptedShard(
-            ciphertext: backup.encrypted.ciphertext,
-            nonce: backup.encrypted.nonce,
-            salt: backup.encrypted.salt
-        )
-        let _ = try bridge.decryptShard(encrypted: encrypted, pin: pin)
-        return backup
+    func restoreShard(from data: Data) throws -> ShardBackup {
+        try JSONDecoder().decode(ShardBackup.self, from: data)
     }
 
     func deleteShard(wallet: Wallet) {
-        try? bridge.deleteShard(id: wallet.id)
+        appState?.walletStore.remove(id: wallet.id)
     }
 }
 
@@ -58,11 +56,5 @@ struct ShardBackup: Codable {
     let partyIndex: UInt16
     let threshold: UInt16
     let totalParties: UInt16
-    let encrypted: EncryptedData
-
-    struct EncryptedData: Codable {
-        let ciphertext: [UInt8]
-        let nonce: [UInt8]
-        let salt: [UInt8]
-    }
+    let encryptedShard: Data
 }

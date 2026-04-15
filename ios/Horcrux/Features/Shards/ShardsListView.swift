@@ -8,14 +8,14 @@ struct ShardsListView: View {
     var body: some View {
         NavigationStack {
             List {
-                if appState.wallets.isEmpty {
+                if appState.walletStore.wallets.isEmpty {
                     ContentUnavailableView(
                         "No Shards",
                         systemImage: "shield.slash",
                         description: Text("Create a wallet to generate your first key shard.")
                     )
                 } else {
-                    ForEach(appState.wallets) { wallet in
+                    ForEach(appState.walletStore.wallets) { wallet in
                         NavigationLink {
                             ShardDetailView(wallet: wallet, viewModel: viewModel)
                         } label: {
@@ -25,6 +25,9 @@ struct ShardsListView: View {
                 }
             }
             .navigationTitle("Shards")
+            .onAppear {
+                viewModel.bind(to: appState)
+            }
         }
     }
 }

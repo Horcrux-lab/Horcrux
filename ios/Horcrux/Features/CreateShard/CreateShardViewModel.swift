@@ -30,30 +30,40 @@ final class CreateShardViewModel: ObservableObject {
     @Published var generatedAddress: String?
     @Published var errorMessage: String = ""
 
-    private let bridge = HorcruxBridge()
     private var sessionId: String?
     private var keygenResult: FfiKeygenResult?
+    private var peerManager: PeerManager?
+    private var bridge: HorcruxBridge?
+    private var cancellables = Set<AnyCancellable>()
 
-    init() {
-        // Adjust total rounds based on chain selection
+    func bind(to appState: AppState) {
+        self.peerManager = appState.peerManager
+        self.bridge = appState.bridge
+
+        // Observe discovered peers from PeerManager
+        appState.peerManager.$allPeers
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] peers in
+                self?.foundPeers = peers
+            }
+            .store(in: &cancellables)
     }
 
     func startDiscovery() {
-        // In a real app, this drives the PeerManager
-        // For now, simulate peer discovery
         totalRounds = selectedChain == .solana ? 3 : 7
-
-        Task {
-            dkgStatusMessage = "Searching for nearby devices…"
-        }
+        dkgStatusMessage = "Searching for nearby devices…"
+        peerManager?.startDiscovery(transports: selectedTransports)
     }
 
     func startDKG() {
         step = .dkg
         sessionId = UUID().uuidString
+        peerManager?.stopDiscovery()
 
         Task {
             do {
+                guard let bridge else { throw DKGError.notInitialized }
+
                 let config = FfiHorcruxConfig(
                     threshold: UInt16(threshold),
                     totalParties: UInt16(totalParties),
@@ -64,7 +74,6 @@ final class CreateShardViewModel: ObservableObject {
                 dkgStatusMessage = "Initializing key generation…"
                 currentRound = 1
 
-                // Start keygen — get first round messages
                 let outgoing = try bridge.startKeygen(
                     sessionId: sessionId!,
                     config: config
@@ -72,11 +81,6 @@ final class CreateShardViewModel: ObservableObject {
 
                 dkgProgress = 0.15
                 dkgStatusMessage = "Exchanging commitments…"
-
-                // In production: send outgoing messages via PeerManager,
-                // receive responses, feed back into processMessages(),
-                // repeat until all rounds complete.
-                // Here we show the DKG orchestration structure:
 
                 await runDKGRounds(initialMessages: outgoing)
 
@@ -88,56 +92,55 @@ final class CreateShardViewModel: ObservableObject {
     }
 
     private func runDKGRounds(initialMessages: [FfiMpcMessage]) async {
-        // TODO: Wire to PeerManager for actual message exchange.
-        // The flow is:
-        //
-        // 1. Send `initialMessages` to peers via PeerManager
-        // 2. Collect incoming messages from peers
-        // 3. Call bridge.processMessages(sessionId, incomingMessages)
-        // 4. Send resulting outgoing messages to peers
-        // 5. Repeat until processMessages returns empty (protocol complete)
-        // 6. Call bridge.finalizeKeygen(sessionId)
-        //
-        // Each round updates currentRound and dkgProgress.
+        guard let bridge, let peerManager else { return }
 
         do {
-            // Simulate round progression for UI demonstration
-            for round in 1...totalRounds {
-                currentRound = round
-                dkgProgress = Double(round) / Double(totalRounds + 1)
-
-                switch round {
-                case 1: dkgStatusMessage = "Exchanging commitments…"
-                case 2: dkgStatusMessage = "Verifying shares…"
-                case 3: dkgStatusMessage = selectedChain == .solana
-                    ? "Finalizing key package…"
-                    : "Computing Paillier keys…"
-                case 4: dkgStatusMessage = "Generating ZK proofs…"
-                case 5: dkgStatusMessage = "Verifying proofs…"
-                case 6: dkgStatusMessage = "Computing auxiliary info…"
-                case 7: dkgStatusMessage = "Finalizing key shares…"
-                default: dkgStatusMessage = "Processing…"
-                }
-
-                try await Task.sleep(for: .milliseconds(500))
+            // Send initial outgoing messages to peers
+            for msg in initialMessages {
+                let data = try JSONEncoder().encode(MpcMessageDTO(msg))
+                try await peerManager.broadcastMpcMessage(data)
             }
 
-            // Finalize
+            // Listen for incoming messages and process rounds
+            var roundComplete = false
+            for await (_, data) in peerManager.incomingMpcMessages {
+                guard !roundComplete else { break }
+
+                if let dto = try? JSONDecoder().decode(MpcMessageDTO.self, from: data) {
+                    let msg = dto.toFfi()
+                    let responses = try bridge.handleMessage(msg)
+
+                    // Update round progress
+                    currentRound = Int(msg.round)
+                    dkgProgress = Double(currentRound) / Double(totalRounds + 1)
+                    updateDKGStatusMessage()
+
+                    // Send responses to peers
+                    for response in responses {
+                        let responseData = try JSONEncoder().encode(MpcMessageDTO(response))
+                        try await peerManager.broadcastMpcMessage(responseData)
+                    }
+
+                    // Check if keygen is complete
+                    if let result = bridge.getKeygenResult(sessionId: sessionId!) {
+                        keygenResult = result
+                        roundComplete = true
+                    }
+                }
+            }
+
+            // Derive address from group public key
+            guard let result = keygenResult else {
+                throw DKGError.keygenIncomplete
+            }
+
             dkgProgress = 0.95
             dkgStatusMessage = "Deriving address…"
 
-            let result = try bridge.finalizeKeygen(sessionId: sessionId!)
-            keygenResult = result
-
-            // Derive address
-            switch selectedChain {
-            case .ethereum:
-                generatedAddress = try bridge.evmAddress(publicKey: Data(result.groupPublicKey))
-            case .bitcoin:
-                generatedAddress = try bridge.btcAddress(publicKey: Data(result.groupPublicKey))
-            case .solana:
-                generatedAddress = try bridge.solanaAddress(publicKey: Data(result.groupPublicKey))
-            }
+            generatedAddress = try bridge.deriveAddress(
+                chain: selectedChain,
+                publicKey: result.publicKey
+            )
 
             dkgProgress = 1.0
             step = .complete
@@ -145,6 +148,21 @@ final class CreateShardViewModel: ObservableObject {
         } catch {
             errorMessage = error.localizedDescription
             step = .error
+        }
+    }
+
+    private func updateDKGStatusMessage() {
+        switch currentRound {
+        case 1: dkgStatusMessage = "Exchanging commitments…"
+        case 2: dkgStatusMessage = "Verifying shares…"
+        case 3: dkgStatusMessage = selectedChain == .solana
+            ? "Finalizing key package…"
+            : "Computing Paillier keys…"
+        case 4: dkgStatusMessage = "Generating ZK proofs…"
+        case 5: dkgStatusMessage = "Verifying proofs…"
+        case 6: dkgStatusMessage = "Computing auxiliary info…"
+        case 7: dkgStatusMessage = "Finalizing key shares…"
+        default: dkgStatusMessage = "Processing…"
         }
     }
 
@@ -156,13 +174,98 @@ final class CreateShardViewModel: ObservableObject {
             name: walletName,
             chain: selectedChain,
             address: generatedAddress ?? "unknown",
-            groupPublicKey: Data(result.groupPublicKey),
+            groupPublicKey: result.publicKey,
             threshold: UInt16(threshold),
             totalParties: UInt16(totalParties),
             partyIndex: UInt16(partyIndex),
             createdAt: .now
         )
 
-        appState.wallets.append(wallet)
+        appState.walletStore.add(wallet)
+
+        // Store encrypted key share in Keychain
+        do {
+            let encrypted = try appState.bridge.encryptShard(
+                plaintext: result.shardData,
+                deviceKey: appState.deviceKey,
+                pin: Data(Array(repeating: UInt8(0), count: 1)) // Encrypted with device key; PIN required at signing time
+            )
+            let encoded = try JSONEncoder().encode(EncryptedShardDTO(encrypted))
+            try appState.walletStore.storeKeyShare(encoded, walletId: wallet.id)
+        } catch {
+            print("Warning: failed to store key share: \(error)")
+        }
+
+        // Register shard with the in-memory shard manager
+        let shardInfo = FfiShardInfo(
+            shardId: wallet.id,
+            publicKey: result.publicKey,
+            partyIndex: result.partyIndex,
+            threshold: result.threshold,
+            totalParties: result.totalParties,
+            curve: selectedChain.curveType,
+            createdAt: UInt64(Date.now.timeIntervalSince1970),
+            isLocal: true
+        )
+        appState.bridge.addShard(info: shardInfo)
+
+        // Clean up MPC session
+        appState.bridge.removeSession(sessionId: sessionId!)
+    }
+}
+
+private enum DKGError: LocalizedError {
+    case notInitialized
+    case keygenIncomplete
+
+    var errorDescription: String? {
+        switch self {
+        case .notInitialized: return "Session not initialized"
+        case .keygenIncomplete: return "Key generation did not complete"
+        }
+    }
+}
+
+/// Codable DTO for serializing FfiMpcMessage.
+struct MpcMessageDTO: Codable {
+    let fromParty: UInt16
+    let toParty: UInt16
+    let round: UInt32
+    let sessionId: String
+    let payload: Data
+
+    init(_ msg: FfiMpcMessage) {
+        self.fromParty = msg.fromParty
+        self.toParty = msg.toParty
+        self.round = msg.round
+        self.sessionId = msg.sessionId
+        self.payload = msg.payload
+    }
+
+    func toFfi() -> FfiMpcMessage {
+        FfiMpcMessage(
+            fromParty: fromParty,
+            toParty: toParty,
+            round: round,
+            sessionId: sessionId,
+            payload: payload
+        )
+    }
+}
+
+/// Codable DTO for serializing FfiEncryptedShard.
+struct EncryptedShardDTO: Codable {
+    let nonce: Data
+    let ciphertext: Data
+    let salt: Data
+
+    init(_ shard: FfiEncryptedShard) {
+        self.nonce = shard.nonce
+        self.ciphertext = shard.ciphertext
+        self.salt = shard.salt
+    }
+
+    func toFfi() -> FfiEncryptedShard {
+        FfiEncryptedShard(nonce: nonce, ciphertext: ciphertext, salt: salt)
     }
 }

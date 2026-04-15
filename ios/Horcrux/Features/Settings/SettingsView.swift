@@ -6,6 +6,7 @@ struct SettingsView: View {
     @AppStorage("relayURL") private var relayURL = "ws://localhost:3000/ws"
     @AppStorage("biometricEnabled") private var biometricEnabled = true
     @State private var showChangePin = false
+    @State private var showWipeConfirmation = false
 
     var body: some View {
         NavigationStack {
@@ -23,15 +24,11 @@ struct SettingsView: View {
                         .font(.system(.body, design: .monospaced))
                         .autocorrectionDisabled()
                         .textInputAutocapitalization(.never)
+                        .onChange(of: relayURL) { _, newValue in
+                            appState.peerManager.relay.relayURL = newValue
+                        }
 
-                    HStack {
-                        Circle()
-                            .fill(.green)
-                            .frame(width: 8, height: 8)
-                        Text("Connected")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
+                    RelayStatusRow(relay: appState.peerManager.relay)
                 }
 
                 Section("Communication") {
@@ -57,7 +54,7 @@ struct SettingsView: View {
 
                 Section("Danger Zone") {
                     Button(role: .destructive) {
-                        // TODO: confirmation + wipe
+                        showWipeConfirmation = true
                     } label: {
                         Label("Wipe All Data", systemImage: "trash.fill")
                     }
@@ -67,6 +64,30 @@ struct SettingsView: View {
             .sheet(isPresented: $showChangePin) {
                 ChangePinView()
             }
+            .alert("Wipe All Data?", isPresented: $showWipeConfirmation) {
+                Button("Wipe Everything", role: .destructive) {
+                    appState.wipeAllData()
+                }
+                Button("Cancel", role: .cancel) {}
+            } message: {
+                Text("This will permanently delete all wallets, key shards, and settings from this device. This cannot be undone.")
+            }
+        }
+    }
+}
+
+/// Shows live relay connection status.
+struct RelayStatusRow: View {
+    @ObservedObject var relay: RelayTransport
+
+    var body: some View {
+        HStack {
+            Circle()
+                .fill(relay.isConnected ? .green : .red)
+                .frame(width: 8, height: 8)
+            Text(relay.isConnected ? "Connected" : "Disconnected")
+                .font(.caption)
+                .foregroundStyle(.secondary)
         }
     }
 }
@@ -103,10 +124,12 @@ struct TransportSettingsView: View {
 }
 
 struct ChangePinView: View {
+    @EnvironmentObject private var appState: AppState
     @Environment(\.dismiss) private var dismiss
     @State private var currentPin = ""
     @State private var newPin = ""
     @State private var confirmPin = ""
+    @State private var errorMessage: String?
 
     var body: some View {
         NavigationStack {
@@ -118,11 +141,16 @@ struct ChangePinView: View {
                 SecureField("Confirm New PIN", text: $confirmPin)
                     .keyboardType(.numberPad)
 
-                Button("Change PIN") {
-                    // TODO: verify current, set new
-                    dismiss()
+                if let errorMessage {
+                    Text(errorMessage)
+                        .foregroundStyle(.red)
+                        .font(.caption)
                 }
-                .disabled(newPin.count < 4 || newPin != confirmPin)
+
+                Button("Change PIN") {
+                    changePin()
+                }
+                .disabled(newPin.count < 4 || newPin != confirmPin || currentPin.isEmpty)
             }
             .navigationTitle("Change PIN")
             .toolbar {
@@ -130,6 +158,23 @@ struct ChangePinView: View {
                     Button("Cancel") { dismiss() }
                 }
             }
+        }
+    }
+
+    private func changePin() {
+        guard appState.verifyPin(currentPin) else {
+            errorMessage = "Current PIN is incorrect"
+            return
+        }
+        guard newPin == confirmPin else {
+            errorMessage = "New PINs don't match"
+            return
+        }
+        do {
+            try appState.setPin(newPin)
+            dismiss()
+        } catch {
+            errorMessage = "Failed to save new PIN"
         }
     }
 }

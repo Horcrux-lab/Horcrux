@@ -19,7 +19,7 @@ final class PeerManager: ObservableObject {
     @Published var connectedPeers: [Peer] = []
 
     /// Active Noise channels keyed by peer ID
-    private var noiseChannels: [String: HorcruxNoiseChannel] = []
+    private var noiseChannels: [String: HorcruxNoiseChannel] = [:]
 
     /// Our Noise static keypair (persisted identity)
     private(set) var noiseKeypair: FfiNoiseKeypair?
@@ -35,7 +35,7 @@ final class PeerManager: ObservableObject {
     private var cancellables = Set<AnyCancellable>()
 
     init() {
-        noiseKeypair = horcruxNoiseKeypairGenerate()
+        noiseKeypair = horcruxGenerateNoiseKeypair()
         setupTransportObservers()
     }
 
@@ -59,7 +59,6 @@ final class PeerManager: ObservableObject {
         let channel = channelForPeer(peer)
         try await channel.connect(to: peer)
 
-        // Initiate Noise handshake
         try await performNoiseHandshake(with: peer, asInitiator: true)
     }
 
@@ -71,9 +70,10 @@ final class PeerManager: ObservableObject {
             throw TransportError.notConnected
         }
 
-        let encrypted = try noise.encrypt(plaintext: [UInt8](data))
+        let envelope = try noise.seal(plaintext: data)
+        let encoded = try JSONEncoder().encode(EnvelopeDTO(envelope))
         let channel = channelForPeer(peer)
-        try await channel.send(Data(encrypted), to: peer)
+        try await channel.send(encoded, to: peer)
     }
 
     /// Broadcast MPC data to all connected peers.
@@ -102,7 +102,6 @@ final class PeerManager: ObservableObject {
     }
 
     private func setupTransportObservers() {
-        // Merge discovered peers from all transports
         let blePublisher = ble.$discoveredPeers
         let wifiDirectPublisher = wifiDirect.$discoveredPeers
         let wifiLANPublisher = wifiLAN.$discoveredPeers
@@ -119,7 +118,6 @@ final class PeerManager: ObservableObject {
             }
             .assign(to: &$allPeers)
 
-        // Listen for incoming messages on all transports
         Task { await listenForMessages(from: ble) }
         Task { await listenForMessages(from: wifiDirect) }
         Task { await listenForMessages(from: wifiLAN) }
@@ -135,13 +133,14 @@ final class PeerManager: ObservableObject {
     private func handleIncomingMessage(_ message: TransportMessage) {
         let peerId = message.from.id
 
-        // If we have a Noise channel, decrypt
         if let noise = noiseChannels[peerId] {
-            if let decrypted = try? noise.decrypt(ciphertext: [UInt8](message.data)) {
-                mpcMessageContinuation?.yield((message.from, Data(decrypted)))
+            if let dto = try? JSONDecoder().decode(EnvelopeDTO.self, from: message.data) {
+                let envelope = FfiSealedEnvelope(ciphertext: dto.ciphertext, handshake: dto.handshake)
+                if let decrypted = try? noise.open(envelope: envelope) {
+                    mpcMessageContinuation?.yield((message.from, decrypted))
+                }
             }
         } else {
-            // Could be a Noise handshake message — handle it
             Task {
                 try? await handleHandshakeMessage(from: message.from, data: message.data)
             }
@@ -151,11 +150,11 @@ final class PeerManager: ObservableObject {
     private func performNoiseHandshake(with peer: Peer, asInitiator: Bool) async throws {
         guard let keypair = noiseKeypair else { return }
 
-        let noise = HorcruxNoiseChannel.initiate(keypair: keypair)
-        let msg1 = try noise.handshakeWrite(payload: [])
+        let noise = try HorcruxNoiseChannel.newInitiator(keypair: keypair)
+        let msg1 = try noise.writeHandshake(payload: Data())
 
         let channel = channelForPeer(peer)
-        try await channel.send(Data(msg1), to: peer)
+        try await channel.send(msg1, to: peer)
 
         noiseChannels[peer.id] = noise
     }
@@ -164,27 +163,38 @@ final class PeerManager: ObservableObject {
         guard let keypair = noiseKeypair else { return }
 
         if noiseChannels[peer.id] == nil {
-            // We're the responder
-            let noise = HorcruxNoiseChannel.respond(keypair: keypair)
-            let _ = try noise.handshakeRead(message: [UInt8](data))
-            let msg2 = try noise.handshakeWrite(payload: [])
+            let noise = try HorcruxNoiseChannel.newResponder(keypair: keypair)
+            let _ = try noise.readHandshake(message: data)
+            let msg2 = try noise.writeHandshake(payload: Data())
 
             let channel = channelForPeer(peer)
-            try await channel.send(Data(msg2), to: peer)
+            try await channel.send(msg2, to: peer)
 
             noiseChannels[peer.id] = noise
             connectedPeers.append(peer)
         } else {
-            // We're the initiator reading msg2
             let noise = noiseChannels[peer.id]!
-            let _ = try noise.handshakeRead(message: [UInt8](data))
-            let msg3 = try noise.handshakeWrite(payload: [])
+            let _ = try noise.readHandshake(message: data)
 
-            let channel = channelForPeer(peer)
-            try await channel.send(Data(msg3), to: peer)
+            if !noise.isHandshakeFinished() {
+                let msg3 = try noise.writeHandshake(payload: Data())
+                let channel = channelForPeer(peer)
+                try await channel.send(msg3, to: peer)
+            }
 
             connectedPeers.append(peer)
         }
+    }
+}
+
+/// Codable DTO for serializing FfiSealedEnvelope across transports.
+private struct EnvelopeDTO: Codable {
+    let ciphertext: Data
+    let handshake: Bool
+
+    init(_ envelope: FfiSealedEnvelope) {
+        self.ciphertext = envelope.ciphertext
+        self.handshake = envelope.handshake
     }
 }
 
