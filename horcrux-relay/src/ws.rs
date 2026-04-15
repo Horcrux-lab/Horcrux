@@ -1,4 +1,7 @@
 //! WebSocket handler — upgrades HTTP to WS and relays messages within rooms.
+//!
+//! Security: rooms are access-controlled via token query parameter.
+//! All payloads are opaque E2E encrypted — the relay cannot read them.
 
 use axum::{
     extract::{
@@ -6,12 +9,13 @@ use axum::{
         WebSocketUpgrade,
         ws::{Message, WebSocket},
     },
+    http::StatusCode,
     response::IntoResponse,
 };
 use futures_util::{SinkExt, StreamExt};
 use std::time::Duration;
 
-use crate::room::{RoomManager, RoomMessage};
+use crate::room::{RoomManager, RoomMessage, RoomError};
 
 /// Maximum allowed message size (1 MB).
 const MAX_MESSAGE_SIZE: usize = 1_048_576;
@@ -26,6 +30,8 @@ const PONG_TIMEOUT: Duration = Duration::from_secs(10);
 pub struct WsQuery {
     /// Optional device identifier for this connection.
     pub device_id: Option<String>,
+    /// Access token for room authentication.
+    pub token: Option<String>,
 }
 
 pub async fn ws_handler(
@@ -33,10 +39,37 @@ pub async fn ws_handler(
     Path(room_id): Path<String>,
     Query(query): Query<WsQuery>,
     State(rooms): State<RoomManager>,
-) -> impl IntoResponse {
+) -> Result<impl IntoResponse, StatusCode> {
     let device_id = query.device_id.unwrap_or_default();
-    tracing::info!(room = %room_id, device = %device_id, "WebSocket upgrade request");
-    ws.on_upgrade(move |socket| handle_socket(socket, room_id, device_id, rooms))
+    let token = query.token;
+
+    // Validate room_id format (alphanumeric + hyphens, max 128 chars)
+    if room_id.len() > 128 || !room_id.chars().all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_') {
+        tracing::warn!(room = %room_id, "invalid room_id format");
+        return Err(StatusCode::BAD_REQUEST);
+    }
+
+    // Validate device_id format
+    if device_id.len() > 128 {
+        return Err(StatusCode::BAD_REQUEST);
+    }
+
+    // Try to join the room with token validation
+    let join_result = rooms.join_room_with_token(&room_id, token.as_deref()).await;
+    match join_result {
+        Ok((tx, rx)) => {
+            tracing::info!(room = %room_id, device = %device_id, "WebSocket upgrade request (authenticated)");
+            Ok(ws.on_upgrade(move |socket| handle_socket(socket, room_id, device_id, rooms, tx, rx)))
+        }
+        Err(RoomError::InvalidToken) => {
+            tracing::warn!(room = %room_id, device = %device_id, "access denied — invalid token");
+            Err(StatusCode::FORBIDDEN)
+        }
+        Err(RoomError::RoomFull) => {
+            tracing::warn!(room = %room_id, "room full");
+            Err(StatusCode::SERVICE_UNAVAILABLE)
+        }
+    }
 }
 
 async fn handle_socket(
@@ -44,8 +77,9 @@ async fn handle_socket(
     room_id: String,
     device_id: String,
     rooms: RoomManager,
+    tx: tokio::sync::broadcast::Sender<RoomMessage>,
+    mut rx: tokio::sync::broadcast::Receiver<RoomMessage>,
 ) {
-    let (tx, mut rx) = rooms.join_room(&room_id).await;
     let (mut ws_sink, mut ws_stream) = socket.split();
 
     // Task: relay room broadcast → WebSocket client (skip messages from self)
@@ -54,6 +88,10 @@ async fn handle_socket(
         while let Ok(msg) = rx.recv().await {
             // Don't echo messages back to the sender
             if !device_id_for_relay.is_empty() && msg.from == device_id_for_relay {
+                continue;
+            }
+            // Skip empty heartbeat messages
+            if msg.from.is_empty() && msg.payload.is_empty() {
                 continue;
             }
             let json = match serde_json::to_string(&msg) {
