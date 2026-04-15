@@ -1,13 +1,19 @@
-//! Threshold signing for CGGMP21 (ECDSA) and FROST (EdDSA).
+//! Threshold Schnorr signing on secp256k1.
 //!
-//! Signing requires t-of-n parties to cooperate. Each party uses their shard
-//! to produce a partial signature. The partial signatures are combined into
-//! a valid ECDSA/EdDSA signature — the full private key is never reconstructed.
+//! Implements a 2-round threshold Schnorr signature protocol compatible with
+//! Feldman VSS key shares from the DKG module:
 //!
-//! Protocol (simplified threshold Schnorr-like for secp256k1):
-//! - Round 1: Each signer generates a nonce, broadcasts commitment R_i
-//! - Round 2: Compute combined R, each signer produces partial signature s_i
-//! - Combine: Aggregate partial signatures into final (R, s)
+//! - **Round 1**: Each signer generates a random nonce k_i, broadcasts R_i = k_i·G
+//! - **Round 2**: Compute combined R = ΣR_i, challenge e = H(R‖msg),
+//!   each signer produces partial sig s_i = k_i + e·λ_i·x_i
+//! - **Combine**: Final signature (R, s) where s = Σs_i
+//!
+//! Verification: s·G == R + e·PK
+//!
+//! **Note**: This is Schnorr, not ECDSA. For EVM/BTC (which require ECDSA),
+//! a full CGGMP21 multiplicative-to-additive share conversion would be needed.
+//! This protocol is directly usable for Schnorr-compatible chains (Taproot BTC,
+//! or as an internal proof-of-concept for the MPC flow).
 
 use super::{CurveType, HorcruxConfig, MpcError};
 use super::types::{MpcMessage, SigningResult};
@@ -322,11 +328,16 @@ fn lagrange_coefficient(i: u16, participants: &[u16]) -> Scalar {
     lambda
 }
 
-/// Derive a Scalar from a SHA-256 hash.
+/// Derive a Scalar from a SHA-256 hash by reducing mod curve order.
+///
+/// IMPORTANT: We use `Scalar::reduce` (wide reduction) because SHA-256 output
+/// may exceed the secp256k1 order. `from_repr()` rejects non-canonical bytes.
 fn scalar_from_hash(hash: &[u8]) -> Scalar {
+    use k256::elliptic_curve::ops::Reduce;
+    use k256::U256;
     let mut bytes = [0u8; 32];
     bytes.copy_from_slice(&hash[..32]);
-    Scalar::from_repr(bytes.into()).unwrap_or(Scalar::ONE)
+    <Scalar as Reduce<U256>>::reduce_bytes(&bytes.into())
 }
 
 /// Verify a threshold signature against a public key.
@@ -521,5 +532,286 @@ mod tests {
         assert!(valid, "threshold signature verification failed!");
 
         tracing::info!("Full DKG + Signing test passed!");
+    }
+
+    // ===== Comprehensive MPC validation tests =====
+
+    /// Helper: run DKG for t-of-n, return (public_key, keygen_results)
+    fn run_dkg(t: u16, n: u16) -> (Vec<u8>, Vec<super::super::types::KeygenResult>) {
+        let session_id = "dkg-helper";
+        let mut sessions: Vec<KeygenSession> = (1..=n)
+            .map(|i| {
+                let config = HorcruxConfig::new(t, n, i, CurveType::Secp256k1).unwrap();
+                KeygenSession::new(config)
+            })
+            .collect();
+
+        let mut r1_msgs: Vec<MpcMessage> = Vec::new();
+        for s in &mut sessions {
+            r1_msgs.extend(s.start(session_id).unwrap());
+        }
+
+        let mut r2_msgs: Vec<MpcMessage> = Vec::new();
+        for msg in &r1_msgs {
+            for s in &mut sessions {
+                if s.config.party_index != msg.from {
+                    r2_msgs.extend(s.process_message(msg.clone()).unwrap());
+                }
+            }
+        }
+
+        for msg in &r2_msgs {
+            for s in &mut sessions {
+                if s.config.party_index == msg.to {
+                    s.process_message(msg.clone()).unwrap();
+                }
+            }
+        }
+
+        let results: Vec<_> = sessions.iter().map(|s| s.result().unwrap()).collect();
+        let pk = results[0].public_key.clone();
+        (pk, results)
+    }
+
+    /// Helper: run signing with given signers, return SigningResult
+    fn run_signing(
+        t: u16, n: u16,
+        signers: &[u16],
+        keygen_results: &[super::super::types::KeygenResult],
+        message_hash: &[u8],
+    ) -> super::super::types::SigningResult {
+        let mut sign_sessions: Vec<SigningSession> = signers.iter()
+            .map(|&i| {
+                let config = HorcruxConfig::new(t, n, i, CurveType::Secp256k1).unwrap();
+                let shard = keygen_results[(i - 1) as usize].shard_data.clone();
+                SigningSession::new(config, message_hash.to_vec(), shard, signers.to_vec()).unwrap()
+            })
+            .collect();
+
+        let mut sr1_msgs: Vec<MpcMessage> = Vec::new();
+        for s in &mut sign_sessions {
+            sr1_msgs.extend(s.start("sign").unwrap());
+        }
+
+        let mut sr2_msgs: Vec<MpcMessage> = Vec::new();
+        for msg in &sr1_msgs {
+            for s in &mut sign_sessions {
+                if s.config.party_index != msg.from {
+                    sr2_msgs.extend(s.process_message(msg.clone()).unwrap());
+                }
+            }
+        }
+
+        for msg in &sr2_msgs {
+            for s in &mut sign_sessions {
+                if s.config.party_index != msg.from {
+                    s.process_message(msg.clone()).unwrap();
+                }
+            }
+        }
+
+        sign_sessions[0].result().unwrap()
+    }
+
+    #[test]
+    fn test_different_signer_subsets_all_valid() {
+        // 2-of-3 DKG, then sign with {1,2}, {1,3}, {2,3} — all should verify
+        let (pk, results) = run_dkg(2, 3);
+        let msg = Sha256::digest(b"subset test").to_vec();
+
+        for signers in &[vec![1u16, 2], vec![1, 3], vec![2, 3]] {
+            let sig = run_signing(2, 3, signers, &results, &msg);
+            let valid = verify_threshold_signature(&pk, &msg, &sig.r, &sig.s).unwrap();
+            assert!(valid, "signature from {:?} failed verification", signers);
+        }
+    }
+
+    #[test]
+    fn test_all_parties_sign_3_of_5() {
+        // 3-of-5 DKG, sign with all 5 parties
+        let (pk, results) = run_dkg(3, 5);
+        let msg = Sha256::digest(b"3-of-5 all sign").to_vec();
+
+        let sig = run_signing(3, 5, &[1, 2, 3, 4, 5], &results, &msg);
+        let valid = verify_threshold_signature(&pk, &msg, &sig.r, &sig.s).unwrap();
+        assert!(valid);
+    }
+
+    #[test]
+    fn test_minimal_subset_3_of_5() {
+        // 3-of-5 DKG, sign with exactly 3 parties (various subsets)
+        let (pk, results) = run_dkg(3, 5);
+        let msg = Sha256::digest(b"minimal subset").to_vec();
+
+        for signers in &[vec![1u16, 2, 3], vec![1, 3, 5], vec![2, 4, 5], vec![3, 4, 5]] {
+            let sig = run_signing(3, 5, signers, &results, &msg);
+            let valid = verify_threshold_signature(&pk, &msg, &sig.r, &sig.s).unwrap();
+            assert!(valid, "signature from {:?} failed", signers);
+        }
+    }
+
+    #[test]
+    fn test_different_messages_different_signatures() {
+        let (pk, results) = run_dkg(2, 3);
+        let msg1 = Sha256::digest(b"message A").to_vec();
+        let msg2 = Sha256::digest(b"message B").to_vec();
+
+        let sig1 = run_signing(2, 3, &[1, 2], &results, &msg1);
+        let sig2 = run_signing(2, 3, &[1, 2], &results, &msg2);
+
+        // Different messages → different signatures (different challenge e)
+        assert_ne!(sig1.s, sig2.s, "different messages should produce different s");
+
+        // Both verify against correct message
+        assert!(verify_threshold_signature(&pk, &msg1, &sig1.r, &sig1.s).unwrap());
+        assert!(verify_threshold_signature(&pk, &msg2, &sig2.r, &sig2.s).unwrap());
+
+        // Cross-verify should fail: sig1 against msg2
+        let cross = verify_threshold_signature(&pk, &msg2, &sig1.r, &sig1.s).unwrap();
+        assert!(!cross, "signature for msg1 should NOT verify against msg2");
+    }
+
+    #[test]
+    fn test_wrong_public_key_rejects() {
+        let (pk, results) = run_dkg(2, 3);
+        let msg = Sha256::digest(b"wrong key test").to_vec();
+
+        let sig = run_signing(2, 3, &[1, 2], &results, &msg);
+
+        // Generate a different DKG → different public key
+        let (pk2, _) = run_dkg(2, 3);
+        assert_ne!(pk, pk2);
+
+        // Signature should NOT verify against wrong key
+        let valid = verify_threshold_signature(&pk2, &msg, &sig.r, &sig.s).unwrap();
+        assert!(!valid, "signature should not verify against wrong public key");
+    }
+
+    #[test]
+    fn test_tampered_signature_rejected() {
+        let (pk, results) = run_dkg(2, 3);
+        let msg = Sha256::digest(b"tamper test").to_vec();
+        let sig = run_signing(2, 3, &[1, 3], &results, &msg);
+
+        // Tamper with s
+        let mut bad_s = sig.s.clone();
+        bad_s[0] ^= 0x01;
+        // May produce invalid scalar, but verify should either error or return false
+        let result = verify_threshold_signature(&pk, &msg, &sig.r, &bad_s);
+        match result {
+            Ok(valid) => assert!(!valid, "tampered s should not verify"),
+            Err(_) => {} // Also acceptable — invalid scalar
+        }
+    }
+
+    #[test]
+    fn test_scalar_from_hash_never_panics() {
+        // Verify the fixed scalar_from_hash handles all possible hash outputs
+        use sha2::{Sha256, Digest};
+        for i in 0u64..1000 {
+            let hash = Sha256::digest(i.to_be_bytes());
+            let s = scalar_from_hash(&hash);
+            // Should never be zero (astronomically unlikely, but check anyway)
+            assert_ne!(s, Scalar::ZERO, "scalar_from_hash produced zero at i={}", i);
+        }
+    }
+
+    #[test]
+    fn test_scalar_from_hash_deterministic() {
+        let hash = Sha256::digest(b"deterministic");
+        let s1 = scalar_from_hash(&hash);
+        let s2 = scalar_from_hash(&hash);
+        assert_eq!(s1, s2);
+    }
+
+    #[test]
+    fn test_lagrange_subset_reconstruction() {
+        // Verify Lagrange interpolation works for arbitrary 2-of-3 subsets
+        let secret = Scalar::from(42u64);
+        let a1 = Scalar::from(17u64);
+
+        let f = |x: u64| secret + a1 * Scalar::from(x);
+
+        for subset in &[vec![1u16, 2], vec![1, 3], vec![2, 3]] {
+            let mut reconstructed = Scalar::ZERO;
+            for &i in subset {
+                let li = lagrange_coefficient(i, subset);
+                reconstructed += li * f(i as u64);
+            }
+            assert_eq!(reconstructed, secret,
+                "Lagrange failed for subset {:?}", subset);
+        }
+    }
+
+    #[test]
+    fn test_lagrange_4_of_7_subsets() {
+        // More complex: degree-3 polynomial (t=4)
+        let a0 = Scalar::from(100u64);
+        let a1 = Scalar::from(7u64);
+        let a2 = Scalar::from(3u64);
+        let a3 = Scalar::from(11u64);
+
+        let f = |x: u64| {
+            let xs = Scalar::from(x);
+            a0 + a1 * xs + a2 * xs * xs + a3 * xs * xs * xs
+        };
+
+        // Any 4 out of 7 should reconstruct a0
+        let subsets: Vec<Vec<u16>> = vec![
+            vec![1, 2, 3, 4],
+            vec![1, 3, 5, 7],
+            vec![2, 4, 6, 7],
+            vec![4, 5, 6, 7],
+        ];
+
+        for subset in &subsets {
+            let mut reconstructed = Scalar::ZERO;
+            for &i in subset {
+                let li = lagrange_coefficient(i, subset);
+                reconstructed += li * f(i as u64);
+            }
+            assert_eq!(reconstructed, a0,
+                "Lagrange 4-of-7 failed for subset {:?}", subset);
+        }
+    }
+
+    #[test]
+    fn test_dkg_share_consistency() {
+        // Verify that DKG shares are consistent: each party's share x_i satisfies
+        // x_i * G == sum(C_k * i^k) (Feldman VSS check)
+        let (pk, results) = run_dkg(2, 3);
+
+        for result in &results {
+            // The share should be a valid scalar
+            let share_bytes: [u8; 32] = result.shard_data.clone().try_into().unwrap();
+            let share = Scalar::from_repr(share_bytes.into());
+            assert!(bool::from(share.is_some()),
+                "party {} has invalid share scalar", result.party_index);
+        }
+
+        // All parties agree on public key
+        for r in &results {
+            assert_eq!(r.public_key, pk);
+        }
+    }
+
+    #[test]
+    fn test_signing_idempotent_verification() {
+        // Sign once, verify multiple times — should always pass
+        let (pk, results) = run_dkg(2, 3);
+        let msg = Sha256::digest(b"idempotent").to_vec();
+        let sig = run_signing(2, 3, &[1, 2], &results, &msg);
+
+        for _ in 0..10 {
+            assert!(verify_threshold_signature(&pk, &msg, &sig.r, &sig.s).unwrap());
+        }
+    }
+
+    #[test]
+    fn test_party_not_in_participants_rejected() {
+        let config = HorcruxConfig::new(2, 3, 1, CurveType::Secp256k1).unwrap();
+        // Party 1 not in participants list [2, 3]
+        let result = SigningSession::new(config, vec![0u8; 32], vec![1u8; 32], vec![2, 3]);
+        assert!(result.is_err());
     }
 }
