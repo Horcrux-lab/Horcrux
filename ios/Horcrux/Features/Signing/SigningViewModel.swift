@@ -37,6 +37,8 @@ final class SigningViewModel: ObservableObject {
     private var currentRecordId: String?
     private var cancellables = Set<AnyCancellable>()
     private var signingTask: Task<Void, Never>?
+    private var decodingFailures = 0
+    private let maxDecodingFailures = 5
 
     // Gas estimation (EVM)
     @Published var estimatedGas: String = "—"
@@ -176,7 +178,8 @@ final class SigningViewModel: ObservableObject {
                 )
 
                 // Load and decrypt the key share
-                let shardData = try loadKeyShare(deviceKey: deviceKey, pin: pin)
+                var shardData = try loadKeyShare(deviceKey: deviceKey, pin: pin)
+                defer { shardData.resetBytes(in: 0..<shardData.count) }
 
                 // Build the transaction hash to sign
                 let messageHash = buildSignHash()
@@ -233,8 +236,17 @@ final class SigningViewModel: ObservableObject {
                 let decodedDTO: MpcMessageDTO?
                 do {
                     decodedDTO = try JSONDecoder().decode(MpcMessageDTO.self, from: data)
+                    decodingFailures = 0
                 } catch {
                     SecureLog.error("Failed to decode MPC message during signing: \(error.localizedDescription)")
+                    decodingFailures += 1
+                    if decodingFailures >= maxDecodingFailures {
+                        await MainActor.run {
+                            errorMessage = "Protocol communication failure"
+                            step = .error
+                        }
+                        return
+                    }
                     decodedDTO = nil
                 }
                 if let dto = decodedDTO {

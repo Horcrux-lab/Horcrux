@@ -432,6 +432,7 @@ actor BlockchainService {
                 return TokenBalance(token: token, balance: amount)
             }.sorted { $0.token.symbol < $1.token.symbol }
         } catch {
+            SecureLog.error("SPL token balance fetch failed: \(error.localizedDescription)")
             return []
         }
     }
@@ -466,7 +467,9 @@ actor BlockchainService {
         var jsonBody = try JSONSerialization.data(withJSONObject: body)
         // Insert params
         let paramsData = try JSONEncoder().encode(params)
-        var dict = try JSONSerialization.jsonObject(with: jsonBody) as! [String: Any]
+        guard var dict = try JSONSerialization.jsonObject(with: jsonBody) as? [String: Any] else {
+            throw BlockchainError.invalidResponse
+        }
         dict["params"] = try JSONSerialization.jsonObject(with: paramsData)
         jsonBody = try JSONSerialization.data(withJSONObject: dict)
 

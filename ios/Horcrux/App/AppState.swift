@@ -5,6 +5,8 @@ import CommonCrypto
 /// Global application state — owns the core Rust bridge instances.
 @MainActor
 final class AppState: ObservableObject {
+    /// Shared singleton for use by background tasks (e.g. BGProcessingTask).
+    static let shared = AppState()
     /// Core MPC session manager (wraps Rust SessionManager via UniFFI)
     let sessionManager = HorcruxSessionManager()
 
@@ -262,6 +264,7 @@ final class AppState: ObservableObject {
 
         // Fresh install: generate, seal, store
         var bytes = [UInt8](repeating: 0, count: 32)
+        defer { bytes.resetBytes(in: 0..<bytes.count) }
         let status = SecRandomCopyBytes(kSecRandomDefault, bytes.count, &bytes)
         guard status == errSecSuccess else {
             throw KeychainError.storeFailed(status)
@@ -278,6 +281,7 @@ final class AppState: ObservableObject {
             return existing
         }
         var bytes = [UInt8](repeating: 0, count: 32)
+        defer { bytes.resetBytes(in: 0..<bytes.count) }
         let status = SecRandomCopyBytes(kSecRandomDefault, bytes.count, &bytes)
         guard status == errSecSuccess else {
             throw KeychainError.storeFailed(status)

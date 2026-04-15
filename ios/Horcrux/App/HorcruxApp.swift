@@ -3,7 +3,7 @@ import BackgroundTasks
 
 @main
 struct HorcruxApp: App {
-    @StateObject private var appState = AppState()
+    @StateObject private var appState = AppState.shared
     @StateObject private var deepLinkRouter = DeepLinkRouter.shared
     @Environment(\.scenePhase) private var scenePhase
     @State private var blurRadius: CGFloat = 0
@@ -114,7 +114,7 @@ extension HorcruxApp {
 
     @MainActor
     static func handleBroadcastRetry(task: BGProcessingTask) async {
-        let appState = AppState()
+        let appState = AppState.shared
         let queue = appState.pendingBroadcastQueue
 
         task.expirationHandler = {

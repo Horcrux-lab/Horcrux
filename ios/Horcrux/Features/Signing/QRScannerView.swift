@@ -37,9 +37,7 @@ final class QRScannerViewController: UIViewController, AVCaptureMetadataOutputOb
     override func viewWillAppear(_ animated: Bool) {
         super.viewWillAppear(animated)
         if let session = captureSession, !session.isRunning {
-            DispatchQueue.global(qos: .userInitiated).async {
-                session.startRunning()
-            }
+            session.startRunning()
         }
     }
 
@@ -95,9 +93,7 @@ final class QRScannerViewController: UIViewController, AVCaptureMetadataOutputOb
         self.captureSession = session
         self.previewLayer = layer
 
-        DispatchQueue.global(qos: .userInitiated).async {
-            session.startRunning()
-        }
+        session.startRunning()
     }
 
     private func showError(_ message: String) {
