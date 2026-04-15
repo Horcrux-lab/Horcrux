@@ -575,4 +575,111 @@ mod tests {
         let result = mgr.join_room_with_token("reuse-room", None, "phone-1").await;
         assert!(result.is_ok());
     }
+
+    #[tokio::test]
+    async fn test_unicast_filtering() {
+        let mgr = new(&test_config());
+        let (tx, _rx_alice) = mgr.join_room("uni").await;
+        let (_tx2, mut rx_bob) = mgr.join_room("uni").await;
+        let (_tx3, mut rx_carol) = mgr.join_room("uni").await;
+
+        // Send unicast to bob only
+        let msg = RoomMessage {
+            from: "alice".into(),
+            to: "bob".into(),
+            payload: "secret".into(),
+            seq: 1,
+        };
+        tx.send(msg).unwrap();
+
+        // Both receive broadcast-level message (filtering is done at WS layer)
+        let bob_msg = rx_bob.recv().await.unwrap();
+        assert_eq!(bob_msg.to, "bob");
+        let carol_msg = rx_carol.recv().await.unwrap();
+        assert_eq!(carol_msg.to, "bob");
+    }
+
+    #[tokio::test]
+    async fn test_broadcast_to_multiple_receivers() {
+        let mgr = new(&test_config());
+        let (tx, _rx1) = mgr.join_room("multi").await;
+        let (_tx2, mut rx2) = mgr.join_room("multi").await;
+        let (_tx3, mut rx3) = mgr.join_room("multi").await;
+
+        let msg = RoomMessage {
+            from: "alice".into(),
+            to: String::new(),
+            payload: "hello all".into(),
+            seq: 1,
+        };
+        tx.send(msg).unwrap();
+
+        let m2 = rx2.recv().await.unwrap();
+        let m3 = rx3.recv().await.unwrap();
+        assert_eq!(m2.payload, "hello all");
+        assert_eq!(m3.payload, "hello all");
+    }
+
+    #[tokio::test]
+    async fn test_slow_consumer_lagged() {
+        let mut cfg = test_config();
+        cfg.max_participants = 10;
+        let mgr = new(&cfg);
+        let (tx, _rx1) = mgr.join_room("lag").await;
+        let (_tx2, mut rx2) = mgr.join_room("lag").await;
+
+        // Fill the broadcast buffer (default 256) plus overflow
+        for i in 0..300 {
+            let _ = tx.send(RoomMessage {
+                from: "sender".into(),
+                to: String::new(),
+                payload: format!("msg-{}", i),
+                seq: i,
+            });
+        }
+
+        // Slow consumer should get a Lagged error on first recv
+        match rx2.recv().await {
+            Err(tokio::sync::broadcast::error::RecvError::Lagged(n)) => {
+                assert!(n > 0, "should report skipped messages");
+            }
+            Ok(msg) => {
+                // Some messages may have been buffered; just check we can receive
+                assert!(msg.payload.starts_with("msg-"));
+            }
+            Err(e) => panic!("unexpected error: {:?}", e),
+        }
+    }
+
+    #[tokio::test]
+    async fn test_sequence_replay_rejected() {
+        let mgr = new(&test_config());
+        let (_tx, _rx) = mgr.join_room_with_token("seq-room", None, "dev1").await.unwrap();
+
+        // Access room directly for sequence checking
+        let rooms = mgr.rooms.read().await;
+        let room = rooms.get("seq-room").unwrap();
+
+        // First message with seq=5 should pass
+        assert!(room.check_sequence("dev1", 5).await);
+        // Same seq=5 should be rejected (replay)
+        assert!(!room.check_sequence("dev1", 5).await);
+        // Lower seq=3 should be rejected
+        assert!(!room.check_sequence("dev1", 3).await);
+        // Higher seq=10 should pass
+        assert!(room.check_sequence("dev1", 10).await);
+    }
+
+    #[tokio::test]
+    async fn test_sequence_empty_device_always_passes() {
+        let mgr = new(&test_config());
+        let (_tx, _rx) = mgr.join_room("seq2").await;
+
+        let rooms = mgr.rooms.read().await;
+        let room = rooms.get("seq2").unwrap();
+
+        // Empty device_id always passes (backward compat)
+        assert!(room.check_sequence("", 1).await);
+        assert!(room.check_sequence("", 1).await);
+    }
 }

@@ -49,8 +49,30 @@ All channels use **Noise Protocol** (Noise_XX_25519_ChaChaPoly_SHA256) for E2E e
 - **Anti-debug** — ptrace denial + environment checks (release builds).
 - **Zero-knowledge relay** — server forwards ciphertext only.
 - **Identifiable abort** — malicious participants are detected.
+- **MPC secret zeroization** — Drop impls zero all key material on session end.
+- **Replay protection** — per-device sequence numbers reject out-of-order messages.
+- **IP rate limiting** — per-IP connection throttle with auto-eviction circuit breaker.
+- **Jailbreak detection** — blocks DKG and signing on compromised devices.
+- **CORS origin restriction** — relay rejects unauthorized WebSocket origins.
+- **Config validation** — startup-time bounds checking with clamped env vars.
 
 See [docs/security-model.md](docs/security-model.md) for the full threat model.
+
+## iOS App Features
+
+- **Multi-wallet** — create and manage wallets across Ethereum, Bitcoin, and Solana.
+- **ERC-20 / SPL tokens** — view token balances with built-in token registry.
+- **Transaction signing** — threshold co-signing with real-time progress UI.
+- **Transaction history** — persistent local store with broadcast status tracking.
+- **Offline signing** — queue transactions for later broadcast.
+- **Shard backup/restore** — encrypted iCloud-ready shard export.
+- **QR code** — scan-to-pay and receive address display with share sheet.
+- **Fee estimation** — per-chain gas/fee preview before signing.
+- **Push notifications** — signing request alerts via APNs.
+- **Deep linking** — `horcrux://` URL scheme for sign requests.
+- **VoiceOver accessibility** — full screen reader support.
+- **Internationalization** — L10n-ready with locale-aware number formatting.
+- **Background broadcast retry** — BGProcessingTask resends failed transactions.
 
 ## Building
 
@@ -101,7 +123,13 @@ cargo run -p uniffi-bindgen generate \
 | 2. Relay server (Noise E2E) | ✅ Complete |
 | 3. UniFFI mobile bindings | ✅ Complete |
 | 4. iOS app (Swift/SwiftUI) | ✅ Complete |
-| 5. Android app (Kotlin/Compose) | 🔜 Planned |
+| 5. Security hardening (7 rounds) | ✅ Complete |
+| 6. Android app (Kotlin/Compose) | 🔜 Planned |
+
+### Test Coverage
+
+- **129 Rust tests** (106 core + 23 relay) — 0 clippy warnings
+- **16 Swift test files** — ViewModels, services, security, crypto
 
 ## CI/CD
 

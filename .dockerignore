@@ -1,0 +1,10 @@
+target/
+ios/
+*.xcodeproj
+*.xcworkspace
+.git/
+.github/
+docs/
+generated/
+*.md
+LICENSE
