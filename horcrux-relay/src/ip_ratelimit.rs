@@ -21,6 +21,10 @@ pub struct IpRateLimiter {
 }
 
 impl IpRateLimiter {
+    /// Create a new per-IP rate limiter.
+    ///
+    /// * `max_creates` — maximum room creations allowed per IP within the window.
+    /// * `window` — sliding time window for the rate limit.
     pub fn new(max_creates: u32, window: Duration) -> Self {
         Self {
             max_creates,

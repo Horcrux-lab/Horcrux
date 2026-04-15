@@ -87,7 +87,7 @@ pub async fn ws_handler(
             .and_then(|v| v.to_str().ok())
             .unwrap_or("");
         if !allowed.iter().any(|o| o == origin || o == "*") {
-            tracing::warn!(origin = origin, "rejected — origin not allowed");
+            tracing::warn!("rejected — origin not in allowed list");
             return Err(StatusCode::FORBIDDEN);
         }
     }

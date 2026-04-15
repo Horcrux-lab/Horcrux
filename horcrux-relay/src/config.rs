@@ -68,13 +68,19 @@ impl RelayConfig {
             if let Ok(s) = v.parse::<u64>() { cfg.room_ttl = Duration::from_secs(s); }
         }
         if let Ok(v) = std::env::var("RELAY_MAX_PARTICIPANTS") {
-            if let Ok(n) = v.parse() { cfg.max_participants = n; }
+            if let Ok(n) = v.parse::<usize>() {
+                cfg.max_participants = n.clamp(1, 100);
+            }
         }
         if let Ok(v) = std::env::var("RELAY_MAX_MESSAGE_SIZE") {
-            if let Ok(n) = v.parse() { cfg.max_message_size = n; }
+            if let Ok(n) = v.parse::<usize>() {
+                cfg.max_message_size = n.clamp(1024, 100_000_000);
+            }
         }
         if let Ok(v) = std::env::var("RELAY_RATE_LIMIT") {
-            if let Ok(n) = v.parse() { cfg.rate_limit_count = n; }
+            if let Ok(n) = v.parse::<u32>() {
+                cfg.rate_limit_count = n.clamp(1, 10_000);
+            }
         }
         if let Ok(v) = std::env::var("RELAY_ADMIN_TOKEN") {
             cfg.admin_token = Some(v);

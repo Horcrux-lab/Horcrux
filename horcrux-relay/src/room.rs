@@ -100,9 +100,13 @@ impl Room {
         if !device_id.is_empty() {
             let mut devs = self.devices.lock().await;
             if devs.iter().any(|d| d == device_id) {
-                // Rollback the count increment.
                 self.participant_count.fetch_sub(1, Ordering::AcqRel);
                 return Err(RoomError::DuplicateDevice);
+            }
+            // Belt-and-suspenders: ensure devices vec matches the atomic count.
+            if devs.len() >= max_participants {
+                self.participant_count.fetch_sub(1, Ordering::AcqRel);
+                return Err(RoomError::RoomFull);
             }
             devs.push(device_id.to_string());
         }
