@@ -1,5 +1,10 @@
 import SwiftUI
 
+private enum UXTiming {
+    static let clipboardFeedback: TimeInterval = 2.0
+    static let retryButtonReset: TimeInterval = 3.0
+}
+
 /// Wallet home screen — shows all wallets with balances and quick actions.
 struct WalletHomeView: View {
     @EnvironmentObject private var appState: AppState
@@ -185,7 +190,7 @@ struct PendingBroadcastRow: View {
                     Button(L10n.Pending.retry, systemImage: "arrow.clockwise") {
                         isRetrying = true
                         onRetry()
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 3) { isRetrying = false }
+                        DispatchQueue.main.asyncAfter(deadline: .now() + UXTiming.retryButtonReset) { isRetrying = false }
                     }
                     .font(.caption)
                     .buttonStyle(.bordered)
@@ -325,7 +330,7 @@ struct WalletDetailView: View {
                     Button {
                         SecureClipboard.copy(wallet.address)
                         copiedAddress = true
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 2) { copiedAddress = false }
+                        DispatchQueue.main.asyncAfter(deadline: .now() + UXTiming.clipboardFeedback) { copiedAddress = false }
                     } label: {
                         Label(copiedAddress ? L10n.Receive.copiedClears(Int(SecureClipboard.defaultExpireSeconds)) : L10n.WalletDetail.copyAddress,
                               systemImage: copiedAddress ? "checkmark" : "doc.on.doc")

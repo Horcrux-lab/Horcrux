@@ -26,8 +26,8 @@ pub struct RelayConfig {
     /// Whether /admin endpoints require the admin token.
     pub admin_token: Option<String>,
     /// Allowed WebSocket origins for CSWSH protection.
-    /// None = allow all (development mode).
-    /// Some(["https://app.horcrux.io"]) = only allow listed origins.
+    /// `None` = allow all (development mode).
+    /// `Some(["https://app.horcrux.io"])` = only allow listed origins.
     pub allowed_origins: Option<Vec<String>>,
     /// Max WS connections per IP within the rate-limit window.
     pub ip_rate_limit_creates: u32,

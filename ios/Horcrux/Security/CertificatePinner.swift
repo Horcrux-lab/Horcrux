@@ -47,7 +47,8 @@ final class CertificatePinner: NSObject {
 
     /// Check whether a host has any pins (known or TOFU).
     func hasPins(for host: String) -> Bool {
-        pinnedHashes[host]?.isEmpty == false
+        guard let pins = pinnedHashes[host] else { return false }
+        return !pins.isEmpty
     }
 
     // MARK: - Validation

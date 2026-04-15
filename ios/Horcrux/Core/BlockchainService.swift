@@ -125,8 +125,9 @@ actor BlockchainService {
     /// Human-readable fee estimate for display (in ETH).
     func ethFeeEstimateDisplay(from: String, to: String, valueWei: String, rpcURL: String) async throws -> FeeEstimate {
         let gas = try await ethEstimateGas(from: from, to: to, valueWei: valueWei, rpcURL: rpcURL)
-        let maxCostWei = gas.gasLimit * (UInt64(gas.maxFeePerGas) ?? 0)
-        let ethCost = Decimal(maxCostWei) / Decimal(1_000_000_000_000_000_000)
+        let maxFeeWei = Decimal(string: gas.maxFeePerGas) ?? 0
+        let maxCostWei = Decimal(gas.gasLimit) * maxFeeWei
+        let ethCost = maxCostWei / Decimal(1_000_000_000_000_000_000)
         let formatter = NumberFormatter()
         formatter.maximumFractionDigits = 8
         formatter.minimumFractionDigits = 4
