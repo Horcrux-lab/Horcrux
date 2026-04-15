@@ -131,7 +131,7 @@ final class WiFiLANTransport: NSObject, TransportChannel, ObservableObject {
 
             listener?.start(queue: .main)
         } catch {
-            print("WiFi LAN listener failed: \(error)")
+            SecureLog.error("WiFi LAN listener failed: \(error)")
         }
     }
 

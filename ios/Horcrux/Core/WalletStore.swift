@@ -34,9 +34,9 @@ final class WalletStore: ObservableObject {
 
     // MARK: - Key Share Storage (Keychain)
 
-    /// Store an encrypted key share in the Keychain.
+    /// Store an encrypted key share in the Keychain (with enhanced protection).
     func storeKeyShare(_ data: Data, walletId: String) throws {
-        try keychain.store(key: "shard_\(walletId)", data: data)
+        try keychain.storeSecure(key: "shard_\(walletId)", data: data)
     }
 
     /// Retrieve the key share for a wallet from the Keychain.
@@ -63,7 +63,7 @@ final class WalletStore: ObservableObject {
             let data = try Data(contentsOf: fileURL)
             wallets = try JSONDecoder().decode([Wallet].self, from: data)
         } catch {
-            print("WalletStore: failed to load wallets: \(error)")
+            SecureLog.error("WalletStore: failed to load wallets: \(error)")
         }
     }
 
@@ -77,7 +77,7 @@ final class WalletStore: ObservableObject {
             var mutableURL = fileURL
             try mutableURL.setResourceValues(resourceValues)
         } catch {
-            print("WalletStore: failed to save wallets: \(error)")
+            SecureLog.error("WalletStore: failed to save wallets: \(error)")
         }
     }
 }

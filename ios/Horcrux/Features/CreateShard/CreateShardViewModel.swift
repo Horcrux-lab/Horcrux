@@ -194,7 +194,7 @@ final class CreateShardViewModel: ObservableObject {
             let encoded = try JSONEncoder().encode(EncryptedShardDTO(encrypted))
             try appState.walletStore.storeKeyShare(encoded, walletId: wallet.id)
         } catch {
-            print("Warning: failed to store key share: \(error)")
+            SecureLog.error("Failed to store key share: \(error)")
         }
 
         // Register shard with the in-memory shard manager

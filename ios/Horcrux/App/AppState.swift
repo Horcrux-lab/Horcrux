@@ -178,8 +178,29 @@ final class AppState: ObservableObject {
                 throw KeychainError.storeFailed(status)
             }
             let key = Data(bytes)
-            try KeychainManager.shared.store(key: KeychainKeys.deviceKey, data: key)
+            try KeychainManager.shared.storeSecure(key: KeychainKeys.deviceKey, data: key)
             return key
+        }
+    }
+
+    // MARK: - Auto-Lock
+
+    /// Auto-lock timeout in seconds (0 = disabled). Default 5 minutes.
+    @AppStorage("autoLockTimeout") var autoLockTimeout: TimeInterval = 300
+
+    private var lastActiveTime: Date = .now
+
+    /// Called when app enters background — clear sensitive in-memory data and track time.
+    func onEnterBackground() {
+        lastActiveTime = .now
+    }
+
+    /// Called when app returns to foreground — check if auto-lock should trigger.
+    func checkAutoLock() {
+        guard autoLockTimeout > 0, isUnlocked else { return }
+        let elapsed = Date.now.timeIntervalSince(lastActiveTime)
+        if elapsed >= autoLockTimeout {
+            isUnlocked = false
         }
     }
 

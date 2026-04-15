@@ -3,6 +3,8 @@ import SwiftUI
 /// Root navigation — tab bar with wallet, shards, and settings.
 struct ContentView: View {
     @EnvironmentObject private var appState: AppState
+    @State private var showJailbreakWarning = false
+    @State private var jailbreakReasons: [String] = []
 
     var body: some View {
         Group {
@@ -12,6 +14,18 @@ struct ContentView: View {
                 MainTabView()
             } else {
                 LockScreenView()
+            }
+        }
+        .alert("Security Warning", isPresented: $showJailbreakWarning) {
+            Button("I Understand the Risk", role: .destructive) {}
+        } message: {
+            Text("This device may be compromised:\n\n• \(jailbreakReasons.joined(separator: "\n• "))\n\nYour key shards may be at risk. Use a secure device for production wallets.")
+        }
+        .task {
+            let result = SecurityEnvironment.check()
+            if result.isCompromised {
+                jailbreakReasons = result.reasons
+                showJailbreakWarning = true
             }
         }
     }
@@ -166,8 +180,11 @@ struct LockScreenView: View {
                 .buttonStyle(.borderedProminent)
                 .disabled(pin.count < 4)
 
-            Button("Use Face ID") { unlockBiometric() }
-                .foregroundStyle(HorcruxTheme.accentColor)
+            if UserDefaults.standard.bool(forKey: "biometricEnabled"),
+               BiometricAuth.shared.availableType != .none {
+                Button("Use Face ID") { unlockBiometric() }
+                    .foregroundStyle(HorcruxTheme.accentColor)
+            }
 
             Spacer()
         }
@@ -206,6 +223,8 @@ struct LockScreenView: View {
     }
 
     private func tryBiometricUnlock() async {
+        // Respect user's biometric toggle in Settings
+        guard UserDefaults.standard.bool(forKey: "biometricEnabled") else { return }
         guard BiometricAuth.shared.availableType != .none else { return }
         let success = await BiometricAuth.shared.authenticate()
         if success {

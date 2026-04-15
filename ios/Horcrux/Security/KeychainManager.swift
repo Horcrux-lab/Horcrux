@@ -1,5 +1,6 @@
 import Foundation
 import Security
+import LocalAuthentication
 
 /// Secure shard storage using iOS Keychain.
 final class KeychainManager {
@@ -8,8 +9,16 @@ final class KeychainManager {
 
     private let service = "com.horcrux.wallet"
 
-    /// Store encrypted shard data in keychain.
+    /// Store data in keychain (standard protection: WhenUnlockedThisDeviceOnly).
     func store(key: String, data: Data) throws {
+        // Delete any existing item first
+        let deleteQuery: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: service,
+            kSecAttrAccount as String: key
+        ]
+        SecItemDelete(deleteQuery as CFDictionary)
+
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
@@ -18,8 +27,40 @@ final class KeychainManager {
             kSecAttrAccessible as String: kSecAttrAccessibleWhenUnlockedThisDeviceOnly
         ]
 
-        // Delete any existing item first
-        SecItemDelete(query as CFDictionary)
+        let status = SecItemAdd(query as CFDictionary, nil)
+        guard status == errSecSuccess else {
+            throw KeychainError.storeFailed(status)
+        }
+    }
+
+    /// Store sensitive data (shard keys, device key) with SecAccessControl.
+    /// Requires device passcode; won't migrate to other devices.
+    func storeSecure(key: String, data: Data) throws {
+        let deleteQuery: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: service,
+            kSecAttrAccount as String: key
+        ]
+        SecItemDelete(deleteQuery as CFDictionary)
+
+        var aclError: Unmanaged<CFError>?
+        guard let access = SecAccessControlCreateWithFlags(
+            kCFAllocatorDefault,
+            kSecAttrAccessibleWhenPasscodeSetThisDeviceOnly,
+            .privateKeyUsage,
+            &aclError
+        ) else {
+            throw KeychainError.storeFailed(errSecParam)
+        }
+
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: service,
+            kSecAttrAccount as String: key,
+            kSecValueData as String: data,
+            kSecAttrAccessControl as String: access,
+            kSecUseAuthenticationContext as String: LAContext()
+        ]
 
         let status = SecItemAdd(query as CFDictionary, nil)
         guard status == errSecSuccess else {
@@ -62,6 +103,15 @@ final class KeychainManager {
         guard status == errSecSuccess || status == errSecItemNotFound else {
             throw KeychainError.deleteFailed(status)
         }
+    }
+
+    /// Delete all items for this service.
+    func deleteAll() {
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: service
+        ]
+        SecItemDelete(query as CFDictionary)
     }
 }
 

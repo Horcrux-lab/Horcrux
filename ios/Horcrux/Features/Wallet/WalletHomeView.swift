@@ -145,6 +145,7 @@ struct WalletDetailView: View {
     @State private var showSigning = false
     @State private var balance: String?
     @State private var isLoadingBalance = false
+    @State private var copiedAddress = false
 
     var body: some View {
         List {
@@ -162,7 +163,16 @@ struct WalletDetailView: View {
                     Text(wallet.address)
                         .font(.system(.caption, design: .monospaced))
                         .multilineTextAlignment(.center)
-                        .textSelection(.enabled)
+
+                    Button {
+                        SecureClipboard.copy(wallet.address)
+                        copiedAddress = true
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 2) { copiedAddress = false }
+                    } label: {
+                        Label(copiedAddress ? "Copied (clears in 60s)" : "Copy Address",
+                              systemImage: copiedAddress ? "checkmark" : "doc.on.doc")
+                            .font(.caption)
+                    }
 
                     ShardStatusBadge(
                         threshold: wallet.threshold,

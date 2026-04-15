@@ -18,6 +18,15 @@ struct SettingsView: View {
                     Button("Change PIN") {
                         showChangePin = true
                     }
+
+                    Picker("Auto-Lock", selection: $appState.autoLockTimeout) {
+                        Text("Immediately").tag(TimeInterval(0))
+                        Text("1 minute").tag(TimeInterval(60))
+                        Text("5 minutes").tag(TimeInterval(300))
+                        Text("15 minutes").tag(TimeInterval(900))
+                        Text("1 hour").tag(TimeInterval(3600))
+                        Text("Never").tag(TimeInterval(-1))
+                    }
                 }
 
                 Section("Blockchain Nodes") {
