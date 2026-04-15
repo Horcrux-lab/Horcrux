@@ -99,7 +99,14 @@ final class AppState: ObservableObject {
     /// Verify a PIN against the stored salt||hash. Returns false if locked out.
     func verifyPin(_ pin: String) -> Bool {
         if isLockedOut { return false }
-        guard let stored = try? KeychainManager.shared.retrieve(key: KeychainKeys.pinHash),
+        let storedData: Data?
+        do {
+            storedData = try KeychainManager.shared.retrieve(key: KeychainKeys.pinHash)
+        } catch {
+            SecureLog.error("Failed to retrieve PIN hash for verification: \(error.localizedDescription)")
+            storedData = nil
+        }
+        guard let stored = storedData,
               stored.count == Self.saltSize + Self.hashSize else {
             return false
         }
@@ -165,11 +172,22 @@ final class AppState: ObservableObject {
 
     private func persistFailedAttempts() {
         let data = Data("\(failedAttempts)".utf8)
-        try? KeychainManager.shared.store(key: KeychainKeys.failedAttempts, data: data)
+        do {
+            try KeychainManager.shared.store(key: KeychainKeys.failedAttempts, data: data)
+        } catch {
+            SecureLog.error("Failed to persist attempt count: \(error.localizedDescription)")
+        }
     }
 
     func loadFailedAttempts() {
-        if let data = try? KeychainManager.shared.retrieve(key: KeychainKeys.failedAttempts),
+        let attemptData: Data?
+        do {
+            attemptData = try KeychainManager.shared.retrieve(key: KeychainKeys.failedAttempts)
+        } catch {
+            SecureLog.error("Failed to load failed attempt count: \(error.localizedDescription)")
+            attemptData = nil
+        }
+        if let data = attemptData,
            let str = String(data: data, encoding: .utf8),
            let count = Int(str) {
             failedAttempts = count

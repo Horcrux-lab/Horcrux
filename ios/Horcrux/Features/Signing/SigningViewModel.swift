@@ -61,7 +61,12 @@ final class SigningViewModel: ObservableObject {
         self.peerManager = appState.peerManager
         self.walletStore = appState.walletStore
         self.transactionStore = appState.transactionStore
-        self.deviceKey = try? appState.deviceKey
+        do {
+            self.deviceKey = try appState.deviceKey
+        } catch {
+            SecureLog.error("Failed to access device key: \(error.localizedDescription)")
+            self.deviceKey = nil
+        }
         self.networkConfig = appState.networkConfig
         self.blockchainService = appState.blockchainService
 
@@ -192,7 +197,14 @@ final class SigningViewModel: ObservableObject {
 
             // Process incoming messages
             for await (_, data) in peerManager.incomingMpcMessages {
-                if let dto = try? JSONDecoder().decode(MpcMessageDTO.self, from: data) {
+                let decodedDTO: MpcMessageDTO?
+                do {
+                    decodedDTO = try JSONDecoder().decode(MpcMessageDTO.self, from: data)
+                } catch {
+                    SecureLog.error("Failed to decode MPC message during signing: \(error.localizedDescription)")
+                    decodedDTO = nil
+                }
+                if let dto = decodedDTO {
                     let msg = dto.toFfi()
                     let responses = try bridge.handleMessage(msg)
 

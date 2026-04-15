@@ -49,41 +49,78 @@ final class PeerManager: ObservableObject {
 
         // SE path: try loading SE-sealed keypair
         if se.isAvailable {
-            if let sealed = try? keychain.retrieve(key: noiseKeypairSEKey),
-               let plaintext = try? se.open(sealed),
-               let dto = try? JSONDecoder().decode(NoiseKeypairDTO.self, from: plaintext) {
-                return FfiNoiseKeypair(privateKey: dto.privateKey, publicKey: dto.publicKey)
+            if let sealed = try? keychain.retrieve(key: noiseKeypairSEKey) {
+                do {
+                    let plaintext = try se.open(sealed)
+                    let dto = try JSONDecoder().decode(NoiseKeypairDTO.self, from: plaintext)
+                    return FfiNoiseKeypair(privateKey: dto.privateKey, publicKey: dto.publicKey)
+                } catch {
+                    SecureLog.error("Failed to unseal/decode noise keypair: \(error.localizedDescription)")
+                }
             }
 
             // Migrate legacy unprotected keypair → SE-sealed
-            if let legacy = try? keychain.retrieve(key: noiseKeypairKey),
-               let dto = try? JSONDecoder().decode(NoiseKeypairDTO.self, from: legacy) {
-                if let sealed = try? se.seal(legacy) {
-                    try? keychain.storeSecure(key: noiseKeypairSEKey, data: sealed)
-                    try? keychain.delete(key: noiseKeypairKey)
+            if let legacy = try? keychain.retrieve(key: noiseKeypairKey) {
+                do {
+                    let dto = try JSONDecoder().decode(NoiseKeypairDTO.self, from: legacy)
+                    do {
+                        let sealed = try se.seal(legacy)
+                        do {
+                            try keychain.storeSecure(key: noiseKeypairSEKey, data: sealed)
+                        } catch {
+                            SecureLog.error("Failed to store SE-sealed noise keypair: \(error.localizedDescription)")
+                        }
+                        try? keychain.delete(key: noiseKeypairKey)
+                    } catch {
+                        SecureLog.error("Failed to seal legacy noise keypair: \(error.localizedDescription)")
+                    }
+                    return FfiNoiseKeypair(privateKey: dto.privateKey, publicKey: dto.publicKey)
+                } catch {
+                    SecureLog.error("Failed to decode legacy noise keypair: \(error.localizedDescription)")
                 }
-                return FfiNoiseKeypair(privateKey: dto.privateKey, publicKey: dto.publicKey)
             }
 
             // Generate new, seal, store
             let keypair = horcruxGenerateNoiseKeypair()
             let dto = NoiseKeypairDTO(privateKey: keypair.privateKey, publicKey: keypair.publicKey)
-            if let encoded = try? JSONEncoder().encode(dto),
-               let sealed = try? se.seal(encoded) {
-                try? keychain.storeSecure(key: noiseKeypairSEKey, data: sealed)
+            do {
+                let encoded = try JSONEncoder().encode(dto)
+                do {
+                    let sealed = try se.seal(encoded)
+                    do {
+                        try keychain.storeSecure(key: noiseKeypairSEKey, data: sealed)
+                    } catch {
+                        SecureLog.error("Failed to store SE-sealed noise keypair: \(error.localizedDescription)")
+                    }
+                } catch {
+                    SecureLog.error("Failed to seal new noise keypair: \(error.localizedDescription)")
+                }
+            } catch {
+                SecureLog.error("Failed to encode noise keypair: \(error.localizedDescription)")
             }
             return keypair
         }
 
         // Non-SE fallback: software Keychain
-        if let data = try? keychain.retrieve(key: noiseKeypairKey),
-           let dto = try? JSONDecoder().decode(NoiseKeypairDTO.self, from: data) {
-            return FfiNoiseKeypair(privateKey: dto.privateKey, publicKey: dto.publicKey)
+        if let data = try? keychain.retrieve(key: noiseKeypairKey) {
+            do {
+                let dto = try JSONDecoder().decode(NoiseKeypairDTO.self, from: data)
+                return FfiNoiseKeypair(privateKey: dto.privateKey, publicKey: dto.publicKey)
+            } catch {
+                SecureLog.error("Failed to decode noise keypair: \(error.localizedDescription)")
+            }
         }
         let keypair = horcruxGenerateNoiseKeypair()
         let dto = NoiseKeypairDTO(privateKey: keypair.privateKey, publicKey: keypair.publicKey)
-        if let encoded = try? JSONEncoder().encode(dto) {
-            try? keychain.store(key: noiseKeypairKey, data: encoded)
+        do {
+            let encoded = try JSONEncoder().encode(dto)
+            do {
+                try keychain.store(key: noiseKeypairKey, data: encoded)
+            } catch {
+                SecureLog.error("Failed to store noise keypair: \(error.localizedDescription)")
+            }
+        } catch {
+            SecureLog.error("Failed to encode noise keypair: \(error.localizedDescription)")
         }
         return keypair
     }
@@ -189,16 +226,27 @@ final class PeerManager: ObservableObject {
         let peerId = message.from.id
 
         if let noise = noiseChannels[peerId] {
-            if let dto = try? JSONDecoder().decode(EnvelopeDTO.self, from: message.data) {
+            do {
+                let dto = try JSONDecoder().decode(EnvelopeDTO.self, from: message.data)
                 let envelope = FfiSealedEnvelope(ciphertext: dto.ciphertext, handshake: dto.handshake)
-                if let decryptedPadded = try? noise.open(envelope: envelope),
-                   let decrypted = MessagePadding.unpad(decryptedPadded) {
-                    mpcMessageContinuation?.yield((message.from, decrypted))
+                do {
+                    let decryptedPadded = try noise.open(envelope: envelope)
+                    if let decrypted = MessagePadding.unpad(decryptedPadded) {
+                        mpcMessageContinuation?.yield((message.from, decrypted))
+                    }
+                } catch {
+                    SecureLog.error("Failed to decrypt message from peer \(peerId): \(error.localizedDescription)")
                 }
+            } catch {
+                SecureLog.error("Failed to decode envelope from peer \(peerId): \(error.localizedDescription)")
             }
         } else {
             Task {
-                try? await handleHandshakeMessage(from: message.from, data: message.data)
+                do {
+                    try await handleHandshakeMessage(from: message.from, data: message.data)
+                } catch {
+                    SecureLog.error("Handshake failed with peer \(message.from.id): \(error.localizedDescription)")
+                }
             }
         }
     }

@@ -35,14 +35,26 @@ final class QRTransport: NSObject, ObservableObject {
             "token": token,
             "relay": relayURL
         ]
-        guard let data = try? JSONEncoder().encode(invite) else { return nil }
+        let data: Data
+        do {
+            data = try JSONEncoder().encode(invite)
+        } catch {
+            SecureLog.error("Failed to encode QR room invite: \(error.localizedDescription)")
+            return nil
+        }
         return generateQR(from: data)
     }
 
     /// Parse a scanned QR code as a room invitation.
     func parseRoomInvite(from data: Data) -> (roomId: String, token: String?, relayURL: String)? {
-        guard let json = try? JSONDecoder().decode([String: String?].self, from: data),
-              let roomId = json["room"] ?? nil,
+        let json: [String: String?]
+        do {
+            json = try JSONDecoder().decode([String: String?].self, from: data)
+        } catch {
+            SecureLog.error("Failed to decode QR room invite: \(error.localizedDescription)")
+            return nil
+        }
+        guard let roomId = json["room"] ?? nil,
               let relay = json["relay"] ?? nil else { return nil }
         return (roomId: roomId, token: json["token"] ?? nil, relayURL: relay)
     }

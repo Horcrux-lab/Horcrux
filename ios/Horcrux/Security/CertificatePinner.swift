@@ -141,8 +141,14 @@ final class CertificatePinner: NSObject {
     // MARK: - TOFU Persistence
 
     private func loadTOFUPins() {
-        guard let data = UserDefaults.standard.data(forKey: tofuKey),
-              let stored = try? JSONDecoder().decode([String: [String]].self, from: data) else {
+        guard let data = UserDefaults.standard.data(forKey: tofuKey) else {
+            return
+        }
+        let stored: [String: [String]]
+        do {
+            stored = try JSONDecoder().decode([String: [String]].self, from: data)
+        } catch {
+            SecureLog.error("Failed to decode TOFU certificate pins: \(error.localizedDescription)")
             return
         }
         for (host, hashes) in stored {
@@ -152,8 +158,11 @@ final class CertificatePinner: NSObject {
 
     private func saveTOFUPins() {
         let serializable = pinnedHashes.mapValues { Array($0) }
-        if let data = try? JSONEncoder().encode(serializable) {
+        do {
+            let data = try JSONEncoder().encode(serializable)
             UserDefaults.standard.set(data, forKey: tofuKey)
+        } catch {
+            SecureLog.error("Failed to encode TOFU certificate pins: \(error.localizedDescription)")
         }
     }
 }

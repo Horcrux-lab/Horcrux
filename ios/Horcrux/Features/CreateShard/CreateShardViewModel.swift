@@ -106,7 +106,14 @@ final class CreateShardViewModel: ObservableObject {
             for await (_, data) in peerManager.incomingMpcMessages {
                 guard !roundComplete else { break }
 
-                if let dto = try? JSONDecoder().decode(MpcMessageDTO.self, from: data) {
+                let decodedDTO: MpcMessageDTO?
+                do {
+                    decodedDTO = try JSONDecoder().decode(MpcMessageDTO.self, from: data)
+                } catch {
+                    SecureLog.error("Failed to decode MPC message during DKG: \(error.localizedDescription)")
+                    decodedDTO = nil
+                }
+                if let dto = decodedDTO {
                     let msg = dto.toFfi()
                     let responses = try bridge.handleMessage(msg)
 
