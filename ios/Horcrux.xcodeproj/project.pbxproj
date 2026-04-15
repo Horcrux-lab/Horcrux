@@ -1,0 +1,538 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		06556B994EE86463923812D0 /* TransportProtocol.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3935002B5AD730445E22C6BD /* TransportProtocol.swift */; };
+		15A5B160337F5ACA4625D4C0 /* WiFiLANTransport.swift in Sources */ = {isa = PBXBuildFile; fileRef = B557F92FAAF7C0F38B2CC6C6 /* WiFiLANTransport.swift */; };
+		1929C70C2E419C8D2D7A499C /* ShardsListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F01AE22958DB93BC491B9519 /* ShardsListView.swift */; };
+		1A286F0E6C2F3FD1B7669F57 /* HorcruxBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = 85CA60ED6C18A20962BDD93C /* HorcruxBridge.swift */; };
+		1FF4562440BA4836269A35B4 /* HorcruxTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 03BCB86ADC990211CDD81BEF /* HorcruxTheme.swift */; };
+		413FFA707333203A9879D9D9 /* QRTransport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A849C84C85BCB4D83640A5B /* QRTransport.swift */; };
+		4464CA3F4629F5A2DA4272C7 /* HorcruxApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8D5302000BBC22EADA2A1F6 /* HorcruxApp.swift */; };
+		4473C32496DD313F260D2116 /* horcrux_core.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1AF9DEBF9BECD65C63B64B81 /* horcrux_core.swift */; };
+		4B7B6F204D8AFDEB4EACE5EB /* ShardsViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 18E722F82F4851FF4C37CDA4 /* ShardsViewModel.swift */; };
+		725A35194DDFA392DA566445 /* BLETransport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3175D60C78853AD441A91030 /* BLETransport.swift */; };
+		7796AADB086F4ADF8D3A1DAE /* KeychainManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = E40F5C82E2B2A23A01ACEDF5 /* KeychainManager.swift */; };
+		88380DABC0637076A7B84583 /* SigningView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 49A262F731DB964A68E24B04 /* SigningView.swift */; };
+		9327D6514E1E6B6A5978A738 /* BiometricAuth.swift in Sources */ = {isa = PBXBuildFile; fileRef = 94A99C1E7A26CD9EDDD95F25 /* BiometricAuth.swift */; };
+		A1A8B7219650EA8D76C62127 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 12C11D20C4929E2BE2553316 /* Assets.xcassets */; };
+		B0EC72ECD24C2209F5A88423 /* WiFiDirectTransport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 422C50490783824C211D1A4E /* WiFiDirectTransport.swift */; };
+		B4374A6122DD8F1F31AAE802 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BE6DF0A887F8A0C59358C3CA /* ContentView.swift */; };
+		B64671FCC62F1C814889024A /* AppState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 559B2D1CE5F41320F4A9A870 /* AppState.swift */; };
+		C6E93F671BDFB6D021F2C951 /* CreateShardViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FF408B4D713C13918899FEE /* CreateShardViewModel.swift */; };
+		CAA62095ADB8219F055DB007 /* PeerManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6B60143CF0CBC4C79AB085D6 /* PeerManager.swift */; };
+		CB59CE6C90D457018B221099 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 46F96EED87A21ED0BBE9B1B0 /* SettingsView.swift */; };
+		D4E3C555F9B2C377BA01735A /* RelayTransport.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE490D34FEE7816E42DB8691 /* RelayTransport.swift */; };
+		DB6B04E3DB8E15D4FC56228F /* WalletHomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CB858890AFC1B2641328353D /* WalletHomeView.swift */; };
+		E027D29039D918F64A755AC1 /* Components.swift in Sources */ = {isa = PBXBuildFile; fileRef = D886FBBE2DF6B3AA6FA5A29C /* Components.swift */; };
+		E85D8AFAAED7835EB9BA6C5F /* SigningViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4B97A4C60C8B4D040DBB1906 /* SigningViewModel.swift */; };
+		FB3401D2DF72092E03109173 /* CreateShardFlow.swift in Sources */ = {isa = PBXBuildFile; fileRef = CCAE5E8780140EF078CA194B /* CreateShardFlow.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		03BCB86ADC990211CDD81BEF /* HorcruxTheme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HorcruxTheme.swift; sourceTree = "<group>"; };
+		12C11D20C4929E2BE2553316 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		18E722F82F4851FF4C37CDA4 /* ShardsViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShardsViewModel.swift; sourceTree = "<group>"; };
+		1AF9DEBF9BECD65C63B64B81 /* horcrux_core.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = horcrux_core.swift; sourceTree = "<group>"; };
+		3175D60C78853AD441A91030 /* BLETransport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BLETransport.swift; sourceTree = "<group>"; };
+		3935002B5AD730445E22C6BD /* TransportProtocol.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TransportProtocol.swift; sourceTree = "<group>"; };
+		3FF408B4D713C13918899FEE /* CreateShardViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CreateShardViewModel.swift; sourceTree = "<group>"; };
+		422C50490783824C211D1A4E /* WiFiDirectTransport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WiFiDirectTransport.swift; sourceTree = "<group>"; };
+		46F96EED87A21ED0BBE9B1B0 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
+		49A262F731DB964A68E24B04 /* SigningView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SigningView.swift; sourceTree = "<group>"; };
+		4B97A4C60C8B4D040DBB1906 /* SigningViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SigningViewModel.swift; sourceTree = "<group>"; };
+		559B2D1CE5F41320F4A9A870 /* AppState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppState.swift; sourceTree = "<group>"; };
+		6B60143CF0CBC4C79AB085D6 /* PeerManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PeerManager.swift; sourceTree = "<group>"; };
+		7A849C84C85BCB4D83640A5B /* QRTransport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QRTransport.swift; sourceTree = "<group>"; };
+		85CA60ED6C18A20962BDD93C /* HorcruxBridge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HorcruxBridge.swift; sourceTree = "<group>"; };
+		94A99C1E7A26CD9EDDD95F25 /* BiometricAuth.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BiometricAuth.swift; sourceTree = "<group>"; };
+		B557F92FAAF7C0F38B2CC6C6 /* WiFiLANTransport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WiFiLANTransport.swift; sourceTree = "<group>"; };
+		BD8CC5A0AC3FBD7B276F77BE /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		BE6DF0A887F8A0C59358C3CA /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
+		C583709075015A9792E114A7 /* Horcrux.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = Horcrux.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		CB858890AFC1B2641328353D /* WalletHomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WalletHomeView.swift; sourceTree = "<group>"; };
+		CCAE5E8780140EF078CA194B /* CreateShardFlow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CreateShardFlow.swift; sourceTree = "<group>"; };
+		CE490D34FEE7816E42DB8691 /* RelayTransport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RelayTransport.swift; sourceTree = "<group>"; };
+		D886FBBE2DF6B3AA6FA5A29C /* Components.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Components.swift; sourceTree = "<group>"; };
+		E40F5C82E2B2A23A01ACEDF5 /* KeychainManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainManager.swift; sourceTree = "<group>"; };
+		F01AE22958DB93BC491B9519 /* ShardsListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShardsListView.swift; sourceTree = "<group>"; };
+		F8D5302000BBC22EADA2A1F6 /* HorcruxApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HorcruxApp.swift; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXGroup section */
+		1D9198C57ED8B65E06A5EEC4 = {
+			isa = PBXGroup;
+			children = (
+				89EAF16D7A58D4B93A4545C6 /* Horcrux */,
+				FAC3646CF97425339608EFDA /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		50C3D8B454E4183FACE95624 /* App */ = {
+			isa = PBXGroup;
+			children = (
+				559B2D1CE5F41320F4A9A870 /* AppState.swift */,
+				BE6DF0A887F8A0C59358C3CA /* ContentView.swift */,
+				F8D5302000BBC22EADA2A1F6 /* HorcruxApp.swift */,
+			);
+			path = App;
+			sourceTree = "<group>";
+		};
+		53136359B208CC995DB8FC46 /* Theme */ = {
+			isa = PBXGroup;
+			children = (
+				03BCB86ADC990211CDD81BEF /* HorcruxTheme.swift */,
+			);
+			path = Theme;
+			sourceTree = "<group>";
+		};
+		6338D0207FFDF97D8C6A7B25 /* Shards */ = {
+			isa = PBXGroup;
+			children = (
+				F01AE22958DB93BC491B9519 /* ShardsListView.swift */,
+				18E722F82F4851FF4C37CDA4 /* ShardsViewModel.swift */,
+			);
+			path = Shards;
+			sourceTree = "<group>";
+		};
+		674CB10F07EBF3F26D7A9C0C /* Transport */ = {
+			isa = PBXGroup;
+			children = (
+				3175D60C78853AD441A91030 /* BLETransport.swift */,
+				6B60143CF0CBC4C79AB085D6 /* PeerManager.swift */,
+				7A849C84C85BCB4D83640A5B /* QRTransport.swift */,
+				CE490D34FEE7816E42DB8691 /* RelayTransport.swift */,
+				3935002B5AD730445E22C6BD /* TransportProtocol.swift */,
+				422C50490783824C211D1A4E /* WiFiDirectTransport.swift */,
+				B557F92FAAF7C0F38B2CC6C6 /* WiFiLANTransport.swift */,
+			);
+			path = Transport;
+			sourceTree = "<group>";
+		};
+		72A66C7D9607CB2B55039EE6 /* Security */ = {
+			isa = PBXGroup;
+			children = (
+				94A99C1E7A26CD9EDDD95F25 /* BiometricAuth.swift */,
+				E40F5C82E2B2A23A01ACEDF5 /* KeychainManager.swift */,
+			);
+			path = Security;
+			sourceTree = "<group>";
+		};
+		83CFF762112E98080C177AE4 /* UI */ = {
+			isa = PBXGroup;
+			children = (
+				9983729B607ECDA12985B516 /* Components */,
+				53136359B208CC995DB8FC46 /* Theme */,
+			);
+			path = UI;
+			sourceTree = "<group>";
+		};
+		85B75094B1B57036AB04F589 /* Settings */ = {
+			isa = PBXGroup;
+			children = (
+				46F96EED87A21ED0BBE9B1B0 /* SettingsView.swift */,
+			);
+			path = Settings;
+			sourceTree = "<group>";
+		};
+		89EAF16D7A58D4B93A4545C6 /* Horcrux */ = {
+			isa = PBXGroup;
+			children = (
+				50C3D8B454E4183FACE95624 /* App */,
+				F1224CFF61E5A4DE8A808D53 /* Core */,
+				C774521CE4781E7283E70505 /* Features */,
+				ABD0CFBDF41EFE73DF1D2687 /* Resources */,
+				72A66C7D9607CB2B55039EE6 /* Security */,
+				674CB10F07EBF3F26D7A9C0C /* Transport */,
+				83CFF762112E98080C177AE4 /* UI */,
+			);
+			path = Horcrux;
+			sourceTree = "<group>";
+		};
+		8D7BF9E649B1B930F3E8E6B3 /* CreateShard */ = {
+			isa = PBXGroup;
+			children = (
+				CCAE5E8780140EF078CA194B /* CreateShardFlow.swift */,
+				3FF408B4D713C13918899FEE /* CreateShardViewModel.swift */,
+			);
+			path = CreateShard;
+			sourceTree = "<group>";
+		};
+		9983729B607ECDA12985B516 /* Components */ = {
+			isa = PBXGroup;
+			children = (
+				D886FBBE2DF6B3AA6FA5A29C /* Components.swift */,
+			);
+			path = Components;
+			sourceTree = "<group>";
+		};
+		ABD0CFBDF41EFE73DF1D2687 /* Resources */ = {
+			isa = PBXGroup;
+			children = (
+				12C11D20C4929E2BE2553316 /* Assets.xcassets */,
+				BD8CC5A0AC3FBD7B276F77BE /* Info.plist */,
+			);
+			path = Resources;
+			sourceTree = "<group>";
+		};
+		B8D4568CCB9082DA68D2A815 /* Wallet */ = {
+			isa = PBXGroup;
+			children = (
+				CB858890AFC1B2641328353D /* WalletHomeView.swift */,
+			);
+			path = Wallet;
+			sourceTree = "<group>";
+		};
+		C774521CE4781E7283E70505 /* Features */ = {
+			isa = PBXGroup;
+			children = (
+				8D7BF9E649B1B930F3E8E6B3 /* CreateShard */,
+				85B75094B1B57036AB04F589 /* Settings */,
+				6338D0207FFDF97D8C6A7B25 /* Shards */,
+				D84222471135243952F2316A /* Signing */,
+				B8D4568CCB9082DA68D2A815 /* Wallet */,
+			);
+			path = Features;
+			sourceTree = "<group>";
+		};
+		D84222471135243952F2316A /* Signing */ = {
+			isa = PBXGroup;
+			children = (
+				49A262F731DB964A68E24B04 /* SigningView.swift */,
+				4B97A4C60C8B4D040DBB1906 /* SigningViewModel.swift */,
+			);
+			path = Signing;
+			sourceTree = "<group>";
+		};
+		EEA7138940618627E018772D /* Generated */ = {
+			isa = PBXGroup;
+			children = (
+				1AF9DEBF9BECD65C63B64B81 /* horcrux_core.swift */,
+			);
+			path = Generated;
+			sourceTree = "<group>";
+		};
+		F1224CFF61E5A4DE8A808D53 /* Core */ = {
+			isa = PBXGroup;
+			children = (
+				EEA7138940618627E018772D /* Generated */,
+				85CA60ED6C18A20962BDD93C /* HorcruxBridge.swift */,
+			);
+			path = Core;
+			sourceTree = "<group>";
+		};
+		FAC3646CF97425339608EFDA /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				C583709075015A9792E114A7 /* Horcrux.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		163D4C9B616CF11B16AB35B9 /* Horcrux */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 3D707768B5158BB80B744269 /* Build configuration list for PBXNativeTarget "Horcrux" */;
+			buildPhases = (
+				EFA41AF606193E89C8DE116B /* Sources */,
+				A819605D28C3BE84F39FEBD5 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = Horcrux;
+			packageProductDependencies = (
+			);
+			productName = Horcrux;
+			productReference = C583709075015A9792E114A7 /* Horcrux.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		6029433CA49DB32A89221F2C /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = YES;
+				LastUpgradeCheck = 1600;
+				TargetAttributes = {
+					163D4C9B616CF11B16AB35B9 = {
+						ProvisioningStyle = Automatic;
+					};
+				};
+			};
+			buildConfigurationList = BE1ECBAD95C61FDAC2FFDAB0 /* Build configuration list for PBXProject "Horcrux" */;
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				Base,
+				en,
+			);
+			mainGroup = 1D9198C57ED8B65E06A5EEC4;
+			minimizedProjectReferenceProxies = 1;
+			preferredProjectObjectVersion = 77;
+			productRefGroup = FAC3646CF97425339608EFDA /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				163D4C9B616CF11B16AB35B9 /* Horcrux */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		A819605D28C3BE84F39FEBD5 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				A1A8B7219650EA8D76C62127 /* Assets.xcassets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		EFA41AF606193E89C8DE116B /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				B64671FCC62F1C814889024A /* AppState.swift in Sources */,
+				725A35194DDFA392DA566445 /* BLETransport.swift in Sources */,
+				9327D6514E1E6B6A5978A738 /* BiometricAuth.swift in Sources */,
+				E027D29039D918F64A755AC1 /* Components.swift in Sources */,
+				B4374A6122DD8F1F31AAE802 /* ContentView.swift in Sources */,
+				FB3401D2DF72092E03109173 /* CreateShardFlow.swift in Sources */,
+				C6E93F671BDFB6D021F2C951 /* CreateShardViewModel.swift in Sources */,
+				4464CA3F4629F5A2DA4272C7 /* HorcruxApp.swift in Sources */,
+				1A286F0E6C2F3FD1B7669F57 /* HorcruxBridge.swift in Sources */,
+				1FF4562440BA4836269A35B4 /* HorcruxTheme.swift in Sources */,
+				7796AADB086F4ADF8D3A1DAE /* KeychainManager.swift in Sources */,
+				CAA62095ADB8219F055DB007 /* PeerManager.swift in Sources */,
+				413FFA707333203A9879D9D9 /* QRTransport.swift in Sources */,
+				D4E3C555F9B2C377BA01735A /* RelayTransport.swift in Sources */,
+				CB59CE6C90D457018B221099 /* SettingsView.swift in Sources */,
+				1929C70C2E419C8D2D7A499C /* ShardsListView.swift in Sources */,
+				4B7B6F204D8AFDEB4EACE5EB /* ShardsViewModel.swift in Sources */,
+				88380DABC0637076A7B84583 /* SigningView.swift in Sources */,
+				E85D8AFAAED7835EB9BA6C5F /* SigningViewModel.swift in Sources */,
+				06556B994EE86463923812D0 /* TransportProtocol.swift in Sources */,
+				DB6B04E3DB8E15D4FC56228F /* WalletHomeView.swift in Sources */,
+				B0EC72ECD24C2209F5A88423 /* WiFiDirectTransport.swift in Sources */,
+				15A5B160337F5ACA4625D4C0 /* WiFiLANTransport.swift in Sources */,
+				4473C32496DD313F260D2116 /* horcrux_core.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		165AE0FB290975449E08FBC9 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				CODE_SIGN_STYLE = Automatic;
+				INFOPLIST_FILE = Horcrux/Resources/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.horcrux.wallet;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+		6A56B894ECBE770F79951C6C /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"$(inherited)",
+					"DEBUG=1",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				HEADER_SEARCH_PATHS = (
+					"$(PROJECT_DIR)/Horcrux/Core/Generated",
+				);
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LIBRARY_SEARCH_PATHS = (
+					"$(PROJECT_DIR)/Horcrux/Core/Frameworks",
+				);
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				OTHER_LDFLAGS = (
+					"-lhorcrux_core",
+				);
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_INCLUDE_PATHS = (
+					"$(PROJECT_DIR)/Horcrux/Core/Generated",
+				);
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 6.0;
+			};
+			name = Debug;
+		};
+		6A9B59F03A6777C47E3EB899 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				CODE_SIGN_STYLE = Automatic;
+				INFOPLIST_FILE = Horcrux/Resources/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.horcrux.wallet;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		D61BE48780D32FD8F2CA09B9 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				HEADER_SEARCH_PATHS = (
+					"$(PROJECT_DIR)/Horcrux/Core/Generated",
+				);
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LIBRARY_SEARCH_PATHS = (
+					"$(PROJECT_DIR)/Horcrux/Core/Frameworks",
+				);
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				OTHER_LDFLAGS = (
+					"-lhorcrux_core",
+				);
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_INCLUDE_PATHS = (
+					"$(PROJECT_DIR)/Horcrux/Core/Generated",
+				);
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 6.0;
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		3D707768B5158BB80B744269 /* Build configuration list for PBXNativeTarget "Horcrux" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				6A9B59F03A6777C47E3EB899 /* Debug */,
+				165AE0FB290975449E08FBC9 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		BE1ECBAD95C61FDAC2FFDAB0 /* Build configuration list for PBXProject "Horcrux" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				6A56B894ECBE770F79951C6C /* Debug */,
+				D61BE48780D32FD8F2CA09B9 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = 6029433CA49DB32A89221F2C /* Project object */;
+}

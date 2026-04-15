@@ -1,0 +1,270 @@
+import SwiftUI
+
+/// Multi-step flow for creating a new MPC wallet (DKG ceremony).
+struct CreateShardFlow: View {
+    @EnvironmentObject private var appState: AppState
+    @StateObject private var viewModel = CreateShardViewModel()
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        NavigationStack {
+            Group {
+                switch viewModel.step {
+                case .configure:
+                    ConfigureView(viewModel: viewModel)
+                case .discover:
+                    PeerDiscoveryView(viewModel: viewModel)
+                case .dkg:
+                    DKGProgressView(viewModel: viewModel)
+                case .complete:
+                    DKGCompleteView(viewModel: viewModel, dismiss: dismiss)
+                case .error:
+                    DKGErrorView(viewModel: viewModel)
+                }
+            }
+            .navigationTitle("Create Wallet")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { dismiss() }
+                }
+            }
+            .environmentObject(appState)
+        }
+    }
+}
+
+// MARK: - Step 1: Configure
+
+struct ConfigureView: View {
+    @ObservedObject var viewModel: CreateShardViewModel
+
+    var body: some View {
+        Form {
+            Section("Wallet Name") {
+                TextField("My Wallet", text: $viewModel.walletName)
+            }
+
+            Section("Blockchain") {
+                Picker("Chain", selection: $viewModel.selectedChain) {
+                    ForEach(Chain.allCases) { chain in
+                        Label(chain.rawValue, systemImage: chain.iconName)
+                            .tag(chain)
+                    }
+                }
+                .pickerStyle(.inline)
+            }
+
+            Section("Threshold") {
+                Stepper("Total Parties: \(viewModel.totalParties)",
+                        value: $viewModel.totalParties, in: 2...10)
+                Stepper("Signing Threshold: \(viewModel.threshold)",
+                        value: $viewModel.threshold, in: 2...viewModel.totalParties)
+
+                Text("Requires **\(viewModel.threshold)** of **\(viewModel.totalParties)** devices to sign")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            Section("Communication") {
+                ForEach(TransportType.allCases) { transport in
+                    Toggle(isOn: Binding(
+                        get: { viewModel.selectedTransports.contains(transport) },
+                        set: { enabled in
+                            if enabled {
+                                viewModel.selectedTransports.insert(transport)
+                            } else {
+                                viewModel.selectedTransports.remove(transport)
+                            }
+                        }
+                    )) {
+                        Label(transport.rawValue, systemImage: transport.iconName)
+                    }
+                }
+            }
+
+            Section {
+                Button {
+                    viewModel.step = .discover
+                    viewModel.startDiscovery()
+                } label: {
+                    Text("Next: Find Peers")
+                        .frame(maxWidth: .infinity)
+                        .font(.headline)
+                }
+                .buttonStyle(.borderedProminent)
+                .disabled(viewModel.walletName.isEmpty)
+            }
+        }
+    }
+}
+
+// MARK: - Step 2: Peer Discovery
+
+struct PeerDiscoveryView: View {
+    @EnvironmentObject private var appState: AppState
+    @ObservedObject var viewModel: CreateShardViewModel
+
+    var body: some View {
+        VStack(spacing: 20) {
+            // Scanning animation
+            ProgressView()
+                .scaleEffect(1.5)
+                .padding()
+
+            Text("Looking for nearby devices…")
+                .foregroundStyle(.secondary)
+
+            Text("\(viewModel.foundPeers.count) / \(viewModel.totalParties - 1) peers found")
+                .font(.headline)
+
+            List(viewModel.foundPeers) { peer in
+                HStack {
+                    Image(systemName: "person.circle.fill")
+                        .foregroundStyle(.blue)
+                    VStack(alignment: .leading) {
+                        Text(peer.name)
+                            .font(.headline)
+                        Text(peer.channel)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    Spacer()
+                    Image(systemName: "checkmark.circle.fill")
+                        .foregroundStyle(.green)
+                }
+            }
+
+            if viewModel.foundPeers.count >= viewModel.totalParties - 1 {
+                Button {
+                    viewModel.startDKG()
+                } label: {
+                    Text("Start Key Generation")
+                        .frame(maxWidth: .infinity)
+                        .font(.headline)
+                }
+                .buttonStyle(.borderedProminent)
+                .padding(.horizontal)
+            }
+        }
+        .padding()
+    }
+}
+
+// MARK: - Step 3: DKG Progress
+
+struct DKGProgressView: View {
+    @ObservedObject var viewModel: CreateShardViewModel
+
+    var body: some View {
+        VStack(spacing: 32) {
+            Spacer()
+
+            ProgressRing(progress: viewModel.dkgProgress)
+                .frame(width: 120, height: 120)
+
+            VStack(spacing: 8) {
+                Text("Generating Key Shards")
+                    .font(.title2.bold())
+
+                Text(viewModel.dkgStatusMessage)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+            }
+
+            Text("Round \(viewModel.currentRound) of \(viewModel.totalRounds)")
+                .font(.caption)
+                .foregroundStyle(.tertiary)
+
+            Spacer()
+
+            Text("Keep devices nearby until complete")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+        .padding()
+    }
+}
+
+// MARK: - Step 4: Complete
+
+struct DKGCompleteView: View {
+    @EnvironmentObject private var appState: AppState
+    @ObservedObject var viewModel: CreateShardViewModel
+    let dismiss: DismissAction
+
+    var body: some View {
+        VStack(spacing: 32) {
+            Spacer()
+
+            Image(systemName: "checkmark.seal.fill")
+                .font(.system(size: 72))
+                .foregroundStyle(.green)
+
+            VStack(spacing: 8) {
+                Text("Wallet Created!")
+                    .font(.title.bold())
+
+                if let address = viewModel.generatedAddress {
+                    Text(address)
+                        .font(.system(.caption, design: .monospaced))
+                        .multilineTextAlignment(.center)
+                        .textSelection(.enabled)
+                        .padding(.horizontal)
+                }
+            }
+
+            VStack(spacing: 4) {
+                Text("Your shard is #\(viewModel.partyIndex)")
+                    .font(.headline)
+                Text("\(viewModel.threshold) of \(viewModel.totalParties) threshold")
+                    .foregroundStyle(.secondary)
+            }
+
+            Spacer()
+
+            Button {
+                viewModel.saveWallet(to: appState)
+                dismiss()
+            } label: {
+                Text("Done")
+                    .frame(maxWidth: .infinity)
+                    .font(.headline)
+            }
+            .buttonStyle(.borderedProminent)
+            .padding(.horizontal)
+        }
+        .padding()
+    }
+}
+
+// MARK: - Error
+
+struct DKGErrorView: View {
+    @ObservedObject var viewModel: CreateShardViewModel
+
+    var body: some View {
+        VStack(spacing: 24) {
+            Spacer()
+
+            Image(systemName: "exclamationmark.triangle.fill")
+                .font(.system(size: 64))
+                .foregroundStyle(.red)
+
+            Text("Key Generation Failed")
+                .font(.title2.bold())
+
+            Text(viewModel.errorMessage)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+
+            Button("Retry") {
+                viewModel.step = .discover
+            }
+            .buttonStyle(.borderedProminent)
+
+            Spacer()
+        }
+        .padding()
+    }
+}
