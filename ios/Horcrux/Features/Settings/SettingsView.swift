@@ -77,6 +77,20 @@ struct SettingsView: View {
                     LabeledContent("MPC Protocols", value: "CGGMP21 + FROST")
                     LabeledContent("E2E Encryption", value: "Noise Protocol")
 
+                    HStack {
+                        Text("Secure Enclave")
+                        Spacer()
+                        if SecureEnclaveManager.shared.isAvailable {
+                            Label("Hardware Protected", systemImage: "checkmark.shield.fill")
+                                .font(.caption)
+                                .foregroundStyle(.green)
+                        } else {
+                            Label("Software Only", systemImage: "exclamationmark.triangle")
+                                .font(.caption)
+                                .foregroundStyle(.orange)
+                        }
+                    }
+
                     NavigationLink {
                         LicensesView()
                     } label: {

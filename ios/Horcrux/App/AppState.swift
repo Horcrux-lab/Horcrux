@@ -164,23 +164,64 @@ final class AppState: ObservableObject {
         }
     }
 
-    // MARK: - Device Key
+    // MARK: - Device Key (Secure Enclave envelope)
 
-    /// A stable device key stored in Keychain. Used alongside PIN for shard encryption.
+    /// A stable device key stored in Keychain, sealed by Secure Enclave when available.
+    /// On SE-capable devices the raw key is encrypted under an SE P-256 key,
+    /// so extracting it requires biometric authentication at the hardware level.
     var deviceKey: Data {
         get throws {
-            if let existing = try? KeychainManager.shared.retrieve(key: KeychainKeys.deviceKey) {
-                return existing
+            // Try SE-sealed path first
+            if SecureEnclaveManager.shared.isAvailable {
+                return try deviceKeyViaSE()
             }
-            var bytes = [UInt8](repeating: 0, count: 32)
-            let status = SecRandomCopyBytes(kSecRandomDefault, bytes.count, &bytes)
-            guard status == errSecSuccess else {
-                throw KeychainError.storeFailed(status)
-            }
-            let key = Data(bytes)
-            try KeychainManager.shared.storeSecure(key: KeychainKeys.deviceKey, data: key)
-            return key
+            // Fallback: software-only Keychain storage
+            return try deviceKeySoftware()
         }
+    }
+
+    /// Device key path using Secure Enclave envelope encryption.
+    private func deviceKeyViaSE() throws -> Data {
+        // Check for existing SE-sealed blob
+        if let sealedBlob = try? KeychainManager.shared.retrieve(key: KeychainKeys.deviceKeySE) {
+            // Unseal via SE (triggers biometric)
+            return try SecureEnclaveManager.shared.open(sealedBlob)
+        }
+
+        // Migrate from legacy unprotected key if it exists
+        if let legacyKey = try? KeychainManager.shared.retrieve(key: KeychainKeys.deviceKey) {
+            let sealed = try SecureEnclaveManager.shared.seal(legacyKey)
+            try KeychainManager.shared.storeSecure(key: KeychainKeys.deviceKeySE, data: sealed)
+            // Remove legacy key
+            try? KeychainManager.shared.delete(key: KeychainKeys.deviceKey)
+            return legacyKey
+        }
+
+        // Fresh install: generate, seal, store
+        var bytes = [UInt8](repeating: 0, count: 32)
+        let status = SecRandomCopyBytes(kSecRandomDefault, bytes.count, &bytes)
+        guard status == errSecSuccess else {
+            throw KeychainError.storeFailed(status)
+        }
+        let key = Data(bytes)
+        let sealed = try SecureEnclaveManager.shared.seal(key)
+        try KeychainManager.shared.storeSecure(key: KeychainKeys.deviceKeySE, data: sealed)
+        return key
+    }
+
+    /// Fallback device key for devices without Secure Enclave (e.g. simulator).
+    private func deviceKeySoftware() throws -> Data {
+        if let existing = try? KeychainManager.shared.retrieve(key: KeychainKeys.deviceKey) {
+            return existing
+        }
+        var bytes = [UInt8](repeating: 0, count: 32)
+        let status = SecRandomCopyBytes(kSecRandomDefault, bytes.count, &bytes)
+        guard status == errSecSuccess else {
+            throw KeychainError.storeFailed(status)
+        }
+        let key = Data(bytes)
+        try KeychainManager.shared.storeSecure(key: KeychainKeys.deviceKey, data: key)
+        return key
     }
 
     // MARK: - Auto-Lock
@@ -210,8 +251,10 @@ final class AppState: ObservableObject {
         walletStore.wipeAll()
         try? KeychainManager.shared.delete(key: KeychainKeys.pinHash)
         try? KeychainManager.shared.delete(key: KeychainKeys.deviceKey)
+        try? KeychainManager.shared.delete(key: KeychainKeys.deviceKeySE)
         try? KeychainManager.shared.delete(key: KeychainKeys.failedAttempts)
         try? KeychainManager.shared.delete(key: KeychainKeys.noiseKeypair)
+        SecureEnclaveManager.shared.deleteKey()
         failedAttempts = 0
         lockoutUntil = nil
         isUnlocked = false
@@ -223,6 +266,7 @@ final class AppState: ObservableObject {
 enum KeychainKeys {
     static let pinHash = "com.horcrux.pin_hash"
     static let deviceKey = "com.horcrux.device_key"
+    static let deviceKeySE = "com.horcrux.device_key_se"
     static let failedAttempts = "com.horcrux.failed_attempts"
     static let noiseKeypair = "com.horcrux.noise_keypair"
 }
