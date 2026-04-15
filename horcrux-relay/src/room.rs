@@ -60,6 +60,7 @@ struct Room {
 
 impl Room {
     /// Verify token and join an existing room. Returns sender/receiver on success.
+    /// Uses atomic compare-exchange for participant count to prevent TOCTOU races.
     async fn try_join(
         &self,
         token: Option<&str>,
@@ -78,26 +79,36 @@ impl Room {
             }
         }
 
-        let current = self.participant_count.load(Ordering::Relaxed);
-        if current >= max_participants {
-            return Err(RoomError::RoomFull);
+        // Atomic CAS loop: increment participant count only if under limit.
+        loop {
+            let current = self.participant_count.load(Ordering::Acquire);
+            if current >= max_participants {
+                return Err(RoomError::RoomFull);
+            }
+            if self.participant_count.compare_exchange(
+                current,
+                current + 1,
+                Ordering::AcqRel,
+                Ordering::Acquire,
+            ).is_ok() {
+                break;
+            }
+            // CAS failed — another thread modified count, retry.
         }
 
+        // Count is now incremented. Check device uniqueness and rollback on failure.
         if !device_id.is_empty() {
-            let devs = self.devices.lock().await;
+            let mut devs = self.devices.lock().await;
             if devs.iter().any(|d| d == device_id) {
+                // Rollback the count increment.
+                self.participant_count.fetch_sub(1, Ordering::AcqRel);
                 return Err(RoomError::DuplicateDevice);
             }
-            drop(devs);
+            devs.push(device_id.to_string());
         }
 
-        self.participant_count.fetch_add(1, Ordering::Relaxed);
         self.touch();
         let rx = self.tx.subscribe();
-
-        if !device_id.is_empty() {
-            self.devices.lock().await.push(device_id.to_string());
-        }
 
         Ok((self.tx.clone(), rx))
     }
@@ -239,33 +250,36 @@ impl RoomManagerInner {
 
     /// Leave a room. Removes the room if no participants remain.
     pub async fn leave_room(&self, room_id: &str, device_id: &str) {
-        // First try read lock for the common decrement case
-        {
-            let rooms = self.rooms.read().await;
-            if let Some(room) = rooms.get(room_id) {
-                let prev = room.participant_count.fetch_sub(1, Ordering::Relaxed);
+        let mut rooms = self.rooms.write().await;
+        let should_remove = if let Some(room) = rooms.get(room_id) {
+            // Bounds check: prevent underflow below zero.
+            let prev = room.participant_count.load(Ordering::Acquire);
+            if prev == 0 {
+                tracing::warn!(room = room_id, "leave_room called on room with 0 participants");
+                true // Remove stale room
+            } else {
+                room.participant_count.fetch_sub(1, Ordering::AcqRel);
                 if !device_id.is_empty() {
                     let mut devs = room.devices.lock().await;
                     if let Some(pos) = devs.iter().position(|d| d == device_id) {
                         devs.swap_remove(pos);
                     }
                 }
-                if prev > 1 {
+                if prev == 1 {
+                    tracing::info!(room = room_id, "last participant left");
+                    true
+                } else {
                     tracing::info!(room = room_id, participants = prev - 1, "participant left");
-                    return;
+                    false
                 }
-            } else {
-                return;
             }
-        }
+        } else {
+            return;
+        };
 
-        // Last participant left — acquire write lock to remove room
-        let mut rooms = self.rooms.write().await;
-        if let Some(room) = rooms.get(room_id) {
-            if room.participant_count.load(Ordering::Relaxed) == 0 {
-                rooms.remove(room_id);
-                tracing::info!(room = room_id, "room removed (empty)");
-            }
+        if should_remove {
+            rooms.remove(room_id);
+            tracing::info!(room = room_id, "room removed (empty)");
         }
     }
 
@@ -277,13 +291,13 @@ impl RoomManagerInner {
         }
     }
 
-    /// Check message sequence for replay protection. Returns false if replayed.
+    /// Check message sequence for replay protection. Returns false if replayed or room missing.
     pub async fn check_sequence(&self, room_id: &str, device_id: &str, seq: u64) -> bool {
         let rooms = self.rooms.read().await;
         if let Some(room) = rooms.get(room_id) {
             room.check_sequence(device_id, seq).await
         } else {
-            true // Room not found — let other code handle that
+            false // Room not found — reject message from unknown room
         }
     }
 

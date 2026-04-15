@@ -86,4 +86,15 @@ impl RelayConfig {
         }
         cfg
     }
+
+    /// Validate config values at startup. Panics on invalid configuration.
+    pub fn validate(&self) {
+        assert!(self.max_participants > 0, "max_participants must be > 0");
+        assert!(self.max_message_size > 0, "max_message_size must be > 0");
+        assert!(self.rate_limit_count > 0, "rate_limit_count must be > 0");
+        assert!(self.ip_rate_limit_creates > 0, "ip_rate_limit_creates must be > 0");
+        if self.admin_token.is_none() {
+            tracing::warn!("RELAY_ADMIN_TOKEN not set — admin endpoints are unprotected");
+        }
+    }
 }

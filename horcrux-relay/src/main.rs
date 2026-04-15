@@ -17,13 +17,13 @@ mod ws;
 
 use axum::{
     extract::{Query, State},
-    http::{HeaderMap, StatusCode},
+    http::{HeaderMap, HeaderValue, Method, StatusCode},
     response::IntoResponse,
     routing::get,
     Json, Router,
 };
 use std::net::SocketAddr;
-use tower_http::cors::CorsLayer;
+use tower_http::cors::{AllowOrigin, CorsLayer};
 use tower_http::trace::TraceLayer;
 use tracing_subscriber::EnvFilter;
 
@@ -44,6 +44,7 @@ async fn main() -> anyhow::Result<()> {
         .init();
 
     let config = RelayConfig::from_env();
+    config.validate();
     let room_state = room::new(&config);
     let _cleanup_handle = room::spawn_cleanup_task(room_state.clone());
     let ip_limiter = std::sync::Arc::new(IpRateLimiter::new(
@@ -65,6 +66,24 @@ async fn main() -> anyhow::Result<()> {
 
     let addr = format!("{}:{}", config.host, config.port);
 
+    let cors = match &config.allowed_origins {
+        Some(origins) => {
+            let origin_list: Vec<HeaderValue> = origins
+                .iter()
+                .filter_map(|o| o.parse().ok())
+                .collect();
+            CorsLayer::new()
+                .allow_origin(AllowOrigin::list(origin_list))
+                .allow_methods([Method::GET])
+                .allow_headers(tower_http::cors::Any)
+        }
+        None => {
+            // Development mode only — log warning.
+            tracing::warn!("RELAY_ALLOWED_ORIGINS not set — CORS is permissive (development only)");
+            CorsLayer::permissive()
+        }
+    };
+
     let state: AppState = (room_state, config, ip_limiter);
 
     let app = Router::new()
@@ -72,7 +91,7 @@ async fn main() -> anyhow::Result<()> {
         .route("/metrics", get(metrics_handler))
         .route("/admin/rooms", get(admin_rooms_handler))
         .route("/ws/{room_id}", get(ws::ws_handler))
-        .layer(CorsLayer::permissive())
+        .layer(cors)
         .layer(TraceLayer::new_for_http())
         .with_state(state);
 
@@ -94,17 +113,21 @@ async fn main() -> anyhow::Result<()> {
 
 async fn shutdown_signal() {
     let ctrl_c = async {
-        tokio::signal::ctrl_c()
-            .await
-            .expect("failed to install Ctrl+C handler");
+        if let Err(e) = tokio::signal::ctrl_c().await {
+            tracing::error!("failed to install Ctrl+C handler: {e}");
+            std::future::pending::<()>().await;
+        }
     };
 
     #[cfg(unix)]
     let terminate = async {
-        tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())
-            .expect("failed to install SIGTERM handler")
-            .recv()
-            .await;
+        match tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate()) {
+            Ok(mut sig) => { sig.recv().await; }
+            Err(e) => {
+                tracing::error!("failed to install SIGTERM handler: {e}");
+                std::future::pending::<()>().await;
+            }
+        }
     };
 
     #[cfg(not(unix))]

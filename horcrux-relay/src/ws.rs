@@ -47,7 +47,7 @@ fn extract_token_from_headers(headers: &HeaderMap) -> Option<String> {
                 .split(',')
                 .map(|p| p.trim())
                 .find(|p| p.starts_with("horcrux-token."))
-                .map(|p| p.strip_prefix("horcrux-token.").unwrap().to_string())
+                .map(|p| p.strip_prefix("horcrux-token.").unwrap_or(p).to_string())
         })
 }
 
