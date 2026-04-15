@@ -2,16 +2,35 @@
 //!
 //! The relay is a dumb pipe: it forwards E2E encrypted messages between
 //! participants. It cannot decrypt any payload.
+//!
+//! Optimized for:
+//! - Low-latency message forwarding (lock-free touch, atomic counters)
+//! - Security (token-gated rooms, rate limiting, input validation)
+//! - Observability (Prometheus-compatible /metrics endpoint)
+//! - Graceful shutdown (SIGINT/SIGTERM drains connections)
 
+mod config;
+mod metrics;
 mod room;
 mod ws;
 
-use axum::{extract::State, response::IntoResponse, routing::get, Json, Router};
+use axum::{
+    extract::{Query, State},
+    http::{HeaderMap, StatusCode},
+    response::IntoResponse,
+    routing::get,
+    Json, Router,
+};
 use tower_http::cors::CorsLayer;
 use tower_http::trace::TraceLayer;
 use tracing_subscriber::EnvFilter;
 
+use crate::config::RelayConfig;
+use crate::metrics::METRICS;
 use crate::room::RoomManager;
+
+/// App state passed to all handlers.
+type AppState = (RoomManager, RelayConfig);
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -21,39 +40,104 @@ async fn main() -> anyhow::Result<()> {
         )
         .init();
 
-    let room_state = room::new();
-
-    // Start background room cleanup task
+    let config = RelayConfig::from_env();
+    let room_state = room::new(&config);
     let _cleanup_handle = room::spawn_cleanup_task(room_state.clone());
+
+    let addr = format!("{}:{}", config.host, config.port);
+
+    let state: AppState = (room_state, config);
 
     let app = Router::new()
         .route("/health", get(health))
-        .route("/rooms", get(rooms_handler))
+        .route("/metrics", get(metrics_handler))
+        .route("/admin/rooms", get(admin_rooms_handler))
         .route("/ws/{room_id}", get(ws::ws_handler))
         .layer(CorsLayer::permissive())
         .layer(TraceLayer::new_for_http())
-        .with_state(room_state);
+        .with_state(state);
 
-    let host = std::env::var("RELAY_HOST").unwrap_or_else(|_| "0.0.0.0".into());
-    let port = std::env::var("RELAY_PORT").unwrap_or_else(|_| "3210".into());
-    let addr = format!("{host}:{port}");
     tracing::info!("Horcrux Relay listening on {}", addr);
 
     let listener = tokio::net::TcpListener::bind(&addr).await?;
-    axum::serve(listener, app).await?;
 
+    // Graceful shutdown on SIGINT / SIGTERM
+    axum::serve(listener, app)
+        .with_graceful_shutdown(shutdown_signal())
+        .await?;
+
+    tracing::info!("Relay shut down gracefully");
     Ok(())
+}
+
+async fn shutdown_signal() {
+    let ctrl_c = async {
+        tokio::signal::ctrl_c()
+            .await
+            .expect("failed to install Ctrl+C handler");
+    };
+
+    #[cfg(unix)]
+    let terminate = async {
+        tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())
+            .expect("failed to install SIGTERM handler")
+            .recv()
+            .await;
+    };
+
+    #[cfg(not(unix))]
+    let terminate = std::future::pending::<()>();
+
+    tokio::select! {
+        _ = ctrl_c => tracing::info!("received SIGINT, shutting down"),
+        _ = terminate => tracing::info!("received SIGTERM, shutting down"),
+    }
 }
 
 async fn health() -> &'static str {
     "horcrux-relay ok"
 }
 
-async fn rooms_handler(State(rooms): State<RoomManager>) -> impl IntoResponse {
+/// Prometheus-compatible metrics endpoint.
+async fn metrics_handler() -> impl IntoResponse {
+    (
+        [(axum::http::header::CONTENT_TYPE, "text/plain; version=0.0.4")],
+        METRICS.render(),
+    )
+}
+
+/// Admin query parameters.
+#[derive(serde::Deserialize)]
+struct AdminQuery {
+    admin_token: Option<String>,
+}
+
+/// Protected admin endpoint — lists room details.
+async fn admin_rooms_handler(
+    headers: HeaderMap,
+    Query(query): Query<AdminQuery>,
+    State((rooms, config)): State<AppState>,
+) -> Result<impl IntoResponse, StatusCode> {
+    // Check admin token
+    if let Some(ref expected) = config.admin_token {
+        let provided = query
+            .admin_token
+            .as_deref()
+            .or_else(|| {
+                headers
+                    .get("x-admin-token")
+                    .and_then(|v| v.to_str().ok())
+            });
+        match provided {
+            Some(t) if t == expected => {}
+            _ => return Err(StatusCode::FORBIDDEN),
+        }
+    }
+
+    let stats = rooms.room_stats().await;
     let count = rooms.room_count().await;
-    let ids = rooms.room_ids().await;
-    Json(serde_json::json!({
+    Ok(Json(serde_json::json!({
         "count": count,
-        "rooms": ids,
-    }))
+        "rooms": stats,
+    })))
 }

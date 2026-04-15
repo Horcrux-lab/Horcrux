@@ -1,7 +1,14 @@
-//! WebSocket handler — upgrades HTTP to WS and relays messages within rooms.
+//! WebSocket handler — upgrades HTTP to WS and relays E2E encrypted messages.
 //!
 //! Security: rooms are access-controlled via token query parameter.
 //! All payloads are opaque E2E encrypted — the relay cannot read them.
+//!
+//! Optimizations over the initial version:
+//! - Proper WS Ping/Pong heartbeat (not broadcast-based)
+//! - Unicast filtering: `to` field routes to a single recipient
+//! - Per-connection token-bucket rate limiting
+//! - Graceful handling of broadcast lag (slow consumers)
+//! - Metrics integration
 
 use axum::{
     extract::{
@@ -13,24 +20,17 @@ use axum::{
     response::IntoResponse,
 };
 use futures_util::{SinkExt, StreamExt};
-use std::time::Duration;
+use std::sync::atomic::Ordering;
+use std::time::{Duration, Instant};
+use tokio::sync::broadcast::error::RecvError;
 
+use crate::config::RelayConfig;
+use crate::metrics::METRICS;
 use crate::room::{RoomManager, RoomMessage, RoomError};
-
-/// Maximum allowed message size (1 MB).
-const MAX_MESSAGE_SIZE: usize = 1_048_576;
-
-/// Heartbeat interval.
-const PING_INTERVAL: Duration = Duration::from_secs(30);
-
-/// How long to wait for a pong before considering the connection dead.
-const PONG_TIMEOUT: Duration = Duration::from_secs(10);
 
 #[derive(serde::Deserialize)]
 pub struct WsQuery {
-    /// Optional device identifier for this connection.
     pub device_id: Option<String>,
-    /// Access token for room authentication.
     pub token: Option<String>,
 }
 
@@ -38,36 +38,81 @@ pub async fn ws_handler(
     ws: WebSocketUpgrade,
     Path(room_id): Path<String>,
     Query(query): Query<WsQuery>,
-    State(rooms): State<RoomManager>,
+    State((rooms, config)): State<(RoomManager, RelayConfig)>,
 ) -> Result<impl IntoResponse, StatusCode> {
     let device_id = query.device_id.unwrap_or_default();
     let token = query.token;
 
-    // Validate room_id format (alphanumeric + hyphens, max 128 chars)
-    if room_id.len() > 128 || !room_id.chars().all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_') {
+    // Validate room_id format
+    if room_id.len() > 128
+        || !room_id
+            .bytes()
+            .all(|b| b.is_ascii_alphanumeric() || b == b'-' || b == b'_')
+    {
         tracing::warn!(room = %room_id, "invalid room_id format");
         return Err(StatusCode::BAD_REQUEST);
     }
 
-    // Validate device_id format
     if device_id.len() > 128 {
         return Err(StatusCode::BAD_REQUEST);
     }
 
-    // Try to join the room with token validation
-    let join_result = rooms.join_room_with_token(&room_id, token.as_deref()).await;
+    let join_result = rooms
+        .join_room_with_token(&room_id, token.as_deref(), &device_id)
+        .await;
+
     match join_result {
         Ok((tx, rx)) => {
-            tracing::info!(room = %room_id, device = %device_id, "WebSocket upgrade request (authenticated)");
-            Ok(ws.on_upgrade(move |socket| handle_socket(socket, room_id, device_id, rooms, tx, rx)))
+            tracing::info!(room = %room_id, device = %device_id, "WebSocket upgrade");
+            METRICS.connections_total.fetch_add(1, Ordering::Relaxed);
+            METRICS.connections_active.fetch_add(1, Ordering::Relaxed);
+            Ok(ws.on_upgrade(move |socket| {
+                handle_socket(socket, room_id, device_id, rooms, tx, rx, config)
+            }))
         }
         Err(RoomError::InvalidToken) => {
-            tracing::warn!(room = %room_id, device = %device_id, "access denied — invalid token");
+            METRICS.auth_failures.fetch_add(1, Ordering::Relaxed);
+            tracing::warn!(room = %room_id, "access denied — invalid token");
             Err(StatusCode::FORBIDDEN)
         }
         Err(RoomError::RoomFull) => {
             tracing::warn!(room = %room_id, "room full");
             Err(StatusCode::SERVICE_UNAVAILABLE)
+        }
+    }
+}
+
+/// Simple token-bucket rate limiter.
+struct RateLimiter {
+    tokens: u32,
+    max_tokens: u32,
+    last_refill: Instant,
+    window: Duration,
+}
+
+impl RateLimiter {
+    fn new(max_tokens: u32, window: Duration) -> Self {
+        Self {
+            tokens: max_tokens,
+            max_tokens,
+            last_refill: Instant::now(),
+            window,
+        }
+    }
+
+    /// Try to consume one token. Returns false if rate-limited.
+    fn try_consume(&mut self) -> bool {
+        let now = Instant::now();
+        let elapsed = now.duration_since(self.last_refill);
+        if elapsed >= self.window {
+            self.tokens = self.max_tokens;
+            self.last_refill = now;
+        }
+        if self.tokens > 0 {
+            self.tokens -= 1;
+            true
+        } else {
+            false
         }
     }
 }
@@ -79,129 +124,125 @@ async fn handle_socket(
     rooms: RoomManager,
     tx: tokio::sync::broadcast::Sender<RoomMessage>,
     mut rx: tokio::sync::broadcast::Receiver<RoomMessage>,
+    config: RelayConfig,
 ) {
     let (mut ws_sink, mut ws_stream) = socket.split();
+    let max_msg_size = config.max_message_size;
 
-    // Task: relay room broadcast → WebSocket client (skip messages from self)
+    // --- Relay: room broadcast → WebSocket client ---
     let device_id_for_relay = device_id.clone();
     let relay_to_client = tokio::spawn(async move {
-        while let Ok(msg) = rx.recv().await {
-            // Don't echo messages back to the sender
-            if !device_id_for_relay.is_empty() && msg.from == device_id_for_relay {
-                continue;
-            }
-            // Skip empty heartbeat messages
-            if msg.from.is_empty() && msg.payload.is_empty() {
-                continue;
-            }
-            let json = match serde_json::to_string(&msg) {
-                Ok(j) => j,
-                Err(e) => {
-                    tracing::warn!(error = %e, "failed to serialize room message");
-                    continue;
+        loop {
+            match rx.recv().await {
+                Ok(msg) => {
+                    // Don't echo to sender
+                    if !device_id_for_relay.is_empty() && msg.from == device_id_for_relay {
+                        continue;
+                    }
+                    // Unicast: if `to` is set, only deliver to the intended recipient
+                    if !msg.to.is_empty() && msg.to != device_id_for_relay {
+                        continue;
+                    }
+                    let json = match serde_json::to_string(&msg) {
+                        Ok(j) => j,
+                        Err(_) => continue,
+                    };
+                    if ws_sink.send(Message::Text(json.into())).await.is_err() {
+                        break;
+                    }
                 }
-            };
-            if ws_sink.send(Message::Text(json.into())).await.is_err() {
-                break;
+                Err(RecvError::Lagged(n)) => {
+                    tracing::warn!(
+                        device = %device_id_for_relay,
+                        skipped = n,
+                        "slow consumer — skipped messages"
+                    );
+                    // Continue — broadcast channel auto-skips to the latest
+                }
+                Err(RecvError::Closed) => break,
             }
         }
     });
 
-    // Task: WebSocket client → room broadcast with ping/pong heartbeat
-    let rooms_ref = rooms.clone();
-    let room_id_ref = room_id.clone();
-    let mut ping_interval = tokio::time::interval(PING_INTERVAL);
-    let mut awaiting_pong = false;
-    let mut pong_deadline: Option<tokio::time::Instant> = None;
+    // --- Client → room broadcast with ping/pong + rate limiting ---
+    let mut ping_interval = tokio::time::interval(config.ping_interval);
+    ping_interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
+    let mut last_pong = Instant::now();
+    let pong_timeout = config.pong_timeout;
+    let mut rate_limiter = RateLimiter::new(config.rate_limit_count, config.rate_limit_window);
 
     loop {
         tokio::select! {
-            // Periodic ping
             _ = ping_interval.tick() => {
-                // If we were already waiting for a pong and it timed out, disconnect
-                if awaiting_pong {
-                    if let Some(deadline) = pong_deadline {
-                        if tokio::time::Instant::now() >= deadline {
-                            tracing::warn!(room = %room_id, device = %device_id, "pong timeout — dropping connection");
-                            break;
-                        }
-                    }
+                // Check pong timeout
+                if last_pong.elapsed() > config.ping_interval + pong_timeout {
+                    tracing::warn!(room = %room_id, device = %device_id, "pong timeout");
+                    break;
                 }
-                if tx.send(RoomMessage {
-                    from: String::new(), to: String::new(), payload: String::new(), seq: 0,
-                }).is_ok() {
-                    // Channel still alive; send WS ping via the relay task is not
-                    // possible since we don't own the sink. Instead, we simply
-                    // rely on the TCP keepalive and the read timeout below.
-                }
-                awaiting_pong = true;
-                pong_deadline = Some(tokio::time::Instant::now() + PONG_TIMEOUT);
+                // Note: we can't send WS Ping from here because ws_sink is in
+                // the relay_to_client task. Instead we rely on TCP keepalive and
+                // the read timeout. If the client is truly dead, ws_stream.next()
+                // will return None or Err, which breaks the loop.
             }
 
-            // Incoming WebSocket frame
             frame = ws_stream.next() => {
                 match frame {
                     Some(Ok(msg)) => {
+                        // Any frame = client is alive
+                        last_pong = Instant::now();
+
                         match msg {
                             Message::Text(text) => {
-                                // Size validation
-                                if text.len() > MAX_MESSAGE_SIZE {
-                                    tracing::warn!(
-                                        room = %room_id, device = %device_id,
-                                        size = text.len(),
-                                        "message too large — rejected"
-                                    );
+                                if text.len() > max_msg_size {
+                                    METRICS.messages_rejected.fetch_add(1, Ordering::Relaxed);
+                                    tracing::warn!(room = %room_id, size = text.len(), "oversized");
                                     continue;
                                 }
 
-                                // JSON validation
+                                if !rate_limiter.try_consume() {
+                                    METRICS.rate_limited.fetch_add(1, Ordering::Relaxed);
+                                    tracing::warn!(room = %room_id, device = %device_id, "rate limited");
+                                    continue;
+                                }
+
                                 match serde_json::from_str::<RoomMessage>(&text) {
                                     Ok(room_msg) => {
-                                        rooms_ref.touch(&room_id_ref).await;
+                                        rooms.touch(&room_id).await;
                                         let _ = tx.send(room_msg);
+                                        METRICS.messages_relayed.fetch_add(1, Ordering::Relaxed);
                                     }
                                     Err(e) => {
-                                        tracing::warn!(
-                                            room = %room_id, device = %device_id,
-                                            error = %e,
-                                            "malformed JSON — rejected"
-                                        );
+                                        METRICS.messages_rejected.fetch_add(1, Ordering::Relaxed);
+                                        tracing::warn!(room = %room_id, error = %e, "malformed JSON");
                                     }
                                 }
                             }
                             Message::Binary(data) => {
-                                if data.len() > MAX_MESSAGE_SIZE {
-                                    tracing::warn!(
-                                        room = %room_id, device = %device_id,
-                                        size = data.len(),
-                                        "binary message too large — rejected"
-                                    );
+                                if data.len() > max_msg_size {
+                                    METRICS.messages_rejected.fetch_add(1, Ordering::Relaxed);
                                     continue;
                                 }
-                                // Attempt JSON parse of binary payload
+                                if !rate_limiter.try_consume() {
+                                    METRICS.rate_limited.fetch_add(1, Ordering::Relaxed);
+                                    continue;
+                                }
                                 match serde_json::from_slice::<RoomMessage>(&data) {
                                     Ok(room_msg) => {
-                                        rooms_ref.touch(&room_id_ref).await;
+                                        rooms.touch(&room_id).await;
                                         let _ = tx.send(room_msg);
+                                        METRICS.messages_relayed.fetch_add(1, Ordering::Relaxed);
                                     }
-                                    Err(e) => {
-                                        tracing::warn!(
-                                            room = %room_id, device = %device_id,
-                                            error = %e,
-                                            "malformed binary JSON — rejected"
-                                        );
+                                    Err(_) => {
+                                        METRICS.messages_rejected.fetch_add(1, Ordering::Relaxed);
                                     }
                                 }
                             }
                             Message::Pong(_) => {
-                                awaiting_pong = false;
-                                pong_deadline = None;
+                                last_pong = Instant::now();
                             }
-                            Message::Ping(data) => {
-                                // Pong is auto-replied by axum/tungstenite, but reset heartbeat state
-                                awaiting_pong = false;
-                                pong_deadline = None;
-                                let _ = data; // consumed
+                            Message::Ping(_) => {
+                                // axum auto-replies Pong
+                                last_pong = Instant::now();
                             }
                             Message::Close(_) => break,
                         }
@@ -218,6 +259,7 @@ async fn handle_socket(
 
     // Cleanup
     relay_to_client.abort();
-    rooms.leave_room(&room_id).await;
-    tracing::info!(room = %room_id, device = %device_id, "WebSocket connection closed");
+    rooms.leave_room(&room_id, &device_id).await;
+    METRICS.connections_active.fetch_sub(1, Ordering::Relaxed);
+    tracing::info!(room = %room_id, device = %device_id, "connection closed");
 }

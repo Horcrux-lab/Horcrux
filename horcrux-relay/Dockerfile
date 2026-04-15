@@ -1,5 +1,5 @@
 # ---------- Build stage ----------
-FROM rust:1.75-slim AS builder
+FROM rust:1.90-slim AS builder
 
 WORKDIR /app
 
@@ -22,5 +22,9 @@ ENV RELAY_HOST=0.0.0.0
 ENV RELAY_PORT=3210
 
 EXPOSE 3210
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 \
+    CMD curl -f http://localhost:3210/health || exit 1
 
 CMD ["horcrux-relay"]
