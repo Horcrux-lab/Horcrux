@@ -769,8 +769,12 @@ mod tests {
     fn test_ffi_build_evm_transaction_invalid_value_wei() {
         let mut params = valid_evm_params();
         params.value_wei = "not_a_number".into();
-        let err = horcrux_build_evm_transaction(params).unwrap_err();
-        assert!(matches!(err, ChainError::Other { .. }));
+        let result = horcrux_build_evm_transaction(params);
+        assert!(result.is_err());
+        match result {
+            Err(ChainError::Other { .. }) => {}
+            other => panic!("expected ChainError::Other, got is_err={}", other.is_err()),
+        }
     }
 
     #[test]

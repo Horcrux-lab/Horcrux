@@ -278,4 +278,57 @@ mod tests {
         let tx2 = builder.build(base2).unwrap();
         assert_ne!(tx1.sign_hash, tx2.sign_hash);
     }
+
+    #[test]
+    fn test_eip1559_large_chain_id() {
+        // chain_id > 255 requires multi-byte RLP encoding
+        let builder = EvmTransactionBuilder;
+        let params = EvmTxParams {
+            to: "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045".to_string(),
+            value: 1_000_000_000_000_000_000,
+            nonce: 5,
+            gas_limit: 21000,
+            max_fee_per_gas: 30_000_000_000,
+            max_priority_fee_per_gas: 1_000_000_000,
+            chain_id: 42161, // Arbitrum One
+            data: vec![],
+        };
+        let tx = builder.build(params).unwrap();
+        assert_eq!(tx.raw_data[0], 0x02);
+        assert_eq!(tx.sign_hash.len(), 32);
+        assert_eq!(tx.chain, ChainType::Evm { chain_id: 42161 });
+
+        // Verify a different large chain_id produces a different hash
+        let params2 = EvmTxParams {
+            to: "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045".to_string(),
+            value: 1_000_000_000_000_000_000,
+            nonce: 5,
+            gas_limit: 21000,
+            max_fee_per_gas: 30_000_000_000,
+            max_priority_fee_per_gas: 1_000_000_000,
+            chain_id: 8453, // Base
+            data: vec![],
+        };
+        let tx2 = builder.build(params2).unwrap();
+        assert_ne!(tx.sign_hash, tx2.sign_hash);
+    }
+
+    #[test]
+    fn test_eip1559_zero_gas_limit() {
+        let builder = EvmTransactionBuilder;
+        let params = EvmTxParams {
+            to: "0x0000000000000000000000000000000000000001".to_string(),
+            value: 0,
+            nonce: 0,
+            gas_limit: 0,
+            max_fee_per_gas: 1,
+            max_priority_fee_per_gas: 1,
+            chain_id: 1,
+            data: vec![],
+        };
+        // Zero gas limit is technically valid at the encoding level
+        let tx = builder.build(params).unwrap();
+        assert_eq!(tx.raw_data[0], 0x02);
+        assert_eq!(tx.sign_hash.len(), 32);
+    }
 }

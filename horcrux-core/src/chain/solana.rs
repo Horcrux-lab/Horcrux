@@ -292,4 +292,34 @@ mod tests {
         params.recent_blockhash = "short".into();
         assert!(builder.build(params).is_err());
     }
+
+    #[test]
+    fn test_solana_devnet_vs_mainnet() {
+        let builder = SolanaTransactionBuilder;
+        let mut p1 = sample_params();
+        p1.devnet = false;
+        let tx = builder.build(p1).unwrap();
+        assert_eq!(tx.chain, ChainType::Solana { devnet: false });
+    }
+
+    #[test]
+    fn test_solana_zero_lamports() {
+        let builder = SolanaTransactionBuilder;
+        let mut params = sample_params();
+        params.lamports = 0;
+        let tx = builder.build(params).unwrap();
+        // Zero-value transfer should still serialize
+        assert!(!tx.raw_data.is_empty());
+        // Instruction data should encode 0 lamports
+        let ix_data = transfer_instruction_data(0);
+        assert_eq!(&ix_data[4..], &0u64.to_le_bytes());
+    }
+
+    #[test]
+    fn test_bad_to_address() {
+        let builder = SolanaTransactionBuilder;
+        let mut params = sample_params();
+        params.to = "!!!invalid".into();
+        assert!(builder.build(params).is_err());
+    }
 }
