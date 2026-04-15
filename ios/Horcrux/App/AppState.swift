@@ -258,6 +258,7 @@ final class AppState: ObservableObject {
         try? KeychainManager.shared.delete(key: KeychainKeys.deviceKeySE)
         try? KeychainManager.shared.delete(key: KeychainKeys.failedAttempts)
         try? KeychainManager.shared.delete(key: KeychainKeys.noiseKeypair)
+        try? KeychainManager.shared.delete(key: "noise_static_keypair_se")
         SecureEnclaveManager.shared.deleteKey()
         failedAttempts = 0
         lockoutUntil = nil

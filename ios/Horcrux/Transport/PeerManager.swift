@@ -35,6 +35,7 @@ final class PeerManager: ObservableObject {
     private var cancellables = Set<AnyCancellable>()
     private let keychain = KeychainManager.shared
     private static let noiseKeypairKey = "noise_static_keypair"
+    private static let noiseKeypairSEKey = "noise_static_keypair_se"
 
     init() {
         noiseKeypair = Self.loadOrGenerateNoiseKeypair(keychain: keychain)
@@ -42,13 +43,43 @@ final class PeerManager: ObservableObject {
     }
 
     /// Load persisted Noise keypair from Keychain, or generate and store a new one.
+    /// On SE-capable devices, the keypair is sealed under the Secure Enclave.
     private static func loadOrGenerateNoiseKeypair(keychain: KeychainManager) -> FfiNoiseKeypair? {
-        // Try loading existing keypair
+        let se = SecureEnclaveManager.shared
+
+        // SE path: try loading SE-sealed keypair
+        if se.isAvailable {
+            if let sealed = try? keychain.retrieve(key: noiseKeypairSEKey),
+               let plaintext = try? se.open(sealed),
+               let dto = try? JSONDecoder().decode(NoiseKeypairDTO.self, from: plaintext) {
+                return FfiNoiseKeypair(privateKey: dto.privateKey, publicKey: dto.publicKey)
+            }
+
+            // Migrate legacy unprotected keypair → SE-sealed
+            if let legacy = try? keychain.retrieve(key: noiseKeypairKey),
+               let dto = try? JSONDecoder().decode(NoiseKeypairDTO.self, from: legacy) {
+                if let sealed = try? se.seal(legacy) {
+                    try? keychain.storeSecure(key: noiseKeypairSEKey, data: sealed)
+                    try? keychain.delete(key: noiseKeypairKey)
+                }
+                return FfiNoiseKeypair(privateKey: dto.privateKey, publicKey: dto.publicKey)
+            }
+
+            // Generate new, seal, store
+            let keypair = horcruxGenerateNoiseKeypair()
+            let dto = NoiseKeypairDTO(privateKey: keypair.privateKey, publicKey: keypair.publicKey)
+            if let encoded = try? JSONEncoder().encode(dto),
+               let sealed = try? se.seal(encoded) {
+                try? keychain.storeSecure(key: noiseKeypairSEKey, data: sealed)
+            }
+            return keypair
+        }
+
+        // Non-SE fallback: software Keychain
         if let data = try? keychain.retrieve(key: noiseKeypairKey),
            let dto = try? JSONDecoder().decode(NoiseKeypairDTO.self, from: data) {
             return FfiNoiseKeypair(privateKey: dto.privateKey, publicKey: dto.publicKey)
         }
-        // Generate new and persist
         let keypair = horcruxGenerateNoiseKeypair()
         let dto = NoiseKeypairDTO(privateKey: keypair.privateKey, publicKey: keypair.publicKey)
         if let encoded = try? JSONEncoder().encode(dto) {
@@ -83,13 +114,17 @@ final class PeerManager: ObservableObject {
     // MARK: - Sending (encrypted)
 
     /// Send MPC protocol data to a peer, encrypted via Noise.
+    /// Messages are padded to fixed-size buckets to prevent length analysis.
     func sendMpcMessage(_ data: Data, to peer: Peer) async throws {
         guard let noise = noiseChannels[peer.id] else {
             throw TransportError.notConnected
         }
 
-        let envelope = try noise.seal(plaintext: data)
+        // Pad → Encrypt → Send (with timing jitter)
+        let padded = MessagePadding.pad(data)
+        let envelope = try noise.seal(plaintext: padded)
         let encoded = try JSONEncoder().encode(EnvelopeDTO(envelope))
+        await MessagePadding.randomJitter()
         let channel = channelForPeer(peer)
         try await channel.send(encoded, to: peer)
     }
@@ -154,7 +189,8 @@ final class PeerManager: ObservableObject {
         if let noise = noiseChannels[peerId] {
             if let dto = try? JSONDecoder().decode(EnvelopeDTO.self, from: message.data) {
                 let envelope = FfiSealedEnvelope(ciphertext: dto.ciphertext, handshake: dto.handshake)
-                if let decrypted = try? noise.open(envelope: envelope) {
+                if let decryptedPadded = try? noise.open(envelope: envelope),
+                   let decrypted = MessagePadding.unpad(decryptedPadded) {
                     mpcMessageContinuation?.yield((message.from, decrypted))
                 }
             }
