@@ -44,6 +44,7 @@ struct SigningView: View {
 
 struct ComposeTransactionView: View {
     @ObservedObject var viewModel: SigningViewModel
+    @State private var showQRScanner = false
 
     private var addressError: String? {
         guard !viewModel.recipientAddress.isEmpty else { return nil }
@@ -53,10 +54,21 @@ struct ComposeTransactionView: View {
     var body: some View {
         Form {
             Section("Recipient") {
-                TextField("Address", text: $viewModel.recipientAddress)
-                    .font(.system(.body, design: .monospaced))
-                    .autocorrectionDisabled()
-                    .textInputAutocapitalization(.never)
+                HStack {
+                    TextField("Address", text: $viewModel.recipientAddress)
+                        .font(.system(.body, design: .monospaced))
+                        .autocorrectionDisabled()
+                        .textInputAutocapitalization(.never)
+
+                    Button {
+                        showQRScanner = true
+                    } label: {
+                        Image(systemName: "qrcode.viewfinder")
+                            .font(.title2)
+                            .foregroundStyle(.blue)
+                    }
+                    .buttonStyle(.plain)
+                }
 
                 if let addressError {
                     Text(addressError)
@@ -114,6 +126,11 @@ struct ComposeTransactionView: View {
                 }
                 .buttonStyle(.borderedProminent)
                 .disabled(viewModel.recipientAddress.isEmpty || viewModel.amount.isEmpty || addressError != nil)
+            }
+        }
+        .sheet(isPresented: $showQRScanner) {
+            QRScannerSheet { scannedAddress in
+                viewModel.recipientAddress = scannedAddress
             }
         }
     }

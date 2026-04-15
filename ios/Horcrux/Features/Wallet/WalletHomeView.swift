@@ -143,6 +143,7 @@ struct WalletDetailView: View {
     @EnvironmentObject private var appState: AppState
     let wallet: Wallet
     @State private var showSigning = false
+    @State private var showReceive = false
     @State private var balance: String?
     @State private var isLoadingBalance = false
     @State private var copiedAddress = false
@@ -191,9 +192,39 @@ struct WalletDetailView: View {
                 }
 
                 Button {
-                    UIPasteboard.general.string = wallet.address
+                    showReceive = true
                 } label: {
-                    Label("Copy Address", systemImage: "doc.on.doc")
+                    Label("Receive", systemImage: "qrcode")
+                }
+            }
+
+            // Recent transactions
+            let recentTxs = appState.transactionStore.records(for: wallet.id).prefix(5)
+            if !recentTxs.isEmpty {
+                Section("Recent Transactions") {
+                    ForEach(Array(recentTxs)) { tx in
+                        NavigationLink {
+                            TransactionDetailView(transaction: tx)
+                        } label: {
+                            TransactionRow(transaction: tx)
+                        }
+                    }
+
+                    NavigationLink {
+                        TransactionHistoryView(wallet: wallet)
+                    } label: {
+                        Text("View All History")
+                            .font(.subheadline)
+                            .foregroundStyle(.blue)
+                    }
+                }
+            } else {
+                Section("Transactions") {
+                    NavigationLink {
+                        TransactionHistoryView(wallet: wallet)
+                    } label: {
+                        Label("Transaction History", systemImage: "clock.arrow.circlepath")
+                    }
                 }
             }
 
@@ -207,6 +238,9 @@ struct WalletDetailView: View {
         .navigationTitle(wallet.name)
         .sheet(isPresented: $showSigning) {
             SigningView(wallet: wallet)
+        }
+        .sheet(isPresented: $showReceive) {
+            ReceiveView(wallet: wallet)
         }
         .task {
             await fetchBalance()

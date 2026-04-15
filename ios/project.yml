@@ -51,3 +51,16 @@ targets:
         NSCameraUsageDescription: "Horcrux uses the camera to scan QR codes for peer discovery."
         NSFaceIDUsageDescription: "Horcrux uses Face ID to protect your key shards."
     dependencies: []
+
+  HorcruxTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - path: HorcruxTests
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.horcrux.wallet.tests
+        CODE_SIGN_STYLE: Automatic
+        GENERATE_INFOPLIST_FILE: YES
+    dependencies:
+      - target: Horcrux

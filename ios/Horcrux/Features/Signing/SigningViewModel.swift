@@ -28,11 +28,13 @@ final class SigningViewModel: ObservableObject {
     private var bridge: HorcruxBridge?
     private var peerManager: PeerManager?
     private var walletStore: WalletStore?
+    private var transactionStore: TransactionStore?
     private var deviceKey: Data?
     private var networkConfig: NetworkConfig?
     private var blockchainService: BlockchainService?
     private var sessionId: String?
     private var signingPin: String?
+    private var currentRecordId: String?
     private var cancellables = Set<AnyCancellable>()
 
     // Gas estimation (EVM)
@@ -58,6 +60,7 @@ final class SigningViewModel: ObservableObject {
         self.bridge = appState.bridge
         self.peerManager = appState.peerManager
         self.walletStore = appState.walletStore
+        self.transactionStore = appState.transactionStore
         self.deviceKey = try? appState.deviceKey
         self.networkConfig = appState.networkConfig
         self.blockchainService = appState.blockchainService
@@ -208,6 +211,24 @@ final class SigningViewModel: ObservableObject {
 
                         txHash = "0x" + result.signature.map { String(format: "%02x", $0) }.joined()
 
+                        // Save transaction record
+                        let recordId = UUID().uuidString
+                        currentRecordId = recordId
+                        let record = TransactionRecord(
+                            id: recordId,
+                            walletId: wallet.id,
+                            chain: wallet.chain,
+                            fromAddress: wallet.address,
+                            toAddress: recipientAddress,
+                            amount: amount,
+                            fee: estimatedFee == "—" ? nil : estimatedFee,
+                            txHash: txHash,
+                            status: .signed,
+                            createdAt: Date(),
+                            broadcastAt: nil
+                        )
+                        await transactionStore?.add(record)
+
                         signingProgress = 1.0
                         bridge.removeSession(sessionId: sessionId!)
                         step = .complete
@@ -298,6 +319,9 @@ final class SigningViewModel: ObservableObject {
                     await MainActor.run {
                         broadcastStatus = "Broadcast OK: \(result.prefix(20))…"
                         isBroadcasting = false
+                        if let id = currentRecordId {
+                            transactionStore?.updateStatus(id: id, status: .broadcast, txHash: result)
+                        }
                     }
                 case .bitcoin:
                     let result = try await blockchainService.btcBroadcast(
@@ -307,6 +331,9 @@ final class SigningViewModel: ObservableObject {
                     await MainActor.run {
                         broadcastStatus = "Broadcast OK: \(result.prefix(20))…"
                         isBroadcasting = false
+                        if let id = currentRecordId {
+                            transactionStore?.updateStatus(id: id, status: .broadcast, txHash: result)
+                        }
                     }
                 case .solana:
                     let result = try await blockchainService.solSendTransaction(
@@ -316,12 +343,18 @@ final class SigningViewModel: ObservableObject {
                     await MainActor.run {
                         broadcastStatus = "Broadcast OK: \(result.prefix(20))…"
                         isBroadcasting = false
+                        if let id = currentRecordId {
+                            transactionStore?.updateStatus(id: id, status: .broadcast, txHash: result)
+                        }
                     }
                 }
             } catch {
                 await MainActor.run {
                     broadcastStatus = "Broadcast failed: \(error.localizedDescription)"
                     isBroadcasting = false
+                    if let id = currentRecordId {
+                        transactionStore?.updateStatus(id: id, status: .failed)
+                    }
                 }
             }
         }

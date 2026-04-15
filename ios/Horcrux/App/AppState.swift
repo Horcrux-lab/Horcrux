@@ -26,6 +26,9 @@ final class AppState: ObservableObject {
     /// On-chain query service (balance, nonce, gas, broadcast)
     let blockchainService = BlockchainService()
 
+    /// Local transaction history
+    let transactionStore = TransactionStore()
+
     /// Currently active signing request (if any)
     @Published var activeSigningRequest: SigningRequest?
 
@@ -249,6 +252,7 @@ final class AppState: ObservableObject {
 
     func wipeAllData() {
         walletStore.wipeAll()
+        transactionStore.wipeAll()
         try? KeychainManager.shared.delete(key: KeychainKeys.pinHash)
         try? KeychainManager.shared.delete(key: KeychainKeys.deviceKey)
         try? KeychainManager.shared.delete(key: KeychainKeys.deviceKeySE)
