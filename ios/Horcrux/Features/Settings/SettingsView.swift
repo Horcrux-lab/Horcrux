@@ -19,6 +19,21 @@ struct SettingsView: View {
                     }
                 }
 
+                Section("Blockchain Nodes") {
+                    NavigationLink {
+                        BlockchainNodeSettingsView()
+                    } label: {
+                        Label("RPC Endpoints", systemImage: "server.rack")
+                    }
+
+                    HStack {
+                        Text("Network")
+                        Spacer()
+                        Text(networkSummary)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+
                 Section("Relay Server") {
                     TextField("WebSocket URL", text: $relayURL)
                         .font(.system(.body, design: .monospaced))
@@ -73,6 +88,15 @@ struct SettingsView: View {
                 Text("This will permanently delete all wallets, key shards, and settings from this device. This cannot be undone.")
             }
         }
+    }
+
+    private var networkSummary: String {
+        let config = appState.networkConfig
+        var parts: [String] = []
+        parts.append(config.evmChainId == 1 ? "ETH Mainnet" : "ETH Chain \(config.evmChainId)")
+        parts.append(config.btcTestnet ? "BTC Testnet" : "BTC Mainnet")
+        parts.append(config.solDevnet ? "SOL Devnet" : "SOL Mainnet")
+        return parts.joined(separator: " · ")
     }
 }
 
@@ -175,6 +199,180 @@ struct ChangePinView: View {
             dismiss()
         } catch {
             errorMessage = "Failed to save new PIN"
+        }
+    }
+}
+
+struct BlockchainNodeSettingsView: View {
+    @EnvironmentObject private var appState: AppState
+    @ObservedObject private var config = NetworkConfig.shared
+    @State private var showResetConfirm = false
+
+    var body: some View {
+        Form {
+            Section {
+                Text("Configure RPC endpoints for each blockchain. These are used to query balances, estimate fees, and broadcast signed transactions.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            Section("Ethereum / EVM") {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("RPC URL")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    TextField("https://eth.llamarpc.com", text: $config.ethereumRPC)
+                        .font(.system(.body, design: .monospaced))
+                        .autocorrectionDisabled()
+                        .textInputAutocapitalization(.never)
+                }
+
+                Picker("Network", selection: $config.evmChainId) {
+                    Text("Mainnet (Chain ID 1)").tag(UInt64(1))
+                    Text("Sepolia Testnet (11155111)").tag(UInt64(11155111))
+                    Text("Polygon (137)").tag(UInt64(137))
+                    Text("Arbitrum One (42161)").tag(UInt64(42161))
+                    Text("Base (8453)").tag(UInt64(8453))
+                }
+
+                NodeStatusRow(chain: .ethereum)
+            }
+
+            Section("Bitcoin") {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("REST API URL")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    TextField("https://blockstream.info/api", text: $config.bitcoinAPI)
+                        .font(.system(.body, design: .monospaced))
+                        .autocorrectionDisabled()
+                        .textInputAutocapitalization(.never)
+                }
+
+                Toggle("Testnet", isOn: $config.btcTestnet)
+
+                NodeStatusRow(chain: .bitcoin)
+            }
+
+            Section("Solana") {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("RPC URL")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    TextField("https://api.mainnet-beta.solana.com", text: $config.solanaRPC)
+                        .font(.system(.body, design: .monospaced))
+                        .autocorrectionDisabled()
+                        .textInputAutocapitalization(.never)
+                }
+
+                Toggle("Devnet", isOn: $config.solDevnet)
+
+                NodeStatusRow(chain: .solana)
+            }
+
+            Section {
+                Button("Reset to Defaults") {
+                    showResetConfirm = true
+                }
+                .foregroundStyle(.red)
+            }
+        }
+        .navigationTitle("Blockchain Nodes")
+        .navigationBarTitleDisplayMode(.inline)
+        .alert("Reset to Defaults?", isPresented: $showResetConfirm) {
+            Button("Reset", role: .destructive) { config.resetToDefaults() }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("This will reset all RPC endpoints to the default public nodes.")
+        }
+    }
+}
+
+/// Shows a connectivity indicator for a blockchain node.
+struct NodeStatusRow: View {
+    let chain: Chain
+    @State private var status: NodeStatus = .unknown
+    @State private var checking = false
+
+    enum NodeStatus {
+        case unknown, connected, error(String)
+
+        var color: Color {
+            switch self {
+            case .unknown: return .gray
+            case .connected: return .green
+            case .error: return .red
+            }
+        }
+
+        var label: String {
+            switch self {
+            case .unknown: return "Not checked"
+            case .connected: return "Connected"
+            case .error(let msg): return msg
+            }
+        }
+    }
+
+    var body: some View {
+        HStack {
+            Button {
+                checkConnection()
+            } label: {
+                HStack(spacing: 6) {
+                    if checking {
+                        ProgressView()
+                            .scaleEffect(0.7)
+                    } else {
+                        Circle()
+                            .fill(status.color)
+                            .frame(width: 8, height: 8)
+                    }
+                    Text(checking ? "Checking…" : status.label)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Spacer()
+                    Text("Test")
+                        .font(.caption)
+                        .foregroundStyle(.blue)
+                }
+            }
+            .buttonStyle(.plain)
+        }
+    }
+
+    private func checkConnection() {
+        guard !checking else { return }
+        checking = true
+        let config = NetworkConfig.shared
+        let service = BlockchainService()
+
+        Task {
+            do {
+                switch chain {
+                case .ethereum:
+                    // Simple eth_blockNumber call
+                    _ = try await service.ethBalance(address: "0x0000000000000000000000000000000000000000", rpcURL: config.ethereumRPC)
+                case .bitcoin:
+                    // Try fetching the tip hash
+                    let url = URL(string: "\(config.bitcoinAPI)/blocks/tip/hash")!
+                    let (_, response) = try await URLSession.shared.data(from: url)
+                    guard let http = response as? HTTPURLResponse, (200...299).contains(http.statusCode) else {
+                        throw BlockchainError.httpError(statusCode: (response as? HTTPURLResponse)?.statusCode ?? 0)
+                    }
+                case .solana:
+                    _ = try await service.solBalance(address: "11111111111111111111111111111111", rpcURL: config.solanaRPC)
+                }
+                await MainActor.run {
+                    status = .connected
+                    checking = false
+                }
+            } catch {
+                await MainActor.run {
+                    status = .error(error.localizedDescription.prefix(40) + "…")
+                    checking = false
+                }
+            }
         }
     }
 }

@@ -65,13 +65,36 @@ struct ComposeTransactionView: View {
 
             if viewModel.wallet.chain == .ethereum {
                 Section("Gas") {
-                    LabeledContent("Gas Price", value: "Auto")
-                    LabeledContent("Gas Limit", value: "21000")
+                    if viewModel.isEstimatingGas {
+                        HStack {
+                            Text("Estimating…")
+                            Spacer()
+                            ProgressView()
+                                .scaleEffect(0.7)
+                        }
+                    } else {
+                        LabeledContent("Gas Limit", value: viewModel.estimatedGas)
+                        LabeledContent("Est. Fee", value: viewModel.estimatedFee)
+                    }
+                }
+            } else if viewModel.wallet.chain == .bitcoin || viewModel.wallet.chain == .solana {
+                Section("Fee") {
+                    if viewModel.isEstimatingGas {
+                        HStack {
+                            Text("Estimating…")
+                            Spacer()
+                            ProgressView()
+                                .scaleEffect(0.7)
+                        }
+                    } else {
+                        LabeledContent("Est. Fee", value: viewModel.estimatedFee)
+                    }
                 }
             }
 
             Section {
                 Button {
+                    viewModel.estimateGas()
                     viewModel.step = .invite
                 } label: {
                     Text("Next: Invite Co-Signers")
@@ -202,6 +225,32 @@ struct SigningCompleteView: View {
                         .font(.system(.caption2, design: .monospaced))
                         .foregroundStyle(.secondary)
                         .textSelection(.enabled)
+                }
+            }
+
+            // Broadcast section
+            VStack(spacing: 12) {
+                if viewModel.isBroadcasting {
+                    ProgressView()
+                    Text(viewModel.broadcastStatus ?? "Broadcasting…")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                } else if let status = viewModel.broadcastStatus {
+                    Text(status)
+                        .font(.caption)
+                        .foregroundStyle(status.contains("OK") ? .green : .red)
+                        .multilineTextAlignment(.center)
+                } else {
+                    Button {
+                        viewModel.broadcastTransaction()
+                    } label: {
+                        Label("Broadcast to Network", systemImage: "antenna.radiowaves.left.and.right")
+                            .frame(maxWidth: .infinity)
+                            .font(.headline)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .tint(.green)
+                    .padding(.horizontal)
                 }
             }
 

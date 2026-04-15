@@ -29,8 +29,19 @@ final class SigningViewModel: ObservableObject {
     private var peerManager: PeerManager?
     private var walletStore: WalletStore?
     private var deviceKey: Data?
+    private var networkConfig: NetworkConfig?
+    private var blockchainService: BlockchainService?
     private var sessionId: String?
     private var cancellables = Set<AnyCancellable>()
+
+    // Gas estimation (EVM)
+    @Published var estimatedGas: String = "—"
+    @Published var estimatedFee: String = "—"
+    @Published var isEstimatingGas = false
+
+    // Broadcast
+    @Published var broadcastStatus: String?
+    @Published var isBroadcasting = false
 
     var shortRecipient: String {
         guard recipientAddress.count > 12 else { return recipientAddress }
@@ -47,6 +58,8 @@ final class SigningViewModel: ObservableObject {
         self.peerManager = appState.peerManager
         self.walletStore = appState.walletStore
         self.deviceKey = appState.deviceKey
+        self.networkConfig = appState.networkConfig
+        self.blockchainService = appState.blockchainService
 
         // Observe connected peers as potential co-signers
         appState.peerManager.$connectedPeers
@@ -55,6 +68,56 @@ final class SigningViewModel: ObservableObject {
                 self?.joinedSigners = peers
             }
             .store(in: &cancellables)
+    }
+
+    /// Estimate gas / fees before signing (called when user fills amount + address).
+    func estimateGas() {
+        guard !recipientAddress.isEmpty, !amount.isEmpty,
+              let blockchainService, let networkConfig else { return }
+
+        isEstimatingGas = true
+        Task {
+            do {
+                switch wallet.chain {
+                case .ethereum:
+                    let weiAmount = ethToWei(amount)
+                    let estimate = try await blockchainService.ethEstimateGas(
+                        from: wallet.address,
+                        to: recipientAddress,
+                        valueWei: weiAmount,
+                        rpcURL: networkConfig.ethereumRPC
+                    )
+                    await MainActor.run {
+                        estimatedGas = "\(estimate.gasLimit)"
+                        let feeWei = estimate.gasLimit * (UInt64(estimate.maxFeePerGas) ?? 0)
+                        let feeEth = Double(feeWei) / 1e18
+                        estimatedFee = String(format: "≈ %.6f ETH", feeEth)
+                        isEstimatingGas = false
+                    }
+                case .bitcoin:
+                    let fees = try await blockchainService.btcFeeEstimate(
+                        apiURL: networkConfig.bitcoinAPI
+                    )
+                    await MainActor.run {
+                        // Rough estimate: P2WPKH tx ~140 vBytes
+                        let feeSats = fees.halfHourFee * 140
+                        let feeBtc = Double(feeSats) / 1e8
+                        estimatedFee = String(format: "≈ %.8f BTC (%d sat/vB)", feeBtc, fees.halfHourFee)
+                        isEstimatingGas = false
+                    }
+                case .solana:
+                    await MainActor.run {
+                        estimatedFee = "≈ 0.000005 SOL (5000 lamports)"
+                        isEstimatingGas = false
+                    }
+                }
+            } catch {
+                await MainActor.run {
+                    estimatedFee = "Unable to estimate"
+                    isEstimatingGas = false
+                }
+            }
+        }
     }
 
     func startSigning() {
@@ -177,19 +240,88 @@ final class SigningViewModel: ObservableObject {
     }
 
     private func buildSignHash() -> Data {
-        // Build a proper transaction message hash based on chain
+        guard let networkConfig else {
+            // Fallback: hash a placeholder
+            return horcruxKeccak256(data: Data("\(amount) \(wallet.chain.symbol) → \(recipientAddress)".utf8))
+        }
+
         switch wallet.chain {
         case .ethereum:
-            // EIP-1559 transaction hash placeholder
-            let txData = "\(amount) ETH → \(recipientAddress)"
-            return horcruxKeccak256(data: Data(txData.utf8))
+            // Build EIP-1559 transaction sign hash via Rust FFI
+            let params = FfiEvmTxParams(
+                to: recipientAddress,
+                valueWei: ethToWei(amount),
+                nonce: UInt64(estimatedGas) ?? 0, // will be replaced by actual nonce
+                gasLimit: UInt64(estimatedGas) ?? 21000,
+                maxFeePerGas: "0",
+                maxPriorityFeePerGas: "0",
+                chainId: networkConfig.evmChainId,
+                data: Data()
+            )
+            // For now, hash the RLP-like representation
+            let txBytes = "\(params.chainId):\(params.nonce):\(params.to):\(params.valueWei):\(params.gasLimit)"
+            return horcruxKeccak256(data: Data(txBytes.utf8))
+
         case .bitcoin:
             let txData = "\(amount) BTC → \(recipientAddress)"
             return horcruxKeccak256(data: Data(txData.utf8))
+
         case .solana:
             let txData = "\(amount) SOL → \(recipientAddress)"
             return Data(txData.utf8)
         }
+    }
+
+    /// Broadcast the signed transaction to the network.
+    func broadcastTransaction() {
+        guard let blockchainService, let networkConfig, let txHash else { return }
+        isBroadcasting = true
+        broadcastStatus = "Broadcasting to \(wallet.chain.rawValue) network…"
+
+        Task {
+            do {
+                switch wallet.chain {
+                case .ethereum:
+                    let result = try await blockchainService.ethSendRawTransaction(
+                        signedTxHex: txHash,
+                        rpcURL: networkConfig.ethereumRPC
+                    )
+                    await MainActor.run {
+                        broadcastStatus = "Broadcast OK: \(result.prefix(20))…"
+                        isBroadcasting = false
+                    }
+                case .bitcoin:
+                    let result = try await blockchainService.btcBroadcast(
+                        signedTxHex: txHash,
+                        apiURL: networkConfig.bitcoinAPI
+                    )
+                    await MainActor.run {
+                        broadcastStatus = "Broadcast OK: \(result.prefix(20))…"
+                        isBroadcasting = false
+                    }
+                case .solana:
+                    let result = try await blockchainService.solSendTransaction(
+                        signedTxBase64: txHash,
+                        rpcURL: networkConfig.solanaRPC
+                    )
+                    await MainActor.run {
+                        broadcastStatus = "Broadcast OK: \(result.prefix(20))…"
+                        isBroadcasting = false
+                    }
+                }
+            } catch {
+                await MainActor.run {
+                    broadcastStatus = "Broadcast failed: \(error.localizedDescription)"
+                    isBroadcasting = false
+                }
+            }
+        }
+    }
+
+    private func ethToWei(_ ethString: String) -> String {
+        guard let eth = Double(ethString) else { return "0" }
+        let wei = eth * 1e18
+        return String(format: "%.0f", wei)
     }
 }
 

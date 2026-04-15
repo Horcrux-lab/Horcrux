@@ -74,6 +74,9 @@ struct WalletHomeView: View {
 
 struct WalletRow: View {
     let wallet: Wallet
+    @EnvironmentObject private var appState: AppState
+    @State private var balance: String?
+    @State private var isLoading = false
 
     var body: some View {
         HStack(spacing: 12) {
@@ -92,8 +95,16 @@ struct WalletRow: View {
             Spacer()
 
             VStack(alignment: .trailing, spacing: 4) {
-                Text(wallet.chain.symbol)
-                    .font(.subheadline.bold())
+                if isLoading {
+                    ProgressView()
+                        .scaleEffect(0.7)
+                } else if let balance {
+                    Text(balance)
+                        .font(.subheadline.bold())
+                } else {
+                    Text(wallet.chain.symbol)
+                        .font(.subheadline.bold())
+                }
 
                 ShardStatusBadge(
                     threshold: wallet.threshold,
@@ -102,6 +113,22 @@ struct WalletRow: View {
             }
         }
         .padding(.vertical, 4)
+        .task {
+            await fetchBalance()
+        }
+    }
+
+    private func fetchBalance() async {
+        isLoading = true
+        defer { isLoading = false }
+        do {
+            balance = try await appState.blockchainService.balance(
+                for: wallet,
+                config: appState.networkConfig
+            )
+        } catch {
+            balance = wallet.chain.symbol
+        }
     }
 
     private func shortAddress(_ address: String) -> String {
@@ -116,12 +143,21 @@ struct WalletDetailView: View {
     @EnvironmentObject private var appState: AppState
     let wallet: Wallet
     @State private var showSigning = false
+    @State private var balance: String?
+    @State private var isLoadingBalance = false
 
     var body: some View {
         List {
             Section {
                 VStack(spacing: 16) {
                     ChainIcon(chain: wallet.chain, size: 64)
+
+                    if isLoadingBalance {
+                        ProgressView()
+                    } else if let balance {
+                        Text(balance)
+                            .font(.title2.bold())
+                    }
 
                     Text(wallet.address)
                         .font(.system(.caption, design: .monospaced))
@@ -161,6 +197,25 @@ struct WalletDetailView: View {
         .navigationTitle(wallet.name)
         .sheet(isPresented: $showSigning) {
             SigningView(wallet: wallet)
+        }
+        .task {
+            await fetchBalance()
+        }
+        .refreshable {
+            await fetchBalance()
+        }
+    }
+
+    private func fetchBalance() async {
+        isLoadingBalance = true
+        defer { isLoadingBalance = false }
+        do {
+            balance = try await appState.blockchainService.balance(
+                for: wallet,
+                config: appState.networkConfig
+            )
+        } catch {
+            balance = nil
         }
     }
 }

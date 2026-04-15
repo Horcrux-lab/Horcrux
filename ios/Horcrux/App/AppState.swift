@@ -19,6 +19,12 @@ final class AppState: ObservableObject {
     /// Persistent wallet storage
     let walletStore = WalletStore()
 
+    /// Blockchain RPC endpoint configuration
+    let networkConfig = NetworkConfig.shared
+
+    /// On-chain query service (balance, nonce, gas, broadcast)
+    let blockchainService = BlockchainService()
+
     /// Currently active signing request (if any)
     @Published var activeSigningRequest: SigningRequest?
 
