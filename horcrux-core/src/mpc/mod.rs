@@ -1,5 +1,7 @@
 pub mod keygen;
 pub mod signing;
+pub mod frost;
+pub mod ecdsa;
 pub mod session;
 pub mod types;
 

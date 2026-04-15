@@ -40,6 +40,15 @@ uniffi = { version = "0.28", features = ["cli"] }
 snow = "0.10"
 zeroize = { version = "1", features = ["derive"] }
 
+# FROST Ed25519 threshold signatures (IETF RFC 9591)
+frost-ed25519 = { version = "2.2", features = ["serde"] }
+
+# CGGMP21 threshold ECDSA (audited by Kudelski)
+cggmp21 = { version = "0.6", features = ["state-machine", "curve-secp256k1"] }
+round-based = "0.4"
+generic-ec = { version = "0.4", features = ["serde", "curve-secp256k1"] }
+rand_core = { version = "0.6", features = ["getrandom"] }
+
 # Base64
 base64 = "0.22"
 

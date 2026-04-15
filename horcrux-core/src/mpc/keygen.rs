@@ -413,23 +413,23 @@ impl KeygenSession {
         Ok(())
     }
 
-    // ===== ed25519 (FROST-style DKG) =====
-    // Simplified: uses the same Feldman VSS structure but with ed25519 curve
-    // For MVP, we delegate to the secp256k1 path with a note that real FROST
-    // uses the Ristretto group. Full FROST integration is tracked separately.
+    // ===== ed25519 (FROST IETF RFC 9591) =====
+    // Delegated to the `frost` module which wraps `frost-ed25519` crate.
+    // The keygen.rs Ed25519 path now returns an error directing callers
+    // to use FrostDkgSession directly for Ed25519 DKG.
 
     fn start_ed25519_dkg(&mut self) -> Result<Vec<MpcMessage>, MpcError> {
-        tracing::info!(
-            party = self.config.party_index,
-            "FROST DKG round 1 (ed25519)"
-        );
-        // For now, reuse secp256k1 DKG structure
-        // Real FROST will use ed25519-dalek ristretto points
-        self.start_secp256k1_dkg()
+        Err(MpcError::KeygenFailed(
+            "Ed25519 DKG must use FrostDkgSession (IETF FROST protocol). \
+             Use SessionManager which dispatches Ed25519 to FROST automatically."
+                .into(),
+        ))
     }
 
-    fn process_ed25519_message(&mut self, msg: MpcMessage) -> Result<Vec<MpcMessage>, MpcError> {
-        self.process_secp256k1_message(msg)
+    fn process_ed25519_message(&mut self, _msg: MpcMessage) -> Result<Vec<MpcMessage>, MpcError> {
+        Err(MpcError::KeygenFailed(
+            "Ed25519 DKG must use FrostDkgSession".into(),
+        ))
     }
 }
 

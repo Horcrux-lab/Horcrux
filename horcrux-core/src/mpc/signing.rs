@@ -106,7 +106,11 @@ impl SigningSession {
 
         match self.config.curve {
             CurveType::Secp256k1 => self.start_secp256k1_signing(),
-            CurveType::Ed25519 => self.start_secp256k1_signing(), // reuse for MVP
+            CurveType::Ed25519 => Err(MpcError::SigningFailed(
+                "Ed25519 signing must use FrostSigningSession (IETF FROST protocol). \
+                 Use SessionManager which dispatches Ed25519 to FROST automatically."
+                    .into(),
+            )),
         }
     }
 
