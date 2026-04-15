@@ -181,11 +181,22 @@ struct LockScreenView: View {
     }
 
     private func unlock() {
+        if appState.isLockedOut {
+            let secs = Int(appState.lockoutRemaining)
+            errorMessage = "Too many attempts. Try again in \(secs)s"
+            pin = ""
+            return
+        }
         if appState.verifyPin(pin) {
             errorMessage = nil
             appState.isUnlocked = true
         } else {
-            errorMessage = "Incorrect PIN"
+            let remaining = AppState.maxFailedAttempts - appState.failedAttempts
+            if remaining > 0 {
+                errorMessage = "Incorrect PIN (\(remaining) attempts left)"
+            } else {
+                errorMessage = "All data wiped due to too many failed attempts"
+            }
             pin = ""
         }
     }

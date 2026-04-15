@@ -33,10 +33,28 @@ final class PeerManager: ObservableObject {
     }()
 
     private var cancellables = Set<AnyCancellable>()
+    private let keychain = KeychainManager.shared
+    private static let noiseKeypairKey = "noise_static_keypair"
 
     init() {
-        noiseKeypair = horcruxGenerateNoiseKeypair()
+        noiseKeypair = Self.loadOrGenerateNoiseKeypair(keychain: keychain)
         setupTransportObservers()
+    }
+
+    /// Load persisted Noise keypair from Keychain, or generate and store a new one.
+    private static func loadOrGenerateNoiseKeypair(keychain: KeychainManager) -> FfiNoiseKeypair? {
+        // Try loading existing keypair
+        if let data = try? keychain.retrieve(key: noiseKeypairKey),
+           let dto = try? JSONDecoder().decode(NoiseKeypairDTO.self, from: data) {
+            return FfiNoiseKeypair(privateKey: dto.privateKey, publicKey: dto.publicKey)
+        }
+        // Generate new and persist
+        let keypair = horcruxGenerateNoiseKeypair()
+        let dto = NoiseKeypairDTO(privateKey: keypair.privateKey, publicKey: keypair.publicKey)
+        if let encoded = try? JSONEncoder().encode(dto) {
+            try? keychain.store(key: noiseKeypairKey, data: encoded)
+        }
+        return keypair
     }
 
     // MARK: - Discovery
@@ -196,6 +214,12 @@ private struct EnvelopeDTO: Codable {
         self.ciphertext = envelope.ciphertext
         self.handshake = envelope.handshake
     }
+}
+
+/// Codable DTO for persisting the Noise static keypair.
+private struct NoiseKeypairDTO: Codable {
+    let privateKey: Data
+    let publicKey: Data
 }
 
 enum TransportType: String, CaseIterable, Identifiable {

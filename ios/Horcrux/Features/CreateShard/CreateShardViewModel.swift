@@ -166,7 +166,7 @@ final class CreateShardViewModel: ObservableObject {
         }
     }
 
-    func saveWallet(to appState: AppState) {
+    func saveWallet(to appState: AppState, pin: String) {
         guard let result = keygenResult else { return }
 
         let wallet = Wallet(
@@ -183,12 +183,13 @@ final class CreateShardViewModel: ObservableObject {
 
         appState.walletStore.add(wallet)
 
-        // Store encrypted key share in Keychain
+        // Store encrypted key share in Keychain (PIN used for real encryption)
         do {
+            let deviceKey = try appState.deviceKey
             let encrypted = try appState.bridge.encryptShard(
                 plaintext: result.shardData,
-                deviceKey: appState.deviceKey,
-                pin: Data(Array(repeating: UInt8(0), count: 1)) // Encrypted with device key; PIN required at signing time
+                deviceKey: deviceKey,
+                pin: AppState.pinKeyMaterial(pin)
             )
             let encoded = try JSONEncoder().encode(EncryptedShardDTO(encrypted))
             try appState.walletStore.storeKeyShare(encoded, walletId: wallet.id)

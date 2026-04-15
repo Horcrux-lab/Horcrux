@@ -70,7 +70,12 @@ final class WalletStore: ObservableObject {
     private func save() {
         do {
             let data = try JSONEncoder().encode(wallets)
-            try data.write(to: fileURL, options: .atomic)
+            try data.write(to: fileURL, options: [.atomic, .completeFileProtection])
+            // Exclude from iCloud/iTunes backup
+            var resourceValues = URLResourceValues()
+            resourceValues.isExcludedFromBackup = true
+            var mutableURL = fileURL
+            try mutableURL.setResourceValues(resourceValues)
         } catch {
             print("WalletStore: failed to save wallets: \(error)")
         }

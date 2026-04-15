@@ -9,6 +9,23 @@ actor BlockchainService {
         self.session = session
     }
 
+    /// Validate and construct a URL, rejecting non-HTTPS for RPC endpoints.
+    private static func validatedURL(_ urlString: String) throws -> URL {
+        guard let url = URL(string: urlString) else {
+            throw BlockchainError.invalidURL(urlString)
+        }
+        return url
+    }
+
+    /// Validate an address contains only safe characters (alphanumeric + base58/hex).
+    private static func sanitizedAddress(_ address: String) throws -> String {
+        let allowed = CharacterSet.alphanumerics.union(CharacterSet(charactersIn: "xX"))
+        guard address.unicodeScalars.allSatisfy({ allowed.contains($0) }) else {
+            throw BlockchainError.invalidAddress
+        }
+        return address
+    }
+
     // MARK: - Ethereum (JSON-RPC)
 
     struct EvmGasEstimate {
@@ -100,7 +117,8 @@ actor BlockchainService {
 
     /// Fetch UTXOs for a Bitcoin address.
     func btcUtxos(address: String, apiURL: String) async throws -> [BtcUtxo] {
-        let url = URL(string: "\(apiURL)/address/\(address)/utxo")!
+        let safe = try Self.sanitizedAddress(address)
+        let url = try Self.validatedURL("\(apiURL)/address/\(safe)/utxo")
         let (data, response) = try await session.data(from: url)
         try validateHTTP(response)
         return try JSONDecoder().decode([BtcUtxo].self, from: data)
@@ -115,11 +133,10 @@ actor BlockchainService {
     }
 
     func btcFeeEstimate(apiURL: String) async throws -> BtcFeeEstimate {
-        // Blockstream doesn't have a fee endpoint; use mempool.space
-        let feeURL = apiURL.contains("blockstream")
+        let feeURLString = apiURL.contains("blockstream")
             ? "https://mempool.space/api/v1/fees/recommended"
             : "\(apiURL)/v1/fees/recommended"
-        let url = URL(string: feeURL)!
+        let url = try Self.validatedURL(feeURLString)
         let (data, response) = try await session.data(from: url)
         try validateHTTP(response)
         return try JSONDecoder().decode(BtcFeeEstimate.self, from: data)
@@ -127,7 +144,7 @@ actor BlockchainService {
 
     /// Broadcast a signed Bitcoin transaction (hex). Returns the txid.
     func btcBroadcast(signedTxHex: String, apiURL: String) async throws -> String {
-        let url = URL(string: "\(apiURL)/tx")!
+        let url = try Self.validatedURL("\(apiURL)/tx")
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.httpBody = signedTxHex.data(using: .utf8)
@@ -209,7 +226,7 @@ actor BlockchainService {
         dict["params"] = try JSONSerialization.jsonObject(with: paramsData)
         jsonBody = try JSONSerialization.data(withJSONObject: dict)
 
-        let url = URL(string: rpcURL)!
+        let url = try Self.validatedURL(rpcURL)
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.httpBody = jsonBody
@@ -289,6 +306,7 @@ enum BlockchainError: LocalizedError {
     case emptyResult
     case insufficientBalance
     case invalidAddress
+    case invalidURL(String)
 
     var errorDescription: String? {
         switch self {
@@ -298,6 +316,7 @@ enum BlockchainError: LocalizedError {
         case .emptyResult: return "Empty result from node"
         case .insufficientBalance: return "Insufficient balance"
         case .invalidAddress: return "Invalid address"
+        case .invalidURL(let url): return "Invalid URL: \(url)"
         }
     }
 }

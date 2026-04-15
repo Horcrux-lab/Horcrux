@@ -1,5 +1,6 @@
 import SwiftUI
 import Combine
+import CommonCrypto
 
 /// Global application state — owns the core Rust bridge instances.
 @MainActor
@@ -36,39 +37,150 @@ final class AppState: ObservableObject {
         (try? KeychainManager.shared.retrieve(key: KeychainKeys.pinHash)) == nil
     }
 
-    // MARK: - PIN Management
+    // MARK: - PIN Management (PBKDF2 + salt)
 
-    /// Hash a PIN for storage (SHA-256 of UTF-8 bytes).
-    static func hashPin(_ pin: String) -> Data {
-        horcruxKeccak256(data: Data(pin.utf8))
+    private static let pbkdf2Iterations: UInt32 = 100_000
+    private static let saltSize = 16
+    private static let hashSize = 32
+
+    /// Derive a PIN hash using PBKDF2-HMAC-SHA256 with a random salt.
+    /// Returns `salt (16 bytes) || hash (32 bytes)`.
+    static func hashPin(_ pin: String, salt: Data? = nil) -> Data {
+        let pinData = Data(pin.utf8)
+        let actualSalt: Data
+        if let salt {
+            actualSalt = salt
+        } else {
+            var bytes = [UInt8](repeating: 0, count: saltSize)
+            _ = SecRandomCopyBytes(kSecRandomDefault, bytes.count, &bytes)
+            actualSalt = Data(bytes)
+        }
+        var derivedKey = Data(count: hashSize)
+        derivedKey.withUnsafeMutableBytes { derivedBuf in
+            pinData.withUnsafeBytes { pinBuf in
+                actualSalt.withUnsafeBytes { saltBuf in
+                    CCKeyDerivationPBKDF(
+                        CCPBKDFAlgorithm(kCCPBKDF2),
+                        pinBuf.baseAddress?.assumingMemoryBound(to: Int8.self),
+                        pinData.count,
+                        saltBuf.baseAddress?.assumingMemoryBound(to: UInt8.self),
+                        actualSalt.count,
+                        CCPseudoRandomAlgorithm(kCCPRFHmacAlgSHA256),
+                        pbkdf2Iterations,
+                        derivedBuf.baseAddress?.assumingMemoryBound(to: UInt8.self),
+                        hashSize
+                    )
+                }
+            }
+        }
+        return actualSalt + derivedKey
     }
 
-    /// Set (or change) the user's PIN.
+    /// Set (or change) the user's PIN. Stores salt||hash in Keychain.
     func setPin(_ pin: String) throws {
-        let hash = Self.hashPin(pin)
-        try KeychainManager.shared.store(key: KeychainKeys.pinHash, data: hash)
+        let saltedHash = Self.hashPin(pin)
+        try KeychainManager.shared.store(key: KeychainKeys.pinHash, data: saltedHash)
+        // Reset attempt counter
+        resetFailedAttempts()
     }
 
-    /// Verify a PIN against the stored hash.
+    /// Verify a PIN against the stored salt||hash. Returns false if locked out.
     func verifyPin(_ pin: String) -> Bool {
-        guard let stored = try? KeychainManager.shared.retrieve(key: KeychainKeys.pinHash) else {
+        if isLockedOut { return false }
+        guard let stored = try? KeychainManager.shared.retrieve(key: KeychainKeys.pinHash),
+              stored.count == Self.saltSize + Self.hashSize else {
             return false
         }
-        return stored == Self.hashPin(pin)
+        let salt = stored.prefix(Self.saltSize)
+        let recomputed = Self.hashPin(pin, salt: Data(salt))
+        if recomputed == stored {
+            resetFailedAttempts()
+            return true
+        } else {
+            recordFailedAttempt()
+            return false
+        }
     }
 
-    /// A stable device key derived from a random seed stored in Keychain.
-    /// Used alongside the PIN for shard encryption.
-    var deviceKey: Data {
-        if let existing = try? KeychainManager.shared.retrieve(key: KeychainKeys.deviceKey) {
-            return existing
+    /// The raw PIN bytes for shard encryption — caller must supply the verified PIN.
+    static func pinKeyMaterial(_ pin: String) -> Data {
+        Data(pin.utf8)
+    }
+
+    // MARK: - Brute-Force Protection
+
+    /// Maximum failed PIN attempts before wipe.
+    static let maxFailedAttempts = 10
+
+    @Published private(set) var failedAttempts: Int = 0
+    @Published private(set) var lockoutUntil: Date?
+
+    /// Whether the app is currently locked out due to too many failed attempts.
+    var isLockedOut: Bool {
+        if let until = lockoutUntil, Date.now < until { return true }
+        return false
+    }
+
+    /// Seconds remaining in the current lockout, or 0.
+    var lockoutRemaining: TimeInterval {
+        guard let until = lockoutUntil else { return 0 }
+        return max(0, until.timeIntervalSinceNow)
+    }
+
+    private func recordFailedAttempt() {
+        failedAttempts += 1
+        persistFailedAttempts()
+
+        if failedAttempts >= Self.maxFailedAttempts {
+            wipeAllData()
+            return
         }
-        // Generate and persist a 32-byte device key on first access
-        var bytes = [UInt8](repeating: 0, count: 32)
-        _ = SecRandomCopyBytes(kSecRandomDefault, bytes.count, &bytes)
-        let key = Data(bytes)
-        try? KeychainManager.shared.store(key: KeychainKeys.deviceKey, data: key)
-        return key
+
+        // Exponential backoff: 0, 0, 0, 5s, 15s, 30s, 60s, 120s, 300s, wipe
+        let delays: [TimeInterval] = [0, 0, 0, 5, 15, 30, 60, 120, 300]
+        let idx = min(failedAttempts - 1, delays.count - 1)
+        let delay = delays[idx]
+        if delay > 0 {
+            lockoutUntil = Date.now.addingTimeInterval(delay)
+        }
+    }
+
+    private func resetFailedAttempts() {
+        failedAttempts = 0
+        lockoutUntil = nil
+        persistFailedAttempts()
+    }
+
+    private func persistFailedAttempts() {
+        let data = Data("\(failedAttempts)".utf8)
+        try? KeychainManager.shared.store(key: KeychainKeys.failedAttempts, data: data)
+    }
+
+    func loadFailedAttempts() {
+        if let data = try? KeychainManager.shared.retrieve(key: KeychainKeys.failedAttempts),
+           let str = String(data: data, encoding: .utf8),
+           let count = Int(str) {
+            failedAttempts = count
+        }
+    }
+
+    // MARK: - Device Key
+
+    /// A stable device key stored in Keychain. Used alongside PIN for shard encryption.
+    var deviceKey: Data {
+        get throws {
+            if let existing = try? KeychainManager.shared.retrieve(key: KeychainKeys.deviceKey) {
+                return existing
+            }
+            var bytes = [UInt8](repeating: 0, count: 32)
+            let status = SecRandomCopyBytes(kSecRandomDefault, bytes.count, &bytes)
+            guard status == errSecSuccess else {
+                throw KeychainError.storeFailed(status)
+            }
+            let key = Data(bytes)
+            try KeychainManager.shared.store(key: KeychainKeys.deviceKey, data: key)
+            return key
+        }
     }
 
     // MARK: - Wipe
@@ -77,6 +189,10 @@ final class AppState: ObservableObject {
         walletStore.wipeAll()
         try? KeychainManager.shared.delete(key: KeychainKeys.pinHash)
         try? KeychainManager.shared.delete(key: KeychainKeys.deviceKey)
+        try? KeychainManager.shared.delete(key: KeychainKeys.failedAttempts)
+        try? KeychainManager.shared.delete(key: KeychainKeys.noiseKeypair)
+        failedAttempts = 0
+        lockoutUntil = nil
         isUnlocked = false
     }
 }
@@ -86,6 +202,8 @@ final class AppState: ObservableObject {
 enum KeychainKeys {
     static let pinHash = "com.horcrux.pin_hash"
     static let deviceKey = "com.horcrux.device_key"
+    static let failedAttempts = "com.horcrux.failed_attempts"
+    static let noiseKeypair = "com.horcrux.noise_keypair"
 }
 
 // MARK: - Domain Models

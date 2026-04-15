@@ -32,6 +32,7 @@ final class SigningViewModel: ObservableObject {
     private var networkConfig: NetworkConfig?
     private var blockchainService: BlockchainService?
     private var sessionId: String?
+    private var signingPin: String?
     private var cancellables = Set<AnyCancellable>()
 
     // Gas estimation (EVM)
@@ -57,7 +58,7 @@ final class SigningViewModel: ObservableObject {
         self.bridge = appState.bridge
         self.peerManager = appState.peerManager
         self.walletStore = appState.walletStore
-        self.deviceKey = appState.deviceKey
+        self.deviceKey = try? appState.deviceKey
         self.networkConfig = appState.networkConfig
         self.blockchainService = appState.blockchainService
 
@@ -89,9 +90,10 @@ final class SigningViewModel: ObservableObject {
                     )
                     await MainActor.run {
                         estimatedGas = "\(estimate.gasLimit)"
-                        let feeWei = estimate.gasLimit * (UInt64(estimate.maxFeePerGas) ?? 0)
-                        let feeEth = Double(feeWei) / 1e18
-                        estimatedFee = String(format: "≈ %.6f ETH", feeEth)
+                        let feeWei = Decimal(estimate.gasLimit) * (Decimal(string: estimate.maxFeePerGas) ?? 0)
+                        let weiPerEth = Decimal(sign: .plus, exponent: 18, significand: 1)
+                        let feeEth = feeWei / weiPerEth
+                        estimatedFee = "≈ \(NSDecimalNumber(decimal: feeEth).stringValue) ETH"
                         isEstimatingGas = false
                     }
                 case .bitcoin:
@@ -120,6 +122,10 @@ final class SigningViewModel: ObservableObject {
         }
     }
 
+    func setPin(_ pin: String) {
+        self.signingPin = pin
+    }
+
     func startSigning() {
         step = .signing
         sessionId = UUID().uuidString
@@ -127,6 +133,9 @@ final class SigningViewModel: ObservableObject {
         Task {
             do {
                 guard let bridge, let peerManager, let deviceKey else {
+                    throw SigningError.notInitialized
+                }
+                guard let pin = signingPin, !pin.isEmpty else {
                     throw SigningError.notInitialized
                 }
 
@@ -138,7 +147,7 @@ final class SigningViewModel: ObservableObject {
                 )
 
                 // Load and decrypt the key share
-                let shardData = try loadKeyShare(deviceKey: deviceKey)
+                let shardData = try loadKeyShare(deviceKey: deviceKey, pin: pin)
 
                 // Build the transaction hash to sign
                 let messageHash = buildSignHash()
@@ -224,7 +233,7 @@ final class SigningViewModel: ObservableObject {
         }
     }
 
-    private func loadKeyShare(deviceKey: Data) throws -> Data {
+    private func loadKeyShare(deviceKey: Data, pin: String) throws -> Data {
         guard let walletStore,
               let encoded = try walletStore.loadKeyShare(walletId: wallet.id) else {
             throw SigningError.shardNotFound
@@ -235,7 +244,7 @@ final class SigningViewModel: ObservableObject {
         return try bridge.decryptShard(
             encrypted: encrypted,
             deviceKey: deviceKey,
-            pin: Data(Array(repeating: UInt8(0), count: 1))
+            pin: AppState.pinKeyMaterial(pin)
         )
     }
 
@@ -319,9 +328,10 @@ final class SigningViewModel: ObservableObject {
     }
 
     private func ethToWei(_ ethString: String) -> String {
-        guard let eth = Double(ethString) else { return "0" }
-        let wei = eth * 1e18
-        return String(format: "%.0f", wei)
+        guard let eth = Decimal(string: ethString) else { return "0" }
+        let weiPerEth = Decimal(sign: .plus, exponent: 18, significand: 1)
+        let wei = eth * weiPerEth
+        return NSDecimalNumber(decimal: wei).stringValue
     }
 }
 

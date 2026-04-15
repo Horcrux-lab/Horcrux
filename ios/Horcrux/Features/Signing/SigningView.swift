@@ -45,6 +45,11 @@ struct SigningView: View {
 struct ComposeTransactionView: View {
     @ObservedObject var viewModel: SigningViewModel
 
+    private var addressError: String? {
+        guard !viewModel.recipientAddress.isEmpty else { return nil }
+        return AddressValidator.errorMessage(for: viewModel.recipientAddress, chain: viewModel.wallet.chain)
+    }
+
     var body: some View {
         Form {
             Section("Recipient") {
@@ -52,6 +57,12 @@ struct ComposeTransactionView: View {
                     .font(.system(.body, design: .monospaced))
                     .autocorrectionDisabled()
                     .textInputAutocapitalization(.never)
+
+                if let addressError {
+                    Text(addressError)
+                        .font(.caption)
+                        .foregroundStyle(.red)
+                }
             }
 
             Section("Amount") {
@@ -102,7 +113,7 @@ struct ComposeTransactionView: View {
                         .font(.headline)
                 }
                 .buttonStyle(.borderedProminent)
-                .disabled(viewModel.recipientAddress.isEmpty || viewModel.amount.isEmpty)
+                .disabled(viewModel.recipientAddress.isEmpty || viewModel.amount.isEmpty || addressError != nil)
             }
         }
     }
@@ -113,6 +124,9 @@ struct ComposeTransactionView: View {
 struct InviteSignersView: View {
     @EnvironmentObject private var appState: AppState
     @ObservedObject var viewModel: SigningViewModel
+    @State private var showPinPrompt = false
+    @State private var pin = ""
+    @State private var pinError: String?
 
     var body: some View {
         VStack(spacing: 20) {
@@ -155,7 +169,7 @@ struct InviteSignersView: View {
 
             if viewModel.joinedSigners.count >= viewModel.wallet.threshold - 1 {
                 Button {
-                    viewModel.startSigning()
+                    showPinPrompt = true
                 } label: {
                     Text("Sign Transaction")
                         .frame(maxWidth: .infinity)
@@ -166,6 +180,28 @@ struct InviteSignersView: View {
             }
         }
         .padding()
+        .alert("Enter PIN to decrypt shard", isPresented: $showPinPrompt) {
+            SecureField("PIN", text: $pin)
+                .keyboardType(.numberPad)
+            Button("Unlock & Sign") {
+                guard appState.verifyPin(pin) else {
+                    pinError = "Incorrect PIN"
+                    pin = ""
+                    showPinPrompt = true
+                    return
+                }
+                viewModel.setPin(pin)
+                pin = ""
+                viewModel.startSigning()
+            }
+            Button("Cancel", role: .cancel) { pin = "" }
+        } message: {
+            if let pinError {
+                Text(pinError)
+            } else {
+                Text("Your PIN is needed to decrypt the key shard for signing.")
+            }
+        }
     }
 }
 

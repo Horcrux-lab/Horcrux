@@ -195,6 +195,9 @@ struct DKGCompleteView: View {
     @EnvironmentObject private var appState: AppState
     @ObservedObject var viewModel: CreateShardViewModel
     let dismiss: DismissAction
+    @State private var pin = ""
+    @State private var showPinPrompt = false
+    @State private var pinError: String?
 
     var body: some View {
         VStack(spacing: 32) {
@@ -227,10 +230,9 @@ struct DKGCompleteView: View {
             Spacer()
 
             Button {
-                viewModel.saveWallet(to: appState)
-                dismiss()
+                showPinPrompt = true
             } label: {
-                Text("Done")
+                Text("Save & Encrypt Shard")
                     .frame(maxWidth: .infinity)
                     .font(.headline)
             }
@@ -238,6 +240,26 @@ struct DKGCompleteView: View {
             .padding(.horizontal)
         }
         .padding()
+        .alert("Enter PIN to encrypt shard", isPresented: $showPinPrompt) {
+            SecureField("PIN", text: $pin)
+                .keyboardType(.numberPad)
+            Button("Encrypt & Save") {
+                guard appState.verifyPin(pin) else {
+                    pinError = "Incorrect PIN"
+                    return
+                }
+                viewModel.saveWallet(to: appState, pin: pin)
+                pin = ""
+                dismiss()
+            }
+            Button("Cancel", role: .cancel) { pin = "" }
+        } message: {
+            if let pinError {
+                Text(pinError)
+            } else {
+                Text("Your PIN is needed to encrypt the key shard.")
+            }
+        }
     }
 }
 

@@ -3,10 +3,11 @@ import SwiftUI
 /// App settings — security, relay server, and about.
 struct SettingsView: View {
     @EnvironmentObject private var appState: AppState
-    @AppStorage("relayURL") private var relayURL = "ws://localhost:3000/ws"
+    @AppStorage("relayURL") private var relayURL = "wss://localhost:3000/ws"
     @AppStorage("biometricEnabled") private var biometricEnabled = true
     @State private var showChangePin = false
     @State private var showWipeConfirmation = false
+    @State private var relayWarning: String?
 
     var body: some View {
         NavigationStack {
@@ -40,8 +41,15 @@ struct SettingsView: View {
                         .autocorrectionDisabled()
                         .textInputAutocapitalization(.never)
                         .onChange(of: relayURL) { _, newValue in
+                            relayWarning = Self.validateRelayURL(newValue)
                             appState.peerManager.relay.relayURL = newValue
                         }
+
+                    if let relayWarning {
+                        Label(relayWarning, systemImage: "exclamationmark.triangle.fill")
+                            .font(.caption)
+                            .foregroundStyle(.orange)
+                    }
 
                     RelayStatusRow(relay: appState.peerManager.relay)
                 }
@@ -87,6 +95,9 @@ struct SettingsView: View {
             } message: {
                 Text("This will permanently delete all wallets, key shards, and settings from this device. This cannot be undone.")
             }
+            .onAppear {
+                relayWarning = Self.validateRelayURL(relayURL)
+            }
         }
     }
 
@@ -97,6 +108,23 @@ struct SettingsView: View {
         parts.append(config.btcTestnet ? "BTC Testnet" : "BTC Mainnet")
         parts.append(config.solDevnet ? "SOL Devnet" : "SOL Mainnet")
         return parts.joined(separator: " · ")
+    }
+
+    /// Validate relay URL — must be wss:// for production use.
+    static func validateRelayURL(_ urlString: String) -> String? {
+        guard let url = URL(string: urlString),
+              let scheme = url.scheme?.lowercased() else {
+            return "Invalid URL format"
+        }
+        if scheme == "ws" {
+            let host = url.host ?? ""
+            if host != "localhost" && host != "127.0.0.1" && host != "::1" {
+                return "⚠️ Unencrypted ws:// — use wss:// for production"
+            }
+        } else if scheme != "wss" {
+            return "URL must use wss:// (or ws:// for local dev)"
+        }
+        return nil
     }
 }
 
@@ -354,8 +382,8 @@ struct NodeStatusRow: View {
                     // Simple eth_blockNumber call
                     _ = try await service.ethBalance(address: "0x0000000000000000000000000000000000000000", rpcURL: config.ethereumRPC)
                 case .bitcoin:
-                    // Try fetching the tip hash
-                    let url = URL(string: "\(config.bitcoinAPI)/blocks/tip/hash")!
+                    let urlString = "\(config.bitcoinAPI)/blocks/tip/hash"
+                    guard let url = URL(string: urlString) else { throw BlockchainError.invalidURL(urlString) }
                     let (_, response) = try await URLSession.shared.data(from: url)
                     guard let http = response as? HTTPURLResponse, (200...299).contains(http.statusCode) else {
                         throw BlockchainError.httpError(statusCode: (response as? HTTPURLResponse)?.statusCode ?? 0)
