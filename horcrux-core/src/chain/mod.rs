@@ -75,15 +75,24 @@ pub fn evm_address_from_pubkey(uncompressed: &[u8]) -> Result<String, ChainError
     Ok(format!("0x{}", hex::encode(&hash[12..])))
 }
 
-/// Derive a Bitcoin P2WPKH bech32 address from a 33-byte compressed public
-/// key.  `hrp` should be `"bc"` for mainnet or `"tb"` for testnet.
-pub fn btc_address_from_pubkey(compressed: &[u8], hrp_str: &str) -> Result<String, ChainError> {
-    if compressed.len() != 33 {
+/// Derive a Bitcoin P2WPKH bech32 address from a compressed (33-byte) or
+/// uncompressed (65-byte, 0x04 prefix) public key.
+/// `hrp` should be `"bc"` for mainnet or `"tb"` for testnet.
+pub fn btc_address_from_pubkey(pubkey: &[u8], hrp_str: &str) -> Result<String, ChainError> {
+    let compressed = if pubkey.len() == 33 {
+        pubkey.to_vec()
+    } else if pubkey.len() == 65 && pubkey[0] == 0x04 {
+        // Compress: 0x02 if Y is even, 0x03 if Y is odd, followed by X
+        let prefix = if pubkey[64] & 1 == 0 { 0x02 } else { 0x03 };
+        let mut out = vec![prefix];
+        out.extend_from_slice(&pubkey[1..33]);
+        out
+    } else {
         return Err(ChainError::InvalidAddress(
-            "expected 33-byte compressed public key".into(),
+            "expected 33-byte compressed or 65-byte uncompressed public key".into(),
         ));
-    }
-    let hash160 = bitcoin::hash160(compressed);
+    };
+    let hash160 = bitcoin::hash160(&compressed);
     let hrp = bech32::Hrp::parse(hrp_str)
         .map_err(|e| ChainError::EncodingError(format!("bad hrp: {e}")))?;
     // Witness version 0 + witness program (20-byte hash160)

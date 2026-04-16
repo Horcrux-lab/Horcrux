@@ -70,7 +70,7 @@ final class CreateShardViewModel: ObservableObject {
     }
 
     func startDiscovery() {
-        totalRounds = primaryCurve == .ed25519 ? 3 : 7
+        totalRounds = primaryCurve == .ed25519 ? 3 : 9
         dkgStatusMessage = L10n.DKG.searchingDevices
 
         if selectedTransports.contains(.relay) && !roomCode.isEmpty {
@@ -303,6 +303,8 @@ final class CreateShardViewModel: ObservableObject {
         case 5: dkgStatusMessage = L10n.DKG.verifyingProofs
         case 6: dkgStatusMessage = L10n.DKG.computingAuxInfo
         case 7: dkgStatusMessage = L10n.DKG.finalizingKeyShares
+        case 8: dkgStatusMessage = L10n.DKG.verifyingProofs
+        case 9: dkgStatusMessage = L10n.DKG.finalizingKeyShares
         default: dkgStatusMessage = L10n.DKG.processing
         }
     }
