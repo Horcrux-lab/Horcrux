@@ -715,10 +715,10 @@ mod tests {
         bad_s[0] ^= 0x01;
         // May produce invalid scalar, but verify should either error or return false
         let result = verify_threshold_signature(&pk, &msg, &sig.r, &bad_s);
-        match result {
-            Ok(valid) => assert!(!valid, "tampered s should not verify"),
-            Err(_) => {} // Also acceptable — invalid scalar
+        if let Ok(valid) = result {
+            assert!(!valid, "tampered s should not verify");
         }
+        // Err is also acceptable — invalid scalar
     }
 
     #[test]

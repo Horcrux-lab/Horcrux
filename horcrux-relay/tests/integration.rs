@@ -31,8 +31,10 @@ fn test_app() -> axum::Router {
 
 /// Build a test app with an admin token configured.
 fn test_app_with_admin_token(token: &str) -> (axum::Router, room::RoomManager) {
-    let mut config = RelayConfig::default();
-    config.admin_token = Some(token.to_string());
+    let config = RelayConfig {
+        admin_token: Some(token.to_string()),
+        ..Default::default()
+    };
     let rooms = room::new(&config);
     let ip_limiter = Arc::new(IpRateLimiter::new(
         config.ip_rate_limit_creates,
@@ -45,8 +47,10 @@ fn test_app_with_admin_token(token: &str) -> (axum::Router, room::RoomManager) {
 
 /// Build a test app with specific allowed origins for CORS testing.
 fn test_app_with_origins(origins: Vec<String>) -> axum::Router {
-    let mut config = RelayConfig::default();
-    config.allowed_origins = Some(origins);
+    let config = RelayConfig {
+        allowed_origins: Some(origins),
+        ..Default::default()
+    };
     let rooms = room::new(&config);
     let ip_limiter = Arc::new(IpRateLimiter::new(
         config.ip_rate_limit_creates,
