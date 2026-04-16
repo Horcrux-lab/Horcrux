@@ -318,9 +318,19 @@ actor BlockchainService {
 
     /// Broadcast a signed Solana transaction (base64). Returns the signature.
     func solSendTransaction(signedTxBase64: String, rpcURL: String) async throws -> String {
-        try await solanaCall(
+        struct SendTxParams: Encodable {
+            let tx: String
+            let config: [String: String]
+            func encode(to encoder: Encoder) throws {
+                var container = encoder.unkeyedContainer()
+                try container.encode(tx)
+                try container.encode(config)
+            }
+        }
+        let params = SendTxParams(tx: signedTxBase64, config: ["encoding": "base64"])
+        return try await solanaCall(
             method: "sendTransaction",
-            params: [signedTxBase64, ["encoding": "base64"]],
+            params: params,
             rpcURL: rpcURL
         )
     }
@@ -481,6 +491,15 @@ actor BlockchainService {
 
     // MARK: - Private Helpers
 
+    private struct RPCResponse<T: Decodable>: Decodable {
+        let result: T?
+        let error: RPCError?
+    }
+    private struct RPCError: Decodable {
+        let code: Int
+        let message: String
+    }
+
     private func ethCall<P: Encodable, R: Decodable>(method: String, params: P, rpcURL: String) async throws -> R {
         await waitForSlot()
         defer { releaseSlot() }
@@ -506,17 +525,9 @@ actor BlockchainService {
         request.httpBody = jsonBody
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
 
-        struct RPCResponse<T: Decodable>: Decodable {
-            let result: T?
-            let error: RPCError?
-        }
-        struct RPCError: Decodable {
-            let code: Int
-            let message: String
-        }
-
+        let capturedRequest = request
         return try await withRetry { [session] in
-            let (data, response) = try await session.data(for: request)
+            let (data, response) = try await session.data(for: capturedRequest)
             guard let http = response as? HTTPURLResponse else {
                 throw BlockchainError.invalidResponse
             }

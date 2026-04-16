@@ -17,7 +17,7 @@ struct QRScannerView: UIViewControllerRepresentable {
     func updateUIViewController(_ uiViewController: QRScannerViewController, context: Context) {}
 }
 
-final class QRScannerViewController: UIViewController, AVCaptureMetadataOutputObjectsDelegate {
+final class QRScannerViewController: UIViewController, @preconcurrency AVCaptureMetadataOutputObjectsDelegate {
     var onScan: ((String) -> Void)?
     private var captureSession: AVCaptureSession?
     private var previewLayer: AVCaptureVideoPreviewLayer?
@@ -128,7 +128,7 @@ final class QRScannerViewController: UIViewController, AVCaptureMetadataOutputOb
         // Strip common URI prefixes (ethereum:, bitcoin:, solana:)
         let address = Self.stripURIPrefix(value)
 
-        onScan(address)
+        onScan?(address)
     }
 
     /// Strip blockchain URI prefixes like "ethereum:0x...", "bitcoin:bc1...", "solana:..."

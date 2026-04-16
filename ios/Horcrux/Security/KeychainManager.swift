@@ -3,7 +3,7 @@ import Security
 import LocalAuthentication
 
 /// Secure shard storage using iOS Keychain.
-final class KeychainManager {
+final class KeychainManager: @unchecked Sendable {
     static let shared = KeychainManager()
     private init() {}
 

@@ -3,3 +3,6 @@
 *.swp
 *.swo
 .DS_Store
+
+# iOS build artifacts
+ios/Horcrux/Core/Frameworks/*.a

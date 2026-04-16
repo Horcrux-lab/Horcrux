@@ -2,7 +2,7 @@ import Foundation
 import UserNotifications
 
 /// Manages local push notifications for signing requests and transaction updates.
-final class NotificationManager: NSObject, ObservableObject, UNUserNotificationCenterDelegate {
+final class NotificationManager: NSObject, ObservableObject, UNUserNotificationCenterDelegate, @unchecked Sendable {
     static let shared = NotificationManager()
 
     @Published private(set) var isAuthorized = false

@@ -12,7 +12,7 @@ import CryptoKit
 ///
 /// Uses SHA-256 hash of the DER-encoded SPKI, matching the format used by
 /// Chrome HPKP and similar systems.
-final class CertificatePinner: NSObject {
+final class CertificatePinner: NSObject, @unchecked Sendable {
     static let shared = CertificatePinner()
 
     /// Known SPKI hashes for default RPC endpoints (base64-encoded SHA-256).

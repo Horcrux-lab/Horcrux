@@ -1,7 +1,7 @@
 import Foundation
 
 /// Per-chain RPC endpoint configuration with sensible public defaults.
-final class NetworkConfig: ObservableObject {
+final class NetworkConfig: ObservableObject, @unchecked Sendable {
     static let shared = NetworkConfig()
 
     @Published var ethereumRPC: String {

@@ -546,22 +546,52 @@ fileprivate struct FfiConverterData: FfiConverterRustBuffer {
 
 
 
+/**
+ * E2E encrypted Noise channel exposed to the host application.
+ *
+ * Wraps the Noise_XX state machine (Curve25519 + ChaChaPoly + SHA-256).
+ * Progress: `new_initiator/new_responder` → handshake → `seal`/`open`.
+ */
 public protocol HorcruxNoiseChannelProtocol : AnyObject {
     
+    /**
+     * Check whether the Noise handshake is complete (channel in transport mode).
+     */
     func isHandshakeFinished()  -> Bool
     
+    /**
+     * Decrypt a sealed envelope from the peer (post-handshake).
+     */
     func `open`(envelope: FfiSealedEnvelope) throws  -> Data
     
+    /**
+     * Read a handshake message from the peer and return the decrypted payload.
+     */
     func readHandshake(message: Data) throws  -> Data
     
+    /**
+     * Get the peer's static public key (available after handshake completes).
+     */
     func remoteStaticKey()  -> Data?
     
+    /**
+     * Encrypt a message for transport (post-handshake).
+     */
     func seal(plaintext: Data) throws  -> FfiSealedEnvelope
     
+    /**
+     * Write the next handshake message (caller → peer).
+     */
     func writeHandshake(payload: Data) throws  -> Data
     
 }
 
+/**
+ * E2E encrypted Noise channel exposed to the host application.
+ *
+ * Wraps the Noise_XX state machine (Curve25519 + ChaChaPoly + SHA-256).
+ * Progress: `new_initiator/new_responder` → handshake → `seal`/`open`.
+ */
 open class HorcruxNoiseChannel:
     HorcruxNoiseChannelProtocol {
     fileprivate let pointer: UnsafeMutableRawPointer!
@@ -634,6 +664,9 @@ public static func newResponder(keypair: FfiNoiseKeypair)throws  -> HorcruxNoise
     
 
     
+    /**
+     * Check whether the Noise handshake is complete (channel in transport mode).
+     */
 open func isHandshakeFinished() -> Bool {
     return try!  FfiConverterBool.lift(try! rustCall() {
     uniffi_horcrux_core_fn_method_horcruxnoisechannel_is_handshake_finished(self.uniffiClonePointer(),$0
@@ -641,6 +674,9 @@ open func isHandshakeFinished() -> Bool {
 })
 }
     
+    /**
+     * Decrypt a sealed envelope from the peer (post-handshake).
+     */
 open func `open`(envelope: FfiSealedEnvelope)throws  -> Data {
     return try  FfiConverterData.lift(try rustCallWithError(FfiConverterTypeFfiE2EError.lift) {
     uniffi_horcrux_core_fn_method_horcruxnoisechannel_open(self.uniffiClonePointer(),
@@ -649,6 +685,9 @@ open func `open`(envelope: FfiSealedEnvelope)throws  -> Data {
 })
 }
     
+    /**
+     * Read a handshake message from the peer and return the decrypted payload.
+     */
 open func readHandshake(message: Data)throws  -> Data {
     return try  FfiConverterData.lift(try rustCallWithError(FfiConverterTypeFfiE2EError.lift) {
     uniffi_horcrux_core_fn_method_horcruxnoisechannel_read_handshake(self.uniffiClonePointer(),
@@ -657,6 +696,9 @@ open func readHandshake(message: Data)throws  -> Data {
 })
 }
     
+    /**
+     * Get the peer's static public key (available after handshake completes).
+     */
 open func remoteStaticKey() -> Data? {
     return try!  FfiConverterOptionData.lift(try! rustCall() {
     uniffi_horcrux_core_fn_method_horcruxnoisechannel_remote_static_key(self.uniffiClonePointer(),$0
@@ -664,6 +706,9 @@ open func remoteStaticKey() -> Data? {
 })
 }
     
+    /**
+     * Encrypt a message for transport (post-handshake).
+     */
 open func seal(plaintext: Data)throws  -> FfiSealedEnvelope {
     return try  FfiConverterTypeFfiSealedEnvelope.lift(try rustCallWithError(FfiConverterTypeFfiE2EError.lift) {
     uniffi_horcrux_core_fn_method_horcruxnoisechannel_seal(self.uniffiClonePointer(),
@@ -672,6 +717,9 @@ open func seal(plaintext: Data)throws  -> FfiSealedEnvelope {
 })
 }
     
+    /**
+     * Write the next handshake message (caller → peer).
+     */
 open func writeHandshake(payload: Data)throws  -> Data {
     return try  FfiConverterData.lift(try rustCallWithError(FfiConverterTypeFfiE2EError.lift) {
     uniffi_horcrux_core_fn_method_horcruxnoisechannel_write_handshake(self.uniffiClonePointer(),
@@ -737,22 +785,52 @@ public func FfiConverterTypeHorcruxNoiseChannel_lower(_ value: HorcruxNoiseChann
 
 
 
+/**
+ * Thread-safe MPC session manager exposed to the host application via UniFFI.
+ *
+ * Manages concurrent DKG and signing sessions. All access goes through a Mutex
+ * to protect the internal state machines (which may use non-Send types).
+ */
 public protocol HorcruxSessionManagerProtocol : AnyObject {
     
+    /**
+     * Initiate a distributed key generation session. Returns initial outgoing messages.
+     */
     func createKeygen(sessionId: String, config: FfiHorcruxConfig) throws  -> [FfiMpcMessage]
     
+    /**
+     * Start a threshold signing session. Requires the local shard and participant list.
+     */
     func createSigning(sessionId: String, config: FfiHorcruxConfig, messageHash: Data, shardData: Data, participants: [UInt16]) throws  -> [FfiMpcMessage]
     
+    /**
+     * Retrieve the DKG result (public key + shard). Returns `None` if still in progress.
+     */
     func getKeygenResult(sessionId: String)  -> FfiKeygenResult?
     
+    /**
+     * Retrieve the signing result (signature). Returns `None` if still in progress.
+     */
     func getSigningResult(sessionId: String)  -> FfiSigningResult?
     
+    /**
+     * Process an inbound MPC protocol message and return any outgoing responses.
+     */
     func handleMessage(msg: FfiMpcMessage) throws  -> [FfiMpcMessage]
     
+    /**
+     * Remove a completed or abandoned session from memory.
+     */
     func removeSession(sessionId: String) 
     
 }
 
+/**
+ * Thread-safe MPC session manager exposed to the host application via UniFFI.
+ *
+ * Manages concurrent DKG and signing sessions. All access goes through a Mutex
+ * to protect the internal state machines (which may use non-Send types).
+ */
 open class HorcruxSessionManager:
     HorcruxSessionManagerProtocol {
     fileprivate let pointer: UnsafeMutableRawPointer!
@@ -810,6 +888,9 @@ public convenience init() {
     
 
     
+    /**
+     * Initiate a distributed key generation session. Returns initial outgoing messages.
+     */
 open func createKeygen(sessionId: String, config: FfiHorcruxConfig)throws  -> [FfiMpcMessage] {
     return try  FfiConverterSequenceTypeFfiMpcMessage.lift(try rustCallWithError(FfiConverterTypeHorcruxError.lift) {
     uniffi_horcrux_core_fn_method_horcruxsessionmanager_create_keygen(self.uniffiClonePointer(),
@@ -819,6 +900,9 @@ open func createKeygen(sessionId: String, config: FfiHorcruxConfig)throws  -> [F
 })
 }
     
+    /**
+     * Start a threshold signing session. Requires the local shard and participant list.
+     */
 open func createSigning(sessionId: String, config: FfiHorcruxConfig, messageHash: Data, shardData: Data, participants: [UInt16])throws  -> [FfiMpcMessage] {
     return try  FfiConverterSequenceTypeFfiMpcMessage.lift(try rustCallWithError(FfiConverterTypeHorcruxError.lift) {
     uniffi_horcrux_core_fn_method_horcruxsessionmanager_create_signing(self.uniffiClonePointer(),
@@ -831,6 +915,9 @@ open func createSigning(sessionId: String, config: FfiHorcruxConfig, messageHash
 })
 }
     
+    /**
+     * Retrieve the DKG result (public key + shard). Returns `None` if still in progress.
+     */
 open func getKeygenResult(sessionId: String) -> FfiKeygenResult? {
     return try!  FfiConverterOptionTypeFfiKeygenResult.lift(try! rustCall() {
     uniffi_horcrux_core_fn_method_horcruxsessionmanager_get_keygen_result(self.uniffiClonePointer(),
@@ -839,6 +926,9 @@ open func getKeygenResult(sessionId: String) -> FfiKeygenResult? {
 })
 }
     
+    /**
+     * Retrieve the signing result (signature). Returns `None` if still in progress.
+     */
 open func getSigningResult(sessionId: String) -> FfiSigningResult? {
     return try!  FfiConverterOptionTypeFfiSigningResult.lift(try! rustCall() {
     uniffi_horcrux_core_fn_method_horcruxsessionmanager_get_signing_result(self.uniffiClonePointer(),
@@ -847,6 +937,9 @@ open func getSigningResult(sessionId: String) -> FfiSigningResult? {
 })
 }
     
+    /**
+     * Process an inbound MPC protocol message and return any outgoing responses.
+     */
 open func handleMessage(msg: FfiMpcMessage)throws  -> [FfiMpcMessage] {
     return try  FfiConverterSequenceTypeFfiMpcMessage.lift(try rustCallWithError(FfiConverterTypeHorcruxError.lift) {
     uniffi_horcrux_core_fn_method_horcruxsessionmanager_handle_message(self.uniffiClonePointer(),
@@ -855,6 +948,9 @@ open func handleMessage(msg: FfiMpcMessage)throws  -> [FfiMpcMessage] {
 })
 }
     
+    /**
+     * Remove a completed or abandoned session from memory.
+     */
 open func removeSession(sessionId: String) {try! rustCall() {
     uniffi_horcrux_core_fn_method_horcruxsessionmanager_remove_session(self.uniffiClonePointer(),
         FfiConverterString.lower(sessionId),$0
@@ -919,16 +1015,31 @@ public func FfiConverterTypeHorcruxSessionManager_lower(_ value: HorcruxSessionM
 
 
 
+/**
+ * Thread-safe shard registry for tracking key shards across wallets.
+ */
 public protocol HorcruxShardManagerProtocol : AnyObject {
     
+    /**
+     * Register a shard in the in-memory registry.
+     */
     func addShard(info: FfiShardInfo) 
     
+    /**
+     * List all registered shards.
+     */
     func listShards()  -> [FfiShardInfo]
     
+    /**
+     * Filter shards by their associated public key.
+     */
     func shardsForKey(publicKey: Data)  -> [FfiShardInfo]
     
 }
 
+/**
+ * Thread-safe shard registry for tracking key shards across wallets.
+ */
 open class HorcruxShardManager:
     HorcruxShardManagerProtocol {
     fileprivate let pointer: UnsafeMutableRawPointer!
@@ -986,6 +1097,9 @@ public convenience init() {
     
 
     
+    /**
+     * Register a shard in the in-memory registry.
+     */
 open func addShard(info: FfiShardInfo) {try! rustCall() {
     uniffi_horcrux_core_fn_method_horcruxshardmanager_add_shard(self.uniffiClonePointer(),
         FfiConverterTypeFfiShardInfo.lower(info),$0
@@ -993,6 +1107,9 @@ open func addShard(info: FfiShardInfo) {try! rustCall() {
 }
 }
     
+    /**
+     * List all registered shards.
+     */
 open func listShards() -> [FfiShardInfo] {
     return try!  FfiConverterSequenceTypeFfiShardInfo.lift(try! rustCall() {
     uniffi_horcrux_core_fn_method_horcruxshardmanager_list_shards(self.uniffiClonePointer(),$0
@@ -1000,6 +1117,9 @@ open func listShards() -> [FfiShardInfo] {
 })
 }
     
+    /**
+     * Filter shards by their associated public key.
+     */
 open func shardsForKey(publicKey: Data) -> [FfiShardInfo] {
     return try!  FfiConverterSequenceTypeFfiShardInfo.lift(try! rustCall() {
     uniffi_horcrux_core_fn_method_horcruxshardmanager_shards_for_key(self.uniffiClonePointer(),
@@ -1063,6 +1183,9 @@ public func FfiConverterTypeHorcruxShardManager_lower(_ value: HorcruxShardManag
 }
 
 
+/**
+ * A Bitcoin UTXO input reference.
+ */
 public struct FfiBtcInput {
     public var txid: String
     public var vout: UInt32
@@ -1145,6 +1268,9 @@ public func FfiConverterTypeFfiBtcInput_lower(_ value: FfiBtcInput) -> RustBuffe
 }
 
 
+/**
+ * A Bitcoin transaction output (destination + amount).
+ */
 public struct FfiBtcOutput {
     public var address: String
     public var value: UInt64
@@ -1219,6 +1345,9 @@ public func FfiConverterTypeFfiBtcOutput_lower(_ value: FfiBtcOutput) -> RustBuf
 }
 
 
+/**
+ * Bitcoin P2WPKH transaction parameters.
+ */
 public struct FfiBtcTxParams {
     public var inputs: [FfiBtcInput]
     public var outputs: [FfiBtcOutput]
@@ -1293,6 +1422,9 @@ public func FfiConverterTypeFfiBtcTxParams_lower(_ value: FfiBtcTxParams) -> Rus
 }
 
 
+/**
+ * AES-256-GCM encrypted shard with nonce and PBKDF2 salt.
+ */
 public struct FfiEncryptedShard {
     public var nonce: Data
     public var ciphertext: Data
@@ -1367,6 +1499,9 @@ public func FfiConverterTypeFfiEncryptedShard_lower(_ value: FfiEncryptedShard) 
 }
 
 
+/**
+ * EIP-1559 Ethereum transaction parameters.
+ */
 public struct FfiEvmTxParams {
     public var to: String
     public var valueWei: String
@@ -1481,6 +1616,9 @@ public func FfiConverterTypeFfiEvmTxParams_lower(_ value: FfiEvmTxParams) -> Rus
 }
 
 
+/**
+ * MPC ceremony configuration passed from the host application.
+ */
 public struct FfiHorcruxConfig {
     public var threshold: UInt16
     public var totalParties: UInt16
@@ -1563,6 +1701,9 @@ public func FfiConverterTypeFfiHorcruxConfig_lower(_ value: FfiHorcruxConfig) ->
 }
 
 
+/**
+ * Result of a distributed key generation ceremony.
+ */
 public struct FfiKeygenResult {
     public var publicKey: Data
     public var shardData: Data
@@ -1653,6 +1794,9 @@ public func FfiConverterTypeFfiKeygenResult_lower(_ value: FfiKeygenResult) -> R
 }
 
 
+/**
+ * An MPC protocol message serialized for the FFI boundary.
+ */
 public struct FfiMpcMessage {
     public var fromParty: UInt16
     public var toParty: UInt16
@@ -1743,6 +1887,9 @@ public func FfiConverterTypeFfiMpcMessage_lower(_ value: FfiMpcMessage) -> RustB
 }
 
 
+/**
+ * Curve25519 static keypair for Noise protocol (FFI-safe, not zeroized).
+ */
 public struct FfiNoiseKeypair {
     public var privateKey: Data
     public var publicKey: Data
@@ -1809,6 +1956,9 @@ public func FfiConverterTypeFfiNoiseKeypair_lower(_ value: FfiNoiseKeypair) -> R
 }
 
 
+/**
+ * Noise-encrypted message envelope (handshake or transport payload).
+ */
 public struct FfiSealedEnvelope {
     public var ciphertext: Data
     public var handshake: Bool
@@ -1875,6 +2025,9 @@ public func FfiConverterTypeFfiSealedEnvelope_lower(_ value: FfiSealedEnvelope) 
 }
 
 
+/**
+ * Session token containing room credentials for relay access control.
+ */
 public struct FfiSessionToken {
     public var roomSecret: Data
     public var accessToken: Data
@@ -1949,6 +2102,9 @@ public func FfiConverterTypeFfiSessionToken_lower(_ value: FfiSessionToken) -> R
 }
 
 
+/**
+ * Metadata about a stored key shard (no secret material).
+ */
 public struct FfiShardInfo {
     public var shardId: String
     public var publicKey: Data
@@ -2063,6 +2219,9 @@ public func FfiConverterTypeFfiShardInfo_lower(_ value: FfiShardInfo) -> RustBuf
 }
 
 
+/**
+ * Result of a threshold signing ceremony (ECDSA / EdDSA).
+ */
 public struct FfiSigningResult {
     public var signature: Data
     public var r: Data
@@ -2145,6 +2304,9 @@ public func FfiConverterTypeFfiSigningResult_lower(_ value: FfiSigningResult) ->
 }
 
 
+/**
+ * Solana native SOL transfer parameters.
+ */
 public struct FfiSolanaTxParams {
     public var fromAddress: String
     public var toAddress: String
@@ -2235,6 +2397,9 @@ public func FfiConverterTypeFfiSolanaTxParams_lower(_ value: FfiSolanaTxParams) 
 }
 
 
+/**
+ * Chain-agnostic built transaction: raw serialized bytes + hash to sign.
+ */
 public struct FfiTransaction {
     public var chainType: String
     public var rawData: Data
@@ -2391,6 +2556,9 @@ extension ChainError: Foundation.LocalizedError {
 
 // Note that we don't yet support `indirect` for enums.
 // See https://github.com/mozilla/uniffi-rs/issues/396 for further discussion.
+/**
+ * Elliptic curve type selector for the FFI boundary.
+ */
 
 public enum FfiCurveType {
     
@@ -2897,6 +3065,9 @@ fileprivate struct FfiConverterSequenceTypeFfiShardInfo: FfiConverterRustBuffer 
         return seq
     }
 }
+/**
+ * Derive a bech32m Bitcoin address from a compressed secp256k1 public key (33 bytes).
+ */
 public func horcruxBtcAddress(compressedPubkey: Data, hrp: String)throws  -> String {
     return try  FfiConverterString.lift(try rustCallWithError(FfiConverterTypeChainError.lift) {
     uniffi_horcrux_core_fn_func_horcrux_btc_address(
@@ -2905,6 +3076,40 @@ public func horcruxBtcAddress(compressedPubkey: Data, hrp: String)throws  -> Str
     )
 })
 }
+/**
+ * Build a Bitcoin transaction (P2WPKH segwit) and return the BIP-143 sighash for a given input.
+ */
+public func horcruxBuildBtcTransaction(params: FfiBtcTxParams, inputIndex: UInt32)throws  -> FfiTransaction {
+    return try  FfiConverterTypeFfiTransaction.lift(try rustCallWithError(FfiConverterTypeChainError.lift) {
+    uniffi_horcrux_core_fn_func_horcrux_build_btc_transaction(
+        FfiConverterTypeFfiBtcTxParams.lower(params),
+        FfiConverterUInt32.lower(inputIndex),$0
+    )
+})
+}
+/**
+ * Build an EVM (EIP-1559) transaction and return the signing hash.
+ */
+public func horcruxBuildEvmTransaction(params: FfiEvmTxParams)throws  -> FfiTransaction {
+    return try  FfiConverterTypeFfiTransaction.lift(try rustCallWithError(FfiConverterTypeChainError.lift) {
+    uniffi_horcrux_core_fn_func_horcrux_build_evm_transaction(
+        FfiConverterTypeFfiEvmTxParams.lower(params),$0
+    )
+})
+}
+/**
+ * Build a Solana transfer transaction and return the signing hash.
+ */
+public func horcruxBuildSolanaTransaction(params: FfiSolanaTxParams)throws  -> FfiTransaction {
+    return try  FfiConverterTypeFfiTransaction.lift(try rustCallWithError(FfiConverterTypeChainError.lift) {
+    uniffi_horcrux_core_fn_func_horcrux_build_solana_transaction(
+        FfiConverterTypeFfiSolanaTxParams.lower(params),$0
+    )
+})
+}
+/**
+ * Decrypt a previously encrypted key shard.
+ */
 public func horcruxDecryptShard(encrypted: FfiEncryptedShard, deviceKey: Data, pin: Data)throws  -> Data {
     return try  FfiConverterData.lift(try rustCallWithError(FfiConverterTypeHorcruxError.lift) {
     uniffi_horcrux_core_fn_func_horcrux_decrypt_shard(
@@ -2914,6 +3119,9 @@ public func horcruxDecryptShard(encrypted: FfiEncryptedShard, deviceKey: Data, p
     )
 })
 }
+/**
+ * Encrypt a key shard using AES-256-GCM with PBKDF2-derived key (device_key + PIN).
+ */
 public func horcruxEncryptShard(plaintext: Data, deviceKey: Data, pin: Data)throws  -> FfiEncryptedShard {
     return try  FfiConverterTypeFfiEncryptedShard.lift(try rustCallWithError(FfiConverterTypeHorcruxError.lift) {
     uniffi_horcrux_core_fn_func_horcrux_encrypt_shard(
@@ -2923,6 +3131,9 @@ public func horcruxEncryptShard(plaintext: Data, deviceKey: Data, pin: Data)thro
     )
 })
 }
+/**
+ * Derive an Ethereum address from an uncompressed secp256k1 public key (65 bytes).
+ */
 public func horcruxEvmAddress(uncompressedPubkey: Data)throws  -> String {
     return try  FfiConverterString.lift(try rustCallWithError(FfiConverterTypeChainError.lift) {
     uniffi_horcrux_core_fn_func_horcrux_evm_address(
@@ -2930,18 +3141,27 @@ public func horcruxEvmAddress(uncompressedPubkey: Data)throws  -> String {
     )
 })
 }
-public func horcruxGenerateNoiseKeypair() -> FfiNoiseKeypair {
-    return try!  FfiConverterTypeFfiNoiseKeypair.lift(try! rustCall() {
+/**
+ * Generate a fresh Curve25519 Noise keypair for E2E encrypted communication.
+ */
+public func horcruxGenerateNoiseKeypair()throws  -> FfiNoiseKeypair {
+    return try  FfiConverterTypeFfiNoiseKeypair.lift(try rustCallWithError(FfiConverterTypeFfiE2EError.lift) {
     uniffi_horcrux_core_fn_func_horcrux_generate_noise_keypair($0
     )
 })
 }
+/**
+ * Generate a random session token (room_id, room_secret, access_token) for relay access.
+ */
 public func horcruxGenerateSessionToken() -> FfiSessionToken {
     return try!  FfiConverterTypeFfiSessionToken.lift(try! rustCall() {
     uniffi_horcrux_core_fn_func_horcrux_generate_session_token($0
     )
 })
 }
+/**
+ * Compute Keccak-256 hash (used for Ethereum address derivation and signing).
+ */
 public func horcruxKeccak256(data: Data) -> Data {
     return try!  FfiConverterData.lift(try! rustCall() {
     uniffi_horcrux_core_fn_func_horcrux_keccak256(
@@ -2949,6 +3169,9 @@ public func horcruxKeccak256(data: Data) -> Data {
     )
 })
 }
+/**
+ * Derive a base58 Solana address from an Ed25519 public key (32 bytes).
+ */
 public func horcruxSolanaAddress(pubkey: Data)throws  -> String {
     return try  FfiConverterString.lift(try rustCallWithError(FfiConverterTypeChainError.lift) {
     uniffi_horcrux_core_fn_func_horcrux_solana_address(
@@ -2972,73 +3195,82 @@ private var initializationResult: InitializationResult = {
     if bindings_contract_version != scaffolding_contract_version {
         return InitializationResult.contractVersionMismatch
     }
-    if (uniffi_horcrux_core_checksum_func_horcrux_btc_address() != 55006) {
+    if (uniffi_horcrux_core_checksum_func_horcrux_btc_address() != 35696) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_horcrux_core_checksum_func_horcrux_decrypt_shard() != 37963) {
+    if (uniffi_horcrux_core_checksum_func_horcrux_build_btc_transaction() != 64810) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_horcrux_core_checksum_func_horcrux_encrypt_shard() != 50196) {
+    if (uniffi_horcrux_core_checksum_func_horcrux_build_evm_transaction() != 17961) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_horcrux_core_checksum_func_horcrux_evm_address() != 22525) {
+    if (uniffi_horcrux_core_checksum_func_horcrux_build_solana_transaction() != 40488) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_horcrux_core_checksum_func_horcrux_generate_noise_keypair() != 648) {
+    if (uniffi_horcrux_core_checksum_func_horcrux_decrypt_shard() != 27530) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_horcrux_core_checksum_func_horcrux_generate_session_token() != 4880) {
+    if (uniffi_horcrux_core_checksum_func_horcrux_encrypt_shard() != 20571) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_horcrux_core_checksum_func_horcrux_keccak256() != 47417) {
+    if (uniffi_horcrux_core_checksum_func_horcrux_evm_address() != 6260) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_horcrux_core_checksum_func_horcrux_solana_address() != 62156) {
+    if (uniffi_horcrux_core_checksum_func_horcrux_generate_noise_keypair() != 41959) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_horcrux_core_checksum_method_horcruxnoisechannel_is_handshake_finished() != 34534) {
+    if (uniffi_horcrux_core_checksum_func_horcrux_generate_session_token() != 58563) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_horcrux_core_checksum_method_horcruxnoisechannel_open() != 60688) {
+    if (uniffi_horcrux_core_checksum_func_horcrux_keccak256() != 29475) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_horcrux_core_checksum_method_horcruxnoisechannel_read_handshake() != 38502) {
+    if (uniffi_horcrux_core_checksum_func_horcrux_solana_address() != 22087) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_horcrux_core_checksum_method_horcruxnoisechannel_remote_static_key() != 51834) {
+    if (uniffi_horcrux_core_checksum_method_horcruxnoisechannel_is_handshake_finished() != 4594) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_horcrux_core_checksum_method_horcruxnoisechannel_seal() != 30903) {
+    if (uniffi_horcrux_core_checksum_method_horcruxnoisechannel_open() != 14291) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_horcrux_core_checksum_method_horcruxnoisechannel_write_handshake() != 31336) {
+    if (uniffi_horcrux_core_checksum_method_horcruxnoisechannel_read_handshake() != 7520) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_horcrux_core_checksum_method_horcruxsessionmanager_create_keygen() != 12859) {
+    if (uniffi_horcrux_core_checksum_method_horcruxnoisechannel_remote_static_key() != 23256) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_horcrux_core_checksum_method_horcruxsessionmanager_create_signing() != 29492) {
+    if (uniffi_horcrux_core_checksum_method_horcruxnoisechannel_seal() != 23269) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_horcrux_core_checksum_method_horcruxsessionmanager_get_keygen_result() != 64094) {
+    if (uniffi_horcrux_core_checksum_method_horcruxnoisechannel_write_handshake() != 17542) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_horcrux_core_checksum_method_horcruxsessionmanager_get_signing_result() != 39156) {
+    if (uniffi_horcrux_core_checksum_method_horcruxsessionmanager_create_keygen() != 15041) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_horcrux_core_checksum_method_horcruxsessionmanager_handle_message() != 39225) {
+    if (uniffi_horcrux_core_checksum_method_horcruxsessionmanager_create_signing() != 55500) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_horcrux_core_checksum_method_horcruxsessionmanager_remove_session() != 1934) {
+    if (uniffi_horcrux_core_checksum_method_horcruxsessionmanager_get_keygen_result() != 62251) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_horcrux_core_checksum_method_horcruxshardmanager_add_shard() != 6154) {
+    if (uniffi_horcrux_core_checksum_method_horcruxsessionmanager_get_signing_result() != 36798) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_horcrux_core_checksum_method_horcruxshardmanager_list_shards() != 24506) {
+    if (uniffi_horcrux_core_checksum_method_horcruxsessionmanager_handle_message() != 49090) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_horcrux_core_checksum_method_horcruxshardmanager_shards_for_key() != 18000) {
+    if (uniffi_horcrux_core_checksum_method_horcruxsessionmanager_remove_session() != 27155) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_horcrux_core_checksum_method_horcruxshardmanager_add_shard() != 95) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_horcrux_core_checksum_method_horcruxshardmanager_list_shards() != 37486) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_horcrux_core_checksum_method_horcruxshardmanager_shards_for_key() != 14241) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_horcrux_core_checksum_constructor_horcruxnoisechannel_new_initiator() != 40779) {

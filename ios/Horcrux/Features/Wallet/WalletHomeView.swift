@@ -297,6 +297,7 @@ struct WalletRow: View {
 
 struct WalletDetailView: View {
     @EnvironmentObject private var appState: AppState
+    @ScaledMetric(relativeTo: .title3) private var smallIconSize: CGFloat = 28
     let wallet: Wallet
     @State private var showSigning = false
     @State private var showReceive = false

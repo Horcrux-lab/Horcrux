@@ -2,7 +2,7 @@ import Foundation
 import LocalAuthentication
 
 /// Biometric authentication (Face ID / Touch ID) for app unlock.
-final class BiometricAuth {
+final class BiometricAuth: @unchecked Sendable {
     static let shared = BiometricAuth()
     private init() {}
 

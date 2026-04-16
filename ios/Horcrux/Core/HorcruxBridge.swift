@@ -107,8 +107,8 @@ final class HorcruxBridge: ObservableObject {
 
     // MARK: - Noise E2E Encryption
 
-    func generateNoiseKeypair() -> FfiNoiseKeypair {
-        horcruxGenerateNoiseKeypair()
+    func generateNoiseKeypair() throws -> FfiNoiseKeypair {
+        try horcruxGenerateNoiseKeypair()
     }
 
     func generateSessionToken() -> FfiSessionToken {

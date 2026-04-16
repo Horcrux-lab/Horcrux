@@ -20,7 +20,7 @@ import CryptoKit
 ///
 /// The SE private key **never leaves the chip**. Even if Keychain is dumped,
 /// the sealed device key cannot be decrypted without biometric + SE hardware.
-final class SecureEnclaveManager {
+final class SecureEnclaveManager: @unchecked Sendable {
     static let shared = SecureEnclaveManager()
     private init() {}
 
@@ -84,10 +84,11 @@ final class SecureEnclaveManager {
 
         switch status {
         case errSecSuccess:
-            guard let key = item as? SecKey else {
+            guard let item else {
                 throw SecureEnclaveError.keyLoadFailed(errSecInternalError)
             }
-            return key
+            // swiftlint:disable:next force_cast
+            return (item as! SecKey)
         case errSecItemNotFound:
             return nil
         default:
@@ -219,10 +220,11 @@ final class SecureEnclaveManager {
 
         var item: CFTypeRef?
         let status = SecItemCopyMatching(query as CFDictionary, &item)
-        guard status == errSecSuccess, let key = item as? SecKey else {
+        guard status == errSecSuccess, let item else {
             throw SecureEnclaveError.keyLoadFailed(status)
         }
-        return key
+        // swiftlint:disable:next force_cast
+        return (item as! SecKey)
     }
 
     private func makeAccessControl() throws -> SecAccessControl {

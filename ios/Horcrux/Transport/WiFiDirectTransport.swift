@@ -14,7 +14,13 @@ final class WiFiDirectTransport: NSObject, TransportChannel, ObservableObject {
 
     weak var delegate: TransportChannelDelegate?
 
-    private let myPeerId = MCPeerID(displayName: UIDevice.current.name)
+    private let myPeerId: MCPeerID
+
+    init(peerName: String = ProcessInfo.processInfo.hostName) {
+        self.myPeerId = MCPeerID(displayName: peerName)
+        super.init()
+        setupSession()
+    }
     private var session: MCSession!
     private var advertiser: MCNearbyServiceAdvertiser?
     private var browser: MCNearbyServiceBrowser?
@@ -27,8 +33,7 @@ final class WiFiDirectTransport: NSObject, TransportChannel, ObservableObject {
         }
     }()
 
-    override init() {
-        super.init()
+    func setupSession() {
         session = MCSession(peer: myPeerId, securityIdentity: nil, encryptionPreference: .required)
         session.delegate = self
     }

@@ -25,4 +25,13 @@ enum SecureLog {
         logger.debug("\(message, privacy: .public)")
         #endif
     }
+
+    /// Log a warning-level message. Redacted in release builds.
+    static func warning(_ message: String) {
+        #if DEBUG
+        logger.warning("\(message, privacy: .public)")
+        #else
+        logger.warning("\(message, privacy: .private)")
+        #endif
+    }
 }

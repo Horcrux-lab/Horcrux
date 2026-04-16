@@ -135,7 +135,7 @@ struct PeerDiscoveryView: View {
 
             Text(L10n.Discovery.timeoutIn(timeRemaining))
                 .font(.caption)
-                .foregroundStyle(timeRemaining < 15 ? .red : .tertiary)
+                .foregroundStyle(timeRemaining < 15 ? Color.red : Color.gray)
 
             List(viewModel.foundPeers) { peer in
                 HStack {

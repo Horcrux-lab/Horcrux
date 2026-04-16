@@ -8,8 +8,8 @@ final class BLETransport: NSObject, TransportChannel, ObservableObject {
     let channelName = "Bluetooth"
 
     // Horcrux BLE service UUID
-    static let serviceUUID = CBUUID(string: "7B3B4D64-0000-1000-8000-00805F9B34FB")
-    static let characteristicUUID = CBUUID(string: "7B3B4D64-0001-1000-8000-00805F9B34FB")
+    nonisolated static let serviceUUID = CBUUID(string: "7B3B4D64-0000-1000-8000-00805F9B34FB")
+    nonisolated static let characteristicUUID = CBUUID(string: "7B3B4D64-0001-1000-8000-00805F9B34FB")
 
     @Published private(set) var isConnected: Bool = false
     @Published private(set) var discoveredPeers: [Peer] = []

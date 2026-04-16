@@ -282,6 +282,7 @@ struct SigningProgressView: View {
 struct SigningCompleteView: View {
     @EnvironmentObject private var appState: AppState
     @ObservedObject var viewModel: SigningViewModel
+    @ScaledMetric(relativeTo: .largeTitle) private var largeIconSize: CGFloat = 72
     let dismiss: DismissAction
 
     var body: some View {

@@ -1,5 +1,6 @@
 import Foundation
 import Network
+import UIKit
 
 /// Wi-Fi LAN transport using Network.framework + Bonjour discovery.
 /// Discovers peers on the same local network via mDNS (_horcrux._tcp).

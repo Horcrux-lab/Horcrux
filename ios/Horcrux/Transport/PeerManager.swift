@@ -81,7 +81,10 @@ final class PeerManager: ObservableObject {
             }
 
             // Generate new, seal, store
-            let keypair = horcruxGenerateNoiseKeypair()
+            guard let keypair = try? horcruxGenerateNoiseKeypair() else {
+                SecureLog.error("Failed to generate noise keypair")
+                return nil
+            }
             let dto = NoiseKeypairDTO(privateKey: keypair.privateKey, publicKey: keypair.publicKey)
             do {
                 let encoded = try JSONEncoder().encode(dto)
@@ -110,7 +113,10 @@ final class PeerManager: ObservableObject {
                 SecureLog.error("Failed to decode noise keypair: \(error.localizedDescription)")
             }
         }
-        let keypair = horcruxGenerateNoiseKeypair()
+        guard let keypair = try? horcruxGenerateNoiseKeypair() else {
+            SecureLog.error("Failed to generate noise keypair")
+            return nil
+        }
         let dto = NoiseKeypairDTO(privateKey: keypair.privateKey, publicKey: keypair.publicKey)
         do {
             let encoded = try JSONEncoder().encode(dto)

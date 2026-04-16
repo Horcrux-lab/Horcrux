@@ -1,4 +1,5 @@
 import Foundation
+import MachO
 import UIKit
 
 /// Basic jailbreak and environment tampering detection.
@@ -96,13 +97,17 @@ enum SecurityEnvironment {
     }
 
     private static func checkForkable() -> Bool {
-        let pid = fork()
-        if pid >= 0 {
-            // fork succeeded — shouldn't be possible in a properly sandboxed app
-            if pid > 0 {
-                // We're the parent — kill the child
-                kill(pid, SIGTERM)
-            }
+        // fork() is unavailable on iOS simulator; use posix_spawn check instead
+        var pid: pid_t = 0
+        var fileActions: posix_spawn_file_actions_t?
+        posix_spawn_file_actions_init(&fileActions)
+        let argv: [UnsafeMutablePointer<CChar>?] = [strdup("/bin/true"), nil]
+        let result = posix_spawn(&pid, "/bin/true", &fileActions, nil, argv, nil)
+        argv.compactMap { $0 }.forEach { free($0) }
+        posix_spawn_file_actions_destroy(&fileActions)
+        if result == 0 {
+            var stat: Int32 = 0
+            waitpid(pid, &stat, 0)
             return true
         }
         return false

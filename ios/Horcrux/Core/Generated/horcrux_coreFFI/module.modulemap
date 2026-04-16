@@ -1,0 +1,4 @@
+module horcrux_coreFFI {
+    header "horcrux_coreFFI.h"
+    export *
+}
