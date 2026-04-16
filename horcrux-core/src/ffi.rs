@@ -476,13 +476,13 @@ pub fn horcrux_generate_noise_keypair() -> Result<FfiNoiseKeypair, FfiE2EError> 
 
 /// Generate a random session token (room_id, room_secret, access_token) for relay access.
 #[uniffi::export]
-pub fn horcrux_generate_session_token() -> FfiSessionToken {
-    let st = SessionToken::generate();
-    FfiSessionToken {
+pub fn horcrux_generate_session_token() -> Result<FfiSessionToken, FfiE2EError> {
+    let st = SessionToken::generate().map_err(FfiE2EError::from)?;
+    Ok(FfiSessionToken {
         room_secret: st.room_secret.clone(),
         access_token: st.access_token.clone(),
         room_id: st.room_id.clone(),
-    }
+    })
 }
 
 /// Build an EVM (EIP-1559) transaction and return the signing hash.
@@ -936,7 +936,7 @@ mod tests {
 
     #[test]
     fn test_ffi_generate_session_token() {
-        let st = horcrux_generate_session_token();
+        let st = horcrux_generate_session_token().unwrap();
         assert!(!st.room_secret.is_empty());
         assert!(!st.access_token.is_empty());
         assert!(!st.room_id.is_empty());

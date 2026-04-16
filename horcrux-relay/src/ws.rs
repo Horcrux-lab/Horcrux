@@ -51,6 +51,7 @@ fn extract_token_from_headers(headers: &HeaderMap) -> Option<String> {
         })
 }
 
+#[tracing::instrument(skip_all, fields(room = %room_id))]
 pub async fn ws_handler(
     ws: WebSocketUpgrade,
     Path(room_id): Path<String>,
@@ -175,8 +176,7 @@ impl RateLimiter {
     }
 }
 
-/// Validate, parse, and relay an incoming message (shared by Text + Binary paths).
-/// Returns `Some(msg)` if valid, `None` if rejected (oversized, rate-limited, replayed, malformed).
+#[tracing::instrument(skip(raw, rate_limiter, rooms), fields(room = %room_id, device = %device_id))]
 async fn process_incoming(
     raw: &[u8],
     device_id: &str,
@@ -220,6 +220,7 @@ async fn process_incoming(
     Some(room_msg)
 }
 
+#[tracing::instrument(skip(socket, rooms, tx, rx, config), fields(room = %room_id, device = %device_id))]
 async fn handle_socket(
     socket: WebSocket,
     room_id: String,

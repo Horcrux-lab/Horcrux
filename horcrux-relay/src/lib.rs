@@ -23,6 +23,7 @@ use crate::config::RelayConfig;
 use crate::ip_ratelimit::IpRateLimiter;
 use crate::metrics::METRICS;
 use crate::room::RoomManager;
+use subtle::ConstantTimeEq;
 
 /// App state passed to all handlers.
 pub type AppState = (RoomManager, RelayConfig, Arc<IpRateLimiter>);
@@ -133,22 +134,10 @@ fn verify_admin_token(
                     .and_then(|v| v.to_str().ok())
             });
         match provided {
-            Some(t) if constant_time_str_eq(t, expected) => Ok(()),
+            Some(t) if t.as_bytes().ct_eq(expected.as_bytes()).into() => Ok(()),
             _ => Err(StatusCode::FORBIDDEN),
         }
     } else {
         Ok(())
     }
-}
-
-/// Constant-time string comparison (prevents timing attacks on admin tokens).
-fn constant_time_str_eq(a: &str, b: &str) -> bool {
-    if a.len() != b.len() {
-        return false;
-    }
-    let mut diff = 0u8;
-    for (x, y) in a.bytes().zip(b.bytes()) {
-        diff |= x ^ y;
-    }
-    diff == 0
 }

@@ -301,6 +301,7 @@ final class AppState: ObservableObject {
     /// Called when app enters background — clear sensitive in-memory data and track time.
     func onEnterBackground() {
         lastActiveTime = .now
+        NotificationCenter.default.post(name: .appDidEnterBackground, object: nil)
     }
 
     /// Called when app returns to foreground — check if auto-lock should trigger.
@@ -329,6 +330,12 @@ final class AppState: ObservableObject {
         lockoutUntil = nil
         isUnlocked = false
     }
+}
+
+// MARK: - Notifications
+
+extension Notification.Name {
+    static let appDidEnterBackground = Notification.Name("appDidEnterBackground")
 }
 
 // MARK: - App Errors

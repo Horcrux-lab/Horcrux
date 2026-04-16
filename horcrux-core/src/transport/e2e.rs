@@ -29,6 +29,7 @@
 
 use serde::{Deserialize, Serialize};
 use snow::{Builder, HandshakeState, TransportState};
+use subtle::ConstantTimeEq;
 use zeroize::{Zeroize, ZeroizeOnDrop};
 
 /// Noise protocol pattern: XX with Curve25519, ChaChaPoly, SHA-256.
@@ -252,9 +253,8 @@ pub fn complete_xx_handshake(
 
 impl SessionToken {
     /// Generate a new random session token.
-    /// HKDF expand with fixed-size outputs cannot fail in practice,
-    /// but we use expect() with context instead of bare unwrap().
-    pub fn generate() -> Self {
+    /// Returns an error if HKDF expansion fails (should not happen with fixed-size outputs).
+    pub fn generate() -> Result<Self, E2EError> {
         use hkdf::Hkdf;
         use rand::RngCore;
         use sha2::Sha256;
@@ -265,30 +265,23 @@ impl SessionToken {
         let hk = Hkdf::<Sha256>::new(None, &room_secret);
         let mut room_id_bytes = [0u8; 16];
         hk.expand(b"horcrux-room-id", &mut room_id_bytes)
-            .expect("HKDF expand for 16-byte room ID cannot exceed MaxOutputLength");
+            .map_err(|e| E2EError::Handshake(format!("HKDF expand for room ID failed: {e}")))?;
         let room_id = hex::encode(room_id_bytes);
 
         let mut access_bytes = [0u8; 32];
         hk.expand(b"horcrux-access-token", &mut access_bytes)
-            .expect("HKDF expand for 32-byte token cannot exceed MaxOutputLength");
+            .map_err(|e| E2EError::Handshake(format!("HKDF expand for access token failed: {e}")))?;
 
-        Self {
+        Ok(Self {
             room_secret: room_secret.to_vec(),
             access_token: access_bytes.to_vec(),
             room_id,
-        }
+        })
     }
 
     /// Verify that an access token is valid for this session.
     pub fn verify_access(&self, token: &[u8]) -> bool {
-        if token.len() != self.access_token.len() {
-            return false;
-        }
-        let mut diff = 0u8;
-        for (a, b) in token.iter().zip(self.access_token.iter()) {
-            diff |= a ^ b;
-        }
-        diff == 0
+        token.ct_eq(&self.access_token).into()
     }
 }
 
@@ -497,7 +490,7 @@ mod tests {
 
     #[test]
     fn test_session_token_generation() {
-        let token = SessionToken::generate();
+        let token = SessionToken::generate().unwrap();
         assert_eq!(token.room_secret.len(), 32);
         assert_eq!(token.access_token.len(), 32);
         assert_eq!(token.room_id.len(), 32);
@@ -507,8 +500,8 @@ mod tests {
 
     #[test]
     fn test_session_token_uniqueness() {
-        let t1 = SessionToken::generate();
-        let t2 = SessionToken::generate();
+        let t1 = SessionToken::generate().unwrap();
+        let t2 = SessionToken::generate().unwrap();
         assert_ne!(t1.room_id, t2.room_id);
         assert_ne!(t1.access_token, t2.access_token);
     }

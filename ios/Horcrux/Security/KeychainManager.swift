@@ -33,6 +33,31 @@ final class KeychainManager {
         }
     }
 
+    /// Store with enhanced protection (AfterFirstUnlockThisDeviceOnly).
+    /// Suitable for data that needs to be available early in boot (e.g., TOFU pins)
+    /// but should not migrate to other devices.
+    func storeProtected(key: String, data: Data) throws {
+        let deleteQuery: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: service,
+            kSecAttrAccount as String: key
+        ]
+        SecItemDelete(deleteQuery as CFDictionary)
+
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: service,
+            kSecAttrAccount as String: key,
+            kSecValueData as String: data,
+            kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
+        ]
+
+        let status = SecItemAdd(query as CFDictionary, nil)
+        guard status == errSecSuccess else {
+            throw KeychainError.storeFailed(status)
+        }
+    }
+
     /// Store sensitive data (shard keys, device key) with SecAccessControl.
     /// Requires device passcode; won't migrate to other devices.
     func storeSecure(key: String, data: Data) throws {
@@ -53,16 +78,18 @@ final class KeychainManager {
             throw KeychainError.storeFailed(errSecParam)
         }
 
+        let context = LAContext()
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
             kSecAttrAccount as String: key,
             kSecValueData as String: data,
             kSecAttrAccessControl as String: access,
-            kSecUseAuthenticationContext as String: LAContext()
+            kSecUseAuthenticationContext as String: context
         ]
 
         let status = SecItemAdd(query as CFDictionary, nil)
+        context.invalidate()
         guard status == errSecSuccess else {
             throw KeychainError.storeFailed(status)
         }

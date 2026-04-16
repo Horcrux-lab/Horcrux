@@ -87,17 +87,29 @@ impl RelayConfig {
         }
         if let Ok(v) = std::env::var("RELAY_MAX_PARTICIPANTS") {
             if let Ok(n) = v.parse::<usize>() {
-                cfg.max_participants = n.clamp(1, 100);
+                let clamped = n.clamp(1, 100);
+                if clamped != n {
+                    tracing::warn!(env = "RELAY_MAX_PARTICIPANTS", raw = n, clamped, "value clamped to safe range [1, 100]");
+                }
+                cfg.max_participants = clamped;
             }
         }
         if let Ok(v) = std::env::var("RELAY_MAX_MESSAGE_SIZE") {
             if let Ok(n) = v.parse::<usize>() {
-                cfg.max_message_size = n.clamp(1024, 100_000_000);
+                let clamped = n.clamp(1024, 100_000_000);
+                if clamped != n {
+                    tracing::warn!(env = "RELAY_MAX_MESSAGE_SIZE", raw = n, clamped, "value clamped to safe range [1024, 100000000]");
+                }
+                cfg.max_message_size = clamped;
             }
         }
         if let Ok(v) = std::env::var("RELAY_RATE_LIMIT") {
             if let Ok(n) = v.parse::<u32>() {
-                cfg.rate_limit_count = n.clamp(1, 10_000);
+                let clamped = n.clamp(1, 10_000);
+                if clamped != n {
+                    tracing::warn!(env = "RELAY_RATE_LIMIT", raw = n, clamped, "value clamped to safe range [1, 10000]");
+                }
+                cfg.rate_limit_count = clamped;
             }
         }
         if let Ok(v) = std::env::var("RELAY_ADMIN_TOKEN") {
@@ -110,7 +122,11 @@ impl RelayConfig {
         }
         if let Ok(v) = std::env::var("RELAY_MAX_ROOMS") {
             if let Ok(n) = v.parse::<usize>() {
-                cfg.max_rooms = n.clamp(1, 1_000_000);
+                let clamped = n.clamp(1, 1_000_000);
+                if clamped != n {
+                    tracing::warn!(env = "RELAY_MAX_ROOMS", raw = n, clamped, "value clamped to safe range [1, 1000000]");
+                }
+                cfg.max_rooms = clamped;
             }
         }
         cfg
@@ -141,22 +157,19 @@ mod tests {
 
     #[test]
     fn zero_max_participants_fails() {
-        let mut cfg = RelayConfig::default();
-        cfg.max_participants = 0;
+        let cfg = RelayConfig { max_participants: 0, ..Default::default() };
         assert!(matches!(cfg.validate(), Err(ConfigError::InvalidMaxParticipants)));
     }
 
     #[test]
     fn zero_max_rooms_fails() {
-        let mut cfg = RelayConfig::default();
-        cfg.max_rooms = 0;
+        let cfg = RelayConfig { max_rooms: 0, ..Default::default() };
         assert!(matches!(cfg.validate(), Err(ConfigError::InvalidMaxRooms)));
     }
 
     #[test]
     fn zero_rate_limit_fails() {
-        let mut cfg = RelayConfig::default();
-        cfg.rate_limit_count = 0;
+        let cfg = RelayConfig { rate_limit_count: 0, ..Default::default() };
         assert!(matches!(cfg.validate(), Err(ConfigError::InvalidRateLimitCount)));
     }
 }

@@ -67,21 +67,20 @@ final class SecureEnclaveManager {
 
     /// Load the existing SE key from Keychain.
     private func loadKey() throws -> SecKey? {
+        let context = LAContext()
+        context.localizedReason = "Authenticate to access your key shard"
         let query: [String: Any] = [
             kSecClass as String: kSecClassKey,
             kSecAttrKeyType as String: kSecAttrKeyTypeECSECPrimeRandom,
             kSecAttrApplicationTag as String: Data(keyTag.utf8),
             kSecAttrKeyClass as String: kSecAttrKeyClassPrivate,
             kSecReturnRef as String: true,
-            kSecUseAuthenticationContext as String: {
-                let context = LAContext()
-                context.localizedReason = "Authenticate to access your key shard"
-                return context
-            }()
+            kSecUseAuthenticationContext as String: context
         ]
 
         var item: CFTypeRef?
         let status = SecItemCopyMatching(query as CFDictionary, &item)
+        context.invalidate()
 
         switch status {
         case errSecSuccess:

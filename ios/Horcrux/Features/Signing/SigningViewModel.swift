@@ -57,6 +57,10 @@ final class SigningViewModel: ObservableObject {
     init(wallet: Wallet) {
         self.wallet = wallet
         self.totalRounds = wallet.chain == .solana ? 2 : 4
+        NotificationCenter.default.publisher(for: .appDidEnterBackground)
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] _ in self?.clearSensitiveState() }
+            .store(in: &cancellables)
     }
 
     func bind(to appState: AppState) {
@@ -221,6 +225,15 @@ final class SigningViewModel: ObservableObject {
         }
         errorMessage = L10n.Signing.cancelledByUser
         step = .error
+    }
+
+    /// Clear sensitive in-memory state (called on app background).
+    func clearSensitiveState() {
+        signingPin = nil
+        if var key = deviceKey {
+            key.resetBytes(in: key.startIndex..<key.endIndex)
+            deviceKey = nil
+        }
     }
 
     private func runSigningRounds(initialMessages: [FfiMpcMessage]) async {

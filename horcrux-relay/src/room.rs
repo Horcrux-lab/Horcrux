@@ -13,6 +13,7 @@ use tokio::sync::{broadcast, RwLock, Mutex};
 
 use crate::config::RelayConfig;
 use crate::metrics::METRICS;
+use subtle::ConstantTimeEq;
 
 /// Shared state across all WebSocket connections.
 pub type RoomManager = Arc<RoomManagerInner>;
@@ -72,7 +73,7 @@ impl Room {
         if let Some(ref stored_hash) = self.token_hash {
             let provided_hash = token.map(RoomManagerInner::hash_token);
             match provided_hash {
-                Some(h) if constant_time_eq(&h, stored_hash) => {}
+                Some(h) if h.ct_eq(stored_hash).into() => {}
                 _ => {
                     METRICS.auth_failures.fetch_add(1, Ordering::Relaxed);
                     return Err(RoomError::InvalidToken);
@@ -194,6 +195,7 @@ impl RoomManagerInner {
     }
 
     /// Join (or create) a room with access token verification.
+    #[tracing::instrument(skip(self, token), fields(room = %room_id, device = %device_id))]
     pub async fn join_room_with_token(
         &self,
         room_id: &str,
@@ -361,15 +363,6 @@ pub struct RoomStats {
     pub room_id: String,
     pub participants: usize,
     pub secured: bool,
-}
-
-/// Constant-time comparison to prevent timing attacks on token verification.
-fn constant_time_eq(a: &[u8; 32], b: &[u8; 32]) -> bool {
-    let mut diff = 0u8;
-    for (x, y) in a.iter().zip(b.iter()) {
-        diff |= x ^ y;
-    }
-    diff == 0
 }
 
 #[cfg(test)]

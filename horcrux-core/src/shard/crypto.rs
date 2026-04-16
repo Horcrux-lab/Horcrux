@@ -21,8 +21,19 @@ pub struct EncryptedShard {
     pub salt: Vec<u8>,
 }
 
+/// Errors from shard encryption operations.
+#[derive(Debug, thiserror::Error)]
+pub enum ShardCryptoError {
+    #[error("key derivation failed: {0}")]
+    KeyDerivation(String),
+    #[error("encryption failed: {0}")]
+    Encryption(String),
+    #[error("decryption failed: {0}")]
+    Decryption(String),
+}
+
 /// Derive an AES-256 key from device key + user PIN.
-pub fn derive_key(device_key: &[u8], pin: &[u8], salt: &[u8]) -> [u8; KEY_SIZE] {
+pub fn derive_key(device_key: &[u8], pin: &[u8], salt: &[u8]) -> Result<[u8; KEY_SIZE], ShardCryptoError> {
     let mut ikm = Vec::with_capacity(device_key.len() + pin.len());
     ikm.extend_from_slice(device_key);
     ikm.extend_from_slice(pin);
@@ -30,10 +41,10 @@ pub fn derive_key(device_key: &[u8], pin: &[u8], salt: &[u8]) -> [u8; KEY_SIZE] 
     let hk = Hkdf::<Sha256>::new(Some(salt), &ikm);
     let mut key = [0u8; KEY_SIZE];
     hk.expand(b"horcrux-shard-encryption", &mut key)
-        .expect("HKDF expand failed");
+        .map_err(|e| ShardCryptoError::KeyDerivation(format!("{e}")))?;
 
     ikm.zeroize();
-    key
+    Ok(key)
 }
 
 /// Encrypt a shard's secret data.
@@ -45,7 +56,8 @@ pub fn encrypt_shard(
     let mut salt = [0u8; 16];
     rand::thread_rng().fill_bytes(&mut salt);
 
-    let mut key = derive_key(device_key, pin, &salt);
+    let mut key = derive_key(device_key, pin, &salt)
+        .map_err(|e| e.to_string())?;
 
     let cipher = Aes256Gcm::new(Key::<Aes256Gcm>::from_slice(&key));
 
@@ -73,7 +85,8 @@ pub fn decrypt_shard(
     device_key: &[u8],
     pin: &[u8],
 ) -> Result<Zeroizing<Vec<u8>>, String> {
-    let mut key = derive_key(device_key, pin, &encrypted.salt);
+    let mut key = derive_key(device_key, pin, &encrypted.salt)
+        .map_err(|e| e.to_string())?;
 
     let cipher = Aes256Gcm::new(Key::<Aes256Gcm>::from_slice(&key));
     let nonce = Nonce::from_slice(&encrypted.nonce);

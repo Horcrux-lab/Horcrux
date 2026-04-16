@@ -178,7 +178,7 @@ final class CertificatePinner: NSObject {
     private func saveTOFUPins() {
         let serializable = pinnedHashes.mapValues { Array($0) }
         guard let data = try? JSONEncoder().encode(serializable) else { return }
-        try? KeychainManager.shared.store(key: tofuKey, data: data)
+        try? KeychainManager.shared.storeProtected(key: tofuKey, data: data)
     }
 }
 
