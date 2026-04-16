@@ -1,0 +1,431 @@
+/* Common */
+"common.ok" = "好";
+"common.cancel" = "取消";
+"common.error" = "错误";
+"common.done" = "完成";
+"common.retry" = "重试";
+"common.delete" = "删除";
+"common.copy" = "复制";
+"common.copied" = "已复制！";
+"common.next" = "下一步";
+"common.pin" = "PIN";
+"common.test" = "测试";
+
+/* App / Security */
+"app.contentHidden" = "为保护隐私，App 内容已隐藏";
+"app.securityViolation" = "安全违规";
+"app.exitApp" = "退出应用";
+"app.debuggerDetected" = "检测到调试器或检测工具。为保护您的密钥分片，应用无法在此环境中运行。";
+"app.securityWarning" = "安全警告";
+"app.understandRisk" = "我了解风险";
+"app.deviceCompromised" = "此设备可能已被入侵，您的密钥分片可能存在风险。请使用安全设备管理正式钱包。";
+
+/* Tabs */
+"tab.wallet" = "钱包";
+"tab.shards" = "分片";
+"tab.settings" = "设置";
+
+/* Onboarding */
+"onboarding.welcomeTitle" = "欢迎使用 Horcrux";
+"onboarding.welcomeSubtitle" = "您的密钥即是魂器。\n分割它们，守护它们。";
+"onboarding.getStarted" = "开始使用";
+"onboarding.getStartedHint" = "开始设置您的钱包 PIN";
+"onboarding.createPin" = "创建 PIN";
+"onboarding.pinProtects" = "此 PIN 用于保护您的密钥分片";
+"onboarding.enterPinPlaceholder" = "输入 PIN（至少 4 位）";
+"onboarding.createPinHint" = "输入至少 4 位数字作为新 PIN";
+"onboarding.nextHint" = "继续确认您的 PIN";
+"onboarding.confirmPin" = "确认 PIN";
+"onboarding.enterSamePin" = "再次输入相同的 PIN";
+"onboarding.confirmPinHint" = "重新输入 PIN 以确认";
+"onboarding.pinsDontMatch" = "两次 PIN 不一致";
+"onboarding.createWallet" = "创建钱包";
+"onboarding.createWalletHint" = "保存 PIN 并创建钱包";
+
+/* Lock Screen */
+"lockScreen.title" = "Horcrux";
+"lockScreen.subtitle" = "输入 PIN 解锁分片";
+"lockScreen.pinHint" = "输入数字 PIN 解锁应用";
+"lockScreen.unlock" = "解锁";
+"lockScreen.unlockHint" = "使用输入的 PIN 解锁应用";
+"lockScreen.useFaceID" = "使用面容 ID";
+"lockScreen.unlockBiometricHint" = "使用生物识别认证解锁应用";
+"lockScreen.tooManyAttempts" = "尝试次数过多，请 %d 秒后重试";
+"lockScreen.incorrectPin" = "PIN 错误（剩余 %d 次尝试）";
+"lockScreen.dataWiped" = "因多次输入错误，所有数据已清除";
+
+/* Wallet Home */
+"walletHome.title" = "Horcrux";
+"walletHome.noWalletsTitle" = "暂无钱包";
+"walletHome.noWalletsSubtitle" = "通过将密钥分割到多个设备\n创建您的第一个 MPC 钱包。";
+"walletHome.createWallet" = "创建钱包";
+"walletHome.createNewWallet" = "创建新钱包";
+"walletHome.opensCreationFlow" = "打开钱包创建流程";
+"walletHome.startMPCHint" = "开始多方密钥生成流程";
+"walletHome.viewDetailsHint" = "查看钱包详情、发送和接收";
+"walletHome.editWalletList" = "编辑钱包列表";
+"walletHome.pendingBroadcasts" = "待广播交易";
+"walletHome.nodeUnreachable" = "%@ 节点不可达";
+"walletHome.nodesUnreachable" = "%@ 个节点不可达";
+"walletHome.networkWarning" = "网络警告：%@ 个节点不可达";
+"walletHome.loadingBalance" = "正在加载余额";
+
+/* Pending Broadcast */
+"pending.retry" = "重试";
+"pending.discard" = "丢弃";
+"pending.attempts" = "尝试次数：%d";
+
+/* Wallet Detail */
+"walletDetail.actions" = "操作";
+"walletDetail.sendTransaction" = "发送交易";
+"walletDetail.openSigningHint" = "打开交易签名流程";
+"walletDetail.receive" = "收款";
+"walletDetail.showQRHint" = "显示二维码和地址以接收资金";
+"walletDetail.tokens" = "代币";
+"walletDetail.loadingTokens" = "正在加载代币…";
+"walletDetail.noTokens" = "未找到代币余额";
+"walletDetail.noTokensDescription" = "添加后，ERC-20 和 SPL 代币将显示在此处。";
+"walletDetail.recentTransactions" = "最近交易";
+"walletDetail.viewAllHistory" = "查看全部历史";
+"walletDetail.transactions" = "交易";
+"walletDetail.transactionHistory" = "交易历史";
+"walletDetail.details" = "详情";
+"walletDetail.chain" = "区块链";
+"walletDetail.threshold" = "阈值";
+"walletDetail.thresholdValue" = "%d / %d";
+"walletDetail.yourShard" = "您的分片";
+"walletDetail.shardNumber" = "#%d";
+"walletDetail.created" = "创建时间";
+"walletDetail.walletAddress" = "钱包地址";
+"walletDetail.copyAddress" = "复制地址";
+"walletDetail.addressCopied" = "地址已复制";
+"walletDetail.copyWalletAddress" = "复制钱包地址";
+"walletDetail.copiesAddressHint" = "将钱包地址复制到剪贴板";
+
+/* Receive */
+"receive.title" = "收款";
+"receive.receiveSymbol" = "接收 %@";
+"receive.qrCodeAccessibility" = "%@ 地址的二维码";
+"receive.qrShareHint" = "将此二维码分享给付款方";
+"receive.qrError" = "二维码错误";
+"receive.qrFailed" = "二维码生成失败";
+"receive.copyAddress" = "复制地址";
+"receive.addressCopied" = "地址已复制";
+"receive.copiedClears" = "已复制（%d 秒后清除）";
+"receive.copiesHint" = "将钱包地址复制到剪贴板";
+"receive.shareAddress" = "分享地址";
+"receive.shareHint" = "通过其他应用分享钱包地址";
+
+/* Transaction History */
+"txHistory.title" = "历史";
+"txHistory.noTransactionsTitle" = "暂无交易";
+"txHistory.noTransactionsSubtitle" = "发送或接收资金后\n交易将显示在此处。";
+"txHistory.confirming" = "确认中…";
+"txHistory.sendSymbol" = "发送 %@";
+
+/* Transaction Detail */
+"txDetail.title" = "交易";
+"txDetail.details" = "详情";
+"txDetail.chain" = "区块链";
+"txDetail.from" = "发送方";
+"txDetail.to" = "接收方";
+"txDetail.fee" = "手续费";
+"txDetail.signed" = "已签名";
+"txDetail.broadcast" = "已广播";
+"txDetail.transactionHash" = "交易哈希";
+"txDetail.copyHash" = "复制哈希";
+"txDetail.copied" = "已复制";
+"txDetail.viewOnExplorer" = "在浏览器中查看";
+
+/* Create Shard / DKG */
+"createShard.title" = "创建钱包";
+"createShard.walletName" = "钱包名称";
+"createShard.walletNamePlaceholder" = "我的钱包";
+"createShard.walletNameAccessibility" = "钱包名称";
+"createShard.walletNameHint" = "输入新钱包的名称";
+"createShard.blockchain" = "区块链";
+"createShard.chain" = "链";
+"createShard.threshold" = "阈值";
+"createShard.totalParties" = "总参与方：%d";
+"createShard.totalPartiesHint" = "调整参与的设备总数";
+"createShard.signingThreshold" = "签名阈值：%d";
+"createShard.signingThresholdHint" = "调整签名所需的最少设备数";
+"createShard.requiresDevices" = "需要 **%d** / **%d** 台设备签名";
+"createShard.communication" = "通信方式";
+"createShard.nextFindPeers" = "下一步：发现设备";
+"createShard.findPeersHint" = "继续发现附近设备以进行密钥生成";
+
+/* Peer Discovery */
+"discovery.lookingForDevices" = "正在搜索附近设备…";
+"discovery.peersFound" = "已发现 %d / %d 个设备";
+"discovery.peersFoundAccessibility" = "已发现 %d / %d 个设备";
+"discovery.timeoutIn" = "%d 秒后超时";
+"discovery.startKeyGeneration" = "开始密钥生成";
+"discovery.startKeyGenHint" = "与已连接的设备开始分布式密钥生成仪式";
+
+/* DKG Progress */
+"dkg.keyGenProgress" = "密钥生成进度";
+"dkg.generatingKeyShards" = "正在生成密钥分片";
+"dkg.roundOf" = "第 %d / %d 轮";
+"dkg.keyGenRound" = "密钥生成第 %d / %d 轮";
+"dkg.keepDevicesNearby" = "请保持设备在附近直到完成";
+"dkg.cancelCeremony" = "取消仪式";
+
+/* DKG Status Messages */
+"dkg.searchingDevices" = "正在搜索附近设备…";
+"dkg.initializingKeyGen" = "正在初始化密钥生成…";
+"dkg.exchangingCommitments" = "正在交换承诺…";
+"dkg.verifyingShares" = "正在验证份额…";
+"dkg.finalizingKeyPackage" = "正在完成密钥包…";
+"dkg.computingPaillierKeys" = "正在计算 Paillier 密钥…";
+"dkg.generatingZKProofs" = "正在生成零知识证明…";
+"dkg.verifyingProofs" = "正在验证证明…";
+"dkg.computingAuxInfo" = "正在计算辅助信息…";
+"dkg.finalizingKeyShares" = "正在完成密钥份额…";
+"dkg.derivingAddress" = "正在推导地址…";
+"dkg.processing" = "处理中…";
+
+/* DKG Complete */
+"dkg.walletCreated" = "钱包已创建！";
+"dkg.yourShardIs" = "您的分片编号为 #%d";
+"dkg.thresholdOf" = "%d / %d 阈值";
+"dkg.saveEncryptShard" = "保存并加密分片";
+"dkg.saveEncryptHint" = "输入 PIN 以加密并保存密钥分片";
+"dkg.enterPinEncrypt" = "输入 PIN 以加密分片";
+"dkg.encryptSave" = "加密并保存";
+"dkg.incorrectPin" = "PIN 错误";
+"dkg.pinNeededEncrypt" = "需要您的 PIN 来加密密钥分片。";
+
+/* DKG Error */
+"dkg.keyGenFailed" = "密钥生成失败";
+"dkg.retryHint" = "返回并重新尝试密钥生成";
+"dkg.ceremonyCancel" = "用户已取消仪式。";
+"dkg.compromisedDevice" = "在不安全的设备上已禁用密钥生成。请使用安全设备。";
+"dkg.peerTimeout" = "设备发现超时，请重试。";
+
+/* Signing */
+"signing.sendSymbol" = "发送 %@";
+"signing.recipient" = "收款方";
+"signing.addressPlaceholder" = "地址";
+"signing.recipientAddress" = "收款方地址";
+"signing.recipientHint" = "输入目标钱包地址";
+"signing.scanQR" = "扫描二维码";
+"signing.scanQRHint" = "打开相机扫描钱包地址二维码";
+"signing.amount" = "金额";
+"signing.amountHint" = "输入发送金额";
+"signing.gas" = "Gas";
+"signing.estimating" = "估算中…";
+"signing.gasLimit" = "Gas 上限";
+"signing.estFee" = "预估手续费";
+"signing.fee" = "手续费";
+"signing.unableToEstimate" = "无法估算";
+"signing.nextInviteCoSigners" = "下一步：邀请共签方";
+"signing.inviteHint" = "继续邀请共签方参与此交易";
+
+/* Invite Co-Signers */
+"signing.inviteCoSigners" = "邀请共签方";
+"signing.needMoreSigners" = "还需 %d 个签名者";
+"signing.waitingForCoSigners" = "等待共签方加入…";
+"signing.signTransaction" = "签署交易";
+"signing.signHint" = "输入 PIN 并与共签方一起签署交易";
+"signing.enterPinDecrypt" = "输入 PIN 以解密分片";
+"signing.unlockSign" = "解锁并签名";
+"signing.incorrectPin" = "PIN 错误";
+"signing.pinNeededDecrypt" = "需要您的 PIN 来解密签名用的密钥分片。";
+
+/* Signing Progress */
+"signing.signingProgress" = "签名进度";
+"signing.signingTransaction" = "正在签署交易";
+"signing.roundOf" = "第 %d / %d 轮";
+"signing.signingRound" = "签名第 %d / %d 轮";
+"signing.cancelSigning" = "取消签名";
+
+/* Signing Status Messages */
+"signing.initializingProtocol" = "正在初始化签名协议…";
+"signing.broadcastingNonces" = "正在广播随机数承诺…";
+"signing.exchangingNonces" = "正在交换加密随机数…";
+"signing.computingSignatureShares" = "正在计算签名份额…";
+"signing.computingPartialSigs" = "正在计算部分签名…";
+"signing.combiningSig" = "正在合并签名…";
+"signing.verifyingSig" = "正在验证签名…";
+
+/* Signing Complete */
+"signing.transactionSigned" = "交易已签名！";
+"signing.broadcasting" = "广播中…";
+"signing.broadcastToNetwork" = "广播到网络";
+"signing.broadcastHint" = "将已签名的交易提交到区块链网络";
+"signing.saveForLater" = "稍后发送";
+"signing.saveForLaterHint" = "保存已签名的交易，稍后广播";
+"signing.broadcastingTo" = "正在广播到 %@ 网络…";
+
+/* Signing Error */
+"signing.signingFailed" = "签名失败";
+"signing.retryHint" = "返回并重新尝试签名";
+"signing.cancelledByUser" = "用户已取消签名。";
+"signing.compromisedDevice" = "在不安全的设备上已禁用签名。请使用安全设备。";
+
+/* QR Scanner */
+"scanner.title" = "扫描二维码";
+"scanner.cameraNotAvailable" = "相机不可用";
+"scanner.scanningArea" = "二维码扫描区域";
+"scanner.scanningHint" = "将二维码放入框内进行扫描";
+
+/* Shards */
+"shards.title" = "分片";
+"shards.noShards" = "暂无分片";
+"shards.noShardsDescription" = "创建钱包以生成您的第一个密钥分片。";
+"shards.importShard" = "导入分片";
+"shards.shardNumber" = "分片 #%d";
+"shards.walletInfo" = "钱包信息";
+"shards.wallet" = "钱包";
+"shards.chain" = "链";
+"shards.address" = "地址";
+"shards.threshold" = "阈值";
+"shards.thresholdValue" = "%d / %d";
+"shards.actions" = "操作";
+"shards.backupShard" = "备份分片";
+"shards.deleteShard" = "删除分片";
+"shards.shardDetails" = "分片详情";
+"shards.deleteShardConfirm" = "确定删除分片？";
+"shards.deleteShardMessage" = "此分片将从设备中永久删除。请确保您已备份。";
+"shards.shardThreshold" = "%d / %d 分片阈值";
+
+/* Shard Backup */
+"shardBackup.title" = "备份分片";
+"shardBackup.description" = "您的分片将被解密并导出为可移植的备份文件。请妥善保管此文件。";
+"shardBackup.devicePin" = "设备 PIN";
+"shardBackup.enterPin" = "输入 PIN（至少 6 位）";
+"shardBackup.exportEncrypted" = "导出加密分片";
+"shardBackup.ready" = "分片备份已就绪";
+"shardBackup.exportOptions" = "导出选项";
+"shardBackup.saveToFiles" = "保存到文件";
+"shardBackup.copyToClipboard" = "复制到剪贴板";
+"shardBackup.copiedAutoClears" = "已复制！（%d 秒后自动清除）";
+"shardBackup.qrCode" = "二维码";
+"shardBackup.shardBackupQR" = "分片备份二维码";
+"shardBackup.unableToGenerateQR" = "无法生成二维码";
+
+/* Shard Import */
+"shardImport.title" = "导入分片";
+"shardImport.description" = "从文件、剪贴板或二维码导入分片备份。";
+"shardImport.importSource" = "导入来源";
+"shardImport.chooseFile" = "选择文件";
+"shardImport.pasteFromClipboard" = "从剪贴板粘贴";
+"shardImport.scanQRCode" = "扫描二维码";
+"shardImport.backupInfo" = "备份信息";
+"shardImport.partyIndex" = "参与方编号";
+"shardImport.partyIndexValue" = "#%d";
+"shardImport.backupVersion" = "备份版本";
+"shardImport.backupVersionValue" = "v%d";
+"shardImport.enterDevicePin" = "输入设备 PIN（至少 6 位）";
+"shardImport.reEncryptNote" = "分片将使用此设备的凭据重新加密。";
+"shardImport.import" = "导入分片";
+"shardImport.chooseDifferent" = "选择其他来源";
+"shardImport.shardImported" = "分片已导入！";
+"shardImport.addedToDevice" = "\"%@\" 已添加到此设备。";
+"shardImport.unableToAccessFile" = "无法访问所选文件";
+"shardImport.noClipboardData" = "剪贴板中未找到有效的备份数据";
+"shardImport.invalidQRData" = "无效的二维码数据";
+
+/* Settings */
+"settings.title" = "设置";
+"settings.security" = "安全";
+"settings.faceIDTouchID" = "面容 ID / 触控 ID";
+"settings.biometricHint" = "启用或禁用生物识别认证解锁";
+"settings.changePin" = "更改 PIN";
+"settings.changePinHint" = "打开 PIN 更改页面";
+"settings.autoLock" = "自动锁定";
+"settings.immediately" = "立即";
+"settings.oneMinute" = "1 分钟";
+"settings.fiveMinutes" = "5 分钟";
+"settings.fifteenMinutes" = "15 分钟";
+"settings.oneHour" = "1 小时";
+"settings.never" = "永不";
+"settings.blockchainNodes" = "区块链节点";
+"settings.rpcEndpoints" = "RPC 端点";
+"settings.rpcEndpointsHint" = "配置区块链 RPC 节点端点";
+"settings.network" = "网络";
+"settings.relayServer" = "中继服务器";
+"settings.webSocketURL" = "WebSocket 地址";
+"settings.relayServerURL" = "中继服务器地址";
+"settings.relayURLHint" = "输入中继服务器的 WebSocket 地址";
+"settings.communication" = "通信";
+"settings.transportPreferences" = "传输偏好";
+"settings.transportHint" = "配置蓝牙、Wi-Fi Direct 和局域网传输选项";
+"settings.about" = "关于";
+"settings.version" = "版本";
+"settings.coreLibrary" = "核心库";
+"settings.mpcProtocols" = "MPC 协议";
+"settings.e2eEncryption" = "端到端加密";
+"settings.secureEnclave" = "安全隔区";
+"settings.hardwareProtected" = "硬件保护";
+"settings.softwareOnly" = "纯软件";
+"settings.openSourceLicenses" = "开源许可";
+"settings.licensesHint" = "查看开源库许可";
+"settings.dangerZone" = "危险区域";
+"settings.wipeAllData" = "清除所有数据";
+"settings.wipeHint" = "永久删除所有钱包、密钥分片和设置";
+"settings.wipeConfirmTitle" = "确定清除所有数据？";
+"settings.wipeEverything" = "全部清除";
+"settings.wipeMessage" = "这将永久删除此设备上的所有钱包、密钥分片和设置。此操作不可撤销。";
+"settings.connected" = "已连接";
+"settings.disconnected" = "未连接";
+"settings.relayStatusConnected" = "中继状态：已连接";
+"settings.relayStatusDisconnected" = "中继状态：未连接";
+
+/* Transport Settings */
+"transport.title" = "传输";
+"transport.faceToFaceChannels" = "面对面通道";
+"transport.ble" = "蓝牙 (BLE)";
+"transport.bleHint" = "启用或禁用蓝牙进行点对点通信";
+"transport.wifiDirect" = "Wi-Fi Direct";
+"transport.wifiDirectHint" = "启用或禁用 Wi-Fi Direct 进行点对点通信";
+"transport.wifiLAN" = "Wi-Fi 局域网 (Bonjour)";
+"transport.wifiLANHint" = "启用或禁用本地 Wi-Fi 网络发现";
+"transport.info" = "蓝牙无需 Wi-Fi 即可工作。Wi-Fi 局域网为大型交易提供更高吞吐量。Wi-Fi Direct 无需路由器即可创建点对点连接。";
+
+/* Change PIN */
+"changePin.title" = "更改 PIN";
+"changePin.currentPin" = "当前 PIN";
+"changePin.newPin" = "新 PIN";
+"changePin.confirmNewPin" = "确认新 PIN";
+"changePin.submit" = "更改 PIN";
+"changePin.submitHint" = "保存新 PIN";
+"changePin.incorrectCurrent" = "当前 PIN 错误";
+"changePin.dontMatch" = "两次新 PIN 不一致";
+"changePin.saveFailed" = "保存新 PIN 失败";
+
+/* Blockchain Node Settings */
+"nodeSettings.title" = "区块链节点";
+"nodeSettings.quickPresets" = "快速预设";
+"nodeSettings.switchTo" = "切换到 %@";
+"nodeSettings.configureInfo" = "为每条区块链配置 RPC 端点。用于查询余额、估算手续费和广播已签名的交易。";
+"nodeSettings.ethereumEVM" = "以太坊 / EVM";
+"nodeSettings.rpcURL" = "RPC 地址";
+"nodeSettings.networkPicker" = "网络";
+"nodeSettings.mainnet" = "主网 (Chain ID 1)";
+"nodeSettings.sepoliaTestnet" = "Sepolia 测试网 (11155111)";
+"nodeSettings.polygon" = "Polygon (137)";
+"nodeSettings.arbitrumOne" = "Arbitrum One (42161)";
+"nodeSettings.base" = "Base (8453)";
+"nodeSettings.bitcoin" = "比特币";
+"nodeSettings.restAPIURL" = "REST API 地址";
+"nodeSettings.testnet" = "测试网";
+"nodeSettings.testnetHint" = "在比特币主网和测试网之间切换";
+"nodeSettings.solana" = "Solana";
+"nodeSettings.devnet" = "开发网";
+"nodeSettings.devnetHint" = "在 Solana 主网和开发网之间切换";
+"nodeSettings.resetToDefaults" = "恢复默认";
+"nodeSettings.resetHint" = "将所有 RPC 端点重置为默认公共节点";
+"nodeSettings.resetConfirmTitle" = "确定恢复默认？";
+"nodeSettings.reset" = "重置";
+"nodeSettings.resetMessage" = "这将把所有 RPC 端点重置为默认公共节点。";
+
+/* Node Status */
+"nodeStatus.notChecked" = "未检查";
+"nodeStatus.connected" = "已连接";
+"nodeStatus.checking" = "检查中…";
+
+/* Licenses */
+"licenses.title" = "许可";
+"licenses.coreDependencies" = "核心依赖";

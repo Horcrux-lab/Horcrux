@@ -103,7 +103,8 @@
 		08990698B518337C3E98D3CE /* CurrencyFormatter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CurrencyFormatter.swift; sourceTree = "<group>"; };
 		0B6E61D592F4FD54E5442B57 /* SecurityEnvironmentTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HorcruxTests/SecurityEnvironmentTests.swift; sourceTree = SOURCE_ROOT; };
 		12C11D20C4929E2BE2553316 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
-		AAAA000011112222DEADBEEF /* Localizable.strings */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = Localizable.strings; path = en.lproj/Localizable.strings; sourceTree = "<group>"; };
+		CCCC000011112222DEADBE01 /* en */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = en; path = en.lproj/Localizable.strings; sourceTree = "<group>"; };
+		CCCC000011112222DEADBE02 /* zh-Hans */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = "zh-Hans"; path = "zh-Hans.lproj/Localizable.strings"; sourceTree = "<group>"; };
 		18E722F82F4851FF4C37CDA4 /* ShardsViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShardsViewModel.swift; sourceTree = "<group>"; };
 		1AF9DEBF9BECD65C63B64B81 /* horcrux_core.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = horcrux_core.swift; sourceTree = "<group>"; };
 		1D47DFFE366A125359462514 /* AntiDebug.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AntiDebug.swift; sourceTree = "<group>"; };
@@ -527,6 +528,7 @@
 			knownRegions = (
 				Base,
 				en,
+				"zh-Hans",
 			);
 			mainGroup = 1D9198C57ED8B65E06A5EEC4;
 			minimizedProjectReferenceProxies = 1;
@@ -673,6 +675,18 @@
 			targetProxy = 57A8558E4506B0E3EFB4EDFA /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
+
+/* Begin PBXVariantGroup section */
+		AAAA000011112222DEADBEEF /* Localizable.strings */ = {
+			isa = PBXVariantGroup;
+			children = (
+				CCCC000011112222DEADBE01 /* en */,
+				CCCC000011112222DEADBE02 /* zh-Hans */,
+			);
+			name = Localizable.strings;
+			sourceTree = "<group>";
+		};
+/* End PBXVariantGroup section */
 
 /* Begin XCBuildConfiguration section */
 		165AE0FB290975449E08FBC9 /* Release */ = {
