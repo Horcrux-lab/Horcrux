@@ -53,13 +53,28 @@ struct ConfigureView: View {
             }
 
             Section(L10n.CreateShard.blockchain) {
-                Picker(L10n.CreateShard.chain, selection: $viewModel.selectedChain) {
-                    ForEach(Chain.allCases) { chain in
+                ForEach(Chain.allCases) { chain in
+                    Toggle(isOn: Binding(
+                        get: { viewModel.selectedChains.contains(chain) },
+                        set: { enabled in
+                            if enabled {
+                                viewModel.selectedChains.insert(chain)
+                            } else if viewModel.selectedChains.count > 1 {
+                                viewModel.selectedChains.remove(chain)
+                            }
+                        }
+                    )) {
                         Label(chain.rawValue, systemImage: chain.iconName)
-                            .tag(chain)
                     }
+                    .tint(chain.color)
                 }
-                .pickerStyle(.inline)
+
+                if viewModel.selectedChains.contains(where: { $0.curveType == .secp256k1 })
+                    && viewModel.selectedChains.contains(where: { $0.curveType == .ed25519 }) {
+                    Text("⚠️ Different curves selected — only same-curve chains share one keygen")
+                        .font(.caption)
+                        .foregroundStyle(.orange)
+                }
             }
 
             Section(L10n.CreateShard.threshold) {
@@ -139,6 +154,18 @@ struct PeerDiscoveryView: View {
             Text(L10n.Discovery.lookingForDevices)
                 .foregroundStyle(.secondary)
 
+            // Show local peer identity
+            HStack(spacing: 8) {
+                Image(systemName: "person.crop.circle.badge.checkmark")
+                    .foregroundStyle(HorcruxTheme.accentCyan)
+                Text("My ID: \(viewModel.localPeerId)")
+                    .font(.system(.caption, design: .monospaced))
+                    .foregroundStyle(HorcruxTheme.accentCyan)
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 8)
+            .background(HorcruxTheme.accentCyan.opacity(0.1), in: Capsule())
+
             Text(L10n.Discovery.peersFound(viewModel.foundPeers.count, viewModel.totalParties - 1))
                 .font(.headline)
                 .accessibilityLabel(L10n.Discovery.peersFoundAccessibility(viewModel.foundPeers.count, viewModel.totalParties - 1))
@@ -154,7 +181,7 @@ struct PeerDiscoveryView: View {
                     VStack(alignment: .leading) {
                         Text(peer.name)
                             .font(.headline)
-                        Text(peer.channel)
+                        Text("\(peer.channel) · \(String(peer.id.prefix(8)))")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
@@ -269,12 +296,16 @@ struct DKGCompleteView: View {
                 Text(L10n.DKG.walletCreated)
                     .font(.title.bold())
 
-                if let address = viewModel.generatedAddress {
-                    Text(address)
-                        .font(.system(.caption, design: .monospaced))
-                        .multilineTextAlignment(.center)
-                        .textSelection(.enabled)
-                        .padding(.horizontal)
+                ForEach(viewModel.generatedAddresses, id: \.chain) { entry in
+                    HStack(spacing: 6) {
+                        ChainIcon(chain: entry.chain, size: 20)
+                        Text(entry.address)
+                            .font(.system(.caption, design: .monospaced))
+                            .lineLimit(1)
+                            .truncationMode(.middle)
+                    }
+                    .textSelection(.enabled)
+                    .padding(.horizontal)
                 }
             }
 

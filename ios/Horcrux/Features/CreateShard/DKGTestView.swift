@@ -64,10 +64,12 @@ struct DKGTestView: View {
                                 .foregroundStyle(.green)
                             Text("DKG Complete!")
                                 .font(.title.bold())
-                            if let addr = viewModel.generatedAddress {
-                                Text(addr)
-                                    .font(.caption.monospaced())
-                                    .textSelection(.enabled)
+                            if !viewModel.generatedAddresses.isEmpty {
+                                ForEach(viewModel.generatedAddresses, id: \.chain) { entry in
+                                    Text("\(entry.chain.symbol): \(entry.address)")
+                                        .font(.caption.monospaced())
+                                        .textSelection(.enabled)
+                                }
                             }
                         }
                     case .error:
@@ -105,7 +107,7 @@ struct DKGTestView: View {
 
     private func autoConfigure() {
         viewModel.walletName = "Test Wallet"
-        viewModel.selectedChain = .ethereum
+        viewModel.selectedChains = [.ethereum]
         viewModel.threshold = 2
         viewModel.totalParties = 2
         viewModel.partyIndex = partyIndex

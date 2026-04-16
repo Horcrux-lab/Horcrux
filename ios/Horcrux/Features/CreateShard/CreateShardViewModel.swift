@@ -15,7 +15,7 @@ final class CreateShardViewModel: ObservableObject {
     // Configuration
     @Published var step: Step = .configure
     @Published var walletName: String = ""
-    @Published var selectedChain: Chain = .ethereum
+    @Published var selectedChains: Set<Chain> = [.ethereum]
     @Published var threshold: Int = 2
     @Published var totalParties: Int = 2
     @Published var partyIndex: Int = 1
@@ -32,7 +32,7 @@ final class CreateShardViewModel: ObservableObject {
     @Published var totalRounds: Int = 7 // CGGMP21 = 7 rounds, FROST = 3
 
     // Result
-    @Published var generatedAddress: String?
+    @Published var generatedAddresses: [(chain: Chain, address: String)] = []
     @Published var errorMessage: String = ""
 
     private var sessionId: String?
@@ -41,6 +41,20 @@ final class CreateShardViewModel: ObservableObject {
     private var bridge: HorcruxBridge?
     private var cancellables = Set<AnyCancellable>()
     private var ceremonyTask: Task<Void, Never>?
+
+    /// The primary curve type for DKG — secp256k1 chains take priority.
+    var primaryCurve: FfiCurveType {
+        selectedChains.contains(where: { $0.curveType == .secp256k1 }) ? .secp256k1 : .ed25519
+    }
+
+    /// Local peer identifier shown during discovery.
+    var localPeerId: String {
+        let hasRelay = foundPeers.contains { $0.channel == "relay" }
+        if hasRelay, let relayId = peerManager?.relay.deviceId {
+            return String(relayId.prefix(8))
+        }
+        return UIDevice.current.name
+    }
 
     func bind(to appState: AppState) {
         self.peerManager = appState.peerManager
@@ -56,7 +70,7 @@ final class CreateShardViewModel: ObservableObject {
     }
 
     func startDiscovery() {
-        totalRounds = selectedChain == .solana ? 3 : 7
+        totalRounds = primaryCurve == .ed25519 ? 3 : 7
         dkgStatusMessage = L10n.DKG.searchingDevices
 
         if selectedTransports.contains(.relay) && !roomCode.isEmpty {
@@ -104,11 +118,12 @@ final class CreateShardViewModel: ObservableObject {
                     threshold: UInt16(threshold),
                     totalParties: UInt16(totalParties),
                     partyIndex: UInt16(partyIndex),
-                    curve: selectedChain.curveType
+                    curve: primaryCurve
                 )
 
                 dkgStatusMessage = L10n.DKG.initializingKeyGen
                 currentRound = 1
+                updateProgress()
 
                 NSLog("[DKG] Calling bridge.startKeygen (session=\(self.sessionId!))...")
                 let outgoing = try bridge.startKeygen(
@@ -117,7 +132,6 @@ final class CreateShardViewModel: ObservableObject {
                 )
                 NSLog("[DKG] startKeygen returned \(outgoing.count) messages")
 
-                dkgProgress = 0.15
                 dkgStatusMessage = L10n.DKG.exchangingCommitments
 
                 await runDKGRounds(initialMessages: outgoing)
@@ -220,7 +234,7 @@ final class CreateShardViewModel: ObservableObject {
 
                     // Update round progress (use msgCount since msg.round is always 0 from FFI)
                     currentRound = msgCount
-                    dkgProgress = min(Double(msgCount) / Double(totalRounds + 1), 0.9)
+                    updateProgress()
                     updateDKGStatusMessage()
 
                     // Send responses to peers
@@ -249,11 +263,18 @@ final class CreateShardViewModel: ObservableObject {
             dkgProgress = 0.95
             dkgStatusMessage = L10n.DKG.derivingAddress
 
-            generatedAddress = try bridge.deriveAddress(
-                chain: selectedChain,
-                publicKey: result.publicKey
-            )
-            NSLog("[DKG] ✅ Address derived: \(generatedAddress ?? "nil")")
+            // Derive addresses for all selected chains with the same curve
+            generatedAddresses = []
+            for chain in selectedChains.sorted(by: { $0.rawValue < $1.rawValue }) {
+                if chain.curveType == primaryCurve {
+                    let addr = try bridge.deriveAddress(
+                        chain: chain,
+                        publicKey: result.publicKey
+                    )
+                    generatedAddresses.append((chain: chain, address: addr))
+                    NSLog("[DKG] ✅ Address derived for \(chain.rawValue): \(addr)")
+                }
+            }
 
             dkgProgress = 1.0
             step = .complete
@@ -265,11 +286,17 @@ final class CreateShardViewModel: ObservableObject {
         }
     }
 
+    /// Single source of truth for progress: derive from currentRound/totalRounds.
+    private func updateProgress() {
+        // Reserve 0-90% for DKG rounds, 95% for address derivation, 100% for complete
+        dkgProgress = min(Double(currentRound) / Double(totalRounds), 0.9)
+    }
+
     private func updateDKGStatusMessage() {
         switch currentRound {
         case 1: dkgStatusMessage = L10n.DKG.exchangingCommitments
         case 2: dkgStatusMessage = L10n.DKG.verifyingShares
-        case 3: dkgStatusMessage = selectedChain == .solana
+        case 3: dkgStatusMessage = primaryCurve == .ed25519
             ? L10n.DKG.finalizingKeyPackage
             : L10n.DKG.computingPaillierKeys
         case 4: dkgStatusMessage = L10n.DKG.generatingZKProofs
@@ -283,46 +310,54 @@ final class CreateShardViewModel: ObservableObject {
     func saveWallet(to appState: AppState, pin: String) {
         guard let result = keygenResult else { return }
 
-        let wallet = Wallet(
-            id: sessionId ?? UUID().uuidString,
-            name: walletName,
-            chain: selectedChain,
-            address: generatedAddress ?? "unknown",
-            groupPublicKey: result.publicKey,
-            threshold: UInt16(threshold),
-            totalParties: UInt16(totalParties),
-            partyIndex: UInt16(partyIndex),
-            createdAt: .now
-        )
+        let baseId = sessionId ?? UUID().uuidString
 
-        appState.walletStore.add(wallet)
-
-        // Store encrypted key share in Keychain (PIN used for real encryption)
-        do {
-            let deviceKey = try appState.deviceKey
-            let encrypted = try appState.bridge.encryptShard(
-                plaintext: result.shardData,
-                deviceKey: deviceKey,
-                pin: try AppState.pinKeyMaterial(pin)
+        // Save one wallet per derived chain address
+        for (index, entry) in generatedAddresses.enumerated() {
+            let walletId = generatedAddresses.count > 1 ? "\(baseId)-\(entry.chain.symbol)" : baseId
+            let wallet = Wallet(
+                id: walletId,
+                name: generatedAddresses.count > 1 ? "\(walletName) (\(entry.chain.symbol))" : walletName,
+                chain: entry.chain,
+                address: entry.address,
+                groupPublicKey: result.publicKey,
+                threshold: UInt16(threshold),
+                totalParties: UInt16(totalParties),
+                partyIndex: UInt16(partyIndex),
+                createdAt: .now
             )
-            let encoded = try JSONEncoder().encode(EncryptedShardDTO(encrypted))
-            try appState.walletStore.storeKeyShare(encoded, walletId: wallet.id)
-        } catch {
-            SecureLog.error("Failed to store key share: \(error)")
-        }
 
-        // Register shard with the in-memory shard manager
-        let shardInfo = FfiShardInfo(
-            shardId: wallet.id,
-            publicKey: result.publicKey,
-            partyIndex: result.partyIndex,
-            threshold: result.threshold,
-            totalParties: result.totalParties,
-            curve: selectedChain.curveType,
-            createdAt: UInt64(Date.now.timeIntervalSince1970),
-            isLocal: true
-        )
-        appState.bridge.addShard(info: shardInfo)
+            appState.walletStore.add(wallet)
+
+            // Store encrypted key share in Keychain (same shard shared across same-curve chains)
+            if index == 0 {
+                do {
+                    let deviceKey = try appState.deviceKey
+                    let encrypted = try appState.bridge.encryptShard(
+                        plaintext: result.shardData,
+                        deviceKey: deviceKey,
+                        pin: try AppState.pinKeyMaterial(pin)
+                    )
+                    let encoded = try JSONEncoder().encode(EncryptedShardDTO(encrypted))
+                    try appState.walletStore.storeKeyShare(encoded, walletId: walletId)
+                } catch {
+                    SecureLog.error("Failed to store key share: \(error)")
+                }
+
+                // Register shard with the in-memory shard manager
+                let shardInfo = FfiShardInfo(
+                    shardId: walletId,
+                    publicKey: result.publicKey,
+                    partyIndex: result.partyIndex,
+                    threshold: result.threshold,
+                    totalParties: result.totalParties,
+                    curve: entry.chain.curveType,
+                    createdAt: UInt64(Date.now.timeIntervalSince1970),
+                    isLocal: true
+                )
+                appState.bridge.addShard(info: shardInfo)
+            }
+        }
 
         // Clean up MPC session
         appState.bridge.removeSession(sessionId: sessionId!)
