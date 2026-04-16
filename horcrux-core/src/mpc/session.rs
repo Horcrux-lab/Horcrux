@@ -5,12 +5,12 @@
 //!   Falls back to Feldman VSS Schnorr if `use_ecdsa` is false
 //! - **Ed25519**: Uses IETF FROST (frost.rs)
 
-use super::{CurveType, HorcruxConfig, MpcError};
+use super::ecdsa::{EcdsaDkgSession, EcdsaSigningSession};
+use super::frost::{FrostDkgSession, FrostSigningSession};
 use super::keygen::KeygenSession;
 use super::signing::SigningSession;
-use super::frost::{FrostDkgSession, FrostSigningSession};
-use super::ecdsa::{EcdsaDkgSession, EcdsaSigningSession};
 use super::types::{KeygenResult, MpcMessage, SigningResult};
+use super::{CurveType, HorcruxConfig, MpcError};
 use std::collections::HashMap;
 use std::time::Instant;
 
@@ -79,7 +79,8 @@ impl SessionManager {
                 (DkgSessionKind::Schnorr(session), msgs)
             }
         };
-        self.keygen_sessions.insert(session_id, (kind, Instant::now()));
+        self.keygen_sessions
+            .insert(session_id, (kind, Instant::now()));
         Ok(msgs)
     }
 
@@ -94,37 +95,26 @@ impl SessionManager {
     ) -> Result<Vec<MpcMessage>, MpcError> {
         let (kind, msgs) = match config.curve {
             CurveType::Ed25519 => {
-                let mut session = FrostSigningSession::new(
-                    config,
-                    message_hash,
-                    shard_data,
-                    participants,
-                )?;
+                let mut session =
+                    FrostSigningSession::new(config, message_hash, shard_data, participants)?;
                 let msgs = session.start(&session_id)?;
                 (SignSessionKind::Frost(session), msgs)
             }
             CurveType::Secp256k1 if self.use_ecdsa => {
-                let mut session = EcdsaSigningSession::new(
-                    config,
-                    message_hash,
-                    shard_data,
-                    participants,
-                )?;
+                let mut session =
+                    EcdsaSigningSession::new(config, message_hash, shard_data, participants)?;
                 let msgs = session.start(&session_id)?;
                 (SignSessionKind::Ecdsa(session), msgs)
             }
             CurveType::Secp256k1 => {
-                let mut session = SigningSession::new(
-                    config,
-                    message_hash,
-                    shard_data,
-                    participants,
-                )?;
+                let mut session =
+                    SigningSession::new(config, message_hash, shard_data, participants)?;
                 let msgs = session.start(&session_id)?;
                 (SignSessionKind::Schnorr(session), msgs)
             }
         };
-        self.signing_sessions.insert(session_id, (kind, Instant::now()));
+        self.signing_sessions
+            .insert(session_id, (kind, Instant::now()));
         Ok(msgs)
     }
 
@@ -147,26 +137,31 @@ impl SessionManager {
             };
         }
         Err(MpcError::SessionError(format!(
-            "unknown session: {}", msg.session_id
+            "unknown session: {}",
+            msg.session_id
         )))
     }
 
     /// Get keygen result if the session is complete.
     pub fn keygen_result(&self, session_id: &str) -> Option<KeygenResult> {
-        self.keygen_sessions.get(session_id).and_then(|(s, _)| match s {
-            DkgSessionKind::Schnorr(s) => s.result(),
-            DkgSessionKind::Frost(s) => s.result(),
-            DkgSessionKind::Ecdsa(s) => s.result(),
-        })
+        self.keygen_sessions
+            .get(session_id)
+            .and_then(|(s, _)| match s {
+                DkgSessionKind::Schnorr(s) => s.result(),
+                DkgSessionKind::Frost(s) => s.result(),
+                DkgSessionKind::Ecdsa(s) => s.result(),
+            })
     }
 
     /// Get signing result if the session is complete.
     pub fn signing_result(&self, session_id: &str) -> Option<SigningResult> {
-        self.signing_sessions.get(session_id).and_then(|(s, _)| match s {
-            SignSessionKind::Schnorr(s) => s.result(),
-            SignSessionKind::Frost(s) => s.result(),
-            SignSessionKind::Ecdsa(s) => s.result(),
-        })
+        self.signing_sessions
+            .get(session_id)
+            .and_then(|(s, _)| match s {
+                SignSessionKind::Schnorr(s) => s.result(),
+                SignSessionKind::Frost(s) => s.result(),
+                SignSessionKind::Ecdsa(s) => s.result(),
+            })
     }
 
     /// Remove a completed session.
@@ -181,8 +176,10 @@ impl SessionManager {
         let ttl = std::time::Duration::from_secs(self.session_ttl_secs);
         let now = Instant::now();
         let before = self.keygen_sessions.len() + self.signing_sessions.len();
-        self.keygen_sessions.retain(|_, (_, ts)| now.duration_since(*ts) < ttl);
-        self.signing_sessions.retain(|_, (_, ts)| now.duration_since(*ts) < ttl);
+        self.keygen_sessions
+            .retain(|_, (_, ts)| now.duration_since(*ts) < ttl);
+        self.signing_sessions
+            .retain(|_, (_, ts)| now.duration_since(*ts) < ttl);
         let after = self.keygen_sessions.len() + self.signing_sessions.len();
         before - after
     }

@@ -102,7 +102,7 @@ fn build_transfer_message(
     encode_compact_u16(&mut msg, 2);
     msg.push(0); // from
     msg.push(1); // to
-    // -- instruction data: 4 bytes LE instruction index + 8 bytes LE lamports
+                 // -- instruction data: 4 bytes LE instruction index + 8 bytes LE lamports
     let ix_data = transfer_instruction_data(lamports);
     encode_compact_u16(&mut msg, ix_data.len() as u16);
     msg.extend_from_slice(&ix_data);

@@ -1,8 +1,8 @@
-pub mod keygen;
-pub mod signing;
-pub mod frost;
 pub mod ecdsa;
+pub mod frost;
+pub mod keygen;
 pub mod session;
+pub mod signing;
 pub mod types;
 
 use serde::{Deserialize, Serialize};
@@ -24,17 +24,31 @@ pub struct HorcruxConfig {
 }
 
 impl HorcruxConfig {
-    pub fn new(threshold: u16, total_parties: u16, party_index: u16, curve: CurveType) -> Result<Self, MpcError> {
+    pub fn new(
+        threshold: u16,
+        total_parties: u16,
+        party_index: u16,
+        curve: CurveType,
+    ) -> Result<Self, MpcError> {
         if threshold < 2 {
             return Err(MpcError::InvalidConfig("threshold must be >= 2".into()));
         }
         if threshold > total_parties {
-            return Err(MpcError::InvalidConfig("threshold must be <= total_parties".into()));
+            return Err(MpcError::InvalidConfig(
+                "threshold must be <= total_parties".into(),
+            ));
         }
         if party_index < 1 || party_index > total_parties {
-            return Err(MpcError::InvalidConfig("party_index must be in [1, total_parties]".into()));
+            return Err(MpcError::InvalidConfig(
+                "party_index must be in [1, total_parties]".into(),
+            ));
         }
-        Ok(Self { threshold, total_parties, party_index, curve })
+        Ok(Self {
+            threshold,
+            total_parties,
+            party_index,
+            curve,
+        })
     }
 }
 

@@ -4,12 +4,12 @@
 //! a read-write lock at the map level but per-room mutations (touch, join,
 //! leave) only require brief write locks, minimizing contention.
 
+use sha2::{Digest, Sha256};
 use std::collections::HashMap;
+use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
 use std::sync::Arc;
-use std::sync::atomic::{AtomicUsize, AtomicU64, Ordering};
 use std::time::Duration;
-use sha2::{Sha256, Digest};
-use tokio::sync::{broadcast, RwLock, Mutex};
+use tokio::sync::{broadcast, Mutex, RwLock};
 
 use crate::config::RelayConfig;
 use crate::metrics::METRICS;
@@ -68,7 +68,13 @@ impl Room {
         token: Option<&str>,
         device_id: &str,
         max_participants: usize,
-    ) -> Result<(broadcast::Sender<RoomMessage>, broadcast::Receiver<RoomMessage>), RoomError> {
+    ) -> Result<
+        (
+            broadcast::Sender<RoomMessage>,
+            broadcast::Receiver<RoomMessage>,
+        ),
+        RoomError,
+    > {
         // Verify access token
         if let Some(ref stored_hash) = self.token_hash {
             let provided_hash = token.map(RoomManagerInner::hash_token);
@@ -87,12 +93,11 @@ impl Room {
             if current >= max_participants {
                 return Err(RoomError::RoomFull);
             }
-            if self.participant_count.compare_exchange(
-                current,
-                current + 1,
-                Ordering::AcqRel,
-                Ordering::Acquire,
-            ).is_ok() {
+            if self
+                .participant_count
+                .compare_exchange(current, current + 1, Ordering::AcqRel, Ordering::Acquire)
+                .is_ok()
+            {
                 break;
             }
             // CAS failed — another thread modified count, retry.
@@ -139,7 +144,9 @@ impl Room {
     /// Check and advance sequence counter for replay protection.
     /// Returns true if the message is valid (seq > last seen), false if replayed.
     async fn check_sequence(&self, device_id: &str, seq: u64) -> bool {
-        if device_id.is_empty() { return true; }
+        if device_id.is_empty() {
+            return true;
+        }
         let mut seqs = self.device_sequences.lock().await;
         let last = seqs.entry(device_id.to_string()).or_insert(0);
         if seq > *last {
@@ -201,12 +208,20 @@ impl RoomManagerInner {
         room_id: &str,
         token: Option<&str>,
         device_id: &str,
-    ) -> Result<(broadcast::Sender<RoomMessage>, broadcast::Receiver<RoomMessage>), RoomError> {
+    ) -> Result<
+        (
+            broadcast::Sender<RoomMessage>,
+            broadcast::Receiver<RoomMessage>,
+        ),
+        RoomError,
+    > {
         // First try with a read lock (common case: room exists)
         {
             let rooms = self.rooms.read().await;
             if let Some(room) = rooms.get(room_id) {
-                let result = room.try_join(token, device_id, self.max_participants).await?;
+                let result = room
+                    .try_join(token, device_id, self.max_participants)
+                    .await?;
                 let count = room.participant_count.load(Ordering::Relaxed);
                 tracing::info!(room = room_id, participants = count, "participant joined");
                 return Ok(result);
@@ -222,7 +237,10 @@ impl RoomManagerInner {
 
         // Enforce global room cap to prevent OOM DoS
         if rooms.len() >= self.max_rooms {
-            tracing::warn!(max = self.max_rooms, "room limit reached — rejecting new room");
+            tracing::warn!(
+                max = self.max_rooms,
+                "room limit reached — rejecting new room"
+            );
             return Err(RoomError::TooManyRooms);
         }
 
@@ -250,7 +268,11 @@ impl RoomManagerInner {
             },
         );
         METRICS.rooms_created.fetch_add(1, Ordering::Relaxed);
-        tracing::info!(room = room_id, secured = token.is_some(), "new room created");
+        tracing::info!(
+            room = room_id,
+            secured = token.is_some(),
+            "new room created"
+        );
         Ok((tx, rx))
     }
 
@@ -259,8 +281,12 @@ impl RoomManagerInner {
     pub async fn join_room(
         &self,
         room_id: &str,
-    ) -> (broadcast::Sender<RoomMessage>, broadcast::Receiver<RoomMessage>) {
-        self.join_room_with_token(room_id, None, "").await
+    ) -> (
+        broadcast::Sender<RoomMessage>,
+        broadcast::Receiver<RoomMessage>,
+    ) {
+        self.join_room_with_token(room_id, None, "")
+            .await
             .expect("join_room without token should not fail on new room")
     }
 
@@ -271,7 +297,10 @@ impl RoomManagerInner {
             // Bounds check: prevent underflow below zero.
             let prev = room.participant_count.load(Ordering::Acquire);
             if prev == 0 {
-                tracing::warn!(room = room_id, "leave_room called on room with 0 participants");
+                tracing::warn!(
+                    room = room_id,
+                    "leave_room called on room with 0 participants"
+                );
                 true // Remove stale room
             } else {
                 room.participant_count.fetch_sub(1, Ordering::AcqRel);
@@ -331,11 +360,14 @@ impl RoomManagerInner {
     /// Room stats for admin endpoint.
     pub async fn room_stats(&self) -> Vec<RoomStats> {
         let rooms = self.rooms.read().await;
-        rooms.iter().map(|(id, room)| RoomStats {
-            room_id: id.clone(),
-            participants: room.participant_count.load(Ordering::Relaxed),
-            secured: room.token_hash.is_some(),
-        }).collect()
+        rooms
+            .iter()
+            .map(|(id, room)| RoomStats {
+                room_id: id.clone(),
+                participants: room.participant_count.load(Ordering::Relaxed),
+                secured: room.token_hash.is_some(),
+            })
+            .collect()
     }
 
     /// Remove rooms that have exceeded their TTL. Returns number removed.
@@ -351,7 +383,9 @@ impl RoomManagerInner {
         });
         let removed = before - rooms.len();
         if removed > 0 {
-            METRICS.rooms_expired.fetch_add(removed as u64, Ordering::Relaxed);
+            METRICS
+                .rooms_expired
+                .fetch_add(removed as u64, Ordering::Relaxed);
         }
         removed
     }
@@ -481,19 +515,29 @@ mod tests {
     #[tokio::test]
     async fn test_token_gated_room_create_and_join() {
         let mgr = new(&test_config());
-        let (_tx1, _rx1) = mgr.join_room_with_token("secure-room", Some("secret-token-123"), "d1").await.unwrap();
+        let (_tx1, _rx1) = mgr
+            .join_room_with_token("secure-room", Some("secret-token-123"), "d1")
+            .await
+            .unwrap();
         assert_eq!(mgr.room_count().await, 1);
 
-        let result = mgr.join_room_with_token("secure-room", Some("secret-token-123"), "d2").await;
+        let result = mgr
+            .join_room_with_token("secure-room", Some("secret-token-123"), "d2")
+            .await;
         assert!(result.is_ok());
     }
 
     #[tokio::test]
     async fn test_token_gated_room_wrong_token_rejected() {
         let mgr = new(&test_config());
-        let (_tx, _rx) = mgr.join_room_with_token("secure-room", Some("correct-token"), "d1").await.unwrap();
+        let (_tx, _rx) = mgr
+            .join_room_with_token("secure-room", Some("correct-token"), "d1")
+            .await
+            .unwrap();
 
-        let result = mgr.join_room_with_token("secure-room", Some("wrong-token"), "d2").await;
+        let result = mgr
+            .join_room_with_token("secure-room", Some("wrong-token"), "d2")
+            .await;
         assert!(result.is_err());
         assert!(matches!(result.unwrap_err(), RoomError::InvalidToken));
     }
@@ -501,7 +545,10 @@ mod tests {
     #[tokio::test]
     async fn test_token_gated_room_no_token_rejected() {
         let mgr = new(&test_config());
-        let (_tx, _rx) = mgr.join_room_with_token("secure-room", Some("my-token"), "d1").await.unwrap();
+        let (_tx, _rx) = mgr
+            .join_room_with_token("secure-room", Some("my-token"), "d1")
+            .await
+            .unwrap();
 
         let result = mgr.join_room_with_token("secure-room", None, "d2").await;
         assert!(result.is_err());
@@ -515,11 +562,15 @@ mod tests {
         let mgr = new(&cfg);
 
         for i in 0..3 {
-            let r = mgr.join_room_with_token("full-room", Some("tok"), &format!("d{}", i)).await;
+            let r = mgr
+                .join_room_with_token("full-room", Some("tok"), &format!("d{}", i))
+                .await;
             assert!(r.is_ok());
         }
 
-        let result = mgr.join_room_with_token("full-room", Some("tok"), "d99").await;
+        let result = mgr
+            .join_room_with_token("full-room", Some("tok"), "d99")
+            .await;
         assert!(result.is_err());
         assert!(matches!(result.unwrap_err(), RoomError::RoomFull));
     }
@@ -527,8 +578,14 @@ mod tests {
     #[tokio::test]
     async fn test_device_tracking() {
         let mgr = new(&test_config());
-        let (_tx, _rx) = mgr.join_room_with_token("dev-room", None, "alice-phone").await.unwrap();
-        let (_tx2, _rx2) = mgr.join_room_with_token("dev-room", None, "bob-phone").await.unwrap();
+        let (_tx, _rx) = mgr
+            .join_room_with_token("dev-room", None, "alice-phone")
+            .await
+            .unwrap();
+        let (_tx2, _rx2) = mgr
+            .join_room_with_token("dev-room", None, "bob-phone")
+            .await
+            .unwrap();
 
         let stats = mgr.room_stats().await;
         assert_eq!(stats.len(), 1);
@@ -544,10 +601,7 @@ mod tests {
         // Multiple concurrent touches should not block
         let m1 = mgr.clone();
         let m2 = mgr.clone();
-        let (r1, r2) = tokio::join!(
-            m1.touch("touch-test"),
-            m2.touch("touch-test"),
-        );
+        let (r1, r2) = tokio::join!(m1.touch("touch-test"), m2.touch("touch-test"),);
         // If we get here, no deadlock
         let _ = (r1, r2);
     }
@@ -555,7 +609,10 @@ mod tests {
     #[tokio::test]
     async fn test_duplicate_device_id_rejected() {
         let mgr = new(&test_config());
-        let (_tx, _rx) = mgr.join_room_with_token("dup-room", None, "device-A").await.unwrap();
+        let (_tx, _rx) = mgr
+            .join_room_with_token("dup-room", None, "device-A")
+            .await
+            .unwrap();
 
         // Same device_id should be rejected
         let result = mgr.join_room_with_token("dup-room", None, "device-A").await;
@@ -570,12 +627,17 @@ mod tests {
     #[tokio::test]
     async fn test_device_id_reusable_after_leave() {
         let mgr = new(&test_config());
-        let (_tx, _rx) = mgr.join_room_with_token("reuse-room", None, "phone-1").await.unwrap();
+        let (_tx, _rx) = mgr
+            .join_room_with_token("reuse-room", None, "phone-1")
+            .await
+            .unwrap();
         mgr.leave_room("reuse-room", "phone-1").await;
 
         // After leaving, same device_id can reconnect
         // Room was removed (last participant), so this creates a new room
-        let result = mgr.join_room_with_token("reuse-room", None, "phone-1").await;
+        let result = mgr
+            .join_room_with_token("reuse-room", None, "phone-1")
+            .await;
         assert!(result.is_ok());
     }
 
@@ -657,7 +719,10 @@ mod tests {
     #[tokio::test]
     async fn test_sequence_replay_rejected() {
         let mgr = new(&test_config());
-        let (_tx, _rx) = mgr.join_room_with_token("seq-room", None, "dev1").await.unwrap();
+        let (_tx, _rx) = mgr
+            .join_room_with_token("seq-room", None, "dev1")
+            .await
+            .unwrap();
 
         // Access room directly for sequence checking
         let rooms = mgr.rooms.read().await;
@@ -693,8 +758,14 @@ mod tests {
         let mgr = new(&cfg);
 
         // Create 2 rooms — should succeed
-        let _r1 = mgr.join_room_with_token("room-1", None, "d1").await.unwrap();
-        let _r2 = mgr.join_room_with_token("room-2", None, "d2").await.unwrap();
+        let _r1 = mgr
+            .join_room_with_token("room-1", None, "d1")
+            .await
+            .unwrap();
+        let _r2 = mgr
+            .join_room_with_token("room-2", None, "d2")
+            .await
+            .unwrap();
         assert_eq!(mgr.room_count().await, 2);
 
         // Third room — should be rejected
@@ -709,7 +780,10 @@ mod tests {
         cfg.max_rooms = 1;
         let mgr = new(&cfg);
 
-        let _r1 = mgr.join_room_with_token("room-1", None, "d1").await.unwrap();
+        let _r1 = mgr
+            .join_room_with_token("room-1", None, "d1")
+            .await
+            .unwrap();
         // Joining existing room should work even at room cap
         let result = mgr.join_room_with_token("room-1", None, "d2").await;
         assert!(result.is_ok());

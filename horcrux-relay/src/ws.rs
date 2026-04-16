@@ -10,9 +10,8 @@
 
 use axum::{
     extract::{
-        ConnectInfo, Path, Query, State,
-        WebSocketUpgrade,
         ws::{Message, WebSocket},
+        ConnectInfo, Path, Query, State, WebSocketUpgrade,
     },
     http::{HeaderMap, StatusCode},
     response::IntoResponse,
@@ -26,7 +25,7 @@ use tokio::sync::broadcast::error::RecvError;
 use crate::config::RelayConfig;
 use crate::ip_ratelimit::IpRateLimiter;
 use crate::metrics::METRICS;
-use crate::room::{RoomManager, RoomMessage, RoomError};
+use crate::room::{RoomError, RoomManager, RoomMessage};
 
 #[derive(serde::Deserialize)]
 pub struct WsQuery {
@@ -58,7 +57,11 @@ pub async fn ws_handler(
     Query(query): Query<WsQuery>,
     headers: HeaderMap,
     ConnectInfo(addr): ConnectInfo<SocketAddr>,
-    State((rooms, config, ip_limiter)): State<(RoomManager, RelayConfig, std::sync::Arc<IpRateLimiter>)>,
+    State((rooms, config, ip_limiter)): State<(
+        RoomManager,
+        RelayConfig,
+        std::sync::Arc<IpRateLimiter>,
+    )>,
 ) -> Result<impl IntoResponse, StatusCode> {
     let device_id = query.device_id.clone().unwrap_or_default();
 

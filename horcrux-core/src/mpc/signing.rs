@@ -15,12 +15,12 @@
 //! This protocol is directly usable for Schnorr-compatible chains (Taproot BTC,
 //! or as an internal proof-of-concept for the MPC flow).
 
-use super::{CurveType, HorcruxConfig, MpcError};
 use super::types::{MpcMessage, SigningResult};
-use k256::{ProjectivePoint, Scalar, AffinePoint, elliptic_curve::group::GroupEncoding};
+use super::{CurveType, HorcruxConfig, MpcError};
 use k256::elliptic_curve::{Field, PrimeField};
+use k256::{elliptic_curve::group::GroupEncoding, AffinePoint, ProjectivePoint, Scalar};
 use rand::thread_rng;
-use sha2::{Sha256, Digest};
+use sha2::{Digest, Sha256};
 use zeroize::Zeroize;
 
 /// Round 1: nonce commitment broadcast.
@@ -83,7 +83,9 @@ impl SigningSession {
             });
         }
         if !participants.contains(&config.party_index) {
-            return Err(MpcError::InvalidConfig("our party not in participants list".into()));
+            return Err(MpcError::InvalidConfig(
+                "our party not in participants list".into(),
+            ));
         }
         Ok(Self {
             config,
@@ -112,7 +114,9 @@ impl Drop for SigningSession {
 impl SigningSession {
     pub fn start(&mut self, session_id: &str) -> Result<Vec<MpcMessage>, MpcError> {
         if self.state != SigningState::WaitingForParties {
-            return Err(MpcError::SessionError("signing session already started".into()));
+            return Err(MpcError::SessionError(
+                "signing session already started".into(),
+            ));
         }
         self.session_id = session_id.to_string();
         self.state = SigningState::Round1;
@@ -187,8 +191,8 @@ impl SigningSession {
         // Store our own commitment
         self.round1_commitments.push(commitment.clone());
 
-        let payload = serde_json::to_vec(&commitment)
-            .map_err(|e| MpcError::ProtocolError(e.to_string()))?;
+        let payload =
+            serde_json::to_vec(&commitment).map_err(|e| MpcError::ProtocolError(e.to_string()))?;
 
         tracing::info!(
             party = self.config.party_index,
@@ -209,7 +213,10 @@ impl SigningSession {
         // Compute combined R = sum(R_i)
         let mut combined_r = ProjectivePoint::IDENTITY;
         for commitment in &self.round1_commitments {
-            let r_bytes: [u8; 33] = commitment.nonce_commitment.clone().try_into()
+            let r_bytes: [u8; 33] = commitment
+                .nonce_commitment
+                .clone()
+                .try_into()
                 .map_err(|_| MpcError::ProtocolError("invalid nonce commitment size".into()))?;
             let r_affine = AffinePoint::from_bytes(&r_bytes.into());
             if r_affine.is_none().into() {
@@ -228,7 +235,10 @@ impl SigningSession {
         let e = scalar_from_hash(&e_hash);
 
         // Our secret nonce
-        let k_bytes: [u8; 32] = self.nonce_secret.clone().try_into()
+        let k_bytes: [u8; 32] = self
+            .nonce_secret
+            .clone()
+            .try_into()
             .map_err(|_| MpcError::ProtocolError("invalid nonce".into()))?;
         let k = Scalar::from_repr(k_bytes.into());
         if k.is_none().into() {
@@ -237,7 +247,10 @@ impl SigningSession {
         let k = k.unwrap();
 
         // Our shard (secret share x_i)
-        let xi_bytes: [u8; 32] = self.shard_data.clone().try_into()
+        let xi_bytes: [u8; 32] = self
+            .shard_data
+            .clone()
+            .try_into()
             .map_err(|_| MpcError::ProtocolError("invalid shard".into()))?;
         let xi = Scalar::from_repr(xi_bytes.into());
         if xi.is_none().into() {
@@ -246,10 +259,7 @@ impl SigningSession {
         let xi = xi.unwrap();
 
         // Lagrange coefficient for our party
-        let lambda = lagrange_coefficient(
-            self.config.party_index,
-            &self.participants,
-        );
+        let lambda = lagrange_coefficient(self.config.party_index, &self.participants);
 
         // Partial signature: s_i = k_i + e * lambda_i * x_i
         let partial = k + e * lambda * xi;
@@ -262,8 +272,8 @@ impl SigningSession {
         // Store our own partial
         self.round2_partials.push(r2.clone());
 
-        let payload = serde_json::to_vec(&r2)
-            .map_err(|e| MpcError::ProtocolError(e.to_string()))?;
+        let payload =
+            serde_json::to_vec(&r2).map_err(|e| MpcError::ProtocolError(e.to_string()))?;
 
         tracing::info!(
             party = self.config.party_index,
@@ -283,7 +293,10 @@ impl SigningSession {
         // Recompute combined R
         let mut combined_r = ProjectivePoint::IDENTITY;
         for commitment in &self.round1_commitments {
-            let r_bytes: [u8; 33] = commitment.nonce_commitment.clone().try_into()
+            let r_bytes: [u8; 33] = commitment
+                .nonce_commitment
+                .clone()
+                .try_into()
                 .map_err(|_| MpcError::ProtocolError("invalid nonce commitment".into()))?;
             let r_affine = AffinePoint::from_bytes(&r_bytes.into());
             if r_affine.is_none().into() {
@@ -298,7 +311,10 @@ impl SigningSession {
         // Aggregate partial signatures: s = sum(s_i)
         let mut s = Scalar::ZERO;
         for partial in &self.round2_partials {
-            let s_bytes: [u8; 32] = partial.partial_sig.clone().try_into()
+            let s_bytes: [u8; 32] = partial
+                .partial_sig
+                .clone()
+                .try_into()
                 .map_err(|_| MpcError::ProtocolError("invalid partial sig size".into()))?;
             let si = Scalar::from_repr(s_bytes.into());
             if si.is_none().into() {
@@ -364,7 +380,8 @@ pub fn verify_threshold_signature(
     r_bytes: &[u8],
     s_bytes: &[u8],
 ) -> Result<bool, MpcError> {
-    let pk_arr: [u8; 33] = public_key.try_into()
+    let pk_arr: [u8; 33] = public_key
+        .try_into()
         .map_err(|_| MpcError::SigningFailed("invalid public key size".into()))?;
     let pk_affine = AffinePoint::from_bytes(&pk_arr.into());
     if pk_affine.is_none().into() {
@@ -372,7 +389,8 @@ pub fn verify_threshold_signature(
     }
     let pk = ProjectivePoint::from(pk_affine.unwrap());
 
-    let r_arr: [u8; 33] = r_bytes.try_into()
+    let r_arr: [u8; 33] = r_bytes
+        .try_into()
         .map_err(|_| MpcError::SigningFailed("invalid R size".into()))?;
     let r_affine = AffinePoint::from_bytes(&r_arr.into());
     if r_affine.is_none().into() {
@@ -380,7 +398,8 @@ pub fn verify_threshold_signature(
     }
     let r = ProjectivePoint::from(r_affine.unwrap());
 
-    let s_arr: [u8; 32] = s_bytes.try_into()
+    let s_arr: [u8; 32] = s_bytes
+        .try_into()
         .map_err(|_| MpcError::SigningFailed("invalid s size".into()))?;
     let s = Scalar::from_repr(s_arr.into());
     if s.is_none().into() {
@@ -406,14 +425,13 @@ pub fn verify_threshold_signature(
 mod tests {
     use super::*;
     use crate::mpc::keygen::KeygenSession;
-    use crate::mpc::{HorcruxConfig, CurveType};
+    use crate::mpc::{CurveType, HorcruxConfig};
 
     #[test]
     fn test_signing_session_creation() {
         let config = HorcruxConfig::new(2, 3, 1, CurveType::Secp256k1).unwrap();
-        let session = SigningSession::new(
-            config, vec![0u8; 32], vec![1u8; 32], vec![1, 2],
-        ).unwrap();
+        let session =
+            SigningSession::new(config, vec![0u8; 32], vec![1u8; 32], vec![1, 2]).unwrap();
         assert_eq!(session.current_state(), "waiting_for_parties");
     }
 
@@ -421,7 +439,10 @@ mod tests {
     fn test_insufficient_parties_rejected() {
         let config = HorcruxConfig::new(2, 3, 1, CurveType::Secp256k1).unwrap();
         let result = SigningSession::new(
-            config, vec![0u8; 32], vec![1u8; 32], vec![1], // only 1, need 2
+            config,
+            vec![0u8; 32],
+            vec![1u8; 32],
+            vec![1], // only 1, need 2
         );
         assert!(result.is_err());
     }
@@ -485,7 +506,8 @@ mod tests {
             }
         }
 
-        let keygen_results: Vec<_> = keygen_sessions.iter()
+        let keygen_results: Vec<_> = keygen_sessions
+            .iter()
             .map(|s| s.result().unwrap())
             .collect();
 
@@ -495,7 +517,8 @@ mod tests {
         let signers = vec![1u16, 3];
         let message_hash = Sha256::digest(b"Hello Horcrux!").to_vec();
 
-        let mut sign_sessions: Vec<SigningSession> = signers.iter()
+        let mut sign_sessions: Vec<SigningSession> = signers
+            .iter()
             .map(|&i| {
                 let config = HorcruxConfig::new(t, n, i, CurveType::Secp256k1).unwrap();
                 let shard = keygen_results[(i - 1) as usize].shard_data.clone();
@@ -540,12 +563,8 @@ mod tests {
         assert_eq!(sig0.s, sig1.s);
 
         // Verify the signature against the group public key
-        let valid = verify_threshold_signature(
-            &public_key,
-            &message_hash,
-            &sig0.r,
-            &sig0.s,
-        ).unwrap();
+        let valid =
+            verify_threshold_signature(&public_key, &message_hash, &sig0.r, &sig0.s).unwrap();
         assert!(valid, "threshold signature verification failed!");
 
         tracing::info!("Full DKG + Signing test passed!");
@@ -592,12 +611,14 @@ mod tests {
 
     /// Helper: run signing with given signers, return SigningResult
     fn run_signing(
-        t: u16, n: u16,
+        t: u16,
+        n: u16,
         signers: &[u16],
         keygen_results: &[super::super::types::KeygenResult],
         message_hash: &[u8],
     ) -> super::super::types::SigningResult {
-        let mut sign_sessions: Vec<SigningSession> = signers.iter()
+        let mut sign_sessions: Vec<SigningSession> = signers
+            .iter()
             .map(|&i| {
                 let config = HorcruxConfig::new(t, n, i, CurveType::Secp256k1).unwrap();
                 let shard = keygen_results[(i - 1) as usize].shard_data.clone();
@@ -660,7 +681,12 @@ mod tests {
         let (pk, results) = run_dkg(3, 5);
         let msg = Sha256::digest(b"minimal subset").to_vec();
 
-        for signers in &[vec![1u16, 2, 3], vec![1, 3, 5], vec![2, 4, 5], vec![3, 4, 5]] {
+        for signers in &[
+            vec![1u16, 2, 3],
+            vec![1, 3, 5],
+            vec![2, 4, 5],
+            vec![3, 4, 5],
+        ] {
             let sig = run_signing(3, 5, signers, &results, &msg);
             let valid = verify_threshold_signature(&pk, &msg, &sig.r, &sig.s).unwrap();
             assert!(valid, "signature from {:?} failed", signers);
@@ -677,7 +703,10 @@ mod tests {
         let sig2 = run_signing(2, 3, &[1, 2], &results, &msg2);
 
         // Different messages → different signatures (different challenge e)
-        assert_ne!(sig1.s, sig2.s, "different messages should produce different s");
+        assert_ne!(
+            sig1.s, sig2.s,
+            "different messages should produce different s"
+        );
 
         // Both verify against correct message
         assert!(verify_threshold_signature(&pk, &msg1, &sig1.r, &sig1.s).unwrap());
@@ -701,7 +730,10 @@ mod tests {
 
         // Signature should NOT verify against wrong key
         let valid = verify_threshold_signature(&pk2, &msg, &sig.r, &sig.s).unwrap();
-        assert!(!valid, "signature should not verify against wrong public key");
+        assert!(
+            !valid,
+            "signature should not verify against wrong public key"
+        );
     }
 
     #[test]
@@ -724,7 +756,7 @@ mod tests {
     #[test]
     fn test_scalar_from_hash_never_panics() {
         // Verify the fixed scalar_from_hash handles all possible hash outputs
-        use sha2::{Sha256, Digest};
+        use sha2::{Digest, Sha256};
         for i in 0u64..1000 {
             let hash = Sha256::digest(i.to_be_bytes());
             let s = scalar_from_hash(&hash);
@@ -755,8 +787,11 @@ mod tests {
                 let li = lagrange_coefficient(i, subset);
                 reconstructed += li * f(i as u64);
             }
-            assert_eq!(reconstructed, secret,
-                "Lagrange failed for subset {:?}", subset);
+            assert_eq!(
+                reconstructed, secret,
+                "Lagrange failed for subset {:?}",
+                subset
+            );
         }
     }
 
@@ -787,8 +822,11 @@ mod tests {
                 let li = lagrange_coefficient(i, subset);
                 reconstructed += li * f(i as u64);
             }
-            assert_eq!(reconstructed, a0,
-                "Lagrange 4-of-7 failed for subset {:?}", subset);
+            assert_eq!(
+                reconstructed, a0,
+                "Lagrange 4-of-7 failed for subset {:?}",
+                subset
+            );
         }
     }
 
@@ -802,8 +840,11 @@ mod tests {
             // The share should be a valid scalar
             let share_bytes: [u8; 32] = result.shard_data.clone().try_into().unwrap();
             let share = Scalar::from_repr(share_bytes.into());
-            assert!(bool::from(share.is_some()),
-                "party {} has invalid share scalar", result.party_index);
+            assert!(
+                bool::from(share.is_some()),
+                "party {} has invalid share scalar",
+                result.party_index
+            );
         }
 
         // All parties agree on public key

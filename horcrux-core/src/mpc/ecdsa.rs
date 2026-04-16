@@ -10,8 +10,8 @@
 use super::types::{KeygenResult, MpcMessage, SigningResult};
 use super::{HorcruxConfig, MpcError};
 
-use cggmp21::supported_curves::Secp256k1;
 use cggmp21::security_level::SecurityLevel128;
+use cggmp21::supported_curves::Secp256k1;
 use cggmp21::{ExecutionId, PregeneratedPrimes};
 use generic_ec::{NonZero, Point, Scalar};
 use rand::rngs::OsRng;
@@ -157,10 +157,9 @@ fn make_signing_driver(
     let ks: &'static cggmp21::KeyShare<Secp256k1, SecurityLevel128> =
         Box::leak(Box::new(key_share.clone()));
 
-    let data_to_sign =
-        cggmp21::DataToSign::from_scalar(Scalar::<Secp256k1>::from_be_bytes_mod_order(
-            message_hash,
-        ));
+    let data_to_sign = cggmp21::DataToSign::from_scalar(
+        Scalar::<Secp256k1>::from_be_bytes_mod_order(message_hash),
+    );
 
     let sm = cggmp21::signing(eid, our_signing_index, parties, ks).sign_sync(rng, data_to_sign);
 
@@ -324,7 +323,10 @@ impl EcdsaDkgSession {
                 let n = self.config.total_parties;
                 self.driver = make_auxinfo_driver(i, n)?;
                 self.state = EcdsaDkgState::AuxInfoRunning;
-                tracing::info!(party = self.config.party_index, "keygen done, starting auxinfo");
+                tracing::info!(
+                    party = self.config.party_index,
+                    "keygen done, starting auxinfo"
+                );
                 Ok(())
             }
             EcdsaDkgState::AuxInfoRunning => {
@@ -358,9 +360,7 @@ impl EcdsaDkgSession {
                 tracing::info!(party = self.config.party_index, "ECDSA DKG complete");
                 Ok(())
             }
-            EcdsaDkgState::Complete => {
-                Err(MpcError::SessionError("DKG already complete".into()))
-            }
+            EcdsaDkgState::Complete => Err(MpcError::SessionError("DKG already complete".into())),
         }
     }
 
@@ -439,8 +439,12 @@ impl EcdsaSigningSession {
             .ok_or_else(|| MpcError::InvalidConfig("our party not in participants".into()))?
             as u16;
 
-        let driver =
-            make_signing_driver(our_signing_index, &parties_at_keygen, &key_share, &message_hash)?;
+        let driver = make_signing_driver(
+            our_signing_index,
+            &parties_at_keygen,
+            &key_share,
+            &message_hash,
+        )?;
 
         Ok(Self {
             config,
@@ -540,7 +544,11 @@ impl EcdsaSigningSession {
             recovery_id: Some(recovery_id),
         });
         self.state = EcdsaSignState::Complete;
-        tracing::info!(party = self.config.party_index, recovery_id, "ECDSA signing complete");
+        tracing::info!(
+            party = self.config.party_index,
+            recovery_id,
+            "ECDSA signing complete"
+        );
         Ok(())
     }
 

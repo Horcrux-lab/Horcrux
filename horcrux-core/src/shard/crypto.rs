@@ -1,7 +1,7 @@
 //! Shard encryption — AES-256-GCM with key derived from device key + PIN.
 
-use aes_gcm::{Aes256Gcm, Key, Nonce};
 use aes_gcm::aead::{Aead, KeyInit};
+use aes_gcm::{Aes256Gcm, Key, Nonce};
 use hkdf::Hkdf;
 use rand::RngCore;
 use sha2::Sha256;
@@ -33,7 +33,11 @@ pub enum ShardCryptoError {
 }
 
 /// Derive an AES-256 key from device key + user PIN.
-pub fn derive_key(device_key: &[u8], pin: &[u8], salt: &[u8]) -> Result<[u8; KEY_SIZE], ShardCryptoError> {
+pub fn derive_key(
+    device_key: &[u8],
+    pin: &[u8],
+    salt: &[u8],
+) -> Result<[u8; KEY_SIZE], ShardCryptoError> {
     let mut ikm = Vec::with_capacity(device_key.len() + pin.len());
     ikm.extend_from_slice(device_key);
     ikm.extend_from_slice(pin);
@@ -56,8 +60,7 @@ pub fn encrypt_shard(
     let mut salt = [0u8; 16];
     rand::thread_rng().fill_bytes(&mut salt);
 
-    let mut key = derive_key(device_key, pin, &salt)
-        .map_err(|e| e.to_string())?;
+    let mut key = derive_key(device_key, pin, &salt).map_err(|e| e.to_string())?;
 
     let cipher = Aes256Gcm::new(Key::<Aes256Gcm>::from_slice(&key));
 
@@ -85,8 +88,7 @@ pub fn decrypt_shard(
     device_key: &[u8],
     pin: &[u8],
 ) -> Result<Zeroizing<Vec<u8>>, String> {
-    let mut key = derive_key(device_key, pin, &encrypted.salt)
-        .map_err(|e| e.to_string())?;
+    let mut key = derive_key(device_key, pin, &encrypted.salt).map_err(|e| e.to_string())?;
 
     let cipher = Aes256Gcm::new(Key::<Aes256Gcm>::from_slice(&key));
     let nonce = Nonce::from_slice(&encrypted.nonce);

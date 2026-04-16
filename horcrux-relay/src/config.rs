@@ -80,18 +80,29 @@ impl RelayConfig {
     /// Load configuration from environment variables (with sane defaults).
     pub fn from_env() -> Self {
         let mut cfg = Self::default();
-        if let Ok(v) = std::env::var("RELAY_HOST") { cfg.host = v; }
+        if let Ok(v) = std::env::var("RELAY_HOST") {
+            cfg.host = v;
+        }
         if let Ok(v) = std::env::var("RELAY_PORT") {
-            if let Ok(p) = v.parse() { cfg.port = p; }
+            if let Ok(p) = v.parse() {
+                cfg.port = p;
+            }
         }
         if let Ok(v) = std::env::var("RELAY_ROOM_TTL_SECS") {
-            if let Ok(s) = v.parse::<u64>() { cfg.room_ttl = Duration::from_secs(s); }
+            if let Ok(s) = v.parse::<u64>() {
+                cfg.room_ttl = Duration::from_secs(s);
+            }
         }
         if let Ok(v) = std::env::var("RELAY_MAX_PARTICIPANTS") {
             if let Ok(n) = v.parse::<usize>() {
                 let clamped = n.clamp(1, 100);
                 if clamped != n {
-                    tracing::warn!(env = "RELAY_MAX_PARTICIPANTS", raw = n, clamped, "value clamped to safe range [1, 100]");
+                    tracing::warn!(
+                        env = "RELAY_MAX_PARTICIPANTS",
+                        raw = n,
+                        clamped,
+                        "value clamped to safe range [1, 100]"
+                    );
                 }
                 cfg.max_participants = clamped;
             }
@@ -100,7 +111,12 @@ impl RelayConfig {
             if let Ok(n) = v.parse::<usize>() {
                 let clamped = n.clamp(1024, 100_000_000);
                 if clamped != n {
-                    tracing::warn!(env = "RELAY_MAX_MESSAGE_SIZE", raw = n, clamped, "value clamped to safe range [1024, 100000000]");
+                    tracing::warn!(
+                        env = "RELAY_MAX_MESSAGE_SIZE",
+                        raw = n,
+                        clamped,
+                        "value clamped to safe range [1024, 100000000]"
+                    );
                 }
                 cfg.max_message_size = clamped;
             }
@@ -109,7 +125,12 @@ impl RelayConfig {
             if let Ok(n) = v.parse::<u32>() {
                 let clamped = n.clamp(1, 10_000);
                 if clamped != n {
-                    tracing::warn!(env = "RELAY_RATE_LIMIT", raw = n, clamped, "value clamped to safe range [1, 10000]");
+                    tracing::warn!(
+                        env = "RELAY_RATE_LIMIT",
+                        raw = n,
+                        clamped,
+                        "value clamped to safe range [1, 10000]"
+                    );
                 }
                 cfg.rate_limit_count = clamped;
             }
@@ -118,15 +139,18 @@ impl RelayConfig {
             cfg.admin_token = Some(v);
         }
         if let Ok(v) = std::env::var("RELAY_ALLOWED_ORIGINS") {
-            cfg.allowed_origins = Some(
-                v.split(',').map(|s| s.trim().to_string()).collect()
-            );
+            cfg.allowed_origins = Some(v.split(',').map(|s| s.trim().to_string()).collect());
         }
         if let Ok(v) = std::env::var("RELAY_MAX_ROOMS") {
             if let Ok(n) = v.parse::<usize>() {
                 let clamped = n.clamp(1, 1_000_000);
                 if clamped != n {
-                    tracing::warn!(env = "RELAY_MAX_ROOMS", raw = n, clamped, "value clamped to safe range [1, 1000000]");
+                    tracing::warn!(
+                        env = "RELAY_MAX_ROOMS",
+                        raw = n,
+                        clamped,
+                        "value clamped to safe range [1, 1000000]"
+                    );
                 }
                 cfg.max_rooms = clamped;
             }
@@ -136,11 +160,21 @@ impl RelayConfig {
 
     /// Validate config values at startup. Returns error on invalid configuration.
     pub fn validate(&self) -> Result<(), ConfigError> {
-        if self.max_participants == 0 { return Err(ConfigError::InvalidMaxParticipants); }
-        if self.max_message_size == 0 { return Err(ConfigError::InvalidMaxMessageSize); }
-        if self.rate_limit_count == 0 { return Err(ConfigError::InvalidRateLimitCount); }
-        if self.ip_rate_limit_creates == 0 { return Err(ConfigError::InvalidIpRateLimitCreates); }
-        if self.max_rooms == 0 { return Err(ConfigError::InvalidMaxRooms); }
+        if self.max_participants == 0 {
+            return Err(ConfigError::InvalidMaxParticipants);
+        }
+        if self.max_message_size == 0 {
+            return Err(ConfigError::InvalidMaxMessageSize);
+        }
+        if self.rate_limit_count == 0 {
+            return Err(ConfigError::InvalidRateLimitCount);
+        }
+        if self.ip_rate_limit_creates == 0 {
+            return Err(ConfigError::InvalidIpRateLimitCreates);
+        }
+        if self.max_rooms == 0 {
+            return Err(ConfigError::InvalidMaxRooms);
+        }
         if self.ping_interval <= self.pong_timeout {
             return Err(ConfigError::InvalidPingPongTiming);
         }
@@ -162,20 +196,35 @@ mod tests {
 
     #[test]
     fn zero_max_participants_fails() {
-        let cfg = RelayConfig { max_participants: 0, ..Default::default() };
-        assert!(matches!(cfg.validate(), Err(ConfigError::InvalidMaxParticipants)));
+        let cfg = RelayConfig {
+            max_participants: 0,
+            ..Default::default()
+        };
+        assert!(matches!(
+            cfg.validate(),
+            Err(ConfigError::InvalidMaxParticipants)
+        ));
     }
 
     #[test]
     fn zero_max_rooms_fails() {
-        let cfg = RelayConfig { max_rooms: 0, ..Default::default() };
+        let cfg = RelayConfig {
+            max_rooms: 0,
+            ..Default::default()
+        };
         assert!(matches!(cfg.validate(), Err(ConfigError::InvalidMaxRooms)));
     }
 
     #[test]
     fn zero_rate_limit_fails() {
-        let cfg = RelayConfig { rate_limit_count: 0, ..Default::default() };
-        assert!(matches!(cfg.validate(), Err(ConfigError::InvalidRateLimitCount)));
+        let cfg = RelayConfig {
+            rate_limit_count: 0,
+            ..Default::default()
+        };
+        assert!(matches!(
+            cfg.validate(),
+            Err(ConfigError::InvalidRateLimitCount)
+        ));
     }
 
     #[test]
@@ -185,13 +234,19 @@ mod tests {
             pong_timeout: Duration::from_secs(10),
             ..Default::default()
         };
-        assert!(matches!(cfg.validate(), Err(ConfigError::InvalidPingPongTiming)));
+        assert!(matches!(
+            cfg.validate(),
+            Err(ConfigError::InvalidPingPongTiming)
+        ));
 
         let cfg2 = RelayConfig {
             ping_interval: Duration::from_secs(10),
             pong_timeout: Duration::from_secs(10),
             ..Default::default()
         };
-        assert!(matches!(cfg2.validate(), Err(ConfigError::InvalidPingPongTiming)));
+        assert!(matches!(
+            cfg2.validate(),
+            Err(ConfigError::InvalidPingPongTiming)
+        ));
     }
 }

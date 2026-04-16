@@ -81,10 +81,12 @@ impl NoiseKeypair {
     /// Generate a fresh Curve25519 keypair.
     pub fn generate() -> Result<Self, E2EError> {
         let builder = Builder::new(
-            NOISE_PATTERN.parse()
-                .map_err(|e| E2EError::Handshake(format!("parse pattern: {e}")))?
+            NOISE_PATTERN
+                .parse()
+                .map_err(|e| E2EError::Handshake(format!("parse pattern: {e}")))?,
         );
-        let kp = builder.generate_keypair()
+        let kp = builder
+            .generate_keypair()
             .map_err(|e| E2EError::Handshake(format!("generate keypair: {e}")))?;
         Ok(Self {
             private: kp.private,
@@ -97,7 +99,8 @@ impl NoiseChannel {
     /// Create an initiator (the device that starts the handshake).
     /// `local_keypair`: our persistent Curve25519 identity.
     pub fn initiator(local_keypair: &NoiseKeypair) -> Result<Self, E2EError> {
-        let params = NOISE_PATTERN.parse()
+        let params = NOISE_PATTERN
+            .parse()
             .map_err(|e| E2EError::Handshake(format!("parse pattern: {}", e)))?;
         let hs = Builder::new(params)
             .local_private_key(&local_keypair.private)
@@ -110,7 +113,8 @@ impl NoiseChannel {
     /// Create a responder (the device that receives the first handshake message).
     /// `local_keypair`: our persistent Curve25519 identity.
     pub fn responder(local_keypair: &NoiseKeypair) -> Result<Self, E2EError> {
-        let params = NOISE_PATTERN.parse()
+        let params = NOISE_PATTERN
+            .parse()
             .map_err(|e| E2EError::Handshake(format!("parse pattern: {}", e)))?;
         let hs = Builder::new(params)
             .local_private_key(&local_keypair.private)
@@ -126,7 +130,8 @@ impl NoiseChannel {
         match self {
             NoiseChannel::Handshake(hs) => {
                 let mut buf = vec![0u8; payload.len() + MAX_NOISE_OVERHEAD + 256];
-                let len = hs.write_message(payload, &mut buf)
+                let len = hs
+                    .write_message(payload, &mut buf)
                     .map_err(|e| E2EError::Handshake(format!("write: {}", e)))?;
                 buf.truncate(len);
                 Ok(buf)
@@ -141,7 +146,8 @@ impl NoiseChannel {
         match self {
             NoiseChannel::Handshake(hs) => {
                 let mut buf = vec![0u8; message.len() + MAX_NOISE_OVERHEAD];
-                let len = hs.read_message(message, &mut buf)
+                let len = hs
+                    .read_message(message, &mut buf)
                     .map_err(|e| E2EError::Handshake(format!("read: {}", e)))?;
                 buf.truncate(len);
                 Ok(buf)
@@ -166,7 +172,8 @@ impl NoiseChannel {
                 if !hs.is_handshake_finished() {
                     return Err(E2EError::HandshakeIncomplete);
                 }
-                let ts = hs.into_transport_mode()
+                let ts = hs
+                    .into_transport_mode()
                     .map_err(|e| E2EError::Handshake(format!("transport transition: {}", e)))?;
                 Ok(NoiseChannel::Transport(ts))
             }
@@ -187,7 +194,8 @@ impl NoiseChannel {
         match self {
             NoiseChannel::Transport(ts) => {
                 let mut buf = vec![0u8; plaintext.len() + 16]; // 16 bytes for ChaChaPoly MAC
-                let len = ts.write_message(plaintext, &mut buf)
+                let len = ts
+                    .write_message(plaintext, &mut buf)
                     .map_err(|e| E2EError::Encryption(format!("{}", e)))?;
                 buf.truncate(len);
                 Ok(SealedEnvelope {
@@ -202,12 +210,15 @@ impl NoiseChannel {
     /// Decrypt a message (transport mode only).
     pub fn open(&mut self, envelope: &SealedEnvelope) -> Result<Vec<u8>, E2EError> {
         if envelope.handshake {
-            return Err(E2EError::Handshake("unexpected handshake message in transport mode".into()));
+            return Err(E2EError::Handshake(
+                "unexpected handshake message in transport mode".into(),
+            ));
         }
         match self {
             NoiseChannel::Transport(ts) => {
                 let mut buf = vec![0u8; envelope.ciphertext.len()];
-                let len = ts.read_message(&envelope.ciphertext, &mut buf)
+                let len = ts
+                    .read_message(&envelope.ciphertext, &mut buf)
                     .map_err(|e| E2EError::Decryption(format!("{}", e)))?;
                 buf.truncate(len);
                 Ok(buf)
@@ -270,7 +281,9 @@ impl SessionToken {
 
         let mut access_bytes = [0u8; 32];
         hk.expand(b"horcrux-access-token", &mut access_bytes)
-            .map_err(|e| E2EError::Handshake(format!("HKDF expand for access token failed: {e}")))?;
+            .map_err(|e| {
+                E2EError::Handshake(format!("HKDF expand for access token failed: {e}"))
+            })?;
 
         Ok(Self {
             room_secret: room_secret.to_vec(),
@@ -384,7 +397,8 @@ mod tests {
         let (mut a, _b) = complete_xx_handshake(&ak, &bk).unwrap();
 
         // Eve creates her own session with her key — she can't decrypt Alice's messages
-        let (_, mut eve) = complete_xx_handshake(&ek, &NoiseKeypair::generate().expect("keypair gen")).unwrap();
+        let (_, mut eve) =
+            complete_xx_handshake(&ek, &NoiseKeypair::generate().expect("keypair gen")).unwrap();
 
         let sealed = a.seal(b"for bob only").unwrap();
         assert!(eve.open(&sealed).is_err());

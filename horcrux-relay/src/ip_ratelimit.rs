@@ -38,7 +38,9 @@ impl IpRateLimiter {
     pub fn try_create(&self, ip: IpAddr) -> bool {
         let now = Instant::now();
         let cutoff = now - self.window;
-        let mut map = self.entries.lock()
+        let mut map = self
+            .entries
+            .lock()
             .expect("IpRateLimiter mutex poisoned — cannot safely continue");
         let timestamps = map.entry(ip).or_default();
 
@@ -58,7 +60,9 @@ impl IpRateLimiter {
     pub fn gc(&self) {
         let now = Instant::now();
         let cutoff = now - self.window;
-        let mut map = self.entries.lock()
+        let mut map = self
+            .entries
+            .lock()
             .expect("IpRateLimiter mutex poisoned — cannot safely continue");
         map.retain(|_ip, timestamps| {
             timestamps.retain(|t| *t > cutoff);
@@ -75,7 +79,11 @@ impl IpRateLimiter {
             for (ip, _) in entries_by_age.into_iter().take(to_remove) {
                 map.remove(&ip);
             }
-            tracing::warn!(evicted = to_remove, remaining = map.len(), "IP rate limiter eviction");
+            tracing::warn!(
+                evicted = to_remove,
+                remaining = map.len(),
+                "IP rate limiter eviction"
+            );
         }
     }
 }

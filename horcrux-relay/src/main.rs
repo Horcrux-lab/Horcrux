@@ -19,9 +19,7 @@ use horcrux_relay::room;
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     tracing_subscriber::fmt()
-        .with_env_filter(
-            EnvFilter::from_default_env().add_directive("horcrux_relay=info".parse()?),
-        )
+        .with_env_filter(EnvFilter::from_default_env().add_directive("horcrux_relay=info".parse()?))
         .init();
 
     horcrux_relay::init_start_time();
@@ -79,7 +77,9 @@ async fn shutdown_signal() {
     #[cfg(unix)]
     let terminate = async {
         match tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate()) {
-            Ok(mut sig) => { sig.recv().await; }
+            Ok(mut sig) => {
+                sig.recv().await;
+            }
             Err(e) => {
                 tracing::error!("failed to install SIGTERM handler: {e}");
                 std::future::pending::<()>().await;

@@ -70,8 +70,8 @@ impl TransactionBuilder for EvmTransactionBuilder {
 
 fn parse_address(addr: &str) -> Result<[u8; 20], ChainError> {
     let hex_str = addr.strip_prefix("0x").unwrap_or(addr);
-    let bytes = hex::decode(hex_str)
-        .map_err(|e| ChainError::InvalidAddress(format!("bad hex: {e}")))?;
+    let bytes =
+        hex::decode(hex_str).map_err(|e| ChainError::InvalidAddress(format!("bad hex: {e}")))?;
     if bytes.len() != 20 {
         return Err(ChainError::InvalidAddress(format!(
             "expected 20 bytes, got {}",
@@ -232,7 +232,7 @@ mod tests {
             gas_limit: 100_000,
             max_fee_per_gas: 50_000_000_000,
             max_priority_fee_per_gas: 2_000_000_000,
-            chain_id: 137, // Polygon
+            chain_id: 137,                          // Polygon
             data: hex::decode("a9059cbb").unwrap(), // transfer selector
         };
         let tx = builder.build(params).unwrap();

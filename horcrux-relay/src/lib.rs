@@ -48,10 +48,8 @@ pub fn build_app(state: AppState) -> Router {
 
     let cors = match &config.allowed_origins {
         Some(origins) => {
-            let origin_list: Vec<HeaderValue> = origins
-                .iter()
-                .filter_map(|o| o.parse().ok())
-                .collect();
+            let origin_list: Vec<HeaderValue> =
+                origins.iter().filter_map(|o| o.parse().ok()).collect();
             CorsLayer::new()
                 .allow_origin(AllowOrigin::list(origin_list))
                 .allow_methods([Method::GET])
@@ -71,10 +69,7 @@ pub fn build_app(state: AppState) -> Router {
 }
 
 async fn health(State((rooms, _config, _ip)): State<AppState>) -> impl IntoResponse {
-    let uptime = START_TIME
-        .get()
-        .map(|t| t.elapsed().as_secs())
-        .unwrap_or(0);
+    let uptime = START_TIME.get().map(|t| t.elapsed().as_secs()).unwrap_or(0);
     let active_rooms = rooms.room_count().await;
     let active_connections = METRICS
         .connections_active
@@ -97,7 +92,10 @@ async fn metrics_handler(
     verify_admin_token(&headers, &query, &config)?;
     let active_rooms = rooms.room_count().await;
     Ok((
-        [(axum::http::header::CONTENT_TYPE, "text/plain; version=0.0.4")],
+        [(
+            axum::http::header::CONTENT_TYPE,
+            "text/plain; version=0.0.4",
+        )],
         METRICS.render(active_rooms),
     ))
 }
@@ -134,11 +132,7 @@ fn verify_admin_token(
         let provided = query
             .admin_token
             .as_deref()
-            .or_else(|| {
-                headers
-                    .get("x-admin-token")
-                    .and_then(|v| v.to_str().ok())
-            });
+            .or_else(|| headers.get("x-admin-token").and_then(|v| v.to_str().ok()));
         match provided {
             Some(t) if t.as_bytes().ct_eq(expected.as_bytes()).into() => Ok(()),
             _ => Err(StatusCode::FORBIDDEN),

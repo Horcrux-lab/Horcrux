@@ -8,9 +8,9 @@ use std::sync::Mutex;
 
 use crate::chain;
 use crate::chain::TransactionBuilder;
-use crate::mpc::{CurveType, HorcruxConfig, MpcError};
 use crate::mpc::session::SessionManager;
 use crate::mpc::types::{KeygenResult, MpcMessage, SigningResult};
+use crate::mpc::{CurveType, HorcruxConfig, MpcError};
 use crate::shard::crypto::{self as shard_crypto, EncryptedShard};
 use crate::shard::{ShardInfo, ShardManager};
 use crate::transport::e2e::{E2EError, NoiseChannel, NoiseKeypair, SealedEnvelope, SessionToken};
@@ -499,7 +499,10 @@ pub fn horcrux_build_evm_transaction(params: FfiEvmTxParams) -> Result<FfiTransa
         nonce: params.nonce,
         gas_limit: params.gas_limit,
         max_fee_per_gas: parse_u128(&params.max_fee_per_gas, "max_fee_per_gas")?,
-        max_priority_fee_per_gas: parse_u128(&params.max_priority_fee_per_gas, "max_priority_fee_per_gas")?,
+        max_priority_fee_per_gas: parse_u128(
+            &params.max_priority_fee_per_gas,
+            "max_priority_fee_per_gas",
+        )?,
         chain_id: params.chain_id,
         data: params.data,
     };
@@ -513,26 +516,41 @@ pub fn horcrux_build_evm_transaction(params: FfiEvmTxParams) -> Result<FfiTransa
 
 /// Build a Bitcoin transaction (P2WPKH segwit) and return the BIP-143 sighash for a given input.
 #[uniffi::export]
-pub fn horcrux_build_btc_transaction(params: FfiBtcTxParams, input_index: u32) -> Result<FfiTransaction, ChainError> {
+pub fn horcrux_build_btc_transaction(
+    params: FfiBtcTxParams,
+    input_index: u32,
+) -> Result<FfiTransaction, ChainError> {
     let testnet = params.testnet;
     let btc_params = chain::bitcoin::BtcTxParams {
-        inputs: params.inputs.into_iter().map(|i| chain::bitcoin::BtcInput {
-            txid: i.txid,
-            vout: i.vout,
-            value: i.value,
-            pubkey_hash: i.pubkey_hash,
-        }).collect(),
-        outputs: params.outputs.into_iter().map(|o| chain::bitcoin::BtcOutput {
-            address: o.address,
-            value: o.value,
-            script_pubkey: o.script_pubkey,
-        }).collect(),
+        inputs: params
+            .inputs
+            .into_iter()
+            .map(|i| chain::bitcoin::BtcInput {
+                txid: i.txid,
+                vout: i.vout,
+                value: i.value,
+                pubkey_hash: i.pubkey_hash,
+            })
+            .collect(),
+        outputs: params
+            .outputs
+            .into_iter()
+            .map(|o| chain::bitcoin::BtcOutput {
+                address: o.address,
+                value: o.value,
+                script_pubkey: o.script_pubkey,
+            })
+            .collect(),
         testnet,
     };
     let tx = chain::bitcoin::BtcTransactionBuilder.build(btc_params.clone())?;
     let sighash = chain::bitcoin::bip143_sighash(&btc_params, input_index as usize)?;
     Ok(FfiTransaction {
-        chain_type: if testnet { "btc:testnet".into() } else { "btc:mainnet".into() },
+        chain_type: if testnet {
+            "btc:testnet".into()
+        } else {
+            "btc:mainnet".into()
+        },
         raw_data: tx.raw_data,
         sign_hash: sighash.to_vec(),
     })
@@ -540,7 +558,9 @@ pub fn horcrux_build_btc_transaction(params: FfiBtcTxParams, input_index: u32) -
 
 /// Build a Solana transfer transaction and return the signing hash.
 #[uniffi::export]
-pub fn horcrux_build_solana_transaction(params: FfiSolanaTxParams) -> Result<FfiTransaction, ChainError> {
+pub fn horcrux_build_solana_transaction(
+    params: FfiSolanaTxParams,
+) -> Result<FfiTransaction, ChainError> {
     let sol_params = chain::solana::SolanaTxParams {
         from: params.from_address,
         to: params.to_address,
@@ -550,7 +570,11 @@ pub fn horcrux_build_solana_transaction(params: FfiSolanaTxParams) -> Result<Ffi
     };
     let tx = chain::solana::SolanaTransactionBuilder.build(sol_params)?;
     Ok(FfiTransaction {
-        chain_type: if params.devnet { "sol:devnet".into() } else { "sol:mainnet".into() },
+        chain_type: if params.devnet {
+            "sol:devnet".into()
+        } else {
+            "sol:mainnet".into()
+        },
         raw_data: tx.raw_data,
         sign_hash: tx.sign_hash,
     })
@@ -697,7 +721,11 @@ impl HorcruxShardManager {
     /// Filter shards by their associated public key.
     pub fn shards_for_key(&self, public_key: Vec<u8>) -> Vec<FfiShardInfo> {
         match self.inner.lock() {
-            Ok(mgr) => mgr.shards_for_key(&public_key).into_iter().map(Into::into).collect(),
+            Ok(mgr) => mgr
+                .shards_for_key(&public_key)
+                .into_iter()
+                .map(Into::into)
+                .collect(),
             Err(_) => Vec::new(),
         }
     }
@@ -758,7 +786,10 @@ impl HorcruxNoiseChannel {
 
     /// Check whether the Noise handshake is complete (channel in transport mode).
     pub fn is_handshake_finished(&self) -> bool {
-        self.inner.lock().map(|ch| ch.is_handshake_finished()).unwrap_or(false)
+        self.inner
+            .lock()
+            .map(|ch| ch.is_handshake_finished())
+            .unwrap_or(false)
     }
 
     /// Get the peer's static public key (available after handshake completes).
@@ -866,9 +897,8 @@ mod tests {
                 value: 90_000,
                 script_pubkey: Some(vec![
                     0x00, 0x14, // witness v0, push 20
-                    0x75, 0x1e, 0x76, 0xe8, 0x19, 0x91, 0x96, 0xd4,
-                    0x54, 0x94, 0x1c, 0x45, 0xd1, 0xb3, 0xa3, 0x23,
-                    0xf1, 0x43, 0x3b, 0xd6,
+                    0x75, 0x1e, 0x76, 0xe8, 0x19, 0x91, 0x96, 0xd4, 0x54, 0x94, 0x1c, 0x45, 0xd1,
+                    0xb3, 0xa3, 0x23, 0xf1, 0x43, 0x3b, 0xd6,
                 ]),
             }],
             testnet: true,

@@ -4,5 +4,5 @@
 //! This defines the wire protocol used across BLE, Wi-Fi Direct, Wi-Fi LAN,
 //! QR code, and Relay WebSocket channels.
 
-pub mod protocol;
 pub mod e2e;
+pub mod protocol;

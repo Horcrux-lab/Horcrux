@@ -59,10 +59,14 @@ impl TransactionBuilder for BtcTransactionBuilder {
         );
 
         if params.inputs.is_empty() {
-            return Err(ChainError::Other("transaction must have at least one input".into()));
+            return Err(ChainError::Other(
+                "transaction must have at least one input".into(),
+            ));
         }
         if params.outputs.is_empty() {
-            return Err(ChainError::Other("transaction must have at least one output".into()));
+            return Err(ChainError::Other(
+                "transaction must have at least one output".into(),
+            ));
         }
 
         let raw_data = serialize_witness_tx(&params)?;
@@ -99,10 +103,7 @@ pub fn bip143_sighash(params: &BtcTxParams, index: usize) -> Result<[u8; 32], Ch
     let outpoint = serialize_outpoint(input)?;
 
     // scriptCode for P2WPKH: OP_DUP OP_HASH160 <20 bytes> OP_EQUALVERIFY OP_CHECKSIG
-    let pubkey_hash = input
-        .pubkey_hash
-        .as_deref()
-        .unwrap_or(&[0u8; 20]);
+    let pubkey_hash = input.pubkey_hash.as_deref().unwrap_or(&[0u8; 20]);
     let script_code = p2wpkh_script_code(pubkey_hash);
 
     let mut preimage = Vec::with_capacity(156);
@@ -143,8 +144,8 @@ fn double_sha256(data: &[u8]) -> [u8; 32] {
 }
 
 fn parse_txid(txid: &str) -> Result<[u8; 32], ChainError> {
-    let mut bytes = hex::decode(txid)
-        .map_err(|e| ChainError::InvalidAddress(format!("bad txid hex: {e}")))?;
+    let mut bytes =
+        hex::decode(txid).map_err(|e| ChainError::InvalidAddress(format!("bad txid hex: {e}")))?;
     if bytes.len() != 32 {
         return Err(ChainError::InvalidAddress(format!(
             "txid must be 32 bytes, got {}",
@@ -192,9 +193,7 @@ fn serialize_outputs(outputs: &[BtcOutput]) -> Result<Vec<u8>, ChainError> {
         let spk = out
             .script_pubkey
             .as_deref()
-            .ok_or_else(|| {
-                ChainError::EncodingError("output must have script_pubkey".into())
-            })?;
+            .ok_or_else(|| ChainError::EncodingError("output must have script_pubkey".into()))?;
         push_var_bytes(&mut data, spk);
     }
     Ok(data)
@@ -221,9 +220,10 @@ fn serialize_witness_tx(params: &BtcTxParams) -> Result<Vec<u8>, ChainError> {
     push_varint(&mut buf, params.outputs.len() as u64);
     for out in &params.outputs {
         buf.extend_from_slice(&out.value.to_le_bytes());
-        let spk = out.script_pubkey.as_deref().ok_or_else(|| {
-            ChainError::EncodingError("output must have script_pubkey".into())
-        })?;
+        let spk = out
+            .script_pubkey
+            .as_deref()
+            .ok_or_else(|| ChainError::EncodingError("output must have script_pubkey".into()))?;
         push_var_bytes(&mut buf, spk);
     }
     // witness (empty placeholders — real witness is added after signing)
@@ -285,9 +285,8 @@ mod tests {
                 value: 90_000,
                 script_pubkey: Some(vec![
                     0x00, 0x14, // witness v0, push 20
-                    0x75, 0x1e, 0x76, 0xe8, 0x19, 0x91, 0x96, 0xd4,
-                    0x54, 0x94, 0x1c, 0x45, 0xd1, 0xb3, 0xa3, 0x23,
-                    0xf1, 0x43, 0x3b, 0xd6,
+                    0x75, 0x1e, 0x76, 0xe8, 0x19, 0x91, 0x96, 0xd4, 0x54, 0x94, 0x1c, 0x45, 0xd1,
+                    0xb3, 0xa3, 0x23, 0xf1, 0x43, 0x3b, 0xd6,
                 ]),
             }],
             testnet: false,
@@ -431,6 +430,6 @@ mod tests {
         // Verify basic structure: version(4) + marker(1) + flag(1) = first 6 bytes
         assert!(raw.len() > 6);
         // ends with locktime (4 zero bytes)
-        assert_eq!(&raw[raw.len()-4..], &[0, 0, 0, 0]);
+        assert_eq!(&raw[raw.len() - 4..], &[0, 0, 0, 0]);
     }
 }

@@ -7,13 +7,13 @@
 //!
 //! The full private key never exists on any single device.
 
-use super::{CurveType, HorcruxConfig, MpcError};
 use super::types::{KeygenResult, MpcMessage};
-use k256::{ProjectivePoint, Scalar, AffinePoint, elliptic_curve::group::GroupEncoding};
-use k256::elliptic_curve::{Field, PrimeField};
+use super::{CurveType, HorcruxConfig, MpcError};
 use k256::elliptic_curve::sec1::FromEncodedPoint;
+use k256::elliptic_curve::{Field, PrimeField};
+use k256::{elliptic_curve::group::GroupEncoding, AffinePoint, ProjectivePoint, Scalar};
 use rand::thread_rng;
-use sha2::{Sha256, Digest};
+use sha2::{Digest, Sha256};
 use zeroize::Zeroize;
 
 /// Serializable round-1 broadcast: commitments to polynomial coefficients.
@@ -93,7 +93,6 @@ impl Drop for KeygenSession {
 }
 
 impl KeygenSession {
-
     pub fn start(&mut self, session_id: &str) -> Result<Vec<MpcMessage>, MpcError> {
         if self.state != KeygenState::WaitingForParties {
             return Err(MpcError::SessionError("session already started".into()));
@@ -136,9 +135,7 @@ impl KeygenSession {
         let t = self.config.threshold as usize;
 
         // Generate random polynomial of degree (t-1): f(x) = a_0 + a_1*x + ... + a_{t-1}*x^{t-1}
-        let coefficients: Vec<Scalar> = (0..t)
-            .map(|_| Scalar::random(&mut rng))
-            .collect();
+        let coefficients: Vec<Scalar> = (0..t).map(|_| Scalar::random(&mut rng)).collect();
 
         // Compute commitments: C_k = a_k * G
         let commitments: Vec<ProjectivePoint> = coefficients
@@ -161,10 +158,9 @@ impl KeygenSession {
         let response = k + challenge * coefficients[0];
 
         // Store our coefficients for round 2
-        self.coefficients = coefficients.iter()
-            .map(|c| c.to_bytes().to_vec())
-            .collect();
-        self.our_commitments = commitments.iter()
+        self.coefficients = coefficients.iter().map(|c| c.to_bytes().to_vec()).collect();
+        self.our_commitments = commitments
+            .iter()
             .map(|c| c.to_affine().to_bytes().to_vec())
             .collect();
 
@@ -179,8 +175,8 @@ impl KeygenSession {
         // Also store our own broadcast
         self.round1_broadcasts.push(broadcast.clone());
 
-        let payload = serde_json::to_vec(&broadcast)
-            .map_err(|e| MpcError::ProtocolError(e.to_string()))?;
+        let payload =
+            serde_json::to_vec(&broadcast).map_err(|e| MpcError::ProtocolError(e.to_string()))?;
 
         tracing::info!(
             party = self.config.party_index,
@@ -239,7 +235,9 @@ impl KeygenSession {
     fn verify_secp256k1_proof(&self, broadcast: &Round1Broadcast) -> Result<(), MpcError> {
         use k256::EncodedPoint;
 
-        let c0_bytes: [u8; 33] = broadcast.commitments[0].clone().try_into()
+        let c0_bytes: [u8; 33] = broadcast.commitments[0]
+            .clone()
+            .try_into()
             .map_err(|_| MpcError::ProtocolError("invalid commitment size".into()))?;
         let c0_point = AffinePoint::from_bytes(&c0_bytes.into());
         if c0_point.is_none().into() {
@@ -255,7 +253,10 @@ impl KeygenSession {
         }
         let r_point = ProjectivePoint::from(r_affine.unwrap());
 
-        let s_bytes: [u8; 32] = broadcast.proof_s.clone().try_into()
+        let s_bytes: [u8; 32] = broadcast
+            .proof_s
+            .clone()
+            .try_into()
             .map_err(|_| MpcError::ProtocolError("invalid proof s size".into()))?;
         let s_option = Scalar::from_repr(s_bytes.into());
         if s_option.is_none().into() {
@@ -276,16 +277,19 @@ impl KeygenSession {
         let rhs = r_point + c0 * challenge;
 
         if lhs != rhs {
-            return Err(MpcError::ProtocolError(
-                format!("Schnorr proof failed for party {}", broadcast.party_index)
-            ));
+            return Err(MpcError::ProtocolError(format!(
+                "Schnorr proof failed for party {}",
+                broadcast.party_index
+            )));
         }
 
         Ok(())
     }
 
     fn generate_secp256k1_shares(&self) -> Result<Vec<MpcMessage>, MpcError> {
-        let coefficients: Vec<Scalar> = self.coefficients.iter()
+        let coefficients: Vec<Scalar> = self
+            .coefficients
+            .iter()
             .map(|c| {
                 let bytes: [u8; 32] = c.clone().try_into().unwrap();
                 Scalar::from_repr(bytes.into()).unwrap()
@@ -306,8 +310,8 @@ impl KeygenSession {
                 to: j,
                 share: share_value.to_bytes().to_vec(),
             };
-            let payload = serde_json::to_vec(&share)
-                .map_err(|e| MpcError::ProtocolError(e.to_string()))?;
+            let payload =
+                serde_json::to_vec(&share).map_err(|e| MpcError::ProtocolError(e.to_string()))?;
 
             messages.push(MpcMessage {
                 from: self.config.party_index,
@@ -329,7 +333,9 @@ impl KeygenSession {
 
     fn finalize_secp256k1_keygen(&mut self) -> Result<Vec<MpcMessage>, MpcError> {
         // Our own share: f_i(i) where i is our party index
-        let our_coefficients: Vec<Scalar> = self.coefficients.iter()
+        let our_coefficients: Vec<Scalar> = self
+            .coefficients
+            .iter()
             .map(|c| {
                 let bytes: [u8; 32] = c.clone().try_into().unwrap();
                 Scalar::from_repr(bytes.into()).unwrap()
@@ -340,21 +346,27 @@ impl KeygenSession {
 
         // Add shares from other parties
         for share in &self.round2_shares {
-            let s_bytes: [u8; 32] = share.share.clone().try_into()
+            let s_bytes: [u8; 32] = share
+                .share
+                .clone()
+                .try_into()
                 .map_err(|_| MpcError::ProtocolError("invalid share size".into()))?;
             let s = Scalar::from_repr(s_bytes.into());
             if s.is_none().into() {
-                return Err(MpcError::ProtocolError(
-                    format!("invalid share from party {}", share.from)
-                ));
+                return Err(MpcError::ProtocolError(format!(
+                    "invalid share from party {}",
+                    share.from
+                )));
             }
 
             // Verify share against commitments from round 1
-            let sender_broadcast = self.round1_broadcasts.iter()
+            let sender_broadcast = self
+                .round1_broadcasts
+                .iter()
                 .find(|b| b.party_index == share.from)
-                .ok_or_else(|| MpcError::ProtocolError(
-                    format!("missing broadcast from party {}", share.from)
-                ))?;
+                .ok_or_else(|| {
+                    MpcError::ProtocolError(format!("missing broadcast from party {}", share.from))
+                })?;
 
             self.verify_share_against_commitments(
                 &s.unwrap(),
@@ -368,7 +380,9 @@ impl KeygenSession {
         // Compute group public key: sum of all parties' C_0 (commitment to constant term)
         let mut group_pubkey = ProjectivePoint::IDENTITY;
         for broadcast in &self.round1_broadcasts {
-            let c0_bytes: [u8; 33] = broadcast.commitments[0].clone().try_into()
+            let c0_bytes: [u8; 33] = broadcast.commitments[0]
+                .clone()
+                .try_into()
                 .map_err(|_| MpcError::ProtocolError("invalid commitment".into()))?;
             let c0 = AffinePoint::from_bytes(&c0_bytes.into());
             if c0.is_none().into() {
@@ -414,7 +428,9 @@ impl KeygenSession {
         let mut x_pow = Scalar::ONE;
 
         for commitment_bytes in commitments {
-            let c_bytes: [u8; 33] = commitment_bytes.clone().try_into()
+            let c_bytes: [u8; 33] = commitment_bytes
+                .clone()
+                .try_into()
                 .map_err(|_| MpcError::ProtocolError("invalid commitment size".into()))?;
             let c = AffinePoint::from_bytes(&c_bytes.into());
             if c.is_none().into() {
@@ -551,9 +567,7 @@ mod tests {
         }
 
         // All parties should agree on the same public key
-        let results: Vec<KeygenResult> = sessions.iter()
-            .map(|s| s.result().unwrap())
-            .collect();
+        let results: Vec<KeygenResult> = sessions.iter().map(|s| s.result().unwrap()).collect();
 
         assert_eq!(results[0].public_key, results[1].public_key);
         assert_eq!(results[1].public_key, results[2].public_key);
@@ -563,7 +577,10 @@ mod tests {
         assert_ne!(results[0].shard_data, results[1].shard_data);
         assert_ne!(results[1].shard_data, results[2].shard_data);
 
-        tracing::info!("DKG complete — public key: {}", hex::encode(&results[0].public_key));
+        tracing::info!(
+            "DKG complete — public key: {}",
+            hex::encode(&results[0].public_key)
+        );
     }
 
     #[test]
@@ -605,7 +622,8 @@ mod tests {
         }
 
         // All complete with same public key
-        let pubkeys: Vec<Vec<u8>> = sessions.iter()
+        let pubkeys: Vec<Vec<u8>> = sessions
+            .iter()
             .map(|s| s.result().unwrap().public_key)
             .collect();
 
@@ -617,11 +635,14 @@ mod tests {
     #[test]
     fn test_polynomial_evaluation() {
         // f(x) = 3 + 2x → f(1) = 5, f(2) = 7
-        let coeffs = vec![
-            Scalar::from(3u64),
-            Scalar::from(2u64),
-        ];
-        assert_eq!(evaluate_polynomial(&coeffs, &Scalar::from(1u64)), Scalar::from(5u64));
-        assert_eq!(evaluate_polynomial(&coeffs, &Scalar::from(2u64)), Scalar::from(7u64));
+        let coeffs = vec![Scalar::from(3u64), Scalar::from(2u64)];
+        assert_eq!(
+            evaluate_polynomial(&coeffs, &Scalar::from(1u64)),
+            Scalar::from(5u64)
+        );
+        assert_eq!(
+            evaluate_polynomial(&coeffs, &Scalar::from(2u64)),
+            Scalar::from(7u64)
+        );
     }
 }

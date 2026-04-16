@@ -1,7 +1,7 @@
 //! Shard storage, encryption, and management.
 
-pub mod storage;
 pub mod crypto;
+pub mod storage;
 
 use serde::{Deserialize, Serialize};
 
@@ -49,7 +49,10 @@ impl ShardManager {
 
     /// Find shards for a given public key.
     pub fn shards_for_key(&self, public_key: &[u8]) -> Vec<&ShardInfo> {
-        self.shards.iter().filter(|s| s.public_key == public_key).collect()
+        self.shards
+            .iter()
+            .filter(|s| s.public_key == public_key)
+            .collect()
     }
 }
 

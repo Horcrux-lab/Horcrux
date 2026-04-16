@@ -10,9 +10,9 @@
 use super::types::{KeygenResult, MpcMessage, SigningResult};
 use super::{HorcruxConfig, MpcError};
 
-use frost_ed25519 as frost;
 use frost::keys::dkg as frost_dkg;
 use frost::{Identifier, SigningPackage};
+use frost_ed25519 as frost;
 use rand::rngs::OsRng;
 use std::collections::BTreeMap;
 use zeroize::Zeroize;
@@ -198,9 +198,8 @@ impl FrostDkgSession {
             .take()
             .ok_or_else(|| MpcError::SessionError("round1 secret missing".into()))?;
 
-        let (round2_secret, round2_packages) =
-            frost_dkg::part2(secret, &self.received_round1)
-                .map_err(|e| MpcError::KeygenFailed(format!("FROST DKG part2: {e}")))?;
+        let (round2_secret, round2_packages) = frost_dkg::part2(secret, &self.received_round1)
+            .map_err(|e| MpcError::KeygenFailed(format!("FROST DKG part2: {e}")))?;
 
         self.round2_secret = Some(round2_secret);
 
@@ -269,7 +268,8 @@ impl FrostDkgSession {
 
         // Extract group public key (32 bytes, Ed25519 compressed point)
         let verifying_key = pubkey_package.verifying_key();
-        let pk_bytes = verifying_key.serialize()
+        let pk_bytes = verifying_key
+            .serialize()
             .map_err(|e| MpcError::KeygenFailed(format!("serialize verifying key: {e}")))?;
 
         // Serialize key_package as shard_data
@@ -353,7 +353,10 @@ impl std::fmt::Debug for FrostSigningSession {
             .field("session_id", &self.session_id)
             .field("state", &self.state)
             .field("participants", &self.participants)
-            .field("received_commitments_count", &self.received_commitments.len())
+            .field(
+                "received_commitments_count",
+                &self.received_commitments.len(),
+            )
             .field("received_shares_count", &self.received_shares.len())
             .finish()
     }
@@ -425,7 +428,9 @@ impl FrostSigningSession {
     /// Start signing: generate nonce commitment and broadcast.
     pub fn start(&mut self, session_id: &str) -> Result<Vec<MpcMessage>, MpcError> {
         if self.state != FrostSignState::Init {
-            return Err(MpcError::SessionError("FROST signing already started".into()));
+            return Err(MpcError::SessionError(
+                "FROST signing already started".into(),
+            ));
         }
         self.session_id = session_id.to_string();
 
@@ -436,8 +441,7 @@ impl FrostSigningSession {
         self.nonces = Some(nonces);
 
         // Store our own commitment
-        self.received_commitments
-            .insert(self.our_id, commitments);
+        self.received_commitments.insert(self.our_id, commitments);
 
         let commit_bytes = serde_json::to_vec(&commitments)
             .map_err(|e| MpcError::ProtocolError(format!("serialize commitments: {e}")))?;
@@ -500,19 +504,15 @@ impl FrostSigningSession {
         }
 
         // Build signing package and compute our signature share
-        let signing_package = SigningPackage::new(
-            self.received_commitments.clone(),
-            &self.message,
-        );
+        let signing_package = SigningPackage::new(self.received_commitments.clone(), &self.message);
 
         let nonces = self
             .nonces
             .take()
             .ok_or_else(|| MpcError::SessionError("nonces missing".into()))?;
 
-        let sig_share =
-            frost::round2::sign(&signing_package, &nonces, &self.key_package)
-                .map_err(|e| MpcError::SigningFailed(format!("FROST round2 sign: {e}")))?;
+        let sig_share = frost::round2::sign(&signing_package, &nonces, &self.key_package)
+            .map_err(|e| MpcError::SigningFailed(format!("FROST round2 sign: {e}")))?;
 
         // Store our own share
         self.received_shares.insert(self.our_id, sig_share);
@@ -568,14 +568,14 @@ impl FrostSigningSession {
         }
 
         // Aggregate: rebuild the signing package
-        let signing_package = SigningPackage::new(
-            self.received_commitments.clone(),
-            &self.message,
-        );
+        let signing_package = SigningPackage::new(self.received_commitments.clone(), &self.message);
 
-        let group_signature =
-            frost::aggregate(&signing_package, &self.received_shares, &self.pubkey_package)
-                .map_err(|e| MpcError::SigningFailed(format!("FROST aggregate: {e}")))?;
+        let group_signature = frost::aggregate(
+            &signing_package,
+            &self.received_shares,
+            &self.pubkey_package,
+        )
+        .map_err(|e| MpcError::SigningFailed(format!("FROST aggregate: {e}")))?;
 
         // Verify the aggregated signature
         self.pubkey_package
@@ -584,7 +584,8 @@ impl FrostSigningSession {
             .map_err(|e| MpcError::SigningFailed(format!("FROST verify: {e}")))?;
 
         // Ed25519 signature is 64 bytes: R (32 bytes) || s (32 bytes)
-        let sig_bytes = group_signature.serialize()
+        let sig_bytes = group_signature
+            .serialize()
             .map_err(|e| MpcError::SigningFailed(format!("serialize signature: {e}")))?;
 
         self.result = Some(SigningResult {
@@ -649,8 +650,7 @@ mod tests {
         // Create sessions
         let mut sessions: Vec<FrostDkgSession> = (1..=total)
             .map(|i| {
-                let config =
-                    HorcruxConfig::new(threshold, total, i, CurveType::Ed25519).unwrap();
+                let config = HorcruxConfig::new(threshold, total, i, CurveType::Ed25519).unwrap();
                 FrostDkgSession::new(config).unwrap()
             })
             .collect();
@@ -682,13 +682,8 @@ mod tests {
             assert!(session.is_complete(), "DKG not complete for a party");
             let result = session.result().unwrap();
             results.push((
-                HorcruxConfig::new(
-                    threshold,
-                    total,
-                    result.party_index,
-                    CurveType::Ed25519,
-                )
-                .unwrap(),
+                HorcruxConfig::new(threshold, total, result.party_index, CurveType::Ed25519)
+                    .unwrap(),
                 result,
             ));
         }

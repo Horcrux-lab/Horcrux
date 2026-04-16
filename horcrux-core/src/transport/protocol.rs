@@ -43,7 +43,10 @@ pub enum MessageType {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum ControlMessage {
     /// Request to join a session
-    JoinRequest { session_id: String, party_index: u16 },
+    JoinRequest {
+        session_id: String,
+        party_index: u16,
+    },
     /// Confirmation of joining
     JoinAccept { session_id: String },
     /// Leave a session
