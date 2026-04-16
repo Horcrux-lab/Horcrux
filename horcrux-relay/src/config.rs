@@ -33,6 +33,23 @@ pub struct RelayConfig {
     pub ip_rate_limit_creates: u32,
     /// IP rate-limit sliding window.
     pub ip_rate_limit_window: Duration,
+    /// Maximum number of concurrent rooms (prevents OOM DoS).
+    pub max_rooms: usize,
+}
+
+/// Configuration validation errors.
+#[derive(Debug, thiserror::Error)]
+pub enum ConfigError {
+    #[error("max_participants must be > 0")]
+    InvalidMaxParticipants,
+    #[error("max_message_size must be > 0")]
+    InvalidMaxMessageSize,
+    #[error("rate_limit_count must be > 0")]
+    InvalidRateLimitCount,
+    #[error("ip_rate_limit_creates must be > 0")]
+    InvalidIpRateLimitCreates,
+    #[error("max_rooms must be > 0")]
+    InvalidMaxRooms,
 }
 
 impl Default for RelayConfig {
@@ -52,6 +69,7 @@ impl Default for RelayConfig {
             allowed_origins: None,
             ip_rate_limit_creates: 20,
             ip_rate_limit_window: Duration::from_secs(60),
+            max_rooms: 10_000,
         }
     }
 }
@@ -90,17 +108,55 @@ impl RelayConfig {
                 v.split(',').map(|s| s.trim().to_string()).collect()
             );
         }
+        if let Ok(v) = std::env::var("RELAY_MAX_ROOMS") {
+            if let Ok(n) = v.parse::<usize>() {
+                cfg.max_rooms = n.clamp(1, 1_000_000);
+            }
+        }
         cfg
     }
 
-    /// Validate config values at startup. Panics on invalid configuration.
-    pub fn validate(&self) {
-        assert!(self.max_participants > 0, "max_participants must be > 0");
-        assert!(self.max_message_size > 0, "max_message_size must be > 0");
-        assert!(self.rate_limit_count > 0, "rate_limit_count must be > 0");
-        assert!(self.ip_rate_limit_creates > 0, "ip_rate_limit_creates must be > 0");
+    /// Validate config values at startup. Returns error on invalid configuration.
+    pub fn validate(&self) -> Result<(), ConfigError> {
+        if self.max_participants == 0 { return Err(ConfigError::InvalidMaxParticipants); }
+        if self.max_message_size == 0 { return Err(ConfigError::InvalidMaxMessageSize); }
+        if self.rate_limit_count == 0 { return Err(ConfigError::InvalidRateLimitCount); }
+        if self.ip_rate_limit_creates == 0 { return Err(ConfigError::InvalidIpRateLimitCreates); }
+        if self.max_rooms == 0 { return Err(ConfigError::InvalidMaxRooms); }
         if self.admin_token.is_none() {
             tracing::warn!("RELAY_ADMIN_TOKEN not set — admin endpoints are unprotected");
         }
+        Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn default_config_validates() {
+        assert!(RelayConfig::default().validate().is_ok());
+    }
+
+    #[test]
+    fn zero_max_participants_fails() {
+        let mut cfg = RelayConfig::default();
+        cfg.max_participants = 0;
+        assert!(matches!(cfg.validate(), Err(ConfigError::InvalidMaxParticipants)));
+    }
+
+    #[test]
+    fn zero_max_rooms_fails() {
+        let mut cfg = RelayConfig::default();
+        cfg.max_rooms = 0;
+        assert!(matches!(cfg.validate(), Err(ConfigError::InvalidMaxRooms)));
+    }
+
+    #[test]
+    fn zero_rate_limit_fails() {
+        let mut cfg = RelayConfig::default();
+        cfg.rate_limit_count = 0;
+        assert!(matches!(cfg.validate(), Err(ConfigError::InvalidRateLimitCount)));
     }
 }

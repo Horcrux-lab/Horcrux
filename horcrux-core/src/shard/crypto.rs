@@ -5,7 +5,7 @@ use aes_gcm::aead::{Aead, KeyInit};
 use hkdf::Hkdf;
 use rand::RngCore;
 use sha2::Sha256;
-use zeroize::Zeroize;
+use zeroize::{Zeroize, Zeroizing};
 
 const NONCE_SIZE: usize = 12;
 const KEY_SIZE: usize = 32;
@@ -67,11 +67,12 @@ pub fn encrypt_shard(
 }
 
 /// Decrypt a shard's secret data.
+/// The returned `Zeroizing<Vec<u8>>` automatically zeroes memory when dropped.
 pub fn decrypt_shard(
     encrypted: &EncryptedShard,
     device_key: &[u8],
     pin: &[u8],
-) -> Result<Vec<u8>, String> {
+) -> Result<Zeroizing<Vec<u8>>, String> {
     let mut key = derive_key(device_key, pin, &encrypted.salt);
 
     let cipher = Aes256Gcm::new(Key::<Aes256Gcm>::from_slice(&key));
@@ -83,7 +84,7 @@ pub fn decrypt_shard(
 
     key.zeroize();
 
-    Ok(plaintext)
+    Ok(Zeroizing::new(plaintext))
 }
 
 #[cfg(test)]
@@ -99,7 +100,7 @@ mod tests {
         let encrypted = encrypt_shard(shard_data, device_key, pin).unwrap();
         let decrypted = decrypt_shard(&encrypted, device_key, pin).unwrap();
 
-        assert_eq!(shard_data.as_slice(), decrypted.as_slice());
+        assert_eq!(shard_data.as_slice(), &*decrypted);
     }
 
     #[test]

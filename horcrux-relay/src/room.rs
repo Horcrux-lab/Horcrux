@@ -41,6 +41,7 @@ pub struct RoomManagerInner {
     ttl: Duration,
     cleanup_interval: Duration,
     max_participants: usize,
+    max_rooms: usize,
 }
 
 struct Room {
@@ -171,6 +172,8 @@ pub enum RoomError {
     RoomFull,
     #[error("device_id already connected to this room")]
     DuplicateDevice,
+    #[error("server room limit reached")]
+    TooManyRooms,
 }
 
 impl RoomManagerInner {
@@ -180,6 +183,7 @@ impl RoomManagerInner {
             ttl: config.room_ttl,
             cleanup_interval: config.cleanup_interval,
             max_participants: config.max_participants,
+            max_rooms: config.max_rooms,
         }
     }
 
@@ -212,6 +216,12 @@ impl RoomManagerInner {
         // Double-check after acquiring write lock
         if let Some(room) = rooms.get(room_id) {
             return room.try_join(token, device_id, self.max_participants).await;
+        }
+
+        // Enforce global room cap to prevent OOM DoS
+        if rooms.len() >= self.max_rooms {
+            tracing::warn!(max = self.max_rooms, "room limit reached — rejecting new room");
+            return Err(RoomError::TooManyRooms);
         }
 
         let (tx, rx) = broadcast::channel(256);
@@ -681,5 +691,34 @@ mod tests {
         // Empty device_id always passes (backward compat)
         assert!(room.check_sequence("", 1).await);
         assert!(room.check_sequence("", 1).await);
+    }
+
+    #[tokio::test]
+    async fn test_room_cap_enforced() {
+        let mut cfg = test_config();
+        cfg.max_rooms = 2;
+        let mgr = new(&cfg);
+
+        // Create 2 rooms — should succeed
+        let _r1 = mgr.join_room_with_token("room-1", None, "d1").await.unwrap();
+        let _r2 = mgr.join_room_with_token("room-2", None, "d2").await.unwrap();
+        assert_eq!(mgr.room_count().await, 2);
+
+        // Third room — should be rejected
+        let result = mgr.join_room_with_token("room-3", None, "d3").await;
+        assert!(result.is_err());
+        assert!(matches!(result.unwrap_err(), RoomError::TooManyRooms));
+    }
+
+    #[tokio::test]
+    async fn test_room_cap_allows_join_existing() {
+        let mut cfg = test_config();
+        cfg.max_rooms = 1;
+        let mgr = new(&cfg);
+
+        let _r1 = mgr.join_room_with_token("room-1", None, "d1").await.unwrap();
+        // Joining existing room should work even at room cap
+        let result = mgr.join_room_with_token("room-1", None, "d2").await;
+        assert!(result.is_ok());
     }
 }

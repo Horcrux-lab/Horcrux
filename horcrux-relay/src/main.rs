@@ -27,7 +27,7 @@ async fn main() -> anyhow::Result<()> {
     horcrux_relay::init_start_time();
 
     let config = RelayConfig::from_env();
-    config.validate();
+    config.validate()?;
     let room_state = room::new(&config);
     let _cleanup_handle = room::spawn_cleanup_task(room_state.clone());
     let ip_limiter = std::sync::Arc::new(IpRateLimiter::new(

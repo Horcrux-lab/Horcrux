@@ -458,8 +458,10 @@ pub fn horcrux_decrypt_shard(
     pin: Vec<u8>,
 ) -> Result<Vec<u8>, HorcruxError> {
     let es: EncryptedShard = encrypted.into();
-    shard_crypto::decrypt_shard(&es, &device_key, &pin)
-        .map_err(|e| HorcruxError::DecryptionFailed { msg: e })
+    let decrypted = shard_crypto::decrypt_shard(&es, &device_key, &pin)
+        .map_err(|e| HorcruxError::DecryptionFailed { msg: e })?;
+    // Zeroizing<Vec<u8>> → Vec<u8> for FFI; caller (iOS) must zero the result.
+    Ok(decrypted.to_vec())
 }
 
 /// Generate a fresh Curve25519 Noise keypair for E2E encrypted communication.

@@ -38,6 +38,11 @@ jobs:
       - name: Clippy lints
         run: cargo clippy --workspace -- -D warnings
 
+      - name: Security audit
+        run: |
+          cargo install cargo-audit --quiet 2>/dev/null || true
+          cargo audit
+
   ios-build:
     name: iOS Build & Test
     runs-on: macos-15
@@ -82,7 +87,7 @@ jobs:
             -destination 'platform=iOS Simulator,name=iPhone 16,OS=latest' \
             -skipPackagePluginValidation \
             CODE_SIGNING_ALLOWED=NO \
-            | xcpretty || true
+            | xcpretty
 
       - name: Run unit tests
         working-directory: ios
@@ -93,4 +98,4 @@ jobs:
             -destination 'platform=iOS Simulator,name=iPhone 16,OS=latest' \
             -skipPackagePluginValidation \
             CODE_SIGNING_ALLOWED=NO \
-            | xcpretty || true
+            | xcpretty

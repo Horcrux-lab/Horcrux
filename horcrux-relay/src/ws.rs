@@ -134,6 +134,10 @@ pub async fn ws_handler(
             tracing::warn!(room = %room_id, device = %device_id, "duplicate device_id");
             Err(StatusCode::CONFLICT)
         }
+        Err(RoomError::TooManyRooms) => {
+            tracing::warn!(room = %room_id, "server room limit reached");
+            Err(StatusCode::TOO_MANY_REQUESTS)
+        }
     }
 }
 

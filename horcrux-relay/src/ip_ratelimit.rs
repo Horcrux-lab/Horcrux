@@ -38,10 +38,8 @@ impl IpRateLimiter {
     pub fn try_create(&self, ip: IpAddr) -> bool {
         let now = Instant::now();
         let cutoff = now - self.window;
-        let mut map = self.entries.lock().unwrap_or_else(|e| {
-            tracing::error!("IpRateLimiter mutex poisoned — recovering");
-            e.into_inner()
-        });
+        let mut map = self.entries.lock()
+            .expect("IpRateLimiter mutex poisoned — cannot safely continue");
         let timestamps = map.entry(ip).or_default();
 
         // Remove expired entries
@@ -60,10 +58,8 @@ impl IpRateLimiter {
     pub fn gc(&self) {
         let now = Instant::now();
         let cutoff = now - self.window;
-        let mut map = self.entries.lock().unwrap_or_else(|e| {
-            tracing::error!("IpRateLimiter mutex poisoned — recovering");
-            e.into_inner()
-        });
+        let mut map = self.entries.lock()
+            .expect("IpRateLimiter mutex poisoned — cannot safely continue");
         map.retain(|_ip, timestamps| {
             timestamps.retain(|t| *t > cutoff);
             !timestamps.is_empty()
