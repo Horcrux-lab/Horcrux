@@ -13,9 +13,10 @@ final class CreateShardViewModel: ObservableObject {
     @Published var walletName: String = ""
     @Published var selectedChain: Chain = .ethereum
     @Published var threshold: Int = 2
-    @Published var totalParties: Int = 3
+    @Published var totalParties: Int = 2
     @Published var partyIndex: Int = 1
-    @Published var selectedTransports: Set<TransportType> = [.ble, .wifiLAN]
+    @Published var selectedTransports: Set<TransportType> = [.relay]
+    @Published var roomCode: String = ""
 
     // Discovery
     @Published var foundPeers: [Peer] = []
@@ -53,6 +54,18 @@ final class CreateShardViewModel: ObservableObject {
     func startDiscovery() {
         totalRounds = selectedChain == .solana ? 3 : 7
         dkgStatusMessage = L10n.DKG.searchingDevices
+
+        if selectedTransports.contains(.relay) && !roomCode.isEmpty {
+            Task {
+                do {
+                    try await peerManager?.joinRelayRoom(roomId: roomCode)
+                    peerManager?.relay.startDiscovery()
+                } catch {
+                    errorMessage = "Failed to join relay room: \(error.localizedDescription)"
+                    step = .error
+                }
+            }
+        }
         peerManager?.startDiscovery(transports: selectedTransports)
     }
 

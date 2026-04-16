@@ -3153,8 +3153,8 @@ public func horcruxGenerateNoiseKeypair()throws  -> FfiNoiseKeypair {
 /**
  * Generate a random session token (room_id, room_secret, access_token) for relay access.
  */
-public func horcruxGenerateSessionToken() -> FfiSessionToken {
-    return try!  FfiConverterTypeFfiSessionToken.lift(try! rustCall() {
+public func horcruxGenerateSessionToken()throws  -> FfiSessionToken {
+    return try  FfiConverterTypeFfiSessionToken.lift(try rustCallWithError(FfiConverterTypeFfiE2EError.lift) {
     uniffi_horcrux_core_fn_func_horcrux_generate_session_token($0
     )
 })
@@ -3219,7 +3219,7 @@ private var initializationResult: InitializationResult = {
     if (uniffi_horcrux_core_checksum_func_horcrux_generate_noise_keypair() != 41959) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_horcrux_core_checksum_func_horcrux_generate_session_token() != 58563) {
+    if (uniffi_horcrux_core_checksum_func_horcrux_generate_session_token() != 13730) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_horcrux_core_checksum_func_horcrux_keccak256() != 29475) {

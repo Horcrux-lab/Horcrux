@@ -111,8 +111,8 @@ final class HorcruxBridge: ObservableObject {
         try horcruxGenerateNoiseKeypair()
     }
 
-    func generateSessionToken() -> FfiSessionToken {
-        horcruxGenerateSessionToken()
+    func generateSessionToken() throws -> FfiSessionToken {
+        try horcruxGenerateSessionToken()
     }
 
     // MARK: - Hashing

@@ -71,6 +71,9 @@ struct ConfigureView: View {
                         value: $viewModel.threshold, in: 2...viewModel.totalParties)
                     .accessibilityLabel(L10n.CreateShard.signingThreshold(viewModel.threshold))
                     .accessibilityHint(L10n.CreateShard.signingThresholdHint())
+                Stepper("Party Index: \(viewModel.partyIndex)",
+                        value: $viewModel.partyIndex, in: 1...viewModel.totalParties)
+                    .accessibilityIdentifier("configure_partyIndexStepper")
 
                 Text(L10n.CreateShard.requiresDevices(viewModel.threshold, viewModel.totalParties))
                     .font(.caption)
@@ -92,6 +95,13 @@ struct ConfigureView: View {
                         Label(transport.rawValue, systemImage: transport.iconName)
                     }
                 }
+
+                if viewModel.selectedTransports.contains(.relay) {
+                    TextField("Room Code (e.g. my-wallet-123)", text: $viewModel.roomCode)
+                        .autocorrectionDisabled()
+                        .textInputAutocapitalization(.never)
+                        .accessibilityIdentifier("configure_roomCodeField")
+                }
             }
 
             Section {
@@ -104,7 +114,7 @@ struct ConfigureView: View {
                         .font(.headline)
                 }
                 .buttonStyle(.borderedProminent)
-                .disabled(viewModel.walletName.isEmpty)
+                .disabled(viewModel.walletName.isEmpty || (viewModel.selectedTransports.contains(.relay) && viewModel.roomCode.isEmpty))
                 .accessibilityHint(L10n.CreateShard.findPeersHint)
                 .accessibilityIdentifier("configure_nextButton")
             }

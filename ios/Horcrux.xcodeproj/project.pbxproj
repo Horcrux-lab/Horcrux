@@ -49,6 +49,7 @@
 		88380DABC0637076A7B84583 /* SigningView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 49A262F731DB964A68E24B04 /* SigningView.swift */; };
 		89661E857DDFDE2DFBDCF45A /* ModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C81FE763A5B3D2D37A55FE55 /* ModelTests.swift */; };
 		914303F3728F1F3D8350FE56 /* HorcruxE2EFlowTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6168BB2C35188D6BCC62AAE0 /* HorcruxE2EFlowTests.swift */; };
+		A1B2C3D4E5F60718DEADBEEF /* RelayDKGTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F607180000BEEF /* RelayDKGTests.swift */; };
 		9327D6514E1E6B6A5978A738 /* BiometricAuth.swift in Sources */ = {isa = PBXBuildFile; fileRef = 94A99C1E7A26CD9EDDD95F25 /* BiometricAuth.swift */; };
 		988FC2EAF527D3776E2EFDDF /* DeepLinkRouter.swift in Sources */ = {isa = PBXBuildFile; fileRef = D7E2EEBB63D88CA1BC34132E /* DeepLinkRouter.swift */; };
 		9D92D7F3AC4B2B9AF0638B87 /* NetworkConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8E155B312BB8CF0D6528F858 /* NetworkConfig.swift */; };
@@ -131,6 +132,7 @@
 		5AD471CE5D3BA4FC52FD5262 /* WalletStoreTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HorcruxTests/WalletStoreTests.swift; sourceTree = SOURCE_ROOT; };
 		5F0879AB473BE94BF6D0FF48 /* PendingBroadcastQueue.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PendingBroadcastQueue.swift; sourceTree = "<group>"; };
 		6168BB2C35188D6BCC62AAE0 /* HorcruxE2EFlowTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HorcruxUITests/HorcruxE2EFlowTests.swift; sourceTree = SOURCE_ROOT; };
+		A1B2C3D4E5F607180000BEEF /* RelayDKGTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HorcruxUITests/RelayDKGTests.swift; sourceTree = SOURCE_ROOT; };
 		6389EDF3E0B047116DB4FB65 /* BlockchainService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = BlockchainService.swift; sourceTree = "<group>"; };
 		6AB845987D1C925700225B43 /* SecureEnclaveManagerTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HorcruxTests/SecureEnclaveManagerTests.swift; sourceTree = SOURCE_ROOT; };
 		6B60143CF0CBC4C79AB085D6 /* PeerManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PeerManager.swift; sourceTree = "<group>"; };
@@ -236,6 +238,7 @@
 			isa = PBXGroup;
 			children = (
 				6168BB2C35188D6BCC62AAE0 /* HorcruxE2EFlowTests.swift */,
+				A1B2C3D4E5F607180000BEEF /* RelayDKGTests.swift */,
 			);
 			name = HorcruxUITests;
 			path = HorcruxUITests;
@@ -602,6 +605,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				914303F3728F1F3D8350FE56 /* HorcruxE2EFlowTests.swift in Sources */,
+				A1B2C3D4E5F60718DEADBEEF /* RelayDKGTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

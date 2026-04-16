@@ -13,17 +13,20 @@ enum SecurityEnvironment {
 
     /// Run all checks and return a combined result.
     static func check() -> CheckResult {
+        // Skip jailbreak checks on simulator (always triggers false positives)
+        #if targetEnvironment(simulator)
+        return CheckResult(isCompromised: false, reasons: [])
+        #else
         var reasons: [String] = []
 
         if checkJailbreakPaths() { reasons.append("Jailbreak artifacts detected") }
         if checkWritableSystem() { reasons.append("System partition is writable") }
         if checkSuspiciousURLSchemes() { reasons.append("Suspicious URL schemes available") }
         if checkDylibs() { reasons.append("Suspicious dynamic libraries loaded") }
-        #if !targetEnvironment(simulator)
         if checkForkable() { reasons.append("Process can fork (not sandboxed)") }
-        #endif
 
         return CheckResult(isCompromised: !reasons.isEmpty, reasons: reasons)
+        #endif
     }
 
     /// Quick check — returns true if device appears jailbroken.

@@ -4,7 +4,7 @@ import SwiftUI
 struct SettingsView: View {
     @EnvironmentObject private var appState: AppState
     @AppStorage("biometricEnabled") private var biometricEnabled = true
-    @State private var relayURL = "wss://localhost:3000/ws"
+    @State private var relayURL = "ws://localhost:3210"
     @State private var showChangePin = false
     @State private var showWipeConfirmation = false
     @State private var relayWarning: String?
