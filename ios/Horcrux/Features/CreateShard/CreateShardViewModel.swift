@@ -1,6 +1,7 @@
 import Foundation
 import Combine
 import os
+import UIKit
 
 private let dkgLog = Logger(subsystem: "com.horcrux.wallet", category: "DKG")
 
@@ -90,6 +91,9 @@ final class CreateShardViewModel: ObservableObject {
         sessionId = roomCode.isEmpty ? UUID().uuidString : roomCode
         peerManager?.stopDiscovery()
 
+        // Auto-assign party index: sort local + peer IDs deterministically
+        autoAssignPartyIndex()
+
         NSLog("[DKG] Starting DKG: sessionId=\(self.sessionId!), party=\(self.partyIndex), threshold=\(self.threshold)/\(self.totalParties), peers=\(self.foundPeers.count)")
 
         ceremonyTask = Task {
@@ -139,6 +143,29 @@ final class CreateShardViewModel: ObservableObject {
         errorMessage = L10n.DKG.ceremonyCancel
     }
 
+    /// Auto-assign party index by sorting all participant IDs deterministically.
+    /// Both devices independently reach the same assignment without negotiation.
+    private func autoAssignPartyIndex() {
+        // Build a stable local identifier: prefer device name, fallback to relay UUID
+        let localId = UIDevice.current.name
+        // Collect unique peer identities — use the first transport's peer name
+        // (WiFi-LAN uses device name, relay uses "Peer <UUID prefix>")
+        var peerNames: [String] = []
+        var seenNames: Set<String> = []
+        for peer in foundPeers {
+            if seenNames.insert(peer.name).inserted {
+                peerNames.append(peer.name)
+            }
+        }
+        // Sort all participants (local + peers) lexicographically
+        var allIds = peerNames
+        allIds.append(localId)
+        allIds.sort()
+        let myIndex = (allIds.firstIndex(of: localId) ?? 0) + 1
+        NSLog("[DKG] Auto-assign party index: localId=\"\(localId)\", participants=\(allIds), myIndex=\(myIndex)")
+        partyIndex = myIndex
+    }
+
     private func runDKGRounds(initialMessages: [FfiMpcMessage]) async {
         guard let bridge, let peerManager else { return }
 
@@ -154,9 +181,17 @@ final class CreateShardViewModel: ObservableObject {
 
             // Listen for incoming messages and process rounds
             var msgCount = 0
+            var processedPayloads: Set<Data> = [] // Deduplicate messages from multiple transports
             for await (peer, data) in peerManager.incomingMpcMessages {
                 msgCount += 1
                 NSLog("[DKG] Received msg #\(msgCount) from \(peer.id.prefix(8))... (\(data.count) bytes, channel=\(peer.channel))")
+
+                // Deduplicate: skip if we already processed identical payload
+                if processedPayloads.contains(data) {
+                    NSLog("[DKG] Skipping duplicate message (already processed via another transport)")
+                    continue
+                }
+                processedPayloads.insert(data)
 
                 let decodedDTO: MpcMessageDTO?
                 do {
