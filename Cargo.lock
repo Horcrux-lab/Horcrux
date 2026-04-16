@@ -1369,6 +1369,7 @@ dependencies = [
  "ed25519-dalek",
  "frost-ed25519",
  "generic-ec",
+ "gmp-mpfr-sys",
  "hex",
  "hkdf",
  "k256",
