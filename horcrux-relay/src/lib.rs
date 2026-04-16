@@ -62,7 +62,7 @@ pub fn build_app(state: AppState) -> Router {
         .route("/health", get(health))
         .route("/metrics", get(metrics_handler))
         .route("/admin/rooms", get(admin_rooms_handler))
-        .route("/ws/{room_id}", get(ws::ws_handler))
+        .route("/ws/:room_id", get(ws::ws_handler))
         .layer(cors)
         .layer(TraceLayer::new_for_http())
         .with_state(state)

@@ -63,8 +63,8 @@ impl Default for RelayConfig {
             cleanup_interval: Duration::from_secs(30),
             max_participants: 10,
             max_message_size: 1_048_576, // 1 MB
-            ping_interval: Duration::from_secs(30),
-            pong_timeout: Duration::from_secs(10),
+            ping_interval: Duration::from_secs(300),
+            pong_timeout: Duration::from_secs(60),
             rate_limit_count: 100,
             rate_limit_window: Duration::from_secs(10),
             admin_token: None,

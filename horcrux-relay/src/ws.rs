@@ -293,15 +293,18 @@ async fn handle_socket(
 
                         match msg {
                             Message::Text(text) => {
+                                tracing::info!(room = %room_id, device = %device_id, len = text.len(), "received text message");
                                 if let Some(room_msg) = process_incoming(
                                     text.as_bytes(), &device_id, &room_id, max_msg_size,
                                     &mut rate_limiter, &rooms,
                                 ).await {
                                     let _ = tx.send(room_msg);
                                     METRICS.messages_relayed.fetch_add(1, Ordering::Relaxed);
+                                    tracing::info!(room = %room_id, device = %device_id, "message relayed");
                                 }
                             }
                             Message::Binary(data) => {
+                                tracing::info!(room = %room_id, device = %device_id, len = data.len(), "received binary message");
                                 if let Some(room_msg) = process_incoming(
                                     &data, &device_id, &room_id, max_msg_size,
                                     &mut rate_limiter, &rooms,
@@ -310,7 +313,9 @@ async fn handle_socket(
                                     METRICS.messages_relayed.fetch_add(1, Ordering::Relaxed);
                                 }
                             }
-                            Message::Pong(_) | Message::Ping(_) => {}
+                            Message::Pong(_) | Message::Ping(_) => {
+                                tracing::debug!(room = %room_id, device = %device_id, "ping/pong");
+                            }
                             Message::Close(_) => break,
                         }
                     }
