@@ -4,39 +4,55 @@ import CoreImage.CIFilterBuiltins
 
 // MARK: - Shard List
 
-/// Lists all key shards stored on this device.
+/// Lists all key shards stored on this device — dark-tech glass card layout.
 struct ShardsListView: View {
     @EnvironmentObject private var appState: AppState
     @StateObject private var viewModel = ShardsViewModel()
     @State private var showImportSheet = false
-    @ScaledMetric(relativeTo: .largeTitle) private var decorativeIconSize: CGFloat = 48
 
     var body: some View {
         NavigationStack {
-            List {
+            ZStack {
+                HorcruxTheme.backgroundGradient.ignoresSafeArea()
+
                 if appState.walletStore.wallets.isEmpty {
-                    ContentUnavailableView(
-                        L10n.Shards.noShards,
-                        systemImage: "shield.slash",
-                        description: Text(L10n.Shards.noShardsDescription)
-                    )
+                    VStack(spacing: 28) {
+                        Spacer()
+                        VaultEmptyState(
+                            icon: "shield.slash",
+                            title: L10n.Shards.noShards,
+                            subtitle: L10n.Shards.noShardsDescription
+                        )
+                        Spacer()
+                    }
                 } else {
-                    ForEach(appState.walletStore.wallets) { wallet in
-                        NavigationLink {
-                            ShardDetailView(wallet: wallet, viewModel: viewModel)
-                        } label: {
-                            ShardRow(wallet: wallet)
+                    ScrollView {
+                        LazyVStack(spacing: 12) {
+                            ForEach(appState.walletStore.wallets) { wallet in
+                                NavigationLink {
+                                    ShardDetailView(wallet: wallet, viewModel: viewModel)
+                                } label: {
+                                    ShardRow(wallet: wallet)
+                                }
+                            }
                         }
+                        .padding(.horizontal, 16)
+                        .padding(.top, 8)
+                        .padding(.bottom, 24)
                     }
                 }
             }
             .navigationTitle(L10n.Shards.title)
+            .navigationBarTitleDisplayMode(.large)
+            .toolbarColorScheme(.dark, for: .navigationBar)
             .toolbar {
                 ToolbarItem(placement: .primaryAction) {
                     Button {
                         showImportSheet = true
                     } label: {
-                        Label(L10n.Shards.importShard, systemImage: "square.and.arrow.down")
+                        Image(systemName: "square.and.arrow.down")
+                            .font(.body.weight(.semibold))
+                            .foregroundStyle(HorcruxTheme.accentPurple)
                     }
                 }
             }
@@ -46,6 +62,7 @@ struct ShardsListView: View {
             .onAppear {
                 viewModel.bind(to: appState)
             }
+            .preferredColorScheme(.dark)
         }
     }
 }
@@ -56,33 +73,38 @@ struct ShardRow: View {
     let wallet: Wallet
 
     var body: some View {
-        HStack(spacing: 12) {
+        HStack(spacing: 14) {
             Image(systemName: "shield.lefthalf.filled")
                 .font(.title2)
-                .foregroundStyle(wallet.chain.color)
+                .foregroundStyle(HorcruxTheme.shieldGradient)
+                .shadow(color: HorcruxTheme.accentPurple.opacity(0.3), radius: 4)
 
             VStack(alignment: .leading, spacing: 4) {
                 Text(L10n.Shards.shardNumber(Int(wallet.partyIndex)))
                     .font(.headline)
+                    .foregroundStyle(.white)
 
                 Text(wallet.name)
                     .font(.subheadline)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(HorcruxTheme.subtleText)
             }
 
             Spacer()
 
-            VStack(alignment: .trailing, spacing: 4) {
+            VStack(alignment: .trailing, spacing: 6) {
                 Text(wallet.chain.symbol)
                     .font(.caption.bold())
+                    .foregroundStyle(wallet.chain.color)
 
-                ShardStatusBadge(
-                    threshold: wallet.threshold,
-                    total: wallet.totalParties
-                )
+                ShardStatusBadge(threshold: wallet.threshold, total: wallet.totalParties)
             }
+
+            Image(systemName: "chevron.right")
+                .font(.caption)
+                .foregroundStyle(HorcruxTheme.subtleText)
         }
-        .padding(.vertical, 4)
+        .padding(.vertical, 12)
+        .glassCard()
     }
 }
 
@@ -93,56 +115,95 @@ struct ShardDetailView: View {
     @ObservedObject var viewModel: ShardsViewModel
     @State private var showBackupSheet = false
     @State private var showDeleteAlert = false
-    @ScaledMetric(relativeTo: .largeTitle) private var headerIconSize: CGFloat = 48
 
     var body: some View {
-        List {
-            Section {
+        ScrollView {
+            VStack(spacing: 20) {
+                // Hero
                 VStack(spacing: 16) {
                     Image(systemName: "shield.lefthalf.filled")
-                        .font(.system(size: headerIconSize))
-                        .foregroundStyle(wallet.chain.color)
+                        .font(.system(size: 48, weight: .thin))
+                        .foregroundStyle(HorcruxTheme.shieldGradient)
+                        .shadow(color: HorcruxTheme.accentPurple.opacity(0.4), radius: 8)
 
                     Text(L10n.Shards.shardNumber(Int(wallet.partyIndex)))
                         .font(.title2.bold())
+                        .foregroundStyle(.white)
 
-                    ShardStatusBadge(
-                        threshold: wallet.threshold,
-                        total: wallet.totalParties
-                    )
+                    ShardStatusBadge(threshold: wallet.threshold, total: wallet.totalParties)
                 }
                 .frame(maxWidth: .infinity)
-                .padding()
-            }
+                .glassCard(padding: 24)
 
-            Section(L10n.Shards.walletInfo) {
-                LabeledContent(L10n.Shards.wallet, value: wallet.name)
-                LabeledContent(L10n.Shards.chain, value: wallet.chain.rawValue)
-                LabeledContent(L10n.Shards.address) {
-                    Text(wallet.address)
-                        .font(.caption2)
-                        .monospaced()
-                        .lineLimit(1)
-                        .truncationMode(.middle)
-                }
-                LabeledContent(L10n.Shards.threshold, value: L10n.Shards.thresholdValue(Int(wallet.threshold), Int(wallet.totalParties)))
-            }
+                // Info
+                VStack(alignment: .leading, spacing: 10) {
+                    VaultSectionHeader(L10n.Shards.walletInfo, icon: "info.circle")
+                        .padding(.horizontal, 4)
 
-            Section(L10n.Shards.actions) {
-                Button {
-                    showBackupSheet = true
-                } label: {
-                    Label(L10n.Shards.backupShard, systemImage: "arrow.down.doc.fill")
+                    VStack(spacing: 0) {
+                        infoRow(L10n.Shards.wallet, value: wallet.name)
+                        Divider().background(Color.white.opacity(0.06))
+                        infoRow(L10n.Shards.chain, value: wallet.chain.rawValue)
+                        Divider().background(Color.white.opacity(0.06))
+                        HStack {
+                            Text(L10n.Shards.address)
+                                .font(.subheadline)
+                                .foregroundStyle(HorcruxTheme.subtleText)
+                            Spacer()
+                            Text(wallet.address)
+                                .font(.caption2.monospaced())
+                                .foregroundStyle(.white)
+                                .lineLimit(1)
+                                .truncationMode(.middle)
+                        }
+                        .padding(.vertical, 10)
+                        Divider().background(Color.white.opacity(0.06))
+                        infoRow(L10n.Shards.threshold, value: L10n.Shards.thresholdValue(Int(wallet.threshold), Int(wallet.totalParties)))
+                    }
+                    .glassCard()
                 }
 
-                Button(role: .destructive) {
-                    showDeleteAlert = true
-                } label: {
-                    Label(L10n.Shards.deleteShard, systemImage: "trash.fill")
+                // Actions
+                VStack(alignment: .leading, spacing: 10) {
+                    VaultSectionHeader(L10n.Shards.actions, icon: "bolt.circle")
+                        .padding(.horizontal, 4)
+
+                    VStack(spacing: 1) {
+                        Button {
+                            showBackupSheet = true
+                        } label: {
+                            HStack {
+                                VaultSettingsRow(icon: "arrow.down.doc.fill", iconColor: HorcruxTheme.accentBlue, title: L10n.Shards.backupShard)
+                                Spacer()
+                                Image(systemName: "chevron.right")
+                                    .font(.caption)
+                                    .foregroundStyle(HorcruxTheme.subtleText)
+                            }
+                        }
+                        .glassCard()
+
+                        Button {
+                            showDeleteAlert = true
+                        } label: {
+                            HStack {
+                                VaultSettingsRow(icon: "trash.fill", iconColor: HorcruxTheme.dangerRed, title: L10n.Shards.deleteShard)
+                                Spacer()
+                                Image(systemName: "chevron.right")
+                                    .font(.caption)
+                                    .foregroundStyle(HorcruxTheme.subtleText)
+                            }
+                        }
+                        .glassCard()
+                    }
                 }
             }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 12)
         }
+        .darkBackground()
         .navigationTitle(L10n.Shards.shardDetails)
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbarColorScheme(.dark, for: .navigationBar)
         .sheet(isPresented: $showBackupSheet) {
             ShardBackupView(wallet: wallet, viewModel: viewModel)
         }
@@ -154,6 +215,19 @@ struct ShardDetailView: View {
         } message: {
             Text(L10n.Shards.deleteShardMessage)
         }
+    }
+
+    private func infoRow(_ label: String, value: String) -> some View {
+        HStack {
+            Text(label)
+                .font(.subheadline)
+                .foregroundStyle(HorcruxTheme.subtleText)
+            Spacer()
+            Text(value)
+                .font(.subheadline.weight(.medium))
+                .foregroundStyle(.white)
+        }
+        .padding(.vertical, 10)
     }
 }
 

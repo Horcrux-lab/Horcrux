@@ -9,7 +9,7 @@ final class HorcruxE2EFlowTests: XCTestCase {
     override func setUpWithError() throws {
         continueAfterFailure = false
         app = XCUIApplication()
-        app.launchArguments += ["-UITesting"]
+        app.launchArguments += ["-UITesting", "-UITestingResetState"]
     }
 
     override func tearDownWithError() throws {

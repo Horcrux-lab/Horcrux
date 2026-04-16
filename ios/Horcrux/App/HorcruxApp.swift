@@ -12,6 +12,20 @@ struct HorcruxApp: App {
     static let broadcastRetryTaskIdentifier = "com.horcrux.broadcast-retry"
 
     init() {
+        // Reset state for E2E tests
+        if ProcessInfo.processInfo.arguments.contains("-UITestingResetState") {
+            let domain = Bundle.main.bundleIdentifier ?? "com.horcrux.wallet"
+            UserDefaults.standard.removePersistentDomain(forName: domain)
+            UserDefaults.standard.synchronize()
+            try? KeychainManager.shared.delete(key: "com.horcrux.pin_hash")
+            try? KeychainManager.shared.delete(key: "horcrux_relay_url")
+            // Clear persisted wallet data
+            if let docs = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first {
+                try? FileManager.default.removeItem(at: docs.appendingPathComponent("horcrux_wallets.json"))
+                try? FileManager.default.removeItem(at: docs.appendingPathComponent("horcrux_transactions.json"))
+            }
+        }
+
         // Anti-debug: deny attachment + detect (release builds only)
         AntiDebug.denyDebuggerAttach()
 

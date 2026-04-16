@@ -5,30 +5,38 @@ private enum UXTiming {
     static let retryButtonReset: TimeInterval = 3.0
 }
 
-/// Wallet home screen — shows all wallets with balances and quick actions.
+/// Wallet home screen — dark-tech card layout with balances and quick actions.
 struct WalletHomeView: View {
     @EnvironmentObject private var appState: AppState
     @State private var showCreateShard = false
     @State private var networkReachable: [Chain: Bool] = [:]
-    @ScaledMetric(relativeTo: .largeTitle) private var iconSize: CGFloat = 64
-    @ScaledMetric(relativeTo: .title3) private var smallIconSize: CGFloat = 28
 
     var body: some View {
         NavigationStack {
-            Group {
-                if appState.walletStore.wallets.isEmpty {
-                    emptyState
-                } else {
-                    walletList
+            ZStack {
+                HorcruxTheme.backgroundGradient.ignoresSafeArea()
+
+                Group {
+                    if appState.walletStore.wallets.isEmpty {
+                        emptyState
+                    } else {
+                        walletList
+                    }
                 }
             }
             .navigationTitle(L10n.WalletHome.title)
+            .navigationBarTitleDisplayMode(.large)
+            .toolbarColorScheme(.dark, for: .navigationBar)
             .toolbar {
                 ToolbarItem(placement: .primaryAction) {
                     Button {
                         showCreateShard = true
                     } label: {
-                        Image(systemName: "plus.circle.fill")
+                        Image(systemName: "plus")
+                            .font(.body.weight(.semibold))
+                            .foregroundStyle(HorcruxTheme.accentPurple)
+                            .frame(width: 32, height: 32)
+                            .background(HorcruxTheme.accentPurple.opacity(0.15), in: Circle())
                     }
                     .accessibilityLabel(L10n.WalletHome.createNewWallet)
                     .accessibilityHint(L10n.WalletHome.opensCreationFlow)
@@ -44,48 +52,42 @@ struct WalletHomeView: View {
             .safeAreaInset(edge: .top) {
                 if !networkReachable.isEmpty, networkReachable.values.contains(false) {
                     let offlineChains = networkReachable.filter { !$0.value }.map(\.key.symbol).sorted().joined(separator: ", ")
-                    HStack(spacing: 6) {
+                    HStack(spacing: 8) {
                         Image(systemName: "wifi.slash")
-                            .font(.caption)
+                            .font(.caption.weight(.semibold))
                         Text(offlineChains.contains(",")
                              ? L10n.WalletHome.nodesUnreachable(offlineChains)
                              : L10n.WalletHome.nodeUnreachable(offlineChains))
                             .font(.caption)
                     }
                     .foregroundStyle(.white)
-                    .padding(.vertical, 6)
+                    .padding(.vertical, 8)
                     .frame(maxWidth: .infinity)
-                    .background(.orange.gradient)
+                    .background(HorcruxTheme.warningAmber.opacity(0.85).gradient)
                     .accessibilityLabel(L10n.WalletHome.networkWarning(offlineChains))
                 }
             }
+            .preferredColorScheme(.dark)
         }
     }
 
     private var emptyState: some View {
-        VStack(spacing: 24) {
+        VStack(spacing: 28) {
             Spacer()
 
-            Image(systemName: "shield.lefthalf.filled")
-                .font(.system(size: iconSize))
-                .foregroundStyle(.tertiary)
-                .accessibilityHidden(true)
-
-            VStack(spacing: 8) {
-                Text(L10n.WalletHome.noWalletsTitle)
-                    .font(.title2.bold())
-                Text(L10n.WalletHome.noWalletsSubtitle)
-                    .multilineTextAlignment(.center)
-                    .foregroundStyle(.secondary)
-            }
+            VaultEmptyState(
+                icon: "shield.lefthalf.filled",
+                title: L10n.WalletHome.noWalletsTitle,
+                subtitle: L10n.WalletHome.noWalletsSubtitle
+            )
 
             Button {
                 showCreateShard = true
             } label: {
                 Label(L10n.WalletHome.createWallet, systemImage: "plus.circle.fill")
-                    .font(.headline)
             }
-            .buttonStyle(.borderedProminent)
+            .buttonStyle(GradientButtonStyle())
+            .padding(.horizontal, 48)
             .accessibilityHint(L10n.WalletHome.startMPCHint)
             .accessibilityIdentifier("walletHome_createWalletButton")
 
@@ -95,48 +97,46 @@ struct WalletHomeView: View {
     }
 
     private var walletList: some View {
-        List {
-            // Pending broadcasts section
-            if !appState.pendingBroadcastQueue.pending.isEmpty {
-                Section {
-                    ForEach(appState.pendingBroadcastQueue.pending) { tx in
-                        PendingBroadcastRow(
-                            transaction: tx,
-                            onRetry: {
-                                Task { await retryBroadcast(tx) }
-                            },
-                            onDiscard: {
-                                appState.pendingBroadcastQueue.dequeue(id: tx.id)
-                            }
-                        )
-                    }
-                } header: {
-                    Label(L10n.WalletHome.pendingBroadcasts, systemImage: "arrow.up.circle.badge.clock")
-                }
-            }
+        ScrollView {
+            LazyVStack(spacing: 12) {
+                // Pending broadcasts
+                if !appState.pendingBroadcastQueue.pending.isEmpty {
+                    VStack(alignment: .leading, spacing: 8) {
+                        VaultSectionHeader(L10n.WalletHome.pendingBroadcasts, icon: "arrow.up.circle.badge.clock")
+                            .padding(.horizontal, 4)
 
-            ForEach(appState.walletStore.wallets) { wallet in
-                NavigationLink {
-                    WalletDetailView(wallet: wallet)
-                } label: {
-                    WalletRow(wallet: wallet)
+                        ForEach(appState.pendingBroadcastQueue.pending) { tx in
+                            PendingBroadcastRow(
+                                transaction: tx,
+                                onRetry: { Task { await retryBroadcast(tx) } },
+                                onDiscard: { appState.pendingBroadcastQueue.dequeue(id: tx.id) }
+                            )
+                            .glassCard()
+                        }
+                    }
+                    .padding(.bottom, 8)
                 }
-                .accessibilityLabel("\(wallet.name), \(wallet.chain.rawValue) wallet")
-                .accessibilityHint(L10n.WalletHome.viewDetailsHint)
-                .accessibilityIdentifier("walletHome_walletRow_\(wallet.id)")
-            }
-            .onDelete { indexSet in
-                for index in indexSet {
-                    appState.walletStore.remove(id: appState.walletStore.wallets[index].id)
+
+                // Wallets
+                ForEach(appState.walletStore.wallets) { wallet in
+                    NavigationLink {
+                        WalletDetailView(wallet: wallet)
+                    } label: {
+                        WalletRow(wallet: wallet)
+                    }
+                    .accessibilityLabel("\(wallet.name), \(wallet.chain.rawValue) wallet")
+                    .accessibilityHint(L10n.WalletHome.viewDetailsHint)
+                    .accessibilityIdentifier("walletHome_walletRow_\(wallet.id)")
                 }
             }
-            .onMove { source, destination in
-                appState.walletStore.move(from: source, to: destination)
-            }
+            .padding(.horizontal, 16)
+            .padding(.top, 8)
+            .padding(.bottom, 24)
         }
         .toolbar {
             ToolbarItem(placement: .topBarLeading) {
                 EditButton()
+                    .foregroundStyle(HorcruxTheme.accentPurple)
                     .accessibilityLabel(L10n.WalletHome.editWalletList)
             }
         }
@@ -173,48 +173,50 @@ struct PendingBroadcastRow: View {
     @State private var isRetrying = false
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: 8) {
             HStack {
                 ChainIcon(chain: transaction.chain, size: 28)
                 VStack(alignment: .leading, spacing: 2) {
                     Text(CurrencyFormatter.crypto(Double(transaction.amount) ?? 0, symbol: transaction.chain.symbol))
                         .font(.subheadline.bold())
+                        .foregroundStyle(.white)
                     Text("→ \(shortAddress(transaction.toAddress))")
                         .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(HorcruxTheme.subtleText)
                         .monospaced()
                 }
                 Spacer()
                 if isRetrying {
-                    ProgressView()
-                        .scaleEffect(0.7)
+                    ProgressView().scaleEffect(0.7).tint(HorcruxTheme.accentPurple)
                 } else {
                     Button(L10n.Pending.retry, systemImage: "arrow.clockwise") {
                         isRetrying = true
                         onRetry()
                         DispatchQueue.main.asyncAfter(deadline: .now() + UXTiming.retryButtonReset) { isRetrying = false }
                     }
-                    .font(.caption)
-                    .buttonStyle(.bordered)
-                    .tint(.blue)
+                    .font(.caption.weight(.medium))
+                    .foregroundStyle(HorcruxTheme.accentBlue)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 5)
+                    .background(HorcruxTheme.accentBlue.opacity(0.15), in: Capsule())
                 }
             }
             if let error = transaction.lastError {
                 Text(error)
                     .font(.caption2)
-                    .foregroundStyle(.red)
+                    .foregroundStyle(HorcruxTheme.dangerRed)
                     .lineLimit(1)
             }
             HStack {
                 Text(L10n.Pending.attempts(transaction.attempts))
                     .font(.caption2)
-                    .foregroundStyle(.tertiary)
+                    .foregroundStyle(HorcruxTheme.subtleText)
                 Spacer()
                 Button(L10n.Pending.discard, role: .destructive) { onDiscard() }
                     .font(.caption2)
+                    .foregroundStyle(HorcruxTheme.dangerRed)
             }
         }
-        .padding(.vertical, 4)
     }
 
     private func shortAddress(_ address: String) -> String {
@@ -230,58 +232,53 @@ struct WalletRow: View {
     @State private var isLoading = false
 
     var body: some View {
-        HStack(spacing: 12) {
+        HStack(spacing: 14) {
             ChainIcon(chain: wallet.chain, size: 44)
                 .accessibilityHidden(true)
 
             VStack(alignment: .leading, spacing: 4) {
                 Text(wallet.name)
                     .font(.headline)
+                    .foregroundStyle(.white)
 
                 Text(shortAddress(wallet.address))
                     .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(HorcruxTheme.subtleText)
                     .monospaced()
             }
 
             Spacer()
 
-            VStack(alignment: .trailing, spacing: 4) {
+            VStack(alignment: .trailing, spacing: 6) {
                 if isLoading {
-                    ProgressView()
-                        .scaleEffect(0.7)
+                    ProgressView().scaleEffect(0.7).tint(HorcruxTheme.accentPurple)
                         .accessibilityLabel(L10n.WalletHome.loadingBalance)
                 } else if let balance {
                     Text(balance)
-                        .font(.subheadline.bold())
+                        .font(.subheadline.bold().monospacedDigit())
+                        .foregroundStyle(.white)
                         .accessibilityLabel("Balance: \(balance)")
                 } else {
                     Text(wallet.chain.symbol)
                         .font(.subheadline.bold())
+                        .foregroundStyle(HorcruxTheme.subtleText)
                 }
 
-                ShardStatusBadge(
-                    threshold: wallet.threshold,
-                    total: wallet.totalParties
-                )
-                .accessibilityLabel(L10n.Shards.thresholdValue(Int(wallet.threshold), Int(wallet.totalParties)))
+                ShardStatusBadge(threshold: wallet.threshold, total: wallet.totalParties)
+                    .accessibilityLabel(L10n.Shards.thresholdValue(Int(wallet.threshold), Int(wallet.totalParties)))
             }
         }
-        .padding(.vertical, 4)
+        .padding(.vertical, 12)
+        .glassCard()
         .accessibilityElement(children: .combine)
-        .task {
-            await fetchBalance()
-        }
+        .task { await fetchBalance() }
     }
 
     private func fetchBalance() async {
         isLoading = true
         defer { isLoading = false }
         do {
-            balance = try await appState.blockchainService.balance(
-                for: wallet,
-                config: appState.networkConfig
-            )
+            balance = try await appState.blockchainService.balance(for: wallet, config: appState.networkConfig)
         } catch {
             balance = wallet.chain.symbol
         }
@@ -289,15 +286,12 @@ struct WalletRow: View {
 
     private func shortAddress(_ address: String) -> String {
         guard address.count > 12 else { return address }
-        let prefix = address.prefix(6)
-        let suffix = address.suffix(4)
-        return "\(prefix)…\(suffix)"
+        return "\(address.prefix(6))…\(address.suffix(4))"
     }
 }
 
 struct WalletDetailView: View {
     @EnvironmentObject private var appState: AppState
-    @ScaledMetric(relativeTo: .title3) private var smallIconSize: CGFloat = 28
     let wallet: Wallet
     @State private var showSigning = false
     @State private var showReceive = false
@@ -308,25 +302,28 @@ struct WalletDetailView: View {
     @State private var isLoadingTokens = false
 
     var body: some View {
-        List {
-            Section {
+        ScrollView {
+            VStack(spacing: 20) {
+                // Hero card
                 VStack(spacing: 16) {
-                    ChainIcon(chain: wallet.chain, size: 64)
-                        .accessibilityHidden(true)
+                    ChainIcon(chain: wallet.chain, size: 56)
 
                     if isLoadingBalance {
-                        ProgressView()
+                        ProgressView().tint(HorcruxTheme.accentPurple)
                             .accessibilityLabel(L10n.WalletHome.loadingBalance)
                     } else if let balance {
                         Text(balance)
-                            .font(.title2.bold())
+                            .font(.system(size: 32, weight: .bold, design: .rounded).monospacedDigit())
+                            .foregroundStyle(.white)
                             .accessibilityLabel("Balance: \(balance)")
                             .accessibilityIdentifier("walletDetail_balance")
                     }
 
                     Text(wallet.address)
                         .font(.system(.caption, design: .monospaced))
+                        .foregroundStyle(HorcruxTheme.subtleText)
                         .multilineTextAlignment(.center)
+                        .lineLimit(2)
                         .accessibilityLabel(L10n.WalletDetail.walletAddress)
                         .accessibilityValue(wallet.address)
 
@@ -335,124 +332,185 @@ struct WalletDetailView: View {
                         copiedAddress = true
                         DispatchQueue.main.asyncAfter(deadline: .now() + UXTiming.clipboardFeedback) { copiedAddress = false }
                     } label: {
-                        Label(copiedAddress ? L10n.Receive.copiedClears(Int(SecureClipboard.defaultExpireSeconds)) : L10n.WalletDetail.copyAddress,
-                              systemImage: copiedAddress ? "checkmark" : "doc.on.doc")
-                            .font(.caption)
+                        HStack(spacing: 6) {
+                            Image(systemName: copiedAddress ? "checkmark" : "doc.on.doc")
+                                .font(.caption2)
+                            Text(copiedAddress ? L10n.Receive.copiedClears(Int(SecureClipboard.defaultExpireSeconds)) : L10n.WalletDetail.copyAddress)
+                                .font(.caption.weight(.medium))
+                        }
+                        .foregroundStyle(HorcruxTheme.accentPurple)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 6)
+                        .background(HorcruxTheme.accentPurple.opacity(0.12), in: Capsule())
                     }
                     .accessibilityLabel(copiedAddress ? L10n.WalletDetail.addressCopied : L10n.WalletDetail.copyWalletAddress)
                     .accessibilityHint(L10n.WalletDetail.copiesAddressHint)
                     .accessibilityIdentifier("walletDetail_copyAddressButton")
 
-                    ShardStatusBadge(
-                        threshold: wallet.threshold,
-                        total: wallet.totalParties
-                    )
-                    .accessibilityLabel(L10n.Shards.shardThreshold(Int(wallet.threshold), Int(wallet.totalParties)))
+                    ShardStatusBadge(threshold: wallet.threshold, total: wallet.totalParties)
+                        .accessibilityLabel(L10n.Shards.shardThreshold(Int(wallet.threshold), Int(wallet.totalParties)))
                 }
                 .frame(maxWidth: .infinity)
-                .padding()
-            }
+                .glassCard(padding: 24)
 
-            Section(L10n.WalletDetail.actions) {
-                Button {
-                    showSigning = true
-                } label: {
-                    Label(L10n.WalletDetail.sendTransaction, systemImage: "arrow.up.circle.fill")
-                }
-                .accessibilityHint(L10n.WalletDetail.openSigningHint)
-                .accessibilityIdentifier("walletDetail_sendButton")
-
-                Button {
-                    showReceive = true
-                } label: {
-                    Label(L10n.WalletDetail.receive, systemImage: "qrcode")
-                }
-                .accessibilityHint(L10n.WalletDetail.showQRHint)
-                .accessibilityIdentifier("walletDetail_receiveButton")
-            }
-
-            // Token balances (ERC-20 / SPL)
-            if wallet.chain != .bitcoin {
-                Section(L10n.WalletDetail.tokens) {
-                    if isLoadingTokens {
-                        HStack {
-                            ProgressView().scaleEffect(0.7)
-                            Text(L10n.WalletDetail.loadingTokens).font(.caption).foregroundStyle(.secondary)
-                        }
-                    } else if tokenBalances.isEmpty {
+                // Action buttons
+                HStack(spacing: 12) {
+                    Button {
+                        showSigning = true
+                    } label: {
                         VStack(spacing: 8) {
-                            Image(systemName: "plus.circle")
-                                .font(.system(size: smallIconSize))
-                                .foregroundStyle(.tertiary)
-                            Text(L10n.WalletDetail.noTokens)
-                                .font(.subheadline.bold())
-                                .foregroundStyle(.secondary)
-                            Text(L10n.WalletDetail.noTokensDescription)
-                                .font(.caption)
-                                .foregroundStyle(.tertiary)
-                                .multilineTextAlignment(.center)
+                            Image(systemName: "arrow.up.circle.fill")
+                                .font(.title2)
+                            Text(L10n.WalletDetail.sendTransaction)
+                                .font(.caption.weight(.medium))
                         }
+                        .foregroundStyle(.white)
                         .frame(maxWidth: .infinity)
-                        .padding(.vertical, 8)
-                    } else {
-                        ForEach(tokenBalances) { tb in
+                        .padding(.vertical, 16)
+                        .background(
+                            RoundedRectangle(cornerRadius: 14)
+                                .fill(HorcruxTheme.accentPurple.opacity(0.2))
+                                .overlay(RoundedRectangle(cornerRadius: 14).stroke(HorcruxTheme.accentPurple.opacity(0.3), lineWidth: 1))
+                        )
+                    }
+                    .accessibilityHint(L10n.WalletDetail.openSigningHint)
+                    .accessibilityIdentifier("walletDetail_sendButton")
+
+                    Button {
+                        showReceive = true
+                    } label: {
+                        VStack(spacing: 8) {
+                            Image(systemName: "qrcode")
+                                .font(.title2)
+                            Text(L10n.WalletDetail.receive)
+                                .font(.caption.weight(.medium))
+                        }
+                        .foregroundStyle(.white)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 16)
+                        .background(
+                            RoundedRectangle(cornerRadius: 14)
+                                .fill(HorcruxTheme.accentBlue.opacity(0.2))
+                                .overlay(RoundedRectangle(cornerRadius: 14).stroke(HorcruxTheme.accentBlue.opacity(0.3), lineWidth: 1))
+                        )
+                    }
+                    .accessibilityHint(L10n.WalletDetail.showQRHint)
+                    .accessibilityIdentifier("walletDetail_receiveButton")
+                }
+
+                // Tokens
+                if wallet.chain != .bitcoin {
+                    VStack(alignment: .leading, spacing: 10) {
+                        VaultSectionHeader(L10n.WalletDetail.tokens, icon: "circle.grid.2x2")
+                            .padding(.horizontal, 4)
+
+                        if isLoadingTokens {
                             HStack {
-                                Text(tb.token.symbol)
-                                    .font(.subheadline.bold())
+                                ProgressView().scaleEffect(0.7).tint(HorcruxTheme.accentPurple)
+                                Text(L10n.WalletDetail.loadingTokens).font(.caption).foregroundStyle(HorcruxTheme.subtleText)
+                            }
+                            .glassCard()
+                        } else if tokenBalances.isEmpty {
+                            VaultEmptyState(icon: "plus.circle", title: L10n.WalletDetail.noTokens, subtitle: L10n.WalletDetail.noTokensDescription, iconSize: 32)
+                                .frame(maxWidth: .infinity)
+                                .glassCard()
+                        } else {
+                            VStack(spacing: 0) {
+                                ForEach(tokenBalances) { tb in
+                                    HStack {
+                                        Text(tb.token.symbol)
+                                            .font(.subheadline.bold())
+                                            .foregroundStyle(.white)
+                                        Spacer()
+                                        Text(tb.displayBalance)
+                                            .font(.subheadline.monospacedDigit())
+                                            .foregroundStyle(HorcruxTheme.subtleText)
+                                    }
+                                    .padding(.vertical, 10)
+                                    if tb.id != tokenBalances.last?.id {
+                                        Divider().background(Color.white.opacity(0.06))
+                                    }
+                                }
+                            }
+                            .glassCard()
+                        }
+                    }
+                }
+
+                // Recent transactions
+                let recentTxs = Array(appState.transactionStore.records(for: wallet.id).prefix(5))
+                VStack(alignment: .leading, spacing: 10) {
+                    VaultSectionHeader(L10n.WalletDetail.recentTransactions, icon: "clock.arrow.circlepath")
+                        .padding(.horizontal, 4)
+
+                    if recentTxs.isEmpty {
+                        NavigationLink {
+                            TransactionHistoryView(wallet: wallet)
+                        } label: {
+                            HStack {
+                                VaultSettingsRow(icon: "clock.arrow.circlepath", iconColor: HorcruxTheme.accentBlue, title: L10n.WalletDetail.transactionHistory)
                                 Spacer()
-                                Text(tb.displayBalance)
-                                    .font(.subheadline)
-                                    .foregroundStyle(.secondary)
+                                Image(systemName: "chevron.right")
+                                    .font(.caption)
+                                    .foregroundStyle(HorcruxTheme.subtleText)
                             }
                         }
-                    }
-                }
-            }
+                        .glassCard()
+                    } else {
+                        VStack(spacing: 0) {
+                            ForEach(recentTxs) { tx in
+                                NavigationLink {
+                                    TransactionDetailView(transaction: tx)
+                                } label: {
+                                    TransactionRow(transaction: tx)
+                                }
+                                .padding(.vertical, 8)
+                                if tx.id != recentTxs.last?.id {
+                                    Divider().background(Color.white.opacity(0.06))
+                                }
+                            }
+                        }
+                        .glassCard()
 
-            // Recent transactions
-            let recentTxs = appState.transactionStore.records(for: wallet.id).prefix(5)
-            if !recentTxs.isEmpty {
-                Section(L10n.WalletDetail.recentTransactions) {
-                    ForEach(Array(recentTxs)) { tx in
                         NavigationLink {
-                            TransactionDetailView(transaction: tx)
+                            TransactionHistoryView(wallet: wallet)
                         } label: {
-                            TransactionRow(transaction: tx)
+                            Text(L10n.WalletDetail.viewAllHistory)
+                                .font(.subheadline.weight(.medium))
+                                .foregroundStyle(HorcruxTheme.accentPurple)
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 12)
+                                .background(HorcruxTheme.accentPurple.opacity(0.08), in: RoundedRectangle(cornerRadius: 12))
                         }
                     }
-
-                    NavigationLink {
-                        TransactionHistoryView(wallet: wallet)
-                    } label: {
-                        Text(L10n.WalletDetail.viewAllHistory)
-                            .font(.subheadline)
-                            .foregroundStyle(.blue)
-                    }
                 }
-            } else {
-                Section(L10n.WalletDetail.transactions) {
-                    NavigationLink {
-                        TransactionHistoryView(wallet: wallet)
-                    } label: {
-                        Label(L10n.WalletDetail.transactionHistory, systemImage: "clock.arrow.circlepath")
+
+                // Details
+                VStack(alignment: .leading, spacing: 10) {
+                    VaultSectionHeader(L10n.WalletDetail.details, icon: "info.circle")
+                        .padding(.horizontal, 4)
+
+                    VStack(spacing: 0) {
+                        detailRow(L10n.WalletDetail.chain, value: wallet.chain.rawValue)
+                        Divider().background(Color.white.opacity(0.06))
+                        detailRow(L10n.WalletDetail.threshold, value: L10n.WalletDetail.thresholdValue(Int(wallet.threshold), Int(wallet.totalParties)))
+                        Divider().background(Color.white.opacity(0.06))
+                        detailRow(L10n.WalletDetail.yourShard, value: L10n.WalletDetail.shardNumber(Int(wallet.partyIndex)))
+                        Divider().background(Color.white.opacity(0.06))
+                        detailRow(L10n.WalletDetail.created, value: wallet.createdAt.formatted(date: .abbreviated, time: .shortened))
                     }
+                    .glassCard()
                 }
             }
-
-            Section(L10n.WalletDetail.details) {
-                LabeledContent(L10n.WalletDetail.chain, value: wallet.chain.rawValue)
-                LabeledContent(L10n.WalletDetail.threshold, value: L10n.WalletDetail.thresholdValue(Int(wallet.threshold), Int(wallet.totalParties)))
-                LabeledContent(L10n.WalletDetail.yourShard, value: L10n.WalletDetail.shardNumber(Int(wallet.partyIndex)))
-                LabeledContent(L10n.WalletDetail.created, value: wallet.createdAt.formatted(date: .abbreviated, time: .shortened))
-            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 12)
         }
+        .darkBackground()
         .navigationTitle(wallet.name)
-        .sheet(isPresented: $showSigning) {
-            SigningView(wallet: wallet)
-        }
-        .sheet(isPresented: $showReceive) {
-            ReceiveView(wallet: wallet)
-        }
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbarColorScheme(.dark, for: .navigationBar)
+        .sheet(isPresented: $showSigning) { SigningView(wallet: wallet) }
+        .sheet(isPresented: $showReceive) { ReceiveView(wallet: wallet) }
         .task {
             await fetchBalance()
             await fetchTokenBalances()
@@ -463,14 +521,24 @@ struct WalletDetailView: View {
         }
     }
 
+    private func detailRow(_ label: String, value: String) -> some View {
+        HStack {
+            Text(label)
+                .font(.subheadline)
+                .foregroundStyle(HorcruxTheme.subtleText)
+            Spacer()
+            Text(value)
+                .font(.subheadline.weight(.medium))
+                .foregroundStyle(.white)
+        }
+        .padding(.vertical, 10)
+    }
+
     private func fetchBalance() async {
         isLoadingBalance = true
         defer { isLoadingBalance = false }
         do {
-            balance = try await appState.blockchainService.balance(
-                for: wallet,
-                config: appState.networkConfig
-            )
+            balance = try await appState.blockchainService.balance(for: wallet, config: appState.networkConfig)
         } catch {
             balance = nil
         }
@@ -480,9 +548,6 @@ struct WalletDetailView: View {
         guard wallet.chain != .bitcoin else { return }
         isLoadingTokens = true
         defer { isLoadingTokens = false }
-        tokenBalances = await appState.blockchainService.tokenBalances(
-            for: wallet,
-            config: appState.networkConfig
-        )
+        tokenBalances = await appState.blockchainService.tokenBalances(for: wallet, config: appState.networkConfig)
     }
 }

@@ -13,123 +13,230 @@ struct SettingsView: View {
 
     var body: some View {
         NavigationStack {
-            Form {
-                Section(L10n.Settings.security) {
-                    Toggle(L10n.Settings.faceIDTouchID, isOn: $biometricEnabled)
-                        .accessibilityHint(L10n.Settings.biometricHint)
-                        .accessibilityIdentifier("settings_biometricToggle")
+            ScrollView {
+                VStack(spacing: 20) {
+                    // Security
+                    VStack(alignment: .leading, spacing: 10) {
+                        VaultSectionHeader(L10n.Settings.security, icon: "lock.shield")
+                            .padding(.horizontal, 4)
 
-                    Button(L10n.Settings.changePin) {
-                        showChangePin = true
-                    }
-                    .accessibilityHint(L10n.Settings.changePinHint)
-                    .accessibilityIdentifier("settings_changePinButton")
+                        VStack(spacing: 1) {
+                            HStack {
+                                VaultSettingsRow(icon: "faceid", iconColor: HorcruxTheme.accentPurple, title: L10n.Settings.faceIDTouchID)
+                                Spacer()
+                                Toggle("", isOn: $biometricEnabled)
+                                    .labelsHidden()
+                                    .tint(HorcruxTheme.accentPurple)
+                            }
+                            .glassCard()
+                            .accessibilityHint(L10n.Settings.biometricHint)
+                            .accessibilityIdentifier("settings_biometricToggle")
 
-                    Picker(L10n.Settings.autoLock, selection: $appState.autoLockTimeout) {
-                        Text(L10n.Settings.immediately).tag(TimeInterval(0))
-                        Text(L10n.Settings.oneMinute).tag(TimeInterval(60))
-                        Text(L10n.Settings.fiveMinutes).tag(TimeInterval(300))
-                        Text(L10n.Settings.fifteenMinutes).tag(TimeInterval(900))
-                        Text(L10n.Settings.oneHour).tag(TimeInterval(3600))
-                        Text(L10n.Settings.never).tag(TimeInterval(-1))
-                    }
-                    .accessibilityIdentifier("settings_autoLockPicker")
-                }
+                            Button { showChangePin = true } label: {
+                                HStack {
+                                    VaultSettingsRow(icon: "key.fill", iconColor: HorcruxTheme.accentBlue, title: L10n.Settings.changePin)
+                                    Spacer()
+                                    Image(systemName: "chevron.right")
+                                        .font(.caption)
+                                        .foregroundStyle(HorcruxTheme.subtleText)
+                                }
+                            }
+                            .glassCard()
+                            .accessibilityHint(L10n.Settings.changePinHint)
+                            .accessibilityIdentifier("settings_changePinButton")
 
-                Section(L10n.Settings.blockchainNodes) {
-                    NavigationLink {
-                        BlockchainNodeSettingsView()
-                    } label: {
-                        Label(L10n.Settings.rpcEndpoints, systemImage: "server.rack")
-                    }
-                    .accessibilityHint(L10n.Settings.rpcEndpointsHint)
-                    .accessibilityIdentifier("settings_rpcEndpointsLink")
-
-                    HStack {
-                        Text(L10n.Settings.network)
-                        Spacer()
-                        Text(networkSummary)
-                            .foregroundStyle(.secondary)
-                    }
-                }
-
-                Section(L10n.Settings.relayServer) {
-                    TextField(L10n.Settings.webSocketURL, text: $relayURL)
-                        .font(.system(.body, design: .monospaced))
-                        .autocorrectionDisabled()
-                        .textInputAutocapitalization(.never)
-                        .onChange(of: relayURL) { _, newValue in
-                            relayWarning = Self.validateRelayURL(newValue)
-                            appState.peerManager.relay.relayURL = newValue
-                            // Persist relay URL in Keychain (not UserDefaults)
-                            try? KeychainManager.shared.store(
-                                key: Self.relayURLKey,
-                                data: Data(newValue.utf8)
-                            )
-                        }
-                        .accessibilityLabel(L10n.Settings.relayServerURL)
-                        .accessibilityHint(L10n.Settings.relayURLHint)
-                        .accessibilityIdentifier("settings_relayURLField")
-
-                    if let relayWarning {
-                        Label(relayWarning, systemImage: "exclamationmark.triangle.fill")
-                            .font(.caption)
-                            .foregroundStyle(.orange)
-                    }
-
-                    RelayStatusRow(relay: appState.peerManager.relay)
-                }
-
-                Section(L10n.Settings.communication) {
-                    NavigationLink {
-                        TransportSettingsView()
-                    } label: {
-                        Label(L10n.Settings.transportPreferences, systemImage: "antenna.radiowaves.left.and.right")
-                    }
-                    .accessibilityHint(L10n.Settings.transportHint)
-                    .accessibilityIdentifier("settings_transportLink")
-                }
-
-                Section(L10n.Settings.about) {
-                    LabeledContent(L10n.Settings.version, value: "0.1.0")
-                    LabeledContent(L10n.Settings.coreLibrary, value: "horcrux-core (Rust)")
-                    LabeledContent(L10n.Settings.mpcProtocols, value: "CGGMP21 + FROST")
-                    LabeledContent(L10n.Settings.e2eEncryption, value: "Noise Protocol")
-
-                    HStack {
-                        Text(L10n.Settings.secureEnclave)
-                        Spacer()
-                        if SecureEnclaveManager.shared.isAvailable {
-                            Label(L10n.Settings.hardwareProtected, systemImage: "checkmark.shield.fill")
-                                .font(.caption)
-                                .foregroundStyle(.green)
-                        } else {
-                            Label(L10n.Settings.softwareOnly, systemImage: "exclamationmark.triangle")
-                                .font(.caption)
-                                .foregroundStyle(.orange)
+                            HStack {
+                                VaultSettingsRow(icon: "timer", iconColor: HorcruxTheme.warningAmber, title: L10n.Settings.autoLock)
+                                Spacer()
+                                Picker("", selection: $appState.autoLockTimeout) {
+                                    Text(L10n.Settings.immediately).tag(TimeInterval(0))
+                                    Text(L10n.Settings.oneMinute).tag(TimeInterval(60))
+                                    Text(L10n.Settings.fiveMinutes).tag(TimeInterval(300))
+                                    Text(L10n.Settings.fifteenMinutes).tag(TimeInterval(900))
+                                    Text(L10n.Settings.oneHour).tag(TimeInterval(3600))
+                                    Text(L10n.Settings.never).tag(TimeInterval(-1))
+                                }
+                                .labelsHidden()
+                                .tint(HorcruxTheme.accentPurple)
+                            }
+                            .glassCard()
+                            .accessibilityIdentifier("settings_autoLockPicker")
                         }
                     }
 
-                    NavigationLink {
-                        LicensesView()
-                    } label: {
-                        Text(L10n.Settings.openSourceLicenses)
-                    }
-                    .accessibilityHint(L10n.Settings.licensesHint)
-                    .accessibilityIdentifier("settings_licensesLink")
-                }
+                    // Blockchain Nodes
+                    VStack(alignment: .leading, spacing: 10) {
+                        VaultSectionHeader(L10n.Settings.blockchainNodes, icon: "server.rack")
+                            .padding(.horizontal, 4)
 
-                Section(L10n.Settings.dangerZone) {
-                    Button(role: .destructive) {
-                        showWipeConfirmation = true
-                    } label: {
-                        Label(L10n.Settings.wipeAllData, systemImage: "trash.fill")
+                        VStack(spacing: 1) {
+                            NavigationLink {
+                                BlockchainNodeSettingsView()
+                            } label: {
+                                HStack {
+                                    VaultSettingsRow(icon: "server.rack", iconColor: HorcruxTheme.accentCyan, title: L10n.Settings.rpcEndpoints, subtitle: networkSummary)
+                                    Spacer()
+                                    Image(systemName: "chevron.right")
+                                        .font(.caption)
+                                        .foregroundStyle(HorcruxTheme.subtleText)
+                                }
+                            }
+                            .glassCard()
+                            .accessibilityHint(L10n.Settings.rpcEndpointsHint)
+                            .accessibilityIdentifier("settings_rpcEndpointsLink")
+                        }
                     }
-                    .accessibilityHint(L10n.Settings.wipeHint)
-                    .accessibilityIdentifier("settings_wipeButton")
+
+                    // Relay
+                    VStack(alignment: .leading, spacing: 10) {
+                        VaultSectionHeader(L10n.Settings.relayServer, icon: "antenna.radiowaves.left.and.right")
+                            .padding(.horizontal, 4)
+
+                        VStack(spacing: 8) {
+                            TextField(L10n.Settings.webSocketURL, text: $relayURL)
+                                .font(.system(.caption, design: .monospaced))
+                                .autocorrectionDisabled()
+                                .textInputAutocapitalization(.never)
+                                .padding(12)
+                                .background(
+                                    RoundedRectangle(cornerRadius: 10)
+                                        .fill(Color.white.opacity(0.06))
+                                        .overlay(RoundedRectangle(cornerRadius: 10).stroke(Color.white.opacity(0.1), lineWidth: 1))
+                                )
+                                .foregroundStyle(.white)
+                                .tint(HorcruxTheme.accentPurple)
+                                .onChange(of: relayURL) { _, newValue in
+                                    relayWarning = Self.validateRelayURL(newValue)
+                                    appState.peerManager.relay.relayURL = newValue
+                                    try? KeychainManager.shared.store(key: Self.relayURLKey, data: Data(newValue.utf8))
+                                }
+                                .accessibilityLabel(L10n.Settings.relayServerURL)
+                                .accessibilityHint(L10n.Settings.relayURLHint)
+                                .accessibilityIdentifier("settings_relayURLField")
+
+                            if let relayWarning {
+                                HStack(spacing: 6) {
+                                    Image(systemName: "exclamationmark.triangle.fill")
+                                        .font(.caption2)
+                                    Text(relayWarning)
+                                        .font(.caption)
+                                }
+                                .foregroundStyle(HorcruxTheme.warningAmber)
+                            }
+
+                            RelayStatusRow(relay: appState.peerManager.relay)
+                        }
+                        .glassCard()
+                    }
+
+                    // Communication
+                    VStack(alignment: .leading, spacing: 10) {
+                        VaultSectionHeader(L10n.Settings.communication, icon: "wave.3.right")
+                            .padding(.horizontal, 4)
+
+                        NavigationLink {
+                            TransportSettingsView()
+                        } label: {
+                            HStack {
+                                VaultSettingsRow(icon: "antenna.radiowaves.left.and.right", iconColor: HorcruxTheme.successGreen, title: L10n.Settings.transportPreferences)
+                                Spacer()
+                                Image(systemName: "chevron.right")
+                                    .font(.caption)
+                                    .foregroundStyle(HorcruxTheme.subtleText)
+                            }
+                        }
+                        .glassCard()
+                        .accessibilityHint(L10n.Settings.transportHint)
+                        .accessibilityIdentifier("settings_transportLink")
+                    }
+
+                    // About
+                    VStack(alignment: .leading, spacing: 10) {
+                        VaultSectionHeader(L10n.Settings.about, icon: "info.circle")
+                            .padding(.horizontal, 4)
+
+                        VStack(spacing: 0) {
+                            aboutRow(L10n.Settings.version, value: "0.2.0")
+                            Divider().background(Color.white.opacity(0.06))
+                            aboutRow(L10n.Settings.coreLibrary, value: "horcrux-core (Rust)")
+                            Divider().background(Color.white.opacity(0.06))
+                            aboutRow(L10n.Settings.mpcProtocols, value: "CGGMP21 + FROST")
+                            Divider().background(Color.white.opacity(0.06))
+                            aboutRow(L10n.Settings.e2eEncryption, value: "Noise Protocol")
+                            Divider().background(Color.white.opacity(0.06))
+                            HStack {
+                                Text(L10n.Settings.secureEnclave)
+                                    .font(.subheadline)
+                                    .foregroundStyle(HorcruxTheme.subtleText)
+                                Spacer()
+                                if SecureEnclaveManager.shared.isAvailable {
+                                    HStack(spacing: 4) {
+                                        Image(systemName: "checkmark.shield.fill")
+                                            .font(.caption2)
+                                        Text(L10n.Settings.hardwareProtected)
+                                            .font(.caption)
+                                    }
+                                    .foregroundStyle(HorcruxTheme.successGreen)
+                                } else {
+                                    HStack(spacing: 4) {
+                                        Image(systemName: "exclamationmark.triangle")
+                                            .font(.caption2)
+                                        Text(L10n.Settings.softwareOnly)
+                                            .font(.caption)
+                                    }
+                                    .foregroundStyle(HorcruxTheme.warningAmber)
+                                }
+                            }
+                            .padding(.vertical, 10)
+                            Divider().background(Color.white.opacity(0.06))
+                            NavigationLink {
+                                LicensesView()
+                            } label: {
+                                HStack {
+                                    Text(L10n.Settings.openSourceLicenses)
+                                        .font(.subheadline)
+                                        .foregroundStyle(.white)
+                                    Spacer()
+                                    Image(systemName: "chevron.right")
+                                        .font(.caption)
+                                        .foregroundStyle(HorcruxTheme.subtleText)
+                                }
+                                .padding(.vertical, 10)
+                            }
+                            .accessibilityHint(L10n.Settings.licensesHint)
+                            .accessibilityIdentifier("settings_licensesLink")
+                        }
+                        .glassCard()
+                    }
+
+                    // Danger Zone
+                    VStack(alignment: .leading, spacing: 10) {
+                        VaultSectionHeader(L10n.Settings.dangerZone, icon: "exclamationmark.triangle")
+                            .padding(.horizontal, 4)
+
+                        Button(role: .destructive) {
+                            showWipeConfirmation = true
+                        } label: {
+                            HStack {
+                                VaultSettingsRow(icon: "trash.fill", iconColor: HorcruxTheme.dangerRed, title: L10n.Settings.wipeAllData, subtitle: "Permanently delete all keys and data")
+                                Spacer()
+                                Image(systemName: "chevron.right")
+                                    .font(.caption)
+                                    .foregroundStyle(HorcruxTheme.subtleText)
+                            }
+                        }
+                        .glassCard()
+                        .accessibilityHint(L10n.Settings.wipeHint)
+                        .accessibilityIdentifier("settings_wipeButton")
+                    }
                 }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 12)
             }
+            .darkBackground()
             .navigationTitle(L10n.Settings.title)
+            .navigationBarTitleDisplayMode(.large)
+            .toolbarColorScheme(.dark, for: .navigationBar)
             .sheet(isPresented: $showChangePin) {
                 ChangePinView()
             }
@@ -142,14 +249,27 @@ struct SettingsView: View {
                 Text(L10n.Settings.wipeMessage)
             }
             .onAppear {
-                // Load relay URL from Keychain
                 if let data = try? KeychainManager.shared.retrieve(key: Self.relayURLKey),
                    let url = String(data: data, encoding: .utf8), !url.isEmpty {
                     relayURL = url
                 }
                 relayWarning = Self.validateRelayURL(relayURL)
             }
+            .preferredColorScheme(.dark)
         }
+    }
+
+    private func aboutRow(_ label: String, value: String) -> some View {
+        HStack {
+            Text(label)
+                .font(.subheadline)
+                .foregroundStyle(HorcruxTheme.subtleText)
+            Spacer()
+            Text(value)
+                .font(.subheadline.weight(.medium))
+                .foregroundStyle(.white)
+        }
+        .padding(.vertical, 10)
     }
 
     private var networkSummary: String {
@@ -161,7 +281,6 @@ struct SettingsView: View {
         return parts.joined(separator: " · ")
     }
 
-    /// Validate relay URL — must be wss:// for production use.
     static func validateRelayURL(_ urlString: String) -> String? {
         guard let url = URL(string: urlString),
               let scheme = url.scheme?.lowercased() else {
@@ -184,14 +303,15 @@ struct RelayStatusRow: View {
     @ObservedObject var relay: RelayTransport
 
     var body: some View {
-        HStack {
+        HStack(spacing: 8) {
             Circle()
-                .fill(relay.isConnected ? .green : .red)
+                .fill(relay.isConnected ? HorcruxTheme.successGreen : HorcruxTheme.dangerRed)
                 .frame(width: 8, height: 8)
+                .shadow(color: relay.isConnected ? HorcruxTheme.successGreen.opacity(0.5) : HorcruxTheme.dangerRed.opacity(0.5), radius: 4)
                 .accessibilityHidden(true)
             Text(relay.isConnected ? L10n.Settings.connected : L10n.Settings.disconnected)
                 .font(.caption)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(HorcruxTheme.subtleText)
         }
         .accessibilityElement(children: .combine)
         .accessibilityLabel(relay.isConnected ? L10n.Settings.relayStatusConnected : L10n.Settings.relayStatusDisconnected)
