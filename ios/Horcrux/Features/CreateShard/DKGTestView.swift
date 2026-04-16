@@ -107,7 +107,7 @@ struct DKGTestView: View {
 
     private func autoConfigure() {
         viewModel.walletName = "Test Wallet"
-        viewModel.selectedChains = [.ethereum]
+        viewModel.selectedCurve = .secp256k1
         viewModel.threshold = 2
         viewModel.totalParties = 2
         viewModel.partyIndex = partyIndex

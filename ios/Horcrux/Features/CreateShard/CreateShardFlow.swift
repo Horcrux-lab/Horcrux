@@ -53,28 +53,17 @@ struct ConfigureView: View {
             }
 
             Section(L10n.CreateShard.blockchain) {
-                ForEach(Chain.allCases) { chain in
-                    Toggle(isOn: Binding(
-                        get: { viewModel.selectedChains.contains(chain) },
-                        set: { enabled in
-                            if enabled {
-                                viewModel.selectedChains.insert(chain)
-                            } else if viewModel.selectedChains.count > 1 {
-                                viewModel.selectedChains.remove(chain)
-                            }
-                        }
-                    )) {
-                        Label(chain.rawValue, systemImage: chain.iconName)
-                    }
-                    .tint(chain.color)
+                Picker(L10n.CreateShard.chain, selection: $viewModel.selectedCurve) {
+                    Text("Ethereum + Bitcoin (secp256k1)")
+                        .tag(FfiCurveType.secp256k1)
+                    Text("Solana (Ed25519)")
+                        .tag(FfiCurveType.ed25519)
                 }
+                .pickerStyle(.inline)
 
-                if viewModel.selectedChains.contains(where: { $0.curveType == .secp256k1 })
-                    && viewModel.selectedChains.contains(where: { $0.curveType == .ed25519 }) {
-                    Text("⚠️ Different curves selected — only same-curve chains share one keygen")
-                        .font(.caption)
-                        .foregroundStyle(.orange)
-                }
+                Text("同一曲线的链共享同一个密钥分片，自动派生所有地址")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
 
             Section(L10n.CreateShard.threshold) {
@@ -86,9 +75,6 @@ struct ConfigureView: View {
                         value: $viewModel.threshold, in: 2...viewModel.totalParties)
                     .accessibilityLabel(L10n.CreateShard.signingThreshold(viewModel.threshold))
                     .accessibilityHint(L10n.CreateShard.signingThresholdHint())
-                Stepper("Party Index: \(viewModel.partyIndex)",
-                        value: $viewModel.partyIndex, in: 1...viewModel.totalParties)
-                    .accessibilityIdentifier("configure_partyIndexStepper")
 
                 Text(L10n.CreateShard.requiresDevices(viewModel.threshold, viewModel.totalParties))
                     .font(.caption)

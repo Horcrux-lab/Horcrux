@@ -15,7 +15,7 @@ final class CreateShardViewModel: ObservableObject {
     // Configuration
     @Published var step: Step = .configure
     @Published var walletName: String = ""
-    @Published var selectedChains: Set<Chain> = [.ethereum]
+    @Published var selectedCurve: FfiCurveType = .secp256k1
     @Published var threshold: Int = 2
     @Published var totalParties: Int = 2
     @Published var partyIndex: Int = 1
@@ -29,7 +29,7 @@ final class CreateShardViewModel: ObservableObject {
     @Published var dkgProgress: Double = 0
     @Published var dkgStatusMessage: String = ""
     @Published var currentRound: Int = 0
-    @Published var totalRounds: Int = 7 // CGGMP21 = 7 rounds, FROST = 3
+    @Published var totalRounds: Int = 9 // CGGMP21 = 9 rounds, FROST = 3
 
     // Result
     @Published var generatedAddresses: [(chain: Chain, address: String)] = []
@@ -41,11 +41,6 @@ final class CreateShardViewModel: ObservableObject {
     private var bridge: HorcruxBridge?
     private var cancellables = Set<AnyCancellable>()
     private var ceremonyTask: Task<Void, Never>?
-
-    /// The primary curve type for DKG — secp256k1 chains take priority.
-    var primaryCurve: FfiCurveType {
-        selectedChains.contains(where: { $0.curveType == .secp256k1 }) ? .secp256k1 : .ed25519
-    }
 
     /// Local peer identifier shown during discovery.
     var localPeerId: String {
@@ -70,7 +65,7 @@ final class CreateShardViewModel: ObservableObject {
     }
 
     func startDiscovery() {
-        totalRounds = primaryCurve == .ed25519 ? 3 : 9
+        totalRounds = selectedCurve == .ed25519 ? 3 : 9
         dkgStatusMessage = L10n.DKG.searchingDevices
 
         if selectedTransports.contains(.relay) && !roomCode.isEmpty {
@@ -118,7 +113,7 @@ final class CreateShardViewModel: ObservableObject {
                     threshold: UInt16(threshold),
                     totalParties: UInt16(totalParties),
                     partyIndex: UInt16(partyIndex),
-                    curve: primaryCurve
+                    curve: selectedCurve
                 )
 
                 dkgStatusMessage = L10n.DKG.initializingKeyGen
@@ -263,17 +258,15 @@ final class CreateShardViewModel: ObservableObject {
             dkgProgress = 0.95
             dkgStatusMessage = L10n.DKG.derivingAddress
 
-            // Derive addresses for all selected chains with the same curve
+            // Auto-derive addresses for ALL chains using the same curve
             generatedAddresses = []
-            for chain in selectedChains.sorted(by: { $0.rawValue < $1.rawValue }) {
-                if chain.curveType == primaryCurve {
-                    let addr = try bridge.deriveAddress(
-                        chain: chain,
-                        publicKey: result.publicKey
-                    )
-                    generatedAddresses.append((chain: chain, address: addr))
-                    NSLog("[DKG] ✅ Address derived for \(chain.rawValue): \(addr)")
-                }
+            for chain in Chain.allCases where chain.curveType == selectedCurve {
+                let addr = try bridge.deriveAddress(
+                    chain: chain,
+                    publicKey: result.publicKey
+                )
+                generatedAddresses.append((chain: chain, address: addr))
+                NSLog("[DKG] ✅ Address derived for \(chain.rawValue): \(addr)")
             }
 
             dkgProgress = 1.0
@@ -296,7 +289,7 @@ final class CreateShardViewModel: ObservableObject {
         switch currentRound {
         case 1: dkgStatusMessage = L10n.DKG.exchangingCommitments
         case 2: dkgStatusMessage = L10n.DKG.verifyingShares
-        case 3: dkgStatusMessage = primaryCurve == .ed25519
+        case 3: dkgStatusMessage = selectedCurve == .ed25519
             ? L10n.DKG.finalizingKeyPackage
             : L10n.DKG.computingPaillierKeys
         case 4: dkgStatusMessage = L10n.DKG.generatingZKProofs
