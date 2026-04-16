@@ -153,10 +153,8 @@ final class CreateShardViewModel: ObservableObject {
             NSLog("[DKG] Initial messages sent. Waiting for incoming on mpcMessageStream...")
 
             // Listen for incoming messages and process rounds
-            var roundComplete = false
             var msgCount = 0
             for await (peer, data) in peerManager.incomingMpcMessages {
-                guard !roundComplete else { break }
                 msgCount += 1
                 NSLog("[DKG] Received msg #\(msgCount) from \(peer.id.prefix(8))... (\(data.count) bytes, channel=\(peer.channel))")
 
@@ -182,9 +180,9 @@ final class CreateShardViewModel: ObservableObject {
                     }
                     NSLog("[DKG] handleMessage returned \(responses.count) responses")
 
-                    // Update round progress
-                    currentRound = Int(msg.round)
-                    dkgProgress = Double(currentRound) / Double(totalRounds + 1)
+                    // Update round progress (use msgCount since msg.round is always 0 from FFI)
+                    currentRound = msgCount
+                    dkgProgress = min(Double(msgCount) / Double(totalRounds + 1), 0.9)
                     updateDKGStatusMessage()
 
                     // Send responses to peers
@@ -198,7 +196,7 @@ final class CreateShardViewModel: ObservableObject {
                     if let result = bridge.getKeygenResult(sessionId: sessionId!) {
                         NSLog("[DKG] ✅ Keygen complete! publicKey=\(result.publicKey.count)B shard=\(result.shardData.count)B")
                         keygenResult = result
-                        roundComplete = true
+                        break
                     } else {
                         NSLog("[DKG] Keygen not yet complete, waiting for more messages...")
                     }
@@ -217,13 +215,13 @@ final class CreateShardViewModel: ObservableObject {
                 chain: selectedChain,
                 publicKey: result.publicKey
             )
-            print("[DKG] ✅ Address derived: \(generatedAddress ?? "nil")")
+            NSLog("[DKG] ✅ Address derived: \(generatedAddress ?? "nil")")
 
             dkgProgress = 1.0
             step = .complete
 
         } catch {
-            print("[DKG] runDKGRounds error: \(error)")
+            NSLog("[DKG] ❌ runDKGRounds error: \(error)")
             errorMessage = error.localizedDescription
             step = .error
         }

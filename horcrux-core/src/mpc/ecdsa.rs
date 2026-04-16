@@ -13,6 +13,8 @@ use super::{HorcruxConfig, MpcError};
 use cggmp21::security_level::SecurityLevel128;
 use cggmp21::supported_curves::Secp256k1;
 use cggmp21::{ExecutionId, PregeneratedPrimes};
+use generic_ec::as_raw::AsRaw;
+use generic_ec::core::UncompressedEncoding;
 use generic_ec::{NonZero, Point, Scalar};
 use rand::rngs::OsRng;
 use round_based::state_machine::{ProceedResult, StateMachine};
@@ -357,8 +359,9 @@ impl EcdsaDkgSession {
                     serde_json::from_slice(&incomplete_bytes)
                         .map_err(|e| MpcError::KeygenFailed(format!("deserialize keygen: {e}")))?;
 
-                let pk_bytes = serde_json::to_vec(&incomplete.shared_public_key)
-                    .map_err(|e| MpcError::KeygenFailed(format!("serialize pk: {e}")))?;
+                // Convert to raw SEC1 uncompressed bytes (65 bytes: 0x04 || X || Y)
+                let pk_point: Point<Secp256k1> = incomplete.shared_public_key.into();
+                let pk_bytes = pk_point.as_raw().to_bytes_uncompressed().as_ref().to_vec();
 
                 self.result = Some(KeygenResult {
                     public_key: pk_bytes,
