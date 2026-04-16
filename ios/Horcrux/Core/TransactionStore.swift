@@ -61,9 +61,8 @@ final class TransactionStore: ObservableObject {
     private let fileURL: URL
 
     init() {
-        guard let docs = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first else {
-            fatalError("DocumentDirectory unavailable")
-        }
+        let docs = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first
+            ?? URL(fileURLWithPath: NSTemporaryDirectory())
         fileURL = docs.appendingPathComponent("horcrux_transactions.json")
         load()
     }

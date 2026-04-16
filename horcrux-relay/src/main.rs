@@ -23,6 +23,8 @@ use axum::{
     Json, Router,
 };
 use std::net::SocketAddr;
+use std::sync::OnceLock;
+use std::time::Instant;
 use tower_http::cors::{AllowOrigin, CorsLayer};
 use tower_http::trace::TraceLayer;
 use tracing_subscriber::EnvFilter;
@@ -31,6 +33,9 @@ use crate::config::RelayConfig;
 use crate::ip_ratelimit::IpRateLimiter;
 use crate::metrics::METRICS;
 use crate::room::RoomManager;
+
+/// Server start time — used by /health for uptime calculation.
+static START_TIME: OnceLock<Instant> = OnceLock::new();
 
 /// App state passed to all handlers.
 type AppState = (RoomManager, RelayConfig, std::sync::Arc<IpRateLimiter>);
@@ -42,6 +47,8 @@ async fn main() -> anyhow::Result<()> {
             EnvFilter::from_default_env().add_directive("horcrux_relay=info".parse()?),
         )
         .init();
+
+    START_TIME.get_or_init(Instant::now);
 
     let config = RelayConfig::from_env();
     config.validate();
@@ -139,20 +146,37 @@ async fn shutdown_signal() {
     }
 }
 
-async fn health() -> &'static str {
-    "horcrux-relay ok"
+async fn health(
+    State((rooms, _config, _ip)): State<AppState>,
+) -> impl IntoResponse {
+    let uptime = START_TIME
+        .get()
+        .map(|t| t.elapsed().as_secs())
+        .unwrap_or(0);
+    let active_rooms = rooms.room_count().await;
+    let active_connections = METRICS
+        .connections_active
+        .load(std::sync::atomic::Ordering::Relaxed);
+    Json(serde_json::json!({
+        "status": "ok",
+        "version": env!("CARGO_PKG_VERSION"),
+        "uptime_seconds": uptime,
+        "active_rooms": active_rooms,
+        "active_connections": active_connections,
+    }))
 }
 
 /// Prometheus-compatible metrics endpoint (admin-protected when token is set).
 async fn metrics_handler(
     headers: HeaderMap,
     Query(query): Query<AdminQuery>,
-    State((_rooms, config, _ip)): State<AppState>,
+    State((rooms, config, _ip)): State<AppState>,
 ) -> Result<impl IntoResponse, StatusCode> {
     verify_admin_token(&headers, &query, &config)?;
+    let active_rooms = rooms.room_count().await;
     Ok((
         [(axum::http::header::CONTENT_TYPE, "text/plain; version=0.0.4")],
-        METRICS.render(),
+        METRICS.render(active_rooms),
     ))
 }
 

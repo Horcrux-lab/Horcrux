@@ -70,9 +70,8 @@ actor CeremonyStateManager {
     // MARK: - Persistence
 
     private static let fileURL: URL = {
-        guard let docs = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first else {
-            fatalError("DocumentDirectory unavailable")
-        }
+        let docs = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first
+            ?? URL(fileURLWithPath: NSTemporaryDirectory())
         return docs.appendingPathComponent("horcrux_ceremony_state.json")
     }()
 

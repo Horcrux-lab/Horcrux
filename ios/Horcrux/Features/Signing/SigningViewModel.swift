@@ -169,6 +169,7 @@ final class SigningViewModel: ObservableObject {
                 guard let pin = signingPin, !pin.isEmpty else {
                     throw SigningError.notInitialized
                 }
+                signingPin = nil  // Zero sensitive PIN from memory immediately
 
                 let config = FfiHorcruxConfig(
                     threshold: wallet.threshold,
@@ -214,6 +215,7 @@ final class SigningViewModel: ObservableObject {
     func cancelSigning() {
         signingTask?.cancel()
         signingTask = nil
+        signingPin = nil
         if let sessionId {
             bridge?.removeSession(sessionId: sessionId)
         }

@@ -21,8 +21,34 @@ actor BlockchainService {
     }
 
     init(session: URLSession? = nil) {
-        // Use certificate-pinned session by default
         self.session = session ?? PinnedURLSession.shared.session
+    }
+
+    // MARK: - Retry with Exponential Backoff
+
+    /// Maximum retry attempts for transient RPC failures.
+    private let maxRetries = 3
+
+    /// Execute a block with exponential backoff on transient errors.
+    private func withRetry<T>(_ operation: @Sendable () async throws -> T) async throws -> T {
+        var lastError: Error?
+        for attempt in 0..<maxRetries {
+            do {
+                return try await operation()
+            } catch let error as BlockchainError where error.isTransient {
+                lastError = error
+            } catch let error as URLError where [.timedOut, .networkConnectionLost, .notConnectedToInternet].contains(error.code) {
+                lastError = error
+            } catch {
+                throw error
+            }
+            let baseDelay: UInt64 = 500_000_000 // 500ms
+            let jitter = UInt64.random(in: 0...200_000_000)
+            let delay = baseDelay * UInt64(1 << attempt) + jitter
+            try? await Task.sleep(nanoseconds: delay)
+            SecureLog.warning("RPC retry \(attempt + 1)/\(maxRetries)")
+        }
+        throw lastError ?? BlockchainError.invalidResponse
     }
 
     /// Validate and construct a URL, rejecting non-HTTPS schemes.
@@ -480,9 +506,6 @@ actor BlockchainService {
         request.httpBody = jsonBody
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
 
-        let (data, response) = try await session.data(for: request)
-        try validateHTTP(response)
-
         struct RPCResponse<T: Decodable>: Decodable {
             let result: T?
             let error: RPCError?
@@ -492,14 +515,23 @@ actor BlockchainService {
             let message: String
         }
 
-        let rpc = try JSONDecoder().decode(RPCResponse<R>.self, from: data)
-        if let error = rpc.error {
-            throw BlockchainError.rpcError(code: error.code, message: error.message)
+        return try await withRetry { [session] in
+            let (data, response) = try await session.data(for: request)
+            guard let http = response as? HTTPURLResponse else {
+                throw BlockchainError.invalidResponse
+            }
+            guard (200...299).contains(http.statusCode) else {
+                throw BlockchainError.httpError(statusCode: http.statusCode)
+            }
+            let rpc = try JSONDecoder().decode(RPCResponse<R>.self, from: data)
+            if let error = rpc.error {
+                throw BlockchainError.rpcError(code: error.code, message: error.message)
+            }
+            guard let result = rpc.result else {
+                throw BlockchainError.emptyResult
+            }
+            return result
         }
-        guard let result = rpc.result else {
-            throw BlockchainError.emptyResult
-        }
-        return result
     }
 
     private func solanaCall<P: Encodable, R: Decodable>(method: String, params: P, rpcURL: String) async throws -> R {
@@ -573,6 +605,16 @@ enum BlockchainError: LocalizedError {
         case .insufficientBalance: return "Insufficient balance"
         case .invalidAddress: return "Invalid address"
         case .invalidURL(let url): return "Invalid URL: \(url)"
+        }
+    }
+
+    /// Whether this error is transient and worth retrying.
+    var isTransient: Bool {
+        switch self {
+        case .httpError(let code): return code >= 500 || code == 429
+        case .rpcError(let code, _): return code == -32005 // rate limited
+        case .invalidResponse, .emptyResult: return true
+        default: return false
         }
     }
 }
