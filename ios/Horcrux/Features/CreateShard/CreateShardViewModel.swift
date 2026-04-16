@@ -146,23 +146,26 @@ final class CreateShardViewModel: ObservableObject {
     /// Auto-assign party index by sorting all participant IDs deterministically.
     /// Both devices independently reach the same assignment without negotiation.
     private func autoAssignPartyIndex() {
-        // Build a stable local identifier: prefer device name, fallback to relay UUID
-        let localId = UIDevice.current.name
-        // Collect unique peer identities — use the first transport's peer name
-        // (WiFi-LAN uses device name, relay uses "Peer <UUID prefix>")
-        var peerNames: [String] = []
-        var seenNames: Set<String> = []
+        // Use peer.id for comparison — ensures same namespace on both sides.
+        // For relay: peer.id is the remote deviceId (UUID), local is relay.deviceId (UUID).
+        // For WiFi-LAN: peer.id is the device name, local is UIDevice.current.name.
+        let hasRelayPeer = foundPeers.contains { $0.channel == "relay" }
+        let localId = hasRelayPeer
+            ? (peerManager?.relay.deviceId ?? UIDevice.current.name)
+            : UIDevice.current.name
+
+        var peerIds: [String] = []
+        var seen: Set<String> = []
         for peer in foundPeers {
-            if seenNames.insert(peer.name).inserted {
-                peerNames.append(peer.name)
+            if seen.insert(peer.id).inserted {
+                peerIds.append(peer.id)
             }
         }
-        // Sort all participants (local + peers) lexicographically
-        var allIds = peerNames
+        var allIds = peerIds
         allIds.append(localId)
         allIds.sort()
         let myIndex = (allIds.firstIndex(of: localId) ?? 0) + 1
-        NSLog("[DKG] Auto-assign party index: localId=\"\(localId)\", participants=\(allIds), myIndex=\(myIndex)")
+        NSLog("[DKG] Auto-assign party index: localId=\"\(localId.prefix(8))\", participants=\(allIds.map { String($0.prefix(8)) }), myIndex=\(myIndex)")
         partyIndex = myIndex
     }
 
