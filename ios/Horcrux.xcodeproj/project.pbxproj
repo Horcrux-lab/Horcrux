@@ -34,6 +34,7 @@
 		4E1AEB9E3CEDA2CD627F3488 /* BlockchainService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6389EDF3E0B047116DB4FB65 /* BlockchainService.swift */; };
 		551B35F5DE77B2312356F631 /* SecureClipboardTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DDE984B2508670F746A23966 /* SecureClipboardTests.swift */; };
 		5DCEBD20DB9F6FC25739EF4F /* QRScannerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FC6695ABD2E5D63B03476E9E /* QRScannerView.swift */; };
+		617E3B7030516F192DD5F86F /* Foundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 1DAC30ED5D5C597E26BA951A /* Foundation.framework */; };
 		64D45D60EE7C8CC9BA2B2449 /* BlockchainServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2197B82F0AEF2649E2E4F151 /* BlockchainServiceTests.swift */; };
 		69CF81776F2232F87A4168BF /* AddressValidatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7B89F213233CFC72DC4AA83F /* AddressValidatorTests.swift */; };
 		6B039D31656F69A7D842A293 /* SecureClipboard.swift in Sources */ = {isa = PBXBuildFile; fileRef = ECD46EFA897275FDEA93B9F9 /* SecureClipboard.swift */; };
@@ -47,6 +48,7 @@
 		82624C1E2CBCF28A0E353F78 /* TokenModelsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 26C30AF355F59A004BE66E70 /* TokenModelsTests.swift */; };
 		88380DABC0637076A7B84583 /* SigningView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 49A262F731DB964A68E24B04 /* SigningView.swift */; };
 		89661E857DDFDE2DFBDCF45A /* ModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C81FE763A5B3D2D37A55FE55 /* ModelTests.swift */; };
+		914303F3728F1F3D8350FE56 /* HorcruxE2EFlowTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6168BB2C35188D6BCC62AAE0 /* HorcruxE2EFlowTests.swift */; };
 		9327D6514E1E6B6A5978A738 /* BiometricAuth.swift in Sources */ = {isa = PBXBuildFile; fileRef = 94A99C1E7A26CD9EDDD95F25 /* BiometricAuth.swift */; };
 		988FC2EAF527D3776E2EFDDF /* DeepLinkRouter.swift in Sources */ = {isa = PBXBuildFile; fileRef = D7E2EEBB63D88CA1BC34132E /* DeepLinkRouter.swift */; };
 		9D92D7F3AC4B2B9AF0638B87 /* NetworkConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8E155B312BB8CF0D6528F858 /* NetworkConfig.swift */; };
@@ -78,6 +80,13 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
+		52CA621347D111DB2109E2AB /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 6029433CA49DB32A89221F2C /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 163D4C9B616CF11B16AB35B9;
+			remoteInfo = Horcrux;
+		};
 		57A8558E4506B0E3EFB4EDFA /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = 6029433CA49DB32A89221F2C /* Project object */;
@@ -99,6 +108,7 @@
 		1DAC30ED5D5C597E26BA951A /* Foundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Foundation.framework; path = Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS18.0.sdk/System/Library/Frameworks/Foundation.framework; sourceTree = DEVELOPER_DIR; };
 		2197B82F0AEF2649E2E4F151 /* BlockchainServiceTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HorcruxTests/BlockchainServiceTests.swift; sourceTree = SOURCE_ROOT; };
 		26C30AF355F59A004BE66E70 /* TokenModelsTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HorcruxTests/TokenModelsTests.swift; sourceTree = SOURCE_ROOT; };
+		2D2B291D68452FB3C8BBF2F5 /* HorcruxUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = HorcruxUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		2F2D677F4FC0A239EA253203 /* PendingBroadcastQueueTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HorcruxTests/PendingBroadcastQueueTests.swift; sourceTree = SOURCE_ROOT; };
 		3175D60C78853AD441A91030 /* BLETransport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BLETransport.swift; sourceTree = "<group>"; };
 		353EC9343608DC72569F5226 /* SecureEnclaveManager.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SecureEnclaveManager.swift; sourceTree = "<group>"; };
@@ -117,6 +127,7 @@
 		559B2D1CE5F41320F4A9A870 /* AppState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppState.swift; sourceTree = "<group>"; };
 		5AD471CE5D3BA4FC52FD5262 /* WalletStoreTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HorcruxTests/WalletStoreTests.swift; sourceTree = SOURCE_ROOT; };
 		5F0879AB473BE94BF6D0FF48 /* PendingBroadcastQueue.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PendingBroadcastQueue.swift; sourceTree = "<group>"; };
+		6168BB2C35188D6BCC62AAE0 /* HorcruxE2EFlowTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HorcruxUITests/HorcruxE2EFlowTests.swift; sourceTree = SOURCE_ROOT; };
 		6389EDF3E0B047116DB4FB65 /* BlockchainService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = BlockchainService.swift; sourceTree = "<group>"; };
 		6AB845987D1C925700225B43 /* SecureEnclaveManagerTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HorcruxTests/SecureEnclaveManagerTests.swift; sourceTree = SOURCE_ROOT; };
 		6B60143CF0CBC4C79AB085D6 /* PeerManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PeerManager.swift; sourceTree = "<group>"; };
@@ -170,6 +181,14 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		F22BCE78D98B98674C763597 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				617E3B7030516F192DD5F86F /* Foundation.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
@@ -180,6 +199,7 @@
 				FAC3646CF97425339608EFDA /* Products */,
 				205CC51E9D8DC148ABFD2695 /* Frameworks */,
 				99F8F52504EA28F7AFBAAA0D /* HorcruxTests */,
+				5D043B048921ACC6B0F34831 /* HorcruxUITests */,
 			);
 			sourceTree = "<group>";
 		};
@@ -208,6 +228,15 @@
 			);
 			path = Theme;
 			sourceTree = "<group>";
+		};
+		5D043B048921ACC6B0F34831 /* HorcruxUITests */ = {
+			isa = PBXGroup;
+			children = (
+				6168BB2C35188D6BCC62AAE0 /* HorcruxE2EFlowTests.swift */,
+			);
+			name = HorcruxUITests;
+			path = HorcruxUITests;
+			sourceTree = SOURCE_ROOT;
 		};
 		6338D0207FFDF97D8C6A7B25 /* Shards */ = {
 			isa = PBXGroup;
@@ -415,6 +444,7 @@
 			children = (
 				C583709075015A9792E114A7 /* Horcrux.app */,
 				A67D17515F9C66D7B622A16F /* HorcruxTests.xctest */,
+				2D2B291D68452FB3C8BBF2F5 /* HorcruxUITests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -456,6 +486,24 @@
 			productReference = A67D17515F9C66D7B622A16F /* HorcruxTests.xctest */;
 			productType = "com.apple.product-type.bundle.unit-test";
 		};
+		C29CC1A7310855EBBD502FCB /* HorcruxUITests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = D9D9F5B642E14511EA7DD8B1 /* Build configuration list for PBXNativeTarget "HorcruxUITests" */;
+			buildPhases = (
+				7F7F234FB29B719CC93E5276 /* Sources */,
+				F22BCE78D98B98674C763597 /* Frameworks */,
+				73B18C6D90797996D3FB419D /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				04595FEFC8C4057095727C9C /* PBXTargetDependency */,
+			);
+			name = HorcruxUITests;
+			productName = HorcruxUITests;
+			productReference = 2D2B291D68452FB3C8BBF2F5 /* HorcruxUITests.xctest */;
+			productType = "com.apple.product-type.bundle.ui-testing";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -486,12 +534,20 @@
 			targets = (
 				163D4C9B616CF11B16AB35B9 /* Horcrux */,
 				53C164BE86C62480CD84EC26 /* HorcruxTests */,
+				C29CC1A7310855EBBD502FCB /* HorcruxUITests */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
 		72CE349680E20132B7C4FAEF /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		73B18C6D90797996D3FB419D /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -532,6 +588,14 @@
 				82624C1E2CBCF28A0E353F78 /* TokenModelsTests.swift in Sources */,
 				07F1DBBA780D85A37E6222E4 /* TransactionStoreTests.swift in Sources */,
 				FACED99D3FC34A502E59CA44 /* WalletStoreTests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		7F7F234FB29B719CC93E5276 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				914303F3728F1F3D8350FE56 /* HorcruxE2EFlowTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -592,6 +656,12 @@
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
+		04595FEFC8C4057095727C9C /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			name = Horcrux;
+			target = 163D4C9B616CF11B16AB35B9 /* Horcrux */;
+			targetProxy = 52CA621347D111DB2109E2AB /* PBXContainerItemProxy */;
+		};
 		EEC95B5F311CF24332FAECBE /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
 			name = Horcrux;
@@ -728,6 +798,22 @@
 			};
 			name = Debug;
 		};
+		999F031C4DF7E791E1E24663 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CLANG_ENABLE_OBJC_WEAK = NO;
+				CODE_SIGN_STYLE = Automatic;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.horcrux.wallet.uitests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_VERSION = 5.0;
+				TEST_TARGET_NAME = Horcrux;
+				VALIDATE_PRODUCT = YES;
+			};
+			name = Release;
+		};
 		C98DB4BB9852BB281C5FB9C9 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -745,6 +831,21 @@
 				VALIDATE_PRODUCT = YES;
 			};
 			name = Release;
+		};
+		D3AD88D6A7ED0DC9CF226179 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CLANG_ENABLE_OBJC_WEAK = NO;
+				CODE_SIGN_STYLE = Automatic;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.horcrux.wallet.uitests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_VERSION = 5.0;
+				TEST_TARGET_NAME = Horcrux;
+			};
+			name = Debug;
 		};
 		D61BE48780D32FD8F2CA09B9 /* Release */ = {
 			isa = XCBuildConfiguration;
@@ -833,6 +934,15 @@
 			buildConfigurations = (
 				C98DB4BB9852BB281C5FB9C9 /* Release */,
 				94ED1DB8AA340B15F1052A3C /* Debug */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		D9D9F5B642E14511EA7DD8B1 /* Build configuration list for PBXNativeTarget "HorcruxUITests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				999F031C4DF7E791E1E24663 /* Release */,
+				D3AD88D6A7ED0DC9CF226179 /* Debug */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

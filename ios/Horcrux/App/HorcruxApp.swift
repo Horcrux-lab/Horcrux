@@ -74,7 +74,8 @@ struct HorcruxApp: App {
                             }
                         }
                         // Periodic debugger check on foreground
-                        if AntiDebug.performChecks() {
+                        if !ProcessInfo.processInfo.arguments.contains("-UITesting"),
+                           AntiDebug.performChecks() {
                             showDebuggerWarning = true
                         }
                         // Auto-expire stale ceremony sessions (10 min TTL)
@@ -84,7 +85,7 @@ struct HorcruxApp: App {
                     }
                 }
                 .task {
-                    // Request notification permission on first launch
+                    guard !ProcessInfo.processInfo.arguments.contains("-UITesting") else { return }
                     await NotificationManager.shared.requestAuthorization()
                 }
                 .alert(L10n.App.securityViolation, isPresented: $showDebuggerWarning) {

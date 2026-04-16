@@ -52,6 +52,16 @@
                ReferencedContainer = "container:Horcrux.xcodeproj">
             </BuildableReference>
          </TestableReference>
+         <TestableReference
+            skipped = "NO">
+            <BuildableReference
+               BuildableIdentifier = "primary"
+               BlueprintIdentifier = "C29CC1A7310855EBBD502FCB"
+               BuildableName = "HorcruxUITests.xctest"
+               BlueprintName = "HorcruxUITests"
+               ReferencedContainer = "container:Horcrux.xcodeproj">
+            </BuildableReference>
+         </TestableReference>
       </Testables>
    </TestAction>
    <LaunchAction

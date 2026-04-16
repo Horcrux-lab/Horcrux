@@ -23,6 +23,7 @@ struct ContentView: View {
         }
         .dynamicTypeSize(...DynamicTypeSize.accessibility2)
         .task {
+            guard !ProcessInfo.processInfo.arguments.contains("-UITesting") else { return }
             let result = SecurityEnvironment.check()
             if result.isCompromised {
                 jailbreakReasons = result.reasons
