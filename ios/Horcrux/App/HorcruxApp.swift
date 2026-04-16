@@ -99,8 +99,13 @@ struct HorcruxApp: App {
                     }
                 }
                 .task {
+                    #if targetEnvironment(simulator)
+                    // Skip notification permission on simulator
+                    #else
                     guard !ProcessInfo.processInfo.arguments.contains("-UITesting") else { return }
+                    guard !appState.isFirstLaunch else { return }
                     await NotificationManager.shared.requestAuthorization()
+                    #endif
                 }
                 .alert(L10n.App.securityViolation, isPresented: $showDebuggerWarning) {
                     Button(L10n.App.exitApp, role: .destructive) {

@@ -23,12 +23,16 @@ struct ContentView: View {
         }
         .dynamicTypeSize(...DynamicTypeSize.accessibility2)
         .task {
+            #if targetEnvironment(simulator)
+            // Simulator always triggers jailbreak detection — skip
+            #else
             guard !ProcessInfo.processInfo.arguments.contains("-UITesting") else { return }
             let result = SecurityEnvironment.check()
             if result.isCompromised {
                 jailbreakReasons = result.reasons
                 showJailbreakWarning = true
             }
+            #endif
         }
     }
 }
@@ -281,6 +285,9 @@ struct OnboardingView: View {
                 guard pin == confirmPin else { return }
                 try? appState.setPin(pin)
                 appState.isUnlocked = true
+                #if !targetEnvironment(simulator)
+                Task { await NotificationManager.shared.requestAuthorization() }
+                #endif
             }
             .buttonStyle(GradientButtonStyle(isEnabled: confirmPin.count >= 4 && pin == confirmPin))
             .disabled(confirmPin.count < 4 || pin != confirmPin)
