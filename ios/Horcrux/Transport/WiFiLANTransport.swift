@@ -18,24 +18,40 @@ final class WiFiLANTransport: NSObject, TransportChannel, ObservableObject {
     private var browser: NWBrowser?
     private var listener: NWListener?
     private var connections: [String: NWConnection] = [:]
+    /// Our own Bonjour service name, used to filter self-discovery
+    private let ownServiceName = UIDevice.current.name
 
     private var messageContinuation: AsyncStream<TransportMessage>.Continuation?
-    lazy var incomingMessages: AsyncStream<TransportMessage> = {
-        AsyncStream { continuation in
-            self.messageContinuation = continuation
-        }
-    }()
+    let incomingMessages: AsyncStream<TransportMessage>
+
+    override init() {
+        let (stream, continuation) = AsyncStream<TransportMessage>.makeStream()
+        self.incomingMessages = stream
+        self.messageContinuation = continuation
+        super.init()
+    }
 
     func startDiscovery() {
+        NSLog("[WiFi-LAN] Starting discovery (listener + browser)")
         startListener()
         startBrowsing()
     }
 
     func stopDiscovery() {
+        // Only stop browsing/advertising — keep listener + connections alive for message passing
+        browser?.cancel()
+        browser = nil
+    }
+
+    func teardown() {
         browser?.cancel()
         browser = nil
         listener?.cancel()
         listener = nil
+        for (_, conn) in connections {
+            conn.cancel()
+        }
+        connections.removeAll()
     }
 
     func connect(to peer: Peer) async throws {
@@ -114,13 +130,19 @@ final class WiFiLANTransport: NSObject, TransportChannel, ObservableObject {
                 type: Self.bonjourType
             )
 
+            listener?.stateUpdateHandler = { state in
+                NSLog("[WiFi-LAN] Listener state: \(state)")
+            }
+
             listener?.newConnectionHandler = { [weak self] connection in
                 guard let self else { return }
                 let peerId = connection.endpoint.debugDescription
                 let peer = Peer(id: peerId, name: "LAN Peer", channel: self.channelId)
+                NSLog("[WiFi-LAN] New incoming connection from: \(peerId)")
                 self.connections[peerId] = connection
 
                 connection.stateUpdateHandler = { state in
+                    NSLog("[WiFi-LAN] Incoming connection state: \(state)")
                     if case .ready = state {
                         self.isConnected = true
                         self.delegate?.channel(self, didConnect: peer)
@@ -131,8 +153,9 @@ final class WiFiLANTransport: NSObject, TransportChannel, ObservableObject {
             }
 
             listener?.start(queue: .main)
+            NSLog("[WiFi-LAN] Listener started, service name=\(UIDevice.current.name) type=\(Self.bonjourType)")
         } catch {
-            SecureLog.error("WiFi LAN listener failed: \(error)")
+            NSLog("[WiFi-LAN] Listener failed: \(error)")
         }
     }
 
@@ -142,8 +165,13 @@ final class WiFiLANTransport: NSObject, TransportChannel, ObservableObject {
 
         browser = NWBrowser(for: .bonjour(type: Self.bonjourType, domain: nil), using: params)
 
-        browser?.browseResultsChangedHandler = { [weak self] results, _ in
+        browser?.stateUpdateHandler = { state in
+            NSLog("[WiFi-LAN] Browser state: \(state)")
+        }
+
+        browser?.browseResultsChangedHandler = { [weak self] results, changes in
             guard let self else { return }
+            NSLog("[WiFi-LAN] Browse results changed: \(results.count) results")
             for result in results {
                 let peerId = result.endpoint.debugDescription
                 let name: String
@@ -152,17 +180,38 @@ final class WiFiLANTransport: NSObject, TransportChannel, ObservableObject {
                 } else {
                     name = peerId
                 }
+
+                // Filter out self-discovery
+                if name == self.ownServiceName {
+                    NSLog("[WiFi-LAN] Skipping self: \(name)")
+                    continue
+                }
+
+                NSLog("[WiFi-LAN] Found peer: id=\(peerId) name=\(name)")
                 let peer = Peer(id: peerId, name: name, channel: self.channelId)
 
                 if !self.discoveredPeers.contains(peer) {
                     self.peerEndpoints[peerId] = result.endpoint
                     self.discoveredPeers.append(peer)
                     self.delegate?.channel(self, didDiscover: peer)
+                    NSLog("[WiFi-LAN] New peer discovered: \(name) (\(peerId))")
+
+                    // Auto-connect to discovered peer
+                    Task { [weak self] in
+                        guard let self else { return }
+                        do {
+                            try await self.connect(to: peer)
+                            NSLog("[WiFi-LAN] Auto-connected to \(name)")
+                        } catch {
+                            NSLog("[WiFi-LAN] Auto-connect failed to \(name): \(error)")
+                        }
+                    }
                 }
             }
         }
 
         browser?.start(queue: .main)
+        NSLog("[WiFi-LAN] Browser started for \(Self.bonjourType)")
     }
 
     private func receiveLoop(connection: NWConnection, peer: Peer) {

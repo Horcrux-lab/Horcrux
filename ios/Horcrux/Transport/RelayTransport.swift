@@ -24,13 +24,12 @@ final class RelayTransport: NSObject, TransportChannel, ObservableObject {
     private var openContinuation: CheckedContinuation<Void, Error>?
 
     private var messageContinuation: AsyncStream<TransportMessage>.Continuation?
-    lazy var incomingMessages: AsyncStream<TransportMessage> = {
-        AsyncStream { continuation in
-            self.messageContinuation = continuation
-        }
-    }()
+    let incomingMessages: AsyncStream<TransportMessage>
 
     override init() {
+        let (stream, continuation) = AsyncStream<TransportMessage>.makeStream()
+        self.incomingMessages = stream
+        self.messageContinuation = continuation
         super.init()
         let config = URLSessionConfiguration.default
         config.connectionProxyDictionary = [:]  // bypass system proxy for relay

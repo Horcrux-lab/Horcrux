@@ -16,7 +16,13 @@ final class WiFiDirectTransport: NSObject, TransportChannel, ObservableObject {
 
     private let myPeerId: MCPeerID
 
+    private var messageContinuation: AsyncStream<TransportMessage>.Continuation?
+    let incomingMessages: AsyncStream<TransportMessage>
+
     init(peerName: String = ProcessInfo.processInfo.hostName) {
+        let (stream, continuation) = AsyncStream<TransportMessage>.makeStream()
+        self.incomingMessages = stream
+        self.messageContinuation = continuation
         self.myPeerId = MCPeerID(displayName: peerName)
         super.init()
         setupSession()
@@ -25,13 +31,6 @@ final class WiFiDirectTransport: NSObject, TransportChannel, ObservableObject {
     private var advertiser: MCNearbyServiceAdvertiser?
     private var browser: MCNearbyServiceBrowser?
     private var peerIdMap: [String: MCPeerID] = [:]
-
-    private var messageContinuation: AsyncStream<TransportMessage>.Continuation?
-    lazy var incomingMessages: AsyncStream<TransportMessage> = {
-        AsyncStream { continuation in
-            self.messageContinuation = continuation
-        }
-    }()
 
     func setupSession() {
         session = MCSession(peer: myPeerId, securityIdentity: nil, encryptionPreference: .required)

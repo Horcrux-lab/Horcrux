@@ -159,7 +159,7 @@ final class PeerManager: ObservableObject {
     // MARK: - Sending (encrypted)
 
     /// Send MPC protocol data to a peer, encrypted via Noise.
-    /// For relay peers without a Noise channel, sends raw data (relay is trusted infra).
+    /// For relay/wifi-lan peers without a Noise channel, sends raw data (trusted local transport).
     func sendMpcMessage(_ data: Data, to peer: Peer) async throws {
         if let noise = noiseChannels[peer.id] {
             // Encrypted path: Pad → Encrypt → Send
@@ -169,8 +169,8 @@ final class PeerManager: ObservableObject {
             await MessagePadding.randomJitter()
             let channel = channelForPeer(peer)
             try await channel.send(encoded, to: peer)
-        } else if peer.channel == "relay" {
-            // Relay path: send raw MPC data (relay is controlled infrastructure)
+        } else if peer.channel == "relay" || peer.channel == "wifi-lan" {
+            // Local transport path: send raw MPC data (no Noise encryption needed)
             let channel = channelForPeer(peer)
             try await channel.send(data, to: peer)
         } else {
@@ -256,9 +256,9 @@ final class PeerManager: ObservableObject {
             } catch {
                 SecureLog.error("Failed to decode envelope from peer \(peerId): \(error.localizedDescription)")
             }
-        } else if message.from.channel == "relay" {
-            // Relay path: raw MPC data, no noise encryption
-            NSLog("[PM] handleIncoming: relay path → yielding \(message.data.count)B to mpcStream")
+        } else if message.from.channel == "relay" || message.from.channel == "wifi-lan" {
+            // Local transport path: raw MPC data, no noise encryption
+            NSLog("[PM] handleIncoming: \(message.from.channel) path → yielding \(message.data.count)B to mpcStream")
             mpcMessageContinuation?.yield((message.from, message.data))
         } else {
             NSLog("[PM] handleIncoming: unknown peer \(peerId.prefix(8)), trying handshake")

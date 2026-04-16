@@ -22,13 +22,12 @@ final class BLETransport: NSObject, TransportChannel, ObservableObject {
     private var messageCharacteristic: CBMutableCharacteristic?
 
     private var messageContinuation: AsyncStream<TransportMessage>.Continuation?
-    lazy var incomingMessages: AsyncStream<TransportMessage> = {
-        AsyncStream { continuation in
-            self.messageContinuation = continuation
-        }
-    }()
+    let incomingMessages: AsyncStream<TransportMessage>
 
     override init() {
+        let (stream, continuation) = AsyncStream<TransportMessage>.makeStream()
+        self.incomingMessages = stream
+        self.messageContinuation = continuation
         super.init()
         centralManager = CBCentralManager(delegate: self, queue: .main)
         peripheralManager = CBPeripheralManager(delegate: self, queue: .main)
