@@ -62,7 +62,7 @@ impl Default for RelayConfig {
             room_ttl: Duration::from_secs(600),
             cleanup_interval: Duration::from_secs(30),
             max_participants: 10,
-            max_message_size: 1_048_576, // 1 MB
+            max_message_size: 4_194_304, // 4 MB — CGGMP21 Paillier proofs can be ~1.2 MB
             ping_interval: Duration::from_secs(300),
             pong_timeout: Duration::from_secs(60),
             rate_limit_count: 100,

@@ -121,6 +121,9 @@ pub async fn ws_handler(
                 ws
             };
 
+            // Set WebSocket frame limits to match config (CGGMP21 Paillier proofs can be ~1.2 MB)
+            let upgrade = upgrade.max_message_size(config.max_message_size);
+
             Ok(upgrade.on_upgrade(move |socket| {
                 handle_socket(socket, room_id, device_id, rooms, tx, rx, config)
             }))

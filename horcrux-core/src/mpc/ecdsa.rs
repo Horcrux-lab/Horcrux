@@ -107,9 +107,15 @@ where
 // Factory functions — use Box::leak for 'static lifetime requirements
 // =============================================================================
 
-fn make_keygen_driver(i: u16, n: u16, t: u16) -> Result<Box<dyn AnyDriver>, MpcError> {
+fn make_keygen_driver(
+    i: u16,
+    n: u16,
+    t: u16,
+    session_id: &str,
+) -> Result<Box<dyn AnyDriver>, MpcError> {
+    // All parties must share the same ExecutionId for CGGMP21 commitments to be compatible
     let eid_bytes: &'static [u8] = Box::leak(
-        format!("horcrux-keygen-{}", uuid_v4())
+        format!("horcrux-keygen-{}", session_id)
             .into_bytes()
             .into_boxed_slice(),
     );
@@ -123,9 +129,10 @@ fn make_keygen_driver(i: u16, n: u16, t: u16) -> Result<Box<dyn AnyDriver>, MpcE
     Ok(Box::new(SmDriver { sm }))
 }
 
-fn make_auxinfo_driver(i: u16, n: u16) -> Result<Box<dyn AnyDriver>, MpcError> {
+fn make_auxinfo_driver(i: u16, n: u16, session_id: &str) -> Result<Box<dyn AnyDriver>, MpcError> {
+    // All parties must share the same ExecutionId
     let eid_bytes: &'static [u8] = Box::leak(
-        format!("horcrux-auxinfo-{}", uuid_v4())
+        format!("horcrux-auxinfo-{}", session_id)
             .into_bytes()
             .into_boxed_slice(),
     );
@@ -144,9 +151,10 @@ fn make_signing_driver(
     parties_at_keygen: &[u16],
     key_share: &cggmp21::KeyShare<Secp256k1, SecurityLevel128>,
     message_hash: &[u8],
+    session_id: &str,
 ) -> Result<Box<dyn AnyDriver>, MpcError> {
     let eid_bytes: &'static [u8] = Box::leak(
-        format!("horcrux-sign-{}", uuid_v4())
+        format!("horcrux-sign-{}", session_id)
             .into_bytes()
             .into_boxed_slice(),
     );
@@ -206,7 +214,7 @@ pub struct EcdsaDkgSession {
     config: HorcruxConfig,
     session_id: String,
     state: EcdsaDkgState,
-    driver: Box<dyn AnyDriver>,
+    driver: Option<Box<dyn AnyDriver>>,
     incomplete_key_share_bytes: Option<Vec<u8>>,
     result: Option<KeygenResult>,
 }
@@ -222,16 +230,12 @@ impl std::fmt::Debug for EcdsaDkgSession {
 
 impl EcdsaDkgSession {
     pub fn new(config: HorcruxConfig) -> Result<Self, MpcError> {
-        let i = config.party_index - 1; // cggmp21 is 0-based
-        let n = config.total_parties;
-        let t = config.threshold;
-        let driver = make_keygen_driver(i, n, t)?;
-
+        // Driver created in start() when session_id is available
         Ok(Self {
             config,
             session_id: String::new(),
             state: EcdsaDkgState::KeygenRunning,
-            driver,
+            driver: None,
             incomplete_key_share_bytes: None,
             result: None,
         })
@@ -239,21 +243,28 @@ impl EcdsaDkgSession {
 
     pub fn start(&mut self, session_id: &str) -> Result<Vec<MpcMessage>, MpcError> {
         self.session_id = session_id.to_string();
+        let i = self.config.party_index - 1;
+        let n = self.config.total_parties;
+        let t = self.config.threshold;
+        self.driver = Some(make_keygen_driver(i, n, t, session_id)?);
         self.drain_outbox()
     }
 
     pub fn process_message(&mut self, msg: MpcMessage) -> Result<Vec<MpcMessage>, MpcError> {
         let wire: EcdsaWireMsg = serde_json::from_slice(&msg.payload)
             .map_err(|e| MpcError::ProtocolError(format!("deserialize wire: {e}")))?;
-        self.driver
-            .feed(wire.from - 1, wire.is_broadcast, &wire.payload)?;
+        let driver = self.driver.as_mut()
+            .ok_or_else(|| MpcError::ProtocolError("driver not initialized".into()))?;
+        driver.feed(wire.from - 1, wire.is_broadcast, &wire.payload)?;
         self.drain_outbox()
     }
 
     fn drain_outbox(&mut self) -> Result<Vec<MpcMessage>, MpcError> {
         let mut messages = Vec::new();
         loop {
-            match self.driver.drive()? {
+            let driver = self.driver.as_mut()
+                .ok_or_else(|| MpcError::ProtocolError("driver not initialized".into()))?;
+            match driver.drive()? {
                 DriverAction::Send { recipient, data } => {
                     let phase = match self.state {
                         EcdsaDkgState::KeygenRunning => EcdsaPhase::Keygen,
@@ -321,7 +332,7 @@ impl EcdsaDkgSession {
                 self.incomplete_key_share_bytes = Some(output_bytes);
                 let i = self.config.party_index - 1;
                 let n = self.config.total_parties;
-                self.driver = make_auxinfo_driver(i, n)?;
+                self.driver = Some(make_auxinfo_driver(i, n, &self.session_id)?);
                 self.state = EcdsaDkgState::AuxInfoRunning;
                 tracing::info!(
                     party = self.config.party_index,
@@ -387,10 +398,14 @@ pub struct EcdsaSigningSession {
     config: HorcruxConfig,
     session_id: String,
     state: EcdsaSignState,
-    driver: Box<dyn AnyDriver>,
+    driver: Option<Box<dyn AnyDriver>>,
     group_public_key: NonZero<Point<Secp256k1>>,
     message_hash: Vec<u8>,
     result: Option<SigningResult>,
+    // Deferred driver creation data
+    our_signing_index: u16,
+    parties_at_keygen: Vec<u16>,
+    key_share: cggmp21::KeyShare<Secp256k1, SecurityLevel128>,
 }
 
 impl std::fmt::Debug for EcdsaSigningSession {
@@ -439,41 +454,47 @@ impl EcdsaSigningSession {
             .ok_or_else(|| MpcError::InvalidConfig("our party not in participants".into()))?
             as u16;
 
-        let driver = make_signing_driver(
-            our_signing_index,
-            &parties_at_keygen,
-            &key_share,
-            &message_hash,
-        )?;
-
         Ok(Self {
             config,
             session_id: String::new(),
             state: EcdsaSignState::Running,
-            driver,
+            driver: None,
             group_public_key,
             message_hash,
             result: None,
+            our_signing_index,
+            parties_at_keygen,
+            key_share,
         })
     }
 
     pub fn start(&mut self, session_id: &str) -> Result<Vec<MpcMessage>, MpcError> {
         self.session_id = session_id.to_string();
+        self.driver = Some(make_signing_driver(
+            self.our_signing_index,
+            &self.parties_at_keygen,
+            &self.key_share,
+            &self.message_hash,
+            session_id,
+        )?);
         self.drain_outbox()
     }
 
     pub fn process_message(&mut self, msg: MpcMessage) -> Result<Vec<MpcMessage>, MpcError> {
         let wire: EcdsaWireMsg = serde_json::from_slice(&msg.payload)
             .map_err(|e| MpcError::ProtocolError(format!("deserialize wire: {e}")))?;
-        self.driver
-            .feed(wire.from - 1, wire.is_broadcast, &wire.payload)?;
+        let driver = self.driver.as_mut()
+            .ok_or_else(|| MpcError::ProtocolError("signing driver not initialized".into()))?;
+        driver.feed(wire.from - 1, wire.is_broadcast, &wire.payload)?;
         self.drain_outbox()
     }
 
     fn drain_outbox(&mut self) -> Result<Vec<MpcMessage>, MpcError> {
         let mut messages = Vec::new();
         loop {
-            match self.driver.drive()? {
+            let driver = self.driver.as_mut()
+                .ok_or_else(|| MpcError::ProtocolError("signing driver not initialized".into()))?;
+            match driver.drive()? {
                 DriverAction::Send { recipient, data } => {
                     let wire = EcdsaWireMsg {
                         from: self.config.party_index,

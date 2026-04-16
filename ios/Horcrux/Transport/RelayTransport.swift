@@ -66,6 +66,7 @@ final class RelayTransport: NSObject, TransportChannel, ObservableObject {
         try await withCheckedThrowingContinuation { (cont: CheckedContinuation<Void, Error>) in
             self.openContinuation = cont
             self.webSocket = self.urlSession.webSocketTask(with: url)
+            self.webSocket?.maximumMessageSize = 4 * 1024 * 1024 // 4MB for Paillier proofs
             self.webSocket?.resume()
         }
 

@@ -1,5 +1,8 @@
 import Foundation
 import Combine
+import os
+
+private let dkgLog = Logger(subsystem: "com.horcrux.wallet", category: "DKG")
 
 /// View model for the DKG (shard creation) ceremony.
 @MainActor
@@ -83,8 +86,11 @@ final class CreateShardViewModel: ObservableObject {
         }
 
         step = .dkg
-        sessionId = UUID().uuidString
+        // Use room code as session ID so both parties share the same MPC session
+        sessionId = roomCode.isEmpty ? UUID().uuidString : roomCode
         peerManager?.stopDiscovery()
+
+        NSLog("[DKG] Starting DKG: sessionId=\(self.sessionId!), party=\(self.partyIndex), threshold=\(self.threshold)/\(self.totalParties), peers=\(self.foundPeers.count)")
 
         ceremonyTask = Task {
             do {
@@ -100,10 +106,12 @@ final class CreateShardViewModel: ObservableObject {
                 dkgStatusMessage = L10n.DKG.initializingKeyGen
                 currentRound = 1
 
+                NSLog("[DKG] Calling bridge.startKeygen (session=\(self.sessionId!))...")
                 let outgoing = try bridge.startKeygen(
                     sessionId: sessionId!,
                     config: config
                 )
+                NSLog("[DKG] startKeygen returned \(outgoing.count) messages")
 
                 dkgProgress = 0.15
                 dkgStatusMessage = L10n.DKG.exchangingCommitments
@@ -111,6 +119,7 @@ final class CreateShardViewModel: ObservableObject {
                 await runDKGRounds(initialMessages: outgoing)
 
             } catch {
+                NSLog("[DKG] Error: \(error.localizedDescription)")
                 if !Task.isCancelled {
                     errorMessage = error.localizedDescription
                     step = .error
@@ -135,26 +144,43 @@ final class CreateShardViewModel: ObservableObject {
 
         do {
             // Send initial outgoing messages to peers
+            NSLog("[DKG] Broadcasting \(initialMessages.count) initial messages to \(peerManager.allPeers.count) peers")
             for msg in initialMessages {
                 let data = try JSONEncoder().encode(MpcMessageDTO(msg))
+                NSLog("[DKG] Sending initial msg: from=\(msg.fromParty) to=\(msg.toParty) payload=\(msg.payload.count)B data=\(data.count)B")
                 try await peerManager.broadcastMpcMessage(data)
             }
+            NSLog("[DKG] Initial messages sent. Waiting for incoming on mpcMessageStream...")
 
             // Listen for incoming messages and process rounds
             var roundComplete = false
-            for await (_, data) in peerManager.incomingMpcMessages {
+            var msgCount = 0
+            for await (peer, data) in peerManager.incomingMpcMessages {
                 guard !roundComplete else { break }
+                msgCount += 1
+                NSLog("[DKG] Received msg #\(msgCount) from \(peer.id.prefix(8))... (\(data.count) bytes, channel=\(peer.channel))")
 
                 let decodedDTO: MpcMessageDTO?
                 do {
                     decodedDTO = try JSONDecoder().decode(MpcMessageDTO.self, from: data)
                 } catch {
+                    NSLog("[DKG] Failed to decode MPC message: \(error.localizedDescription)")
                     SecureLog.error("Failed to decode MPC message during DKG: \(error.localizedDescription)")
                     decodedDTO = nil
                 }
                 if let dto = decodedDTO {
                     let msg = dto.toFfi()
-                    let responses = try bridge.handleMessage(msg)
+                    NSLog("[DKG] Processing msg: from=\(msg.fromParty) to=\(msg.toParty) session=\(msg.sessionId.prefix(8))...")
+
+                    let responses: [FfiMpcMessage]
+                    do {
+                        NSLog("[DKG] Calling bridge.handleMessage...")
+                        responses = try bridge.handleMessage(msg)
+                    } catch {
+                        NSLog("[DKG] handleMessage error: \(error.localizedDescription)")
+                        throw error
+                    }
+                    NSLog("[DKG] handleMessage returned \(responses.count) responses")
 
                     // Update round progress
                     currentRound = Int(msg.round)
@@ -164,13 +190,17 @@ final class CreateShardViewModel: ObservableObject {
                     // Send responses to peers
                     for response in responses {
                         let responseData = try JSONEncoder().encode(MpcMessageDTO(response))
+                        NSLog("[DKG] Sending response: to=\(response.toParty) data=\(responseData.count)B")
                         try await peerManager.broadcastMpcMessage(responseData)
                     }
 
                     // Check if keygen is complete
                     if let result = bridge.getKeygenResult(sessionId: sessionId!) {
+                        NSLog("[DKG] ✅ Keygen complete! publicKey=\(result.publicKey.count)B shard=\(result.shardData.count)B")
                         keygenResult = result
                         roundComplete = true
+                    } else {
+                        NSLog("[DKG] Keygen not yet complete, waiting for more messages...")
                     }
                 }
             }
@@ -187,11 +217,13 @@ final class CreateShardViewModel: ObservableObject {
                 chain: selectedChain,
                 publicKey: result.publicKey
             )
+            print("[DKG] ✅ Address derived: \(generatedAddress ?? "nil")")
 
             dkgProgress = 1.0
             step = .complete
 
         } catch {
+            print("[DKG] runDKGRounds error: \(error)")
             errorMessage = error.localizedDescription
             step = .error
         }

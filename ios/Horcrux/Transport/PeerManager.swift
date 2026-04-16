@@ -1,5 +1,8 @@
 import Foundation
 import Combine
+import os
+
+private let peerLog = Logger(subsystem: "com.horcrux.wallet", category: "PeerManager")
 
 /// Coordinates multiple transport channels and the Noise E2E encryption layer.
 /// The MPC layer talks only to PeerManager — it doesn't know which transport is in use.
@@ -24,13 +27,9 @@ final class PeerManager: ObservableObject {
     /// Our Noise static keypair (persisted identity)
     private(set) var noiseKeypair: FfiNoiseKeypair?
 
-    /// Incoming decrypted MPC messages
+    /// Incoming decrypted MPC messages (eagerly initialized to avoid race)
     private var mpcMessageContinuation: AsyncStream<(Peer, Data)>.Continuation?
-    lazy var incomingMpcMessages: AsyncStream<(Peer, Data)> = {
-        AsyncStream { continuation in
-            self.mpcMessageContinuation = continuation
-        }
-    }()
+    let incomingMpcMessages: AsyncStream<(Peer, Data)>
 
     private var cancellables = Set<AnyCancellable>()
     private let keychain = KeychainManager.shared
@@ -38,6 +37,9 @@ final class PeerManager: ObservableObject {
     private static let noiseKeypairSEKey = "noise_static_keypair_se"
 
     init() {
+        let (stream, continuation) = AsyncStream<(Peer, Data)>.makeStream()
+        self.incomingMpcMessages = stream
+        self.mpcMessageContinuation = continuation
         noiseKeypair = Self.loadOrGenerateNoiseKeypair(keychain: keychain)
         setupTransportObservers()
     }
@@ -157,24 +159,29 @@ final class PeerManager: ObservableObject {
     // MARK: - Sending (encrypted)
 
     /// Send MPC protocol data to a peer, encrypted via Noise.
-    /// Messages are padded to fixed-size buckets to prevent length analysis.
+    /// For relay peers without a Noise channel, sends raw data (relay is trusted infra).
     func sendMpcMessage(_ data: Data, to peer: Peer) async throws {
-        guard let noise = noiseChannels[peer.id] else {
+        if let noise = noiseChannels[peer.id] {
+            // Encrypted path: Pad → Encrypt → Send
+            let padded = MessagePadding.pad(data)
+            let envelope = try noise.seal(plaintext: padded)
+            let encoded = try JSONEncoder().encode(EnvelopeDTO(envelope))
+            await MessagePadding.randomJitter()
+            let channel = channelForPeer(peer)
+            try await channel.send(encoded, to: peer)
+        } else if peer.channel == "relay" {
+            // Relay path: send raw MPC data (relay is controlled infrastructure)
+            let channel = channelForPeer(peer)
+            try await channel.send(data, to: peer)
+        } else {
             throw TransportError.notConnected
         }
-
-        // Pad → Encrypt → Send (with timing jitter)
-        let padded = MessagePadding.pad(data)
-        let envelope = try noise.seal(plaintext: padded)
-        let encoded = try JSONEncoder().encode(EnvelopeDTO(envelope))
-        await MessagePadding.randomJitter()
-        let channel = channelForPeer(peer)
-        try await channel.send(encoded, to: peer)
     }
 
     /// Broadcast MPC data to all connected peers, with retry on failure.
     func broadcastMpcMessage(_ data: Data) async throws {
-        for peer in connectedPeers {
+        let targets = connectedPeers.isEmpty ? allPeers : connectedPeers
+        for peer in targets {
             try await MpcRetryPolicy.withRetry {
                 try await self.sendMpcMessage(data, to: peer)
             }
@@ -224,6 +231,7 @@ final class PeerManager: ObservableObject {
 
     private func listenForMessages(from transport: TransportChannel) async {
         for await message in transport.incomingMessages {
+            NSLog("[PM] listenForMessages got msg from \(message.from.id.prefix(8)), channel=\(message.from.channel), \(message.data.count)B")
             handleIncomingMessage(message)
         }
     }
@@ -232,6 +240,8 @@ final class PeerManager: ObservableObject {
         let peerId = message.from.id
 
         if let noise = noiseChannels[peerId] {
+            NSLog("[PM] handleIncoming: noise path for \(peerId.prefix(8))")
+            // Encrypted path: Decrypt → Unpad → Yield
             do {
                 let dto = try JSONDecoder().decode(EnvelopeDTO.self, from: message.data)
                 let envelope = FfiSealedEnvelope(ciphertext: dto.ciphertext, handshake: dto.handshake)
@@ -246,7 +256,13 @@ final class PeerManager: ObservableObject {
             } catch {
                 SecureLog.error("Failed to decode envelope from peer \(peerId): \(error.localizedDescription)")
             }
+        } else if message.from.channel == "relay" {
+            // Relay path: raw MPC data, no noise encryption
+            NSLog("[PM] handleIncoming: relay path → yielding \(message.data.count)B to mpcStream")
+            mpcMessageContinuation?.yield((message.from, message.data))
         } else {
+            NSLog("[PM] handleIncoming: unknown peer \(peerId.prefix(8)), trying handshake")
+            // Unknown peer without noise channel — try handshake
             Task {
                 do {
                     try await handleHandshakeMessage(from: message.from, data: message.data)

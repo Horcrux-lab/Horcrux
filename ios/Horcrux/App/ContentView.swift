@@ -6,9 +6,25 @@ struct ContentView: View {
     @State private var showJailbreakWarning = false
     @State private var jailbreakReasons: [String] = []
 
+    private var isUITesting: Bool {
+        ProcessInfo.processInfo.arguments.contains("-UITesting")
+    }
+
+    private var isDKGTest: Bool {
+        ProcessInfo.processInfo.arguments.contains("-DKGTest")
+    }
+
     var body: some View {
         Group {
-            if appState.isFirstLaunch {
+            if isDKGTest {
+                // Auto-run DKG ceremony for testing
+                DKGTestView()
+                    .environmentObject(appState)
+            } else if isUITesting {
+                // Skip onboarding and lock screen for UI testing
+                MainTabView()
+                    .task { appState.isUnlocked = true }
+            } else if appState.isFirstLaunch {
                 OnboardingView()
             } else if appState.isUnlocked {
                 MainTabView()

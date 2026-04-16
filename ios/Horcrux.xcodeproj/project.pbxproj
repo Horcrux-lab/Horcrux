@@ -77,6 +77,7 @@
 		F9EC2548AB80F253A6EBCC73 /* CeremonyStateManagerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7F3E41B1CAFEDB110CCF6B4D /* CeremonyStateManagerTests.swift */; };
 		FACED99D3FC34A502E59CA44 /* WalletStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5AD471CE5D3BA4FC52FD5262 /* WalletStoreTests.swift */; };
 		FB3401D2DF72092E03109173 /* CreateShardFlow.swift in Sources */ = {isa = PBXBuildFile; fileRef = CCAE5E8780140EF078CA194B /* CreateShardFlow.swift */; };
+		4D664723A80343ECADB1A722 /* DKGTestView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 21A20567AD7B48158FA9E2D9 /* DKGTestView.swift */; };
 		FE666EF536CF628D22F7E53C /* NotificationManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE08B520705A65B470D38D5B /* NotificationManager.swift */; };
 		FE9D1ADF07AB02CF4E5C83F5 /* SecureEnclaveManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 353EC9343608DC72569F5226 /* SecureEnclaveManager.swift */; };
 /* End PBXBuildFile section */
@@ -163,6 +164,7 @@
 		C81FE763A5B3D2D37A55FE55 /* ModelTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HorcruxTests/ModelTests.swift; sourceTree = SOURCE_ROOT; };
 		CB858890AFC1B2641328353D /* WalletHomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WalletHomeView.swift; sourceTree = "<group>"; };
 		CCAE5E8780140EF078CA194B /* CreateShardFlow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CreateShardFlow.swift; sourceTree = "<group>"; };
+		21A20567AD7B48158FA9E2D9 /* DKGTestView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DKGTestView.swift; sourceTree = "<group>"; };
 		CE08B520705A65B470D38D5B /* NotificationManager.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = NotificationManager.swift; sourceTree = "<group>"; };
 		CE490D34FEE7816E42DB8691 /* RelayTransport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RelayTransport.swift; sourceTree = "<group>"; };
 		D7E2EEBB63D88CA1BC34132E /* DeepLinkRouter.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = DeepLinkRouter.swift; sourceTree = "<group>"; };
@@ -319,6 +321,7 @@
 			isa = PBXGroup;
 			children = (
 				CCAE5E8780140EF078CA194B /* CreateShardFlow.swift */,
+				21A20567AD7B48158FA9E2D9 /* DKGTestView.swift */,
 				3FF408B4D713C13918899FEE /* CreateShardViewModel.swift */,
 			);
 			path = CreateShard;
@@ -619,6 +622,7 @@
 				E027D29039D918F64A755AC1 /* Components.swift in Sources */,
 				B4374A6122DD8F1F31AAE802 /* ContentView.swift in Sources */,
 				FB3401D2DF72092E03109173 /* CreateShardFlow.swift in Sources */,
+				4D664723A80343ECADB1A722 /* DKGTestView.swift in Sources */,
 				C6E93F671BDFB6D021F2C951 /* CreateShardViewModel.swift in Sources */,
 				4464CA3F4629F5A2DA4272C7 /* HorcruxApp.swift in Sources */,
 				1A286F0E6C2F3FD1B7669F57 /* HorcruxBridge.swift in Sources */,
