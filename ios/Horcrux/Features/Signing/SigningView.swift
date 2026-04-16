@@ -5,6 +5,8 @@ struct SigningView: View {
     @EnvironmentObject private var appState: AppState
     @StateObject private var viewModel: SigningViewModel
     @Environment(\.dismiss) private var dismiss
+    @ScaledMetric(relativeTo: .largeTitle) private var largeIconSize: CGFloat = 72
+    @ScaledMetric(relativeTo: .largeTitle) private var mediumIconSize: CGFloat = 64
 
     init(wallet: Wallet) {
         _viewModel = StateObject(wrappedValue: SigningViewModel(wallet: wallet))
@@ -287,7 +289,7 @@ struct SigningCompleteView: View {
             Spacer()
 
             Image(systemName: "checkmark.seal.fill")
-                .font(.system(size: 72))
+                .font(.system(size: largeIconSize))
                 .foregroundStyle(.green)
                 .accessibilityHidden(true)
             VStack(spacing: 8) {
@@ -365,12 +367,13 @@ struct SigningCompleteView: View {
 
 struct SigningErrorView: View {
     @ObservedObject var viewModel: SigningViewModel
+    @ScaledMetric(relativeTo: .largeTitle) private var errorIconSize: CGFloat = 64
 
     var body: some View {
         VStack(spacing: 24) {
             Spacer()
             Image(systemName: "xmark.circle.fill")
-                .font(.system(size: 64))
+                .font(.system(size: errorIconSize))
                 .foregroundStyle(.red)
                 .accessibilityHidden(true)
             Text(L10n.Signing.signingFailed)

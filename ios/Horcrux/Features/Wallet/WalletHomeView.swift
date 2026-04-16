@@ -10,6 +10,8 @@ struct WalletHomeView: View {
     @EnvironmentObject private var appState: AppState
     @State private var showCreateShard = false
     @State private var networkReachable: [Chain: Bool] = [:]
+    @ScaledMetric(relativeTo: .largeTitle) private var iconSize: CGFloat = 64
+    @ScaledMetric(relativeTo: .title3) private var smallIconSize: CGFloat = 28
 
     var body: some View {
         NavigationStack {
@@ -65,7 +67,7 @@ struct WalletHomeView: View {
             Spacer()
 
             Image(systemName: "shield.lefthalf.filled")
-                .font(.system(size: 64))
+                .font(.system(size: iconSize))
                 .foregroundStyle(.tertiary)
                 .accessibilityHidden(true)
 
@@ -379,7 +381,7 @@ struct WalletDetailView: View {
                     } else if tokenBalances.isEmpty {
                         VStack(spacing: 8) {
                             Image(systemName: "plus.circle")
-                                .font(.system(size: 28))
+                                .font(.system(size: smallIconSize))
                                 .foregroundStyle(.tertiary)
                             Text(L10n.WalletDetail.noTokens)
                                 .font(.subheadline.bold())

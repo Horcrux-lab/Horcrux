@@ -245,13 +245,14 @@ struct DKGCompleteView: View {
     @State private var pin = ""
     @State private var showPinPrompt = false
     @State private var pinError: String?
+    @ScaledMetric(relativeTo: .largeTitle) private var successIconSize: CGFloat = 72
 
     var body: some View {
         VStack(spacing: 32) {
             Spacer()
 
             Image(systemName: "checkmark.seal.fill")
-                .font(.system(size: 72))
+                .font(.system(size: successIconSize))
                 .foregroundStyle(.green)
                 .accessibilityHidden(true)
             VStack(spacing: 8) {
@@ -316,13 +317,14 @@ struct DKGCompleteView: View {
 
 struct DKGErrorView: View {
     @ObservedObject var viewModel: CreateShardViewModel
+    @ScaledMetric(relativeTo: .largeTitle) private var errorIconSize: CGFloat = 64
 
     var body: some View {
         VStack(spacing: 24) {
             Spacer()
 
             Image(systemName: "exclamationmark.triangle.fill")
-                .font(.system(size: 64))
+                .font(.system(size: errorIconSize))
                 .foregroundStyle(.red)
                 .accessibilityHidden(true)
 

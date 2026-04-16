@@ -34,6 +34,12 @@ uuid = { version = "1", features = ["v4", "serde"] }
 # Futures utilities for stream splitting
 futures-util = "0.3"
 
+[lib]
+name = "horcrux_relay"
+path = "src/lib.rs"
+
 [dev-dependencies]
 tokio = { version = "1", features = ["full", "test-util"] }
 tokio-tungstenite = "0.24"
+tower = { version = "0.5", features = ["util"] }
+http-body-util = "0.1"

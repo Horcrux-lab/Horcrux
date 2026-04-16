@@ -61,6 +61,7 @@ struct OnboardingView: View {
     @State private var pin: String = ""
     @State private var confirmPin: String = ""
     @State private var step: OnboardingStep = .welcome
+    @ScaledMetric(relativeTo: .largeTitle) private var logoSize: CGFloat = 72
 
     enum OnboardingStep {
         case welcome, createPin, confirmPin
@@ -71,7 +72,7 @@ struct OnboardingView: View {
             Spacer()
 
             Image(systemName: "shield.lefthalf.filled")
-                .font(.system(size: 72))
+                .font(.system(size: logoSize))
                 .foregroundStyle(HorcruxTheme.accentColor)
                 .accessibilityHidden(true)
 
@@ -162,13 +163,14 @@ struct LockScreenView: View {
     @State private var pin: String = ""
     @State private var errorMessage: String?
     @State private var attemptedBiometric = false
+    @ScaledMetric(relativeTo: .largeTitle) private var logoSize: CGFloat = 72
 
     var body: some View {
         VStack(spacing: 32) {
             Spacer()
 
             Image(systemName: "shield.lefthalf.filled")
-                .font(.system(size: 72))
+                .font(.system(size: logoSize))
                 .foregroundStyle(HorcruxTheme.accentColor)
                 .accessibilityHidden(true)
 

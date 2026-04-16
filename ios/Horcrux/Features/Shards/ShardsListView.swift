@@ -9,6 +9,7 @@ struct ShardsListView: View {
     @EnvironmentObject private var appState: AppState
     @StateObject private var viewModel = ShardsViewModel()
     @State private var showImportSheet = false
+    @ScaledMetric(relativeTo: .largeTitle) private var decorativeIconSize: CGFloat = 48
 
     var body: some View {
         NavigationStack {
@@ -92,13 +93,14 @@ struct ShardDetailView: View {
     @ObservedObject var viewModel: ShardsViewModel
     @State private var showBackupSheet = false
     @State private var showDeleteAlert = false
+    @ScaledMetric(relativeTo: .largeTitle) private var headerIconSize: CGFloat = 48
 
     var body: some View {
         List {
             Section {
                 VStack(spacing: 16) {
                     Image(systemName: "shield.lefthalf.filled")
-                        .font(.system(size: 48))
+                        .font(.system(size: headerIconSize))
                         .foregroundStyle(wallet.chain.color)
 
                     Text(L10n.Shards.shardNumber(Int(wallet.partyIndex)))
@@ -364,6 +366,7 @@ struct ShardImportView: View {
     @State private var importError: String?
     @State private var isImporting = false
     @State private var importSuccess = false
+    @ScaledMetric(relativeTo: .largeTitle) private var resultIconSize: CGFloat = 48
 
     var body: some View {
         NavigationStack {
@@ -498,7 +501,7 @@ struct ShardImportView: View {
         Section {
             VStack(spacing: 16) {
                 Image(systemName: "checkmark.circle.fill")
-                    .font(.system(size: 48))
+                    .font(.system(size: resultIconSize))
                     .foregroundStyle(.green)
 
                 Text(L10n.ShardImport.shardImported)

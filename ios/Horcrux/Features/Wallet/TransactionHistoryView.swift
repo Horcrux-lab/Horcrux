@@ -4,6 +4,7 @@ import SwiftUI
 struct TransactionHistoryView: View {
     let wallet: Wallet
     @EnvironmentObject private var appState: AppState
+    @ScaledMetric(relativeTo: .largeTitle) private var emptyIconSize: CGFloat = 48
 
     private var transactions: [TransactionRecord] {
         appState.transactionStore.records(for: wallet.id)
@@ -25,7 +26,7 @@ struct TransactionHistoryView: View {
         VStack(spacing: 16) {
             Spacer()
             Image(systemName: "clock.arrow.circlepath")
-                .font(.system(size: 48))
+                .font(.system(size: emptyIconSize))
                 .foregroundStyle(.tertiary)
             Text(L10n.TxHistory.noTransactionsTitle)
                 .font(.headline)
@@ -121,13 +122,14 @@ struct TransactionRow: View {
 struct TransactionDetailView: View {
     let transaction: TransactionRecord
     @State private var copiedHash = false
+    @ScaledMetric(relativeTo: .largeTitle) private var statusIconSize: CGFloat = 48
 
     var body: some View {
         List {
             Section {
                 VStack(spacing: 12) {
                     Image(systemName: transaction.statusIcon)
-                        .font(.system(size: 48))
+                        .font(.system(size: statusIconSize))
                         .foregroundStyle(detailStatusColor)
 
                     Text(CurrencyFormatter.crypto(Double(transaction.amount) ?? 0, symbol: transaction.chain.symbol))
