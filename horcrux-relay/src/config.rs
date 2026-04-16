@@ -50,6 +50,8 @@ pub enum ConfigError {
     InvalidIpRateLimitCreates,
     #[error("max_rooms must be > 0")]
     InvalidMaxRooms,
+    #[error("ping_interval must be greater than pong_timeout")]
+    InvalidPingPongTiming,
 }
 
 impl Default for RelayConfig {
@@ -139,6 +141,9 @@ impl RelayConfig {
         if self.rate_limit_count == 0 { return Err(ConfigError::InvalidRateLimitCount); }
         if self.ip_rate_limit_creates == 0 { return Err(ConfigError::InvalidIpRateLimitCreates); }
         if self.max_rooms == 0 { return Err(ConfigError::InvalidMaxRooms); }
+        if self.ping_interval <= self.pong_timeout {
+            return Err(ConfigError::InvalidPingPongTiming);
+        }
         if self.admin_token.is_none() {
             tracing::warn!("RELAY_ADMIN_TOKEN not set — admin endpoints are unprotected");
         }
@@ -171,5 +176,22 @@ mod tests {
     fn zero_rate_limit_fails() {
         let cfg = RelayConfig { rate_limit_count: 0, ..Default::default() };
         assert!(matches!(cfg.validate(), Err(ConfigError::InvalidRateLimitCount)));
+    }
+
+    #[test]
+    fn ping_lte_pong_fails() {
+        let cfg = RelayConfig {
+            ping_interval: Duration::from_secs(5),
+            pong_timeout: Duration::from_secs(10),
+            ..Default::default()
+        };
+        assert!(matches!(cfg.validate(), Err(ConfigError::InvalidPingPongTiming)));
+
+        let cfg2 = RelayConfig {
+            ping_interval: Duration::from_secs(10),
+            pong_timeout: Duration::from_secs(10),
+            ..Default::default()
+        };
+        assert!(matches!(cfg2.validate(), Err(ConfigError::InvalidPingPongTiming)));
     }
 }

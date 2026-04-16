@@ -578,7 +578,13 @@ fn compute_recovery_id(
     hash[32 - len..].copy_from_slice(&message_hash[..len]);
 
     // Serialize group public key for comparison
-    let pk_json = serde_json::to_string(public_key).unwrap_or_default();
+    let pk_json = match serde_json::to_string(public_key) {
+        Ok(j) => j,
+        Err(e) => {
+            tracing::error!("failed to serialize public key: {e}");
+            return 0;
+        }
+    };
 
     for v in 0u8..=1 {
         let recid = RecoveryId::new(v != 0, false);

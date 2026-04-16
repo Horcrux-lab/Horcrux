@@ -1352,7 +1352,7 @@ dependencies = [
 
 [[package]]
 name = "horcrux-core"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "aes-gcm",
  "anyhow",
@@ -1387,7 +1387,7 @@ dependencies = [
 
 [[package]]
 name = "horcrux-relay"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "anyhow",
  "axum",
@@ -2826,7 +2826,7 @@ dependencies = [
 
 [[package]]
 name = "uniffi-bindgen"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "uniffi",
 ]

@@ -107,7 +107,7 @@ actor NetworkStatus {
         var request = URLRequest(url: url, timeoutInterval: timeout)
         request.httpMethod = "HEAD"
         do {
-            let (_, response) = try await URLSession.shared.data(for: request)
+            let (_, response) = try await PinnedURLSession.shared.session.data(for: request)
             if let http = response as? HTTPURLResponse {
                 return (200...499).contains(http.statusCode)
             }
