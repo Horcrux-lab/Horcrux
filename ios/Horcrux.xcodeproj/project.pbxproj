@@ -53,6 +53,7 @@
 		988FC2EAF527D3776E2EFDDF /* DeepLinkRouter.swift in Sources */ = {isa = PBXBuildFile; fileRef = D7E2EEBB63D88CA1BC34132E /* DeepLinkRouter.swift */; };
 		9D92D7F3AC4B2B9AF0638B87 /* NetworkConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8E155B312BB8CF0D6528F858 /* NetworkConfig.swift */; };
 		A1A8B7219650EA8D76C62127 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 12C11D20C4929E2BE2553316 /* Assets.xcassets */; };
+		BBBB000011112222DEADBEEF /* Localizable.strings in Resources */ = {isa = PBXBuildFile; fileRef = AAAA000011112222DEADBEEF /* Localizable.strings */; };
 		AB61FAF5D17089CA55A60FB5 /* SecurityEnvironmentTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0B6E61D592F4FD54E5442B57 /* SecurityEnvironmentTests.swift */; };
 		B0EC72ECD24C2209F5A88423 /* WiFiDirectTransport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 422C50490783824C211D1A4E /* WiFiDirectTransport.swift */; };
 		B4374A6122DD8F1F31AAE802 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BE6DF0A887F8A0C59358C3CA /* ContentView.swift */; };
@@ -102,6 +103,7 @@
 		08990698B518337C3E98D3CE /* CurrencyFormatter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CurrencyFormatter.swift; sourceTree = "<group>"; };
 		0B6E61D592F4FD54E5442B57 /* SecurityEnvironmentTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HorcruxTests/SecurityEnvironmentTests.swift; sourceTree = SOURCE_ROOT; };
 		12C11D20C4929E2BE2553316 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		AAAA000011112222DEADBEEF /* Localizable.strings */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = Localizable.strings; path = en.lproj/Localizable.strings; sourceTree = "<group>"; };
 		18E722F82F4851FF4C37CDA4 /* ShardsViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShardsViewModel.swift; sourceTree = "<group>"; };
 		1AF9DEBF9BECD65C63B64B81 /* horcrux_core.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = horcrux_core.swift; sourceTree = "<group>"; };
 		1D47DFFE366A125359462514 /* AntiDebug.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AntiDebug.swift; sourceTree = "<group>"; };
@@ -357,6 +359,7 @@
 			isa = PBXGroup;
 			children = (
 				12C11D20C4929E2BE2553316 /* Assets.xcassets */,
+				AAAA000011112222DEADBEEF /* Localizable.strings */,
 				BD8CC5A0AC3FBD7B276F77BE /* Info.plist */,
 			);
 			path = Resources;
@@ -559,6 +562,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				A1A8B7219650EA8D76C62127 /* Assets.xcassets in Resources */,
+				BBBB000011112222DEADBEEF /* Localizable.strings in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
