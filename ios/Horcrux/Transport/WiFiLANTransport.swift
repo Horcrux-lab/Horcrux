@@ -31,7 +31,17 @@ final class WiFiLANTransport: NSObject, TransportChannel, ObservableObject {
         super.init()
     }
 
+    deinit {
+        browser?.cancel()
+        listener?.cancel()
+        for (_, conn) in connections { conn.cancel() }
+    }
+
     func startDiscovery() {
+        // Clean slate: cancel any existing listener/browser and clear stale peers
+        teardown()
+        discoveredPeers.removeAll()
+        peerEndpoints.removeAll()
         NSLog("[WiFi-LAN] Starting discovery (listener + browser)")
         startListener()
         startBrowsing()
@@ -136,17 +146,20 @@ final class WiFiLANTransport: NSObject, TransportChannel, ObservableObject {
 
             listener?.newConnectionHandler = { [weak self] connection in
                 guard let self else { return }
-                let peerId = connection.endpoint.debugDescription
-                let peer = Peer(id: peerId, name: "LAN Peer", channel: self.channelId)
-                NSLog("[WiFi-LAN] New incoming connection from: \(peerId)")
-                self.connections[peerId] = connection
+                let endpointId = connection.endpoint.debugDescription
+                NSLog("[WiFi-LAN] New incoming connection from: \(endpointId)")
+
+                // Accept the connection for receiving messages, but map to a
+                // placeholder peer. The outbound connection (from auto-connect)
+                // is used for sending. This avoids inflating the peer count.
+                let inboundPeer = Peer(id: "inbound-\(endpointId)", name: "LAN Peer", channel: self.channelId)
 
                 connection.stateUpdateHandler = { state in
-                    NSLog("[WiFi-LAN] Incoming connection state: \(state)")
                     if case .ready = state {
-                        self.isConnected = true
-                        self.delegate?.channel(self, didConnect: peer)
-                        self.receiveLoop(connection: connection, peer: peer)
+                        NSLog("[WiFi-LAN] Incoming connection ready: \(endpointId)")
+                        self.receiveLoop(connection: connection, peer: inboundPeer)
+                    } else if case .failed(let err) = state {
+                        NSLog("[WiFi-LAN] Incoming connection failed: \(err)")
                     }
                 }
                 connection.start(queue: .main)
@@ -181,9 +194,16 @@ final class WiFiLANTransport: NSObject, TransportChannel, ObservableObject {
                     name = peerId
                 }
 
-                // Filter out self-discovery
-                if name == self.ownServiceName {
-                    NSLog("[WiFi-LAN] Skipping self: \(name)")
+                // Filter out self-discovery and stale duplicate services
+                // macOS appends "(2)", "(3)" etc. for services from crashed processes
+                if name == self.ownServiceName || name.hasPrefix(self.ownServiceName + " (") {
+                    NSLog("[WiFi-LAN] Skipping self/stale: \(name)")
+                    continue
+                }
+                // Filter stale duplicates of remote peers (e.g. "iPhone 16 (2)")
+                if let range = name.range(of: #" \(\d+\)$"#, options: .regularExpression) {
+                    let baseName = String(name[name.startIndex..<range.lowerBound])
+                    NSLog("[WiFi-LAN] Skipping stale duplicate: \(name) (base=\(baseName))")
                     continue
                 }
 
