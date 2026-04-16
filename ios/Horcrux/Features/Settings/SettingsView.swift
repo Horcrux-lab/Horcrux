@@ -3,11 +3,13 @@ import SwiftUI
 /// App settings — security, relay server, and about.
 struct SettingsView: View {
     @EnvironmentObject private var appState: AppState
-    @AppStorage("relayURL") private var relayURL = "wss://localhost:3000/ws"
     @AppStorage("biometricEnabled") private var biometricEnabled = true
+    @State private var relayURL = "wss://localhost:3000/ws"
     @State private var showChangePin = false
     @State private var showWipeConfirmation = false
     @State private var relayWarning: String?
+
+    private static let relayURLKey = "horcrux_relay_url"
 
     var body: some View {
         NavigationStack {
@@ -59,6 +61,11 @@ struct SettingsView: View {
                         .onChange(of: relayURL) { _, newValue in
                             relayWarning = Self.validateRelayURL(newValue)
                             appState.peerManager.relay.relayURL = newValue
+                            // Persist relay URL in Keychain (not UserDefaults)
+                            try? KeychainManager.shared.store(
+                                key: Self.relayURLKey,
+                                data: Data(newValue.utf8)
+                            )
                         }
                         .accessibilityLabel(L10n.Settings.relayServerURL)
                         .accessibilityHint(L10n.Settings.relayURLHint)
@@ -135,6 +142,11 @@ struct SettingsView: View {
                 Text(L10n.Settings.wipeMessage)
             }
             .onAppear {
+                // Load relay URL from Keychain
+                if let data = try? KeychainManager.shared.retrieve(key: Self.relayURLKey),
+                   let url = String(data: data, encoding: .utf8), !url.isEmpty {
+                    relayURL = url
+                }
                 relayWarning = Self.validateRelayURL(relayURL)
             }
         }

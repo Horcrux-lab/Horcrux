@@ -85,7 +85,10 @@ final class SecureEnclaveManager {
 
         switch status {
         case errSecSuccess:
-            return (item as! SecKey)
+            guard let key = item as? SecKey else {
+                throw SecureEnclaveError.keyLoadFailed(errSecInternalError)
+            }
+            return key
         case errSecItemNotFound:
             return nil
         default:
@@ -137,7 +140,9 @@ final class SecureEnclaveManager {
 
         // AES-GCM encrypt
         let sealedBox = try AES.GCM.seal(plaintext, using: symmetricKey)
-        let combined = sealedBox.combined! // nonce (12) || ciphertext || tag (16)
+        guard let combined = sealedBox.combined else { // nonce (12) || ciphertext || tag (16)
+            throw SecureEnclaveError.sealFailed
+        }
 
         // Output: ephemeralPub (65) || combined
         return ephemeralPubData + combined
@@ -215,10 +220,10 @@ final class SecureEnclaveManager {
 
         var item: CFTypeRef?
         let status = SecItemCopyMatching(query as CFDictionary, &item)
-        guard status == errSecSuccess else {
+        guard status == errSecSuccess, let key = item as? SecKey else {
             throw SecureEnclaveError.keyLoadFailed(status)
         }
-        return item as! SecKey
+        return key
     }
 
     private func makeAccessControl() throws -> SecAccessControl {
@@ -244,6 +249,7 @@ enum SecureEnclaveError: LocalizedError {
     case keyLoadFailed(OSStatus)
     case publicKeyUnavailable
     case invalidSealedData
+    case sealFailed
     case decryptionFailed(String)
     case accessControlFailed(String)
 
@@ -254,6 +260,7 @@ enum SecureEnclaveError: LocalizedError {
         case .keyLoadFailed(let s): return "SE key load failed: \(s)"
         case .publicKeyUnavailable: return "SE public key unavailable"
         case .invalidSealedData: return "Invalid sealed data format"
+        case .sealFailed: return "AES-GCM seal produced no combined output"
         case .decryptionFailed(let m): return "SE decryption failed: \(m)"
         case .accessControlFailed(let m): return "SE access control failed: \(m)"
         }

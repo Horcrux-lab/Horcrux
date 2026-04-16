@@ -20,7 +20,9 @@ enum CurrencyFormatter {
 
     /// Format a fiat amount (e.g., "$1,234.56")
     static func fiat(_ amount: Double, currencyCode: String = "USD") -> String {
-        let formatter = fiatFormatter.copy() as! NumberFormatter
+        guard let formatter = fiatFormatter.copy() as? NumberFormatter else {
+            return "$\(amount)"
+        }
         formatter.currencyCode = currencyCode
         return formatter.string(from: NSNumber(value: amount)) ?? "$\(amount)"
     }
