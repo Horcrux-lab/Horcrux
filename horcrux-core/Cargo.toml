@@ -64,3 +64,4 @@ uniffi = { version = "0.28", features = ["build"] }
 
 [dev-dependencies]
 tokio = { version = "1", features = ["full", "test-util"] }
+tempfile = "3"

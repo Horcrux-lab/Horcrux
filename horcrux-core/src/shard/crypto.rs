@@ -56,11 +56,11 @@ pub fn encrypt_shard(
     plaintext: &[u8],
     device_key: &[u8],
     pin: &[u8],
-) -> Result<EncryptedShard, String> {
+) -> Result<EncryptedShard, ShardCryptoError> {
     let mut salt = [0u8; 16];
     rand::thread_rng().fill_bytes(&mut salt);
 
-    let mut key = derive_key(device_key, pin, &salt).map_err(|e| e.to_string())?;
+    let mut key = derive_key(device_key, pin, &salt)?;
 
     let cipher = Aes256Gcm::new(Key::<Aes256Gcm>::from_slice(&key));
 
@@ -70,7 +70,7 @@ pub fn encrypt_shard(
 
     let ciphertext = cipher
         .encrypt(nonce, plaintext)
-        .map_err(|e| format!("encryption failed: {}", e))?;
+        .map_err(|e| ShardCryptoError::Encryption(format!("{e}")))?;
 
     key.zeroize();
 
@@ -87,15 +87,15 @@ pub fn decrypt_shard(
     encrypted: &EncryptedShard,
     device_key: &[u8],
     pin: &[u8],
-) -> Result<Zeroizing<Vec<u8>>, String> {
-    let mut key = derive_key(device_key, pin, &encrypted.salt).map_err(|e| e.to_string())?;
+) -> Result<Zeroizing<Vec<u8>>, ShardCryptoError> {
+    let mut key = derive_key(device_key, pin, &encrypted.salt)?;
 
     let cipher = Aes256Gcm::new(Key::<Aes256Gcm>::from_slice(&key));
     let nonce = Nonce::from_slice(&encrypted.nonce);
 
     let plaintext = cipher
         .decrypt(nonce, encrypted.ciphertext.as_ref())
-        .map_err(|e| format!("decryption failed: {}", e))?;
+        .map_err(|e| ShardCryptoError::Decryption(format!("{e}")))?;
 
     key.zeroize();
 

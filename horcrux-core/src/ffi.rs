@@ -447,7 +447,7 @@ pub fn horcrux_encrypt_shard(
 ) -> Result<FfiEncryptedShard, HorcruxError> {
     shard_crypto::encrypt_shard(&plaintext, &device_key, &pin)
         .map(Into::into)
-        .map_err(|e| HorcruxError::EncryptionFailed { msg: e })
+        .map_err(|e| HorcruxError::EncryptionFailed { msg: e.to_string() })
 }
 
 /// Decrypt a previously encrypted key shard.
@@ -459,7 +459,7 @@ pub fn horcrux_decrypt_shard(
 ) -> Result<Vec<u8>, HorcruxError> {
     let es: EncryptedShard = encrypted.into();
     let decrypted = shard_crypto::decrypt_shard(&es, &device_key, &pin)
-        .map_err(|e| HorcruxError::DecryptionFailed { msg: e })?;
+        .map_err(|e| HorcruxError::DecryptionFailed { msg: e.to_string() })?;
     // Zeroizing<Vec<u8>> → Vec<u8> for FFI; caller (iOS) must zero the result.
     Ok(decrypted.to_vec())
 }

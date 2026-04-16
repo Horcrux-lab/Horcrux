@@ -82,3 +82,99 @@ impl Envelope {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn envelope_roundtrip_json() {
+        let env = Envelope::new(MessageType::Dkg, "device-1".into(), vec![0xDE, 0xAD]);
+        let json = serde_json::to_string(&env).unwrap();
+        let decoded: Envelope = serde_json::from_str(&json).unwrap();
+        assert_eq!(decoded.version, 1);
+        assert_eq!(decoded.msg_type, MessageType::Dkg);
+        assert_eq!(decoded.sender_id, "device-1");
+        assert_eq!(decoded.payload, vec![0xDE, 0xAD]);
+        assert_eq!(decoded.seq, 0);
+        assert!(decoded.ephemeral_pubkey.is_none());
+    }
+
+    #[test]
+    fn envelope_with_ephemeral_key() {
+        let mut env = Envelope::new(MessageType::Hello, "device-2".into(), vec![1, 2, 3]);
+        env.ephemeral_pubkey = Some(vec![0xAA; 32]);
+        env.seq = 42;
+        let json = serde_json::to_string(&env).unwrap();
+        let decoded: Envelope = serde_json::from_str(&json).unwrap();
+        assert_eq!(decoded.ephemeral_pubkey.unwrap().len(), 32);
+        assert_eq!(decoded.seq, 42);
+    }
+
+    #[test]
+    fn all_message_types_serialize() {
+        let types = [
+            MessageType::Hello,
+            MessageType::Dkg,
+            MessageType::Sign,
+            MessageType::Refresh,
+            MessageType::Control,
+            MessageType::Ack,
+        ];
+        for mt in types {
+            let json = serde_json::to_string(&mt).unwrap();
+            let decoded: MessageType = serde_json::from_str(&json).unwrap();
+            assert_eq!(decoded, mt);
+        }
+    }
+
+    #[test]
+    fn control_message_roundtrip() {
+        let msgs = vec![
+            ControlMessage::JoinRequest {
+                session_id: "sess-1".into(),
+                party_index: 2,
+            },
+            ControlMessage::JoinAccept {
+                session_id: "sess-1".into(),
+            },
+            ControlMessage::Leave {
+                session_id: "sess-1".into(),
+            },
+            ControlMessage::Abort {
+                session_id: "sess-1".into(),
+                reason: "timeout".into(),
+            },
+        ];
+        for msg in &msgs {
+            let json = serde_json::to_string(msg).unwrap();
+            let decoded: ControlMessage = serde_json::from_str(&json).unwrap();
+            let re_json = serde_json::to_string(&decoded).unwrap();
+            assert_eq!(json, re_json);
+        }
+    }
+
+    #[test]
+    fn all_channel_types_serialize() {
+        let types = [
+            ChannelType::Ble,
+            ChannelType::WifiDirect,
+            ChannelType::WifiLan,
+            ChannelType::QrCode,
+            ChannelType::Relay,
+        ];
+        for ct in types {
+            let json = serde_json::to_string(&ct).unwrap();
+            let decoded: ChannelType = serde_json::from_str(&json).unwrap();
+            assert_eq!(decoded, ct);
+        }
+    }
+
+    #[test]
+    fn envelope_empty_payload() {
+        let env = Envelope::new(MessageType::Ack, "d3".into(), vec![]);
+        let json = serde_json::to_string(&env).unwrap();
+        let decoded: Envelope = serde_json::from_str(&json).unwrap();
+        assert!(decoded.payload.is_empty());
+    }
+}

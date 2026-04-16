@@ -133,7 +133,7 @@ cargo run -p uniffi-bindgen generate \
 
 ### Test Coverage
 
-- **160+ Rust tests** (110 core + 36 relay + 14 bindgen) — 0 clippy warnings
+- **173+ Rust tests** (123 core + 36 relay + 14 bindgen) — 0 clippy warnings
 - **19 Swift test files** — ViewModels, services, security, crypto
 
 ## CI/CD

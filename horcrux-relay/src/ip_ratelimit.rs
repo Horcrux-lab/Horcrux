@@ -3,9 +3,9 @@
 //! Uses a sliding-window counter per IP address. Stale entries are
 //! garbage-collected periodically by the same cleanup task that prunes rooms.
 
+use parking_lot::Mutex;
 use std::collections::HashMap;
 use std::net::IpAddr;
-use std::sync::Mutex;
 use std::time::{Duration, Instant};
 
 /// Tracks per-IP room creation attempts.
@@ -38,10 +38,7 @@ impl IpRateLimiter {
     pub fn try_create(&self, ip: IpAddr) -> bool {
         let now = Instant::now();
         let cutoff = now - self.window;
-        let mut map = self
-            .entries
-            .lock()
-            .expect("IpRateLimiter mutex poisoned — cannot safely continue");
+        let mut map = self.entries.lock();
         let timestamps = map.entry(ip).or_default();
 
         // Remove expired entries
@@ -60,10 +57,7 @@ impl IpRateLimiter {
     pub fn gc(&self) {
         let now = Instant::now();
         let cutoff = now - self.window;
-        let mut map = self
-            .entries
-            .lock()
-            .expect("IpRateLimiter mutex poisoned — cannot safely continue");
+        let mut map = self.entries.lock();
         map.retain(|_ip, timestamps| {
             timestamps.retain(|t| *t > cutoff);
             !timestamps.is_empty()

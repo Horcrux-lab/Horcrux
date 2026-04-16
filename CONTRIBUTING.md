@@ -16,7 +16,7 @@ Thank you for your interest in contributing to Horcrux!
 # Build the full workspace
 cargo build --workspace
 
-# Run all tests (expect 160+ passing)
+# Run all tests (expect 173+ passing)
 cargo test --workspace
 
 # Run clippy (expect 0 warnings)

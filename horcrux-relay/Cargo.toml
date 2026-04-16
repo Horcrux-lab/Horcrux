@@ -26,6 +26,9 @@ hex.workspace = true
 # Constant-time comparison
 subtle = "2"
 
+# Faster, unpoisonable mutex
+parking_lot = "0.12"
+
 # Web framework
 axum = { version = "0.7", features = ["ws"] }
 tower = "0.5"
