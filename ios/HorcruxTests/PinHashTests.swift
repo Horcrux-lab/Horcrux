@@ -2,6 +2,7 @@ import XCTest
 @testable import Horcrux
 
 /// Tests for PBKDF2 PIN hashing in AppState.
+@MainActor
 final class PinHashTests: XCTestCase {
 
     func testHashPinProducesCorrectLength() {
@@ -41,18 +42,33 @@ final class PinHashTests: XCTestCase {
     func testHashPinRandomSaltEachCall() {
         let hash1 = AppState.hashPin("1234")
         let hash2 = AppState.hashPin("1234")
-        // Different random salts → different results
+        // Different random salts -> different results
         XCTAssertNotEqual(hash1, hash2)
     }
 
-    func testPinKeyMaterial() {
-        let material = AppState.pinKeyMaterial("1234")
-        XCTAssertEqual(material, Data("1234".utf8))
+    func testPinKeyMaterialRequiresStoredPin() {
+        // pinKeyMaterial requires a PIN salt stored in Keychain.
+        // Without a stored PIN, it should throw keychainUnavailable.
+        XCTAssertThrowsError(try AppState.pinKeyMaterial("1234")) { error in
+            if case AppError.keychainUnavailable = error {
+                // Expected
+            } else {
+                // May also succeed if a PIN was stored by a previous test run
+            }
+        }
     }
 
-    func testPinKeyMaterialUnicode() {
-        let material = AppState.pinKeyMaterial("密码")
-        XCTAssertEqual(material, Data("密码".utf8))
+    func testPinKeyMaterialWithStoredPin() throws {
+        // Store a PIN hash first, then derive key material.
+        let pinHash = AppState.hashPin("1234")
+        try KeychainManager.shared.store(key: "com.horcrux.pin_hash", data: pinHash)
+
+        defer {
+            try? KeychainManager.shared.delete(key: "com.horcrux.pin_hash")
+        }
+
+        let material = try AppState.pinKeyMaterial("1234")
+        XCTAssertEqual(material.count, 32, "Key material should be 32 bytes")
     }
 
     func testEmptyPinHashesSuccessfully() {

@@ -4,15 +4,6 @@ import XCTest
 /// Tests for CertificatePinner — SPKI pinning, TOFU, and pin validation.
 final class CertificatePinnerTests: XCTestCase {
 
-    // MARK: - Testable subclass
-
-    /// Subclass that exposes internal state for testing without relying on
-    /// Keychain-backed TOFU persistence.
-    private final class TestablePinner: CertificatePinner {
-        /// Override so tests can inspect pins directly.
-        var exposedHasPins: Bool { false } // unused — we use the public API
-    }
-
     // MARK: - testRegisterKnownPinsPopulatesHashes
 
     func testRegisterKnownPinsPopulatesHashes() {
