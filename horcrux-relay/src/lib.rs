@@ -37,6 +37,12 @@ pub fn init_start_time() {
 }
 
 /// Build the axum Router with all routes and middleware.
+///
+/// # Routes
+/// - `GET /ws/:room_id` — WebSocket relay endpoint
+/// - `GET /health` — Server health, uptime, and room count
+/// - `GET /metrics` — Prometheus-format metrics (admin-token protected)
+/// - `GET /admin/rooms` — Active room inspector (admin-token protected)
 pub fn build_app(state: AppState) -> Router {
     let config = &state.1;
 

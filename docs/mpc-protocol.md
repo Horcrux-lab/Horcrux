@@ -4,8 +4,8 @@
 
 | Chain | Signature | MPC Protocol | Crate | Reference |
 |-------|-----------|-------------|-------|-----------|
-| EVM (ETH, Polygon…) | ECDSA / secp256k1 | **CGGMP21** | `cggmp21` 0.6.3 | [Canetti et al. 2021](https://eprint.iacr.org/2021/060) |
-| Bitcoin | ECDSA / secp256k1 | **CGGMP21** | `cggmp21` 0.6.3 | Same paper |
+| EVM (ETH, Polygon…) | ECDSA / secp256k1 | **CGGMP21** | `cggmp21` 0.6 | [Canetti et al. 2021](https://eprint.iacr.org/2021/060) |
+| Bitcoin | ECDSA / secp256k1 | **CGGMP21** | `cggmp21` 0.6 | Same paper |
 | Solana | EdDSA / ed25519 | **FROST** | `frost-ed25519` 2.2 | [RFC 9591](https://www.rfc-editor.org/rfc/rfc9591) |
 
 **Why two protocols?** ECDSA and EdDSA have fundamentally different algebraic

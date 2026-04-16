@@ -7,7 +7,7 @@ Thank you for your interest in contributing to Horcrux!
 ### Prerequisites
 
 - **Rust** 1.80+ (`rustup update stable`)
-- **Xcode** 15+ (for iOS development)
+- **Xcode** 16+ (Swift 6.0) for iOS development
 - **cargo-clippy** and **rustfmt** (included with Rust toolchain)
 
 ### Building
@@ -16,7 +16,7 @@ Thank you for your interest in contributing to Horcrux!
 # Build the full workspace
 cargo build --workspace
 
-# Run all tests (expect 149+ passing)
+# Run all tests (expect 160+ passing)
 cargo test --workspace
 
 # Run clippy (expect 0 warnings)

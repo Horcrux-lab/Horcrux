@@ -105,13 +105,13 @@ Horcrux/
 
 | Crate | Version | Purpose |
 |-------|---------|---------|
-| `cggmp21` | 0.6.3 | Kudelski-audited CGGMP21 ECDSA (state-machine mode) |
+| `cggmp21` | 0.6 | Kudelski-audited CGGMP21 ECDSA (state-machine mode) |
 | `frost-ed25519` | 2.2 | IETF RFC 9591 FROST for ed25519 |
 | `snow` | 0.10 | Noise Protocol Framework (XX pattern) |
 | `k256` | 0.13 | secp256k1 curve operations, ECDSA verify for recovery_id |
 | `generic-ec` | 0.4 | Elliptic curve abstraction used by cggmp21 |
 | `uniffi` | 0.28 | FFI binding generation for Swift / Kotlin |
-| `axum` | 0.8 | Async web framework for relay server |
+| `axum` | 0.7 | Async web framework for relay server |
 | `tokio` | 1.x | Async runtime |
 
 ## Data Flow

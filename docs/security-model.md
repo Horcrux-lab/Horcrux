@@ -196,10 +196,13 @@ CGGMP21 signing. Face-to-face latency makes 4 rounds acceptable.
 
 - [ ] **Key refresh**: periodically rotate shards without changing the group
       key, invalidating any previously compromised shards.
-- [ ] **Hardware keystore integration**: combine PIN with Secure Enclave (iOS)
-      / StrongBox (Android) for shard encryption.
-- [ ] **Zeroize on drop**: ensure all secret material in memory is overwritten
-      when no longer needed.
-- [ ] **Display-what-you-sign**: mobile UI shows transaction details for user
-      confirmation before signing.
 - [ ] **Formal audit**: third-party security review of the full system.
+
+## Implemented Security Features
+
+- [x] **Hardware keystore integration**: PIN combined with Secure Enclave (iOS)
+      for shard encryption key derivation.
+- [x] **Zeroize on drop**: all secret material in memory is overwritten via the
+      `zeroize` crate (`Zeroizing<Vec<u8>>`, `ZeroizeOnDrop` derive).
+- [x] **Display-what-you-sign**: mobile UI shows transaction details (recipient,
+      amount, chain, gas) for user confirmation before signing.
