@@ -39,12 +39,23 @@ struct ShardsListView: View {
                     }
                 } else {
                     ScrollView {
-                        LazyVStack(spacing: 12) {
-                            ForEach(appState.walletStore.wallets) { wallet in
-                                NavigationLink {
-                                    ShardDetailView(wallet: wallet, viewModel: viewModel)
-                                } label: {
-                                    ShardRow(wallet: wallet)
+                        LazyVStack(spacing: 16) {
+                            ForEach(groupedWallets(appState.walletStore.wallets), id: \.groupKey) { group in
+                                VStack(alignment: .leading, spacing: 8) {
+                                    Text(group.accountLabel)
+                                        .font(.caption.weight(.semibold))
+                                        .foregroundStyle(HorcruxTheme.subtleText)
+                                        .padding(.horizontal, 4)
+
+                                    LazyVStack(spacing: 12) {
+                                        ForEach(group.wallets) { wallet in
+                                            NavigationLink {
+                                                ShardDetailView(wallet: wallet, viewModel: viewModel)
+                                            } label: {
+                                                ShardRow(wallet: wallet)
+                                            }
+                                        }
+                                    }
                                 }
                             }
                         }
@@ -75,6 +86,45 @@ struct ShardsListView: View {
                 viewModel.bind(to: appState)
             }
             .preferredColorScheme(.dark)
+        }
+    }
+
+    // MARK: - Account grouping (P3.2)
+
+    struct WalletGroup {
+        let groupKey: String
+        let accountLabel: String
+        let wallets: [Wallet]
+    }
+
+    /// Group wallets by shared groupPublicKey (same DKG ceremony → one account).
+    /// Wallets from pre-P0.2 backups have empty groupPublicKey → treated as individual accounts.
+    private func groupedWallets(_ wallets: [Wallet]) -> [WalletGroup] {
+        var ordered: [String] = []
+        var buckets: [String: [Wallet]] = [:]
+        for (idx, w) in wallets.enumerated() {
+            let key: String
+            if w.groupPublicKey.isEmpty {
+                key = "solo:\(w.id)"
+            } else {
+                key = "grp:" + w.groupPublicKey.map { String(format: "%02x", $0) }.joined().prefix(16)
+            }
+            if buckets[key] == nil {
+                ordered.append(key)
+                buckets[key] = []
+            }
+            buckets[key]?.append(w)
+            _ = idx
+        }
+        return ordered.enumerated().map { (i, key) in
+            let ws = buckets[key] ?? []
+            let label: String
+            if ws.count > 1 {
+                label = "账户 \(i + 1) · \(ws.count) 条链"
+            } else {
+                label = ws.first.map { "账户 \(i + 1) · \($0.chain.rawValue)" } ?? "账户 \(i + 1)"
+            }
+            return WalletGroup(groupKey: key, accountLabel: label, wallets: ws)
         }
     }
 }
@@ -253,6 +303,7 @@ struct ShardBackupView: View {
     @State private var isExporting = false
     @State private var showFileExporter = false
     @State private var copiedToClipboard = false
+    @State private var iCloudSaveStatus: String?
 
     private var backupFilename: String {
         let formatter = DateFormatter()
@@ -367,6 +418,13 @@ struct ShardBackupView: View {
             }
 
             Button {
+                saveToiCloudDrive()
+            } label: {
+                Label(iCloudSaveStatus ?? "保存到 iCloud Drive", systemImage: "icloud.and.arrow.up.fill")
+            }
+            .disabled(viewModel.exportData == nil || iCloudSaveStatus != nil)
+
+            Button {
                 if let data = viewModel.exportData,
                    let jsonString = String(data: data, encoding: .utf8) {
                     SecureClipboard.copy(jsonString)
@@ -397,6 +455,30 @@ struct ShardBackupView: View {
                         .foregroundStyle(.secondary)
                 }
             }
+        }
+    }
+
+    // MARK: - iCloud Drive
+
+    private func saveToiCloudDrive() {
+        guard let data = viewModel.exportData else {
+            iCloudSaveStatus = "没有可保存的数据"
+            return
+        }
+        guard let container = FileManager.default.url(forUbiquityContainerIdentifier: nil) else {
+            iCloudSaveStatus = "iCloud 未启用 — 请在系统设置启用"
+            return
+        }
+        let docs = container.appendingPathComponent("Documents", isDirectory: true)
+        do {
+            try FileManager.default.createDirectory(at: docs, withIntermediateDirectories: true)
+            let target = docs.appendingPathComponent(backupFilename)
+            try data.write(to: target, options: [.atomic, .completeFileProtection])
+            iCloudSaveStatus = "✓ 已保存到 iCloud Drive"
+            SecureLog.info("Shard backup saved to iCloud Drive")
+        } catch {
+            iCloudSaveStatus = "保存失败: \(error.localizedDescription)"
+            SecureLog.error("iCloud save failed: \(error.localizedDescription)")
         }
     }
 

@@ -9,6 +9,7 @@ struct SettingsView: View {
     @State private var showChangePin = false
     @State private var showWipeConfirmation = false
     @State private var relayWarning: String?
+    @State private var showHardwareWalletInfo = false
 
     private static let relayURLKey = RelayConfig.customURLKey
 
@@ -184,6 +185,35 @@ struct SettingsView: View {
                         .accessibilityIdentifier("settings_transportLink")
                     }
 
+                    // Advanced / Planned features (P3.3 stub)
+                    VStack(alignment: .leading, spacing: 10) {
+                        VaultSectionHeader("高级功能（规划中）", icon: "sparkles")
+                            .padding(.horizontal, 4)
+
+                        VStack(spacing: 0) {
+                            Button {
+                                showHardwareWalletInfo = true
+                            } label: {
+                                HStack {
+                                    VaultSettingsRow(
+                                        icon: "externaldrive.connected.to.line.below",
+                                        iconColor: HorcruxTheme.accentCyan,
+                                        title: "硬件钱包支持",
+                                        subtitle: "Ledger / Trezor 作为一个分片（计划中）"
+                                    )
+                                    Spacer()
+                                    Text("即将推出")
+                                        .font(.caption2.weight(.medium))
+                                        .foregroundStyle(HorcruxTheme.accentCyan)
+                                        .padding(.horizontal, 8)
+                                        .padding(.vertical, 3)
+                                        .background(HorcruxTheme.accentCyan.opacity(0.15), in: Capsule())
+                                }
+                            }
+                        }
+                        .glassCard()
+                    }
+
                     // About
                     VStack(alignment: .leading, spacing: 10) {
                         VaultSectionHeader(L10n.Settings.about, icon: "info.circle")
@@ -281,6 +311,11 @@ struct SettingsView: View {
                 Button(L10n.Common.cancel, role: .cancel) {}
             } message: {
                 Text(L10n.Settings.wipeMessage)
+            }
+            .alert("硬件钱包支持", isPresented: $showHardwareWalletInfo) {
+                Button("OK", role: .cancel) {}
+            } message: {
+                Text("未来版本将支持把 Ledger / Trezor 作为 MPC 中的一个分片。这样即使两台手机都丢失，你仍可通过硬件钱包恢复资产。\n\n当前版本请使用 2-of-3 配置并把第三个分片保存到 iCloud Drive 作为备份方案。")
             }
             .onAppear {
                 relayURL = RelayConfig.effectiveURL
