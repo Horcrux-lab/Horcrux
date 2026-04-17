@@ -673,7 +673,16 @@ struct DKGCompleteView: View {
             Spacer()
 
             Button {
-                showPinPrompt = true
+                // Fast path: reuse the key derived at unlock / onboarding —
+                // no second PIN prompt. Falls back to the alert flow only when
+                // the cache is empty (e.g. biometric-only unlock).
+                if let key = appState.cachedShardKey() {
+                    viewModel.saveWallet(to: appState, keyMaterial: key)
+                    Haptics.success()
+                    showBackupGate = true
+                } else {
+                    showPinPrompt = true
+                }
             } label: {
                 Text(L10n.DKG.saveEncryptShard)
                     .frame(maxWidth: .infinity)

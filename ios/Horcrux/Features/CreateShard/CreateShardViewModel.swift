@@ -302,7 +302,10 @@ final class CreateShardViewModel: ObservableObject {
         }
     }
 
-    func saveWallet(to appState: AppState, pin: String) {
+    /// Save the freshly-generated shard. Pass the PBKDF2-derived key material
+    /// directly (callers may use `AppState.cachedShardKey()` to reuse the key
+    /// from the just-completed unlock and skip a second PIN prompt).
+    func saveWallet(to appState: AppState, keyMaterial: Data) {
         guard let result = keygenResult else { return }
 
         let baseId = sessionId ?? UUID().uuidString
@@ -331,7 +334,7 @@ final class CreateShardViewModel: ObservableObject {
                     let encrypted = try appState.bridge.encryptShard(
                         plaintext: result.shardData,
                         deviceKey: deviceKey,
-                        pin: try AppState.pinKeyMaterial(pin)
+                        pin: keyMaterial
                     )
                     let encoded = try JSONEncoder().encode(EncryptedShardDTO(encrypted))
                     try appState.walletStore.storeKeyShare(encoded, walletId: walletId)
@@ -356,6 +359,13 @@ final class CreateShardViewModel: ObservableObject {
 
         // Clean up MPC session
         appState.bridge.removeSession(sessionId: sessionId!)
+    }
+
+    /// Convenience: derive key material from PIN and save. Used as the fallback
+    /// path when there's no cached key (e.g. biometric-unlocked session).
+    func saveWallet(to appState: AppState, pin: String) {
+        guard let material = try? AppState.pinKeyMaterial(pin) else { return }
+        saveWallet(to: appState, keyMaterial: material)
     }
 }
 

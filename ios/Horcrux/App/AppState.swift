@@ -46,6 +46,18 @@ final class AppState: ObservableObject {
     /// Whether the app is unlocked (PIN / biometric verified)
     @Published var isUnlocked: Bool = false
 
+    /// PIN-derived key material cached in RAM for the duration of this
+    /// unlocked session. Used to encrypt freshly-generated shards in the
+    /// *same* session that performed the unlock (no re-prompt for PIN).
+    ///
+    /// Security posture: sensitive operations that move value or egress
+    /// data (transaction signing, backup export) still re-prompt for PIN.
+    /// This cache only removes the second prompt when the user has just
+    /// authenticated AND is persisting a locally-generated shard.
+    ///
+    /// Zeroed on app backgrounding (see `HorcruxApp.swift`).
+    private var cachedShardKeyMaterial: Data?
+
     /// Whether this is the first launch (no PIN set yet)
     var isFirstLaunch: Bool {
         (try? KeychainManager.shared.retrieve(key: KeychainKeys.pinHash)) == nil
@@ -96,6 +108,10 @@ final class AppState: ObservableObject {
         try KeychainManager.shared.store(key: KeychainKeys.pinHash, data: saltedHash)
         // Reset attempt counter
         resetFailedAttempts()
+        // Cache derived key material for this session (same rationale as verifyPin).
+        if let derived = try? Self.pinKeyMaterial(pin) {
+            cachedShardKeyMaterial = derived
+        }
     }
 
     /// Verify a PIN against the stored salt||hash. Returns false if locked out.
@@ -116,11 +132,30 @@ final class AppState: ObservableObject {
         let recomputed = Self.hashPin(pin, salt: Data(salt))
         if recomputed == stored {
             resetFailedAttempts()
+            // Cache the derived key material so the immediate save-shard step
+            // within this unlock session doesn't need a second PIN prompt.
+            if let derived = try? Self.pinKeyMaterial(pin) {
+                cachedShardKeyMaterial = derived
+            }
             return true
         } else {
             recordFailedAttempt()
             return false
         }
+    }
+
+    /// Returns the cached PIN-derived shard encryption key, if one is available
+    /// for this unlocked session. Caller should fall back to a PIN prompt when nil.
+    func cachedShardKey() -> Data? {
+        cachedShardKeyMaterial
+    }
+
+    /// Forget the cached shard-key material. Called on app backgrounding and logout.
+    func clearCachedShardKey() {
+        if var k = cachedShardKeyMaterial {
+            k.resetBytes(in: 0..<k.count)
+        }
+        cachedShardKeyMaterial = nil
     }
 
     /// Derive encryption key material from PIN using PBKDF2.
@@ -301,6 +336,7 @@ final class AppState: ObservableObject {
     /// Called when app enters background — clear sensitive in-memory data and track time.
     func onEnterBackground() {
         lastActiveTime = .now
+        clearCachedShardKey()
         NotificationCenter.default.post(name: .appDidEnterBackground, object: nil)
     }
 
@@ -310,6 +346,7 @@ final class AppState: ObservableObject {
         let elapsed = Date.now.timeIntervalSince(lastActiveTime)
         if elapsed >= autoLockTimeout {
             isUnlocked = false
+            clearCachedShardKey()
         }
     }
 
