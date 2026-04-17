@@ -8,6 +8,7 @@ private enum UXTiming {
 /// Wallet home screen — dark-tech card layout with balances and quick actions.
 struct WalletHomeView: View {
     @EnvironmentObject private var appState: AppState
+    @EnvironmentObject private var walletStore: WalletStore
     @StateObject private var accountStore = AccountStore.shared
     @State private var showCreateShard = false
     @State private var showRestoreSheet = false
@@ -19,7 +20,7 @@ struct WalletHomeView: View {
                 HorcruxTheme.backgroundGradient.ignoresSafeArea()
 
                 Group {
-                    if appState.walletStore.wallets.isEmpty {
+                    if walletStore.wallets.isEmpty {
                         emptyState
                     } else {
                         walletList
@@ -119,7 +120,7 @@ struct WalletHomeView: View {
         ScrollView {
             LazyVStack(spacing: 12) {
                 // Portfolio summary (IA: root → chain → asset)
-                PortfolioSummaryCard(wallets: appState.walletStore.wallets)
+                PortfolioSummaryCard(wallets: walletStore.wallets)
 
                 // Pending broadcasts
                 if !appState.pendingBroadcastQueue.pending.isEmpty {
@@ -182,7 +183,7 @@ struct WalletHomeView: View {
     /// deterministic fallback based on the first wallet's name (stripped of
     /// any "(SYMBOL)" chain suffix).
     private var walletGroups: [WalletGroup] {
-        let wallets = appState.walletStore.wallets
+        let wallets = walletStore.wallets
         let buckets = Dictionary(grouping: wallets, by: { $0.accountId })
         return buckets
             .map { (accountId, list) -> WalletGroup in

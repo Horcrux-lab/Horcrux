@@ -47,6 +47,7 @@ struct HorcruxApp: App {
         WindowGroup {
             ContentView()
                 .environmentObject(appState)
+                .environmentObject(appState.walletStore)
                 .environmentObject(deepLinkRouter)
                 .blur(radius: blurRadius)
                 .animation(.easeInOut(duration: 0.15), value: blurRadius)

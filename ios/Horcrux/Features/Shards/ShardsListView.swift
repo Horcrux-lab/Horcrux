@@ -41,6 +41,7 @@ struct ShardAccount: Identifiable {
 /// chain wallets but they all share the same key share on this device.
 struct ShardsListView: View {
     @EnvironmentObject private var appState: AppState
+    @EnvironmentObject private var walletStore: WalletStore
     @StateObject private var viewModel = ShardsViewModel()
     @State private var showImportSheet = false
 
@@ -49,7 +50,7 @@ struct ShardsListView: View {
             ZStack {
                 HorcruxTheme.backgroundGradient.ignoresSafeArea()
 
-                if appState.walletStore.wallets.isEmpty {
+                if walletStore.wallets.isEmpty {
                     emptyState
                 } else {
                     accountList
@@ -105,7 +106,7 @@ struct ShardsListView: View {
     private var accountList: some View {
         ScrollView {
             LazyVStack(spacing: 12) {
-                ForEach(ShardAccount.group(appState.walletStore.wallets)) { account in
+                ForEach(ShardAccount.group(walletStore.wallets)) { account in
                     NavigationLink {
                         ShardAccountDetailView(account: account, viewModel: viewModel)
                     } label: {
