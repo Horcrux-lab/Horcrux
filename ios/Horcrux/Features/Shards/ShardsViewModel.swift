@@ -219,7 +219,8 @@ final class ShardsViewModel: ObservableObject {
                 threshold: backup.threshold,
                 totalParties: backup.totalParties,
                 partyIndex: backup.partyIndex,
-                createdAt: entry.createdAt
+                createdAt: entry.createdAt,
+                isHidden: nil
             )
             appState.walletStore.add(wallet)
         }
@@ -254,7 +255,8 @@ final class ShardsViewModel: ObservableObject {
             threshold: backup.threshold,
             totalParties: backup.totalParties,
             partyIndex: backup.partyIndex,
-            createdAt: Date()
+            createdAt: Date(),
+            isHidden: nil
         )
 
         try appState.walletStore.storeKeyShare(encoded, accountId: wallet.accountId)

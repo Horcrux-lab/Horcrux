@@ -57,7 +57,30 @@ final class WalletStore: ObservableObject {
             threshold: wallets[idx].threshold,
             totalParties: wallets[idx].totalParties,
             partyIndex: wallets[idx].partyIndex,
-            createdAt: wallets[idx].createdAt
+            createdAt: wallets[idx].createdAt,
+            isHidden: wallets[idx].isHidden
+        )
+        save()
+    }
+
+    /// Toggle a wallet's hidden flag without changing any other data.
+    /// Hidden wallets are filtered out of the main wallet list but remain
+    /// signable and recoverable — this is purely a declutter aid for users
+    /// who generate many per-chain wallets from a single DKG ceremony.
+    func setHidden(id: String, hidden: Bool) {
+        guard let idx = wallets.firstIndex(where: { $0.id == id }) else { return }
+        let w = wallets[idx]
+        wallets[idx] = Wallet(
+            id: w.id,
+            name: w.name,
+            chain: w.chain,
+            address: w.address,
+            groupPublicKey: w.groupPublicKey,
+            threshold: w.threshold,
+            totalParties: w.totalParties,
+            partyIndex: w.partyIndex,
+            createdAt: w.createdAt,
+            isHidden: hidden ? true : nil
         )
         save()
     }

@@ -478,6 +478,10 @@ struct Wallet: Identifiable, Codable {
     let totalParties: UInt16
     let partyIndex: UInt16
     let createdAt: Date
+    /// Optional so legacy wallets (pre-0.3.0-dev.13) decode with nil == not hidden.
+    let isHidden: Bool?
+
+    var hidden: Bool { isHidden ?? false }
 
     /// Canonical ID for the MPC account (= DKG ceremony). All wallets that
     /// share the same `groupPublicKey` belong to one account and share the

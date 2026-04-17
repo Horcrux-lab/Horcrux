@@ -120,7 +120,7 @@ struct WalletHomeView: View {
         ScrollView {
             LazyVStack(spacing: 12) {
                 // Portfolio summary (IA: root → chain → asset)
-                PortfolioSummaryCard(wallets: walletStore.wallets)
+                PortfolioSummaryCard(wallets: walletStore.wallets.filter { !$0.hidden })
 
                 // Pending broadcasts
                 if !appState.pendingBroadcastQueue.pending.isEmpty {
@@ -168,8 +168,19 @@ struct WalletHomeView: View {
                             .accessibilityLabel("\(wallet.name), \(wallet.chain.rawValue) wallet")
                             .accessibilityHint(L10n.WalletHome.viewDetailsHint)
                             .accessibilityIdentifier("walletHome_walletRow_\(wallet.id)")
+                            .contextMenu {
+                                Button {
+                                    walletStore.setHidden(id: wallet.id, hidden: true)
+                                } label: {
+                                    Label("隐藏", systemImage: "eye.slash")
+                                }
+                            }
                         }
                     }
+                }
+
+                if !hiddenWallets.isEmpty {
+                    hiddenSection
                 }
             }
             .padding(.horizontal, 16)
@@ -183,7 +194,7 @@ struct WalletHomeView: View {
     /// deterministic fallback based on the first wallet's name (stripped of
     /// any "(SYMBOL)" chain suffix).
     private var walletGroups: [WalletGroup] {
-        let wallets = walletStore.wallets
+        let wallets = walletStore.wallets.filter { !$0.hidden }
         let buckets = Dictionary(grouping: wallets, by: { $0.accountId })
         return buckets
             .map { (accountId, list) -> WalletGroup in
@@ -197,6 +208,54 @@ struct WalletHomeView: View {
                 )
             }
             .sorted { $0.label < $1.label }
+    }
+
+    private var hiddenWallets: [Wallet] {
+        walletStore.wallets.filter { $0.hidden }.sorted { $0.chain.rawValue < $1.chain.rawValue }
+    }
+
+    @State private var hiddenExpanded = false
+
+    private var hiddenSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Button {
+                withAnimation { hiddenExpanded.toggle() }
+            } label: {
+                HStack(spacing: 6) {
+                    Image(systemName: "eye.slash")
+                        .font(.caption)
+                        .foregroundStyle(HorcruxTheme.subtleText)
+                    Text("已隐藏 (\(hiddenWallets.count))")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(HorcruxTheme.subtleText)
+                    Spacer()
+                    Image(systemName: hiddenExpanded ? "chevron.up" : "chevron.down")
+                        .font(.caption2)
+                        .foregroundStyle(HorcruxTheme.subtleText)
+                }
+                .padding(.horizontal, 6)
+                .padding(.top, 12)
+            }
+            .buttonStyle(.plain)
+
+            if hiddenExpanded {
+                ForEach(hiddenWallets) { wallet in
+                    NavigationLink {
+                        WalletDetailView(wallet: wallet)
+                    } label: {
+                        WalletRow(wallet: wallet, showThresholdBadge: false)
+                            .opacity(0.55)
+                    }
+                    .contextMenu {
+                        Button {
+                            walletStore.setHidden(id: wallet.id, hidden: false)
+                        } label: {
+                            Label("取消隐藏", systemImage: "eye")
+                        }
+                    }
+                }
+            }
+        }
     }
 
     private struct WalletGroup {

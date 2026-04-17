@@ -642,7 +642,8 @@ final class CreateShardViewModel: ObservableObject {
                 threshold: UInt16(threshold),
                 totalParties: UInt16(totalParties),
                 partyIndex: UInt16(partyIndex),
-                createdAt: .now
+                createdAt: .now,
+                isHidden: nil
             )
 
             appState.walletStore.add(wallet)
