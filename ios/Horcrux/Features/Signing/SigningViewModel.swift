@@ -16,6 +16,35 @@ final class SigningViewModel: ObservableObject {
     /// Selected ERC-20 / SPL token (nil = native coin transfer).
     @Published var selectedToken: Token? = nil
 
+    /// User-selected fee priority. Scales the cached EVM gas estimate
+    /// and (in future) BTC fee rate. Normal = network-suggested values.
+    @Published var feeTier: FeeTier = .normal {
+        didSet {
+            if feeTier != oldValue { refreshFeeDisplay() }
+        }
+    }
+
+    enum FeeTier: String, CaseIterable, Identifiable {
+        case slow, normal, fast
+        var id: String { rawValue }
+        var label: String {
+            switch self {
+            case .slow: return "慢"
+            case .normal: return "标准"
+            case .fast: return "快"
+            }
+        }
+        /// Multiplier applied to maxFeePerGas & maxPriorityFeePerGas
+        /// (EVM) or to the suggested BTC feerate.
+        var multiplier: Double {
+            switch self {
+            case .slow: return 0.85
+            case .normal: return 1.0
+            case .fast: return 1.3
+            }
+        }
+    }
+
     /// Available tokens for the current wallet chain. Native coin is represented as `nil`.
     var availableTokens: [Token] {
         TokenList.tokens(for: wallet.chain)
@@ -535,8 +564,9 @@ final class SigningViewModel: ObservableObject {
             // minimal sensible defaults so signing doesn't crash.
             let gas = self.pendingEvmGas
             let gasLimit: UInt64 = gas?.gasLimit ?? UInt64(estimatedGas) ?? 21000
-            let maxFee: String = gas?.maxFeePerGas ?? "0"
-            let maxPriority: String = gas?.maxPriorityFeePerGas ?? "0"
+            let tier = self.feeTier
+            let maxFee: String = Self.scaleDecimalWei(gas?.maxFeePerGas ?? "0", by: tier.multiplier)
+            let maxPriority: String = Self.scaleDecimalWei(gas?.maxPriorityFeePerGas ?? "0", by: tier.multiplier)
 
             let params = FfiEvmTxParams(
                 to: txTo,
@@ -975,6 +1005,33 @@ final class SigningViewModel: ObservableObject {
             createdAt: Date()
         )
         queue.enqueue(pending)
+    }
+
+    /// Multiply a decimal-string wei value by a Double multiplier, clamping
+    /// at UInt64 (EVM max fees never approach that ceiling in practice).
+    /// Falls back to the input on parse failure.
+    static func scaleDecimalWei(_ decimalWei: String, by multiplier: Double) -> String {
+        guard multiplier != 1.0 else { return decimalWei }
+        guard let v = UInt64(decimalWei) else { return decimalWei }
+        let scaled = Double(v) * multiplier
+        if !scaled.isFinite || scaled < 0 { return decimalWei }
+        return String(UInt64(scaled))
+    }
+
+    /// Rebuild the `estimatedFee` display string when the tier changes,
+    /// without hitting the network again.
+    private func refreshFeeDisplay() {
+        guard wallet.chain.isEVM, let gas = pendingEvmGas else { return }
+        let mult = feeTier.multiplier
+        guard let maxFee = UInt64(gas.maxFeePerGas) else { return }
+        let scaled = UInt64(Double(maxFee) * mult)
+        let feeWei = scaled &* gas.gasLimit
+        // Convert wei → ether with 6-decimal display, strip trailing zeros.
+        let feeEth = Double(feeWei) / 1e18
+        let display = String(format: "%.6f", feeEth)
+            .replacingOccurrences(of: #"0+$"#, with: "", options: .regularExpression)
+            .replacingOccurrences(of: #"\.$"#, with: "", options: .regularExpression)
+        estimatedFee = "≈ \(display) \(wallet.chain.symbol)"
     }
 
     /// Populate `amount` with the maximum sendable value.

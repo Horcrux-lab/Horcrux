@@ -169,8 +169,16 @@ struct ComposeTransactionView: View {
                 }
             }
 
-            if viewModel.wallet.chain == .ethereum {
+            if viewModel.wallet.chain.isEVM {
                 Section(L10n.Signing.gas) {
+                    Picker("费用优先级", selection: $viewModel.feeTier) {
+                        ForEach(SigningViewModel.FeeTier.allCases) { tier in
+                            Text(tier.label).tag(tier)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                    .accessibilityIdentifier("compose_feeTierPicker")
+
                     if viewModel.isEstimatingGas {
                         HStack {
                             Text(L10n.Signing.estimating)
