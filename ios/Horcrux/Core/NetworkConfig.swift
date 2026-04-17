@@ -234,10 +234,16 @@ final class NetworkConfig: ObservableObject, @unchecked Sendable {
 /// public RPC. Adding a row here makes it available in settings.
 enum EVMNetwork: UInt64, CaseIterable, Identifiable {
     case mainnet = 1
-    case sepolia = 11155111
+    case optimism = 10
+    case bnb = 56
     case polygon = 137
-    case arbitrumOne = 42161
     case base = 8453
+    case arbitrumOne = 42161
+    case avalanche = 43114
+    case zkSyncEra = 324
+    case linea = 59144
+    case scroll = 534352
+    case sepolia = 11155111
 
     var id: UInt64 { rawValue }
 
@@ -248,6 +254,12 @@ enum EVMNetwork: UInt64, CaseIterable, Identifiable {
         case .polygon: return "Polygon"
         case .arbitrumOne: return "Arbitrum One"
         case .base: return "Base"
+        case .optimism: return "Optimism"
+        case .bnb: return "BNB Smart Chain"
+        case .avalanche: return "Avalanche C-Chain"
+        case .zkSyncEra: return "zkSync Era"
+        case .linea: return "Linea"
+        case .scroll: return "Scroll"
         }
     }
 
@@ -258,6 +270,23 @@ enum EVMNetwork: UInt64, CaseIterable, Identifiable {
         case .polygon: return "https://polygon-rpc.com"
         case .arbitrumOne: return "https://arb1.arbitrum.io/rpc"
         case .base: return "https://mainnet.base.org"
+        case .optimism: return "https://mainnet.optimism.io"
+        case .bnb: return "https://bsc-dataseed.bnbchain.org"
+        case .avalanche: return "https://api.avax.network/ext/bc/C/rpc"
+        case .zkSyncEra: return "https://mainnet.era.zksync.io"
+        case .linea: return "https://rpc.linea.build"
+        case .scroll: return "https://rpc.scroll.io"
+        }
+    }
+
+    /// Native currency ticker used by the UI for balance labels.
+    var nativeSymbol: String {
+        switch self {
+        case .mainnet, .sepolia, .arbitrumOne, .base, .optimism, .zkSyncEra, .linea, .scroll:
+            return "ETH"
+        case .polygon: return "POL"
+        case .bnb: return "BNB"
+        case .avalanche: return "AVAX"
         }
     }
 }
@@ -393,6 +422,13 @@ enum RPCProviderTemplate {
         case .polygon: return "https://polygon-mainnet.g.alchemy.com/v2/{KEY}"
         case .arbitrumOne: return "https://arb-mainnet.g.alchemy.com/v2/{KEY}"
         case .base: return "https://base-mainnet.g.alchemy.com/v2/{KEY}"
+        case .optimism: return "https://opt-mainnet.g.alchemy.com/v2/{KEY}"
+        case .avalanche: return "https://avax-mainnet.g.alchemy.com/v2/{KEY}"
+        case .zkSyncEra: return "https://zksync-mainnet.g.alchemy.com/v2/{KEY}"
+        case .linea: return "https://linea-mainnet.g.alchemy.com/v2/{KEY}"
+        case .scroll: return "https://scroll-mainnet.g.alchemy.com/v2/{KEY}"
+        // Alchemy does not serve BNB Chain; users must use public/QuickNode.
+        case .bnb: return nil
         }
     }
 
@@ -442,6 +478,39 @@ enum RPCFallbacks {
                     "https://mainnet.base.org",
                     "https://base.llamarpc.com",
                     "https://base.publicnode.com"
+                ]
+            case .optimism:
+                return [
+                    "https://mainnet.optimism.io",
+                    "https://optimism.llamarpc.com",
+                    "https://optimism.publicnode.com"
+                ]
+            case .bnb:
+                return [
+                    "https://bsc-dataseed.bnbchain.org",
+                    "https://bsc-dataseed1.defibit.io",
+                    "https://bsc.publicnode.com"
+                ]
+            case .avalanche:
+                return [
+                    "https://api.avax.network/ext/bc/C/rpc",
+                    "https://avalanche.publicnode.com",
+                    "https://rpc.ankr.com/avalanche"
+                ]
+            case .zkSyncEra:
+                return [
+                    "https://mainnet.era.zksync.io",
+                    "https://zksync.drpc.org"
+                ]
+            case .linea:
+                return [
+                    "https://rpc.linea.build",
+                    "https://linea.drpc.org"
+                ]
+            case .scroll:
+                return [
+                    "https://rpc.scroll.io",
+                    "https://scroll.drpc.org"
                 ]
             }
         case .bitcoin:

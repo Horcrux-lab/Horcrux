@@ -368,7 +368,8 @@ actor BlockchainService {
                 case .ethereum:
                     let wei = try await ethBalance(address: wallet.address, rpcURL: url)
                     if idx > 0 { SecureLog.info("RPC fallback \(idx) succeeded for ETH balance") }
-                    return formatEthBalance(wei: wei)
+                    let symbol = EVMNetwork(rawValue: config.evmChainId)?.nativeSymbol ?? "ETH"
+                    return formatEthBalance(wei: wei, symbol: symbol)
                 case .bitcoin:
                     let sats = try await btcBalance(address: wallet.address, apiURL: url)
                     if idx > 0 { SecureLog.info("RPC fallback \(idx) succeeded for BTC balance") }
@@ -601,12 +602,12 @@ actor BlockchainService {
         return "\(value)"
     }
 
-    private func formatEthBalance(wei: String) -> String {
-        guard let value = Double(wei) else { return "0 ETH" }
+    private func formatEthBalance(wei: String, symbol: String = "ETH") -> String {
+        guard let value = Double(wei) else { return "0 \(symbol)" }
         let eth = value / 1e18
-        if eth == 0 { return "0 ETH" }
-        if eth < 0.0001 { return String(format: "%.8f ETH", eth) }
-        return String(format: "%.4f ETH", eth)
+        if eth == 0 { return "0 \(symbol)" }
+        if eth < 0.0001 { return String(format: "%.8f \(symbol)", eth) }
+        return String(format: "%.4f \(symbol)", eth)
     }
 
     private func formatBtcBalance(satoshis: UInt64) -> String {
