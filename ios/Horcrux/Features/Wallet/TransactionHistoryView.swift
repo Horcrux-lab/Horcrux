@@ -4,6 +4,8 @@ import SwiftUI
 struct TransactionHistoryView: View {
     let wallet: Wallet
     @EnvironmentObject private var appState: AppState
+    @State private var isSyncing = false
+    @State private var syncResult: String?
 
     private var transactions: [TransactionRecord] {
         appState.transactionStore.records(for: wallet.id)
@@ -24,6 +26,52 @@ struct TransactionHistoryView: View {
         .navigationTitle(L10n.TxHistory.title)
         .navigationBarTitleDisplayMode(.inline)
         .toolbarColorScheme(.dark, for: .navigationBar)
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button {
+                    Task { await sync() }
+                } label: {
+                    if isSyncing {
+                        ProgressView().scaleEffect(0.7)
+                    } else {
+                        Image(systemName: "arrow.clockwise")
+                    }
+                }
+                .disabled(isSyncing)
+                .accessibilityIdentifier("txHistory_syncButton")
+            }
+        }
+        .refreshable { await sync() }
+        .overlay(alignment: .bottom) {
+            if let syncResult {
+                Text(syncResult)
+                    .font(.caption)
+                    .padding(.horizontal, 12).padding(.vertical, 6)
+                    .background(Capsule().fill(.ultraThinMaterial))
+                    .padding(.bottom, 20)
+                    .transition(.opacity)
+            }
+        }
+    }
+
+    @MainActor
+    private func sync() async {
+        guard !isSyncing else { return }
+        isSyncing = true
+        let syncer = TransactionHistorySyncer(
+            store: appState.transactionStore,
+            service: appState.blockchainService,
+            config: appState.networkConfig
+        )
+        let inserted = await syncer.sync(wallet: wallet)
+        isSyncing = false
+        if inserted > 0 {
+            syncResult = "已同步 \(inserted) 条新记录"
+        } else {
+            syncResult = "已是最新"
+        }
+        try? await Task.sleep(nanoseconds: 1_800_000_000)
+        withAnimation { syncResult = nil }
     }
 
     private var emptyState: some View {

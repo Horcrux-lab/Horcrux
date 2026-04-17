@@ -50,6 +50,8 @@ enum TronAddress {
 
     /// Double-SHA256 the payload, append the first 4 bytes as the checksum,
     /// then Base58-encode the whole blob.
+    static func base58CheckEncode(_ payload: Data) -> String { base58Check(payload) }
+
     private static func base58Check(_ payload: Data) -> String {
         let first = SHA256.hash(data: payload)
         let second = SHA256.hash(data: Data(first))
@@ -147,6 +149,8 @@ enum TronAddress {
 /// Namespaced view the BlockchainService calls into for address ABI encoding.
 enum Base58Check {
     static func decode(_ s: String) -> [UInt8]? { TronAddress.base58CheckDecode(s) }
+    /// Base58Check encode: payload (with network byte) → [payload || dsha256(payload)[0..4]] → base58.
+    static func encode(_ payload: Data) -> String { TronAddress.base58CheckEncode(payload) }
 }
 
 /// Convert a non-negative decimal string (any length) to a 64-char

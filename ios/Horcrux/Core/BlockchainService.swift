@@ -1057,6 +1057,145 @@ actor BlockchainService {
         if sol < 0.0001 { return String(format: "%.9f SOL", sol) }
         return String(format: "%.4f SOL", sol)
     }
+
+    // MARK: - Transaction history sync
+
+    /// Light-weight external transaction summary used by the history syncer.
+    /// Amounts are in smallest units (sats / SUN / lamports / wei) so the
+    /// caller decides how to format.
+    struct ExternalTx {
+        let txHash: String
+        let blockTime: Date?
+        let from: String
+        let to: String
+        let /* signed; positive = received, negative = sent */ deltaSmallest: Int64
+        let feeSmallest: UInt64
+        let confirmed: Bool
+    }
+
+    /// Fetch the most recent Esplora-style transactions (Blockstream for BTC,
+    /// litecoinspace.org for LTC). Returns at most 25 items.
+    func esploraRecentTxs(address: String, apiURL: String) async throws -> [ExternalTx] {
+        let safe = try Self.sanitizedAddress(address)
+        let url = try Self.validatedURL("\(apiURL)/address/\(safe)/txs")
+        let (data, response) = try await session.data(from: url)
+        try validateHTTP(response)
+        struct Vin: Decodable {
+            let prevout: Prevout?
+            struct Prevout: Decodable {
+                let scriptpubkey_address: String?
+                let value: UInt64?
+            }
+        }
+        struct Vout: Decodable {
+            let scriptpubkey_address: String?
+            let value: UInt64
+        }
+        struct Status: Decodable {
+            let confirmed: Bool
+            let block_time: Int64?
+        }
+        struct Tx: Decodable {
+            let txid: String
+            let vin: [Vin]
+            let vout: [Vout]
+            let fee: UInt64
+            let status: Status
+        }
+        let txs = try JSONDecoder().decode([Tx].self, from: data)
+        let safeLower = safe.lowercased()
+        return txs.prefix(25).map { tx in
+            // Net delta for this address = sum(vout to me) - sum(vin from me).
+            let sentIn = tx.vin.reduce(0) { acc, v in
+                (v.prevout?.scriptpubkey_address?.lowercased() == safeLower) ? acc + (v.prevout?.value ?? 0) : acc
+            }
+            let receivedOut = tx.vout.reduce(0) { acc, v in
+                (v.scriptpubkey_address?.lowercased() == safeLower) ? acc + v.value : acc
+            }
+            let delta = Int64(receivedOut) - Int64(sentIn)
+            // Best-effort counterparty: if we sent, pick the first vout not ours;
+            // if we received, pick the first vin.prevout not ours.
+            let counterparty: String = {
+                if delta < 0 {
+                    return tx.vout.first(where: { $0.scriptpubkey_address?.lowercased() != safeLower })?.scriptpubkey_address ?? ""
+                } else {
+                    return tx.vin.first(where: { $0.prevout?.scriptpubkey_address?.lowercased() != safeLower })?.prevout?.scriptpubkey_address ?? ""
+                }
+            }()
+            return ExternalTx(
+                txHash: tx.txid,
+                blockTime: tx.status.block_time.map { Date(timeIntervalSince1970: TimeInterval($0)) },
+                from: delta < 0 ? safe : counterparty,
+                to: delta < 0 ? counterparty : safe,
+                deltaSmallest: delta,
+                feeSmallest: tx.fee,
+                confirmed: tx.status.confirmed
+            )
+        }
+    }
+
+    /// Fetch recent TRON transactions via TronGrid's keyless v1 endpoint.
+    /// Returns native TRX transfers only (TransferContract); TRC-20 history
+    /// lives at `/v1/accounts/{addr}/transactions/trc20`.
+    func tronRecentTxs(address: String, apiURL: String) async throws -> [ExternalTx] {
+        let safe = try Self.sanitizedAddress(address)
+        let url = try Self.validatedURL("\(apiURL)/v1/accounts/\(safe)/transactions?limit=25&only_confirmed=true")
+        let (data, response) = try await session.data(from: url)
+        try validateHTTP(response)
+        guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let rows = json["data"] as? [[String: Any]] else {
+            return []
+        }
+        var out: [ExternalTx] = []
+        for tx in rows {
+            guard let txId = tx["txID"] as? String,
+                  let rawData = tx["raw_data"] as? [String: Any],
+                  let contracts = rawData["contract"] as? [[String: Any]],
+                  let first = contracts.first,
+                  (first["type"] as? String) == "TransferContract",
+                  let paramWrap = first["parameter"] as? [String: Any],
+                  let value = paramWrap["value"] as? [String: Any],
+                  let fromHex = value["owner_address"] as? String,
+                  let toHex = value["to_address"] as? String,
+                  let amount = value["amount"] as? NSNumber
+            else { continue }
+            let ts = (tx["block_timestamp"] as? NSNumber)?.doubleValue ?? 0
+            let ret = tx["ret"] as? [[String: Any]]
+            let ok = (ret?.first?["contractRet"] as? String) == "SUCCESS"
+            let feeRaw = (tx["net_fee"] as? NSNumber)?.uint64Value ?? 0
+            let from = tronHexAddrToBase58(fromHex) ?? fromHex
+            let to = tronHexAddrToBase58(toHex) ?? toHex
+            let isSend = from.lowercased() == safe.lowercased()
+            out.append(ExternalTx(
+                txHash: txId,
+                blockTime: ts > 0 ? Date(timeIntervalSince1970: ts / 1000) : nil,
+                from: from,
+                to: to,
+                deltaSmallest: isSend ? -Int64(truncatingIfNeeded: amount.int64Value) : Int64(truncatingIfNeeded: amount.int64Value),
+                feeSmallest: feeRaw,
+                confirmed: ok
+            ))
+        }
+        return out
+    }
+
+    /// Convert a TRON hex address (41XX…) back to base58. Uses the same
+    /// base58check + 0x41 network-byte scheme as tronBase58AddressToHex20 in
+    /// reverse.
+    private func tronHexAddrToBase58(_ hex: String) -> String? {
+        let clean = hex.hasPrefix("0x") ? String(hex.dropFirst(2)) : hex
+        guard clean.count == 42 else { return nil }
+        var bytes = [UInt8]()
+        bytes.reserveCapacity(21)
+        var idx = clean.startIndex
+        while idx < clean.endIndex {
+            let next = clean.index(idx, offsetBy: 2)
+            guard let b = UInt8(clean[idx..<next], radix: 16) else { return nil }
+            bytes.append(b)
+            idx = next
+        }
+        return Base58Check.encode(Data(bytes))
+    }
 }
 
 // MARK: - Fee Estimate Model
