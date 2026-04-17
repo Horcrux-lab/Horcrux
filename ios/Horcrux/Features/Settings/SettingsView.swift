@@ -791,6 +791,19 @@ struct BlockchainNodeSettingsView: View {
                 NodeStatusRow(chain: .tron)
             }
 
+            Section("Etherscan API key") {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Etherscan V2 multichain key (optional, stored in Keychain). Used for EVM transaction history sync on all chains.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    SecureField("Paste your key", text: $config.etherscanAPIKey)
+                        .font(.system(.body, design: .monospaced))
+                        .autocorrectionDisabled()
+                        .textInputAutocapitalization(.never)
+                        .accessibilityIdentifier("nodeSettings_etherscanKey")
+                }
+            }
+
             Section {
                 Button(L10n.NodeSettings.resetToDefaults) {
                     showResetConfirm = true

@@ -88,6 +88,14 @@ final class NetworkConfig: ObservableObject, @unchecked Sendable {
         }
     }
 
+    /// Etherscan V2 API key (optional). When set, transaction history sync
+    /// for EVM chains hits api.etherscan.io with `chainid=<evmChainId>`.
+    /// Without a key the free-tier endpoint is still reachable but
+    /// rate-limited to 1 req / 5s.
+    @Published var etherscanAPIKey: String {
+        didSet { saveKeychain(etherscanAPIKey, forKey: Keys.etherscanKey) }
+    }
+
     private init() {
         let ud = UserDefaults.standard
         self.ethereumRPC = ud.string(forKey: Keys.ethereumRPC) ?? Defaults.ethereumRPC
@@ -104,6 +112,7 @@ final class NetworkConfig: ObservableObject, @unchecked Sendable {
         self.solDevnet = ud.bool(forKey: Keys.solDevnet)
         self.alchemyAPIKey = Self.loadKeychainString(key: Keys.alchemyKey)
         self.heliusAPIKey = Self.loadKeychainString(key: Keys.heliusKey)
+        self.etherscanAPIKey = Self.loadKeychainString(key: Keys.etherscanKey)
     }
 
     func rpcURL(for chain: Chain) -> String {
@@ -447,6 +456,7 @@ private extension NetworkConfig {
         static let solDevnet = "com.horcrux.rpc.solDevnet"
         static let alchemyKey = "com.horcrux.rpc.alchemyAPIKey"
         static let heliusKey = "com.horcrux.rpc.heliusAPIKey"
+        static let etherscanKey = "com.horcrux.rpc.etherscanAPIKey"
     }
 
     enum Defaults {

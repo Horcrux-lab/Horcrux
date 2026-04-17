@@ -1179,6 +1179,137 @@ actor BlockchainService {
         return out
     }
 
+    /// Fetch recent EVM transactions via Etherscan V2's unified multichain
+    /// endpoint. `chainId` must match the active EVM network (1=mainnet,
+    /// 137=Polygon, 56=BNB, etc.). Without an API key the free tier is
+    /// rate-limited to ~1 req / 5s but usable.
+    func etherscanRecentTxs(address: String, chainId: UInt64, apiKey: String) async throws -> [ExternalTx] {
+        let safe = try Self.sanitizedAddress(address)
+        var comps = URLComponents(string: "https://api.etherscan.io/v2/api")!
+        var items = [
+            URLQueryItem(name: "chainid", value: "\(chainId)"),
+            URLQueryItem(name: "module", value: "account"),
+            URLQueryItem(name: "action", value: "txlist"),
+            URLQueryItem(name: "address", value: safe),
+            URLQueryItem(name: "page", value: "1"),
+            URLQueryItem(name: "offset", value: "25"),
+            URLQueryItem(name: "sort", value: "desc"),
+        ]
+        if !apiKey.isEmpty {
+            items.append(URLQueryItem(name: "apikey", value: apiKey))
+        }
+        comps.queryItems = items
+        guard let url = comps.url else { throw BlockchainError.invalidURL(comps.string ?? "") }
+        let (data, response) = try await session.data(from: url)
+        try validateHTTP(response)
+        guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            return []
+        }
+        // Etherscan returns status="0" + result as string "No transactions found"
+        // for fresh addresses. Treat as empty list, not error.
+        guard let result = json["result"] as? [[String: Any]] else {
+            return []
+        }
+        var out: [ExternalTx] = []
+        let safeLower = safe.lowercased()
+        for row in result {
+            guard let hash = row["hash"] as? String,
+                  let from = row["from"] as? String,
+                  let to = row["to"] as? String,
+                  let valueStr = row["value"] as? String,
+                  let value = UInt64(valueStr)
+            else { continue }
+            let gasUsedStr = row["gasUsed"] as? String ?? "0"
+            let gasPriceStr = row["gasPrice"] as? String ?? "0"
+            let feeWei: UInt64 = {
+                guard let g = UInt64(gasUsedStr), let p = UInt64(gasPriceStr) else { return 0 }
+                let (result, overflow) = g.multipliedReportingOverflow(by: p)
+                return overflow ? UInt64.max : result
+            }()
+            let tsStr = row["timeStamp"] as? String ?? "0"
+            let ts = TimeInterval(tsStr) ?? 0
+            let isSend = from.lowercased() == safeLower
+            // isError="1" → failed; txreceipt_status="0" → failed post-byz.
+            let err = (row["isError"] as? String) == "1"
+            out.append(ExternalTx(
+                txHash: hash,
+                blockTime: ts > 0 ? Date(timeIntervalSince1970: ts) : nil,
+                from: from,
+                to: to,
+                deltaSmallest: isSend ? -Int64(bitPattern: value) : Int64(bitPattern: value),
+                feeSmallest: feeWei,
+                confirmed: !err
+            ))
+        }
+        return out
+    }
+
+    /// Fetch recent Solana transactions for an address. Uses
+    /// `getSignaturesForAddress` to list signatures then one
+    /// `getTransaction` per signature to compute the pre/post lamport
+    /// delta for the target account.
+    func solanaRecentTxs(address: String, rpcURL: String, limit: Int = 10) async throws -> [ExternalTx] {
+        let safe = try Self.sanitizedAddress(address)
+        let sigsBody: [String: Any] = [
+            "jsonrpc": "2.0", "id": 1,
+            "method": "getSignaturesForAddress",
+            "params": [safe, ["limit": limit]],
+        ]
+        let sigsData = try await rpcCall(url: rpcURL, body: sigsBody)
+        guard let sigsJson = try JSONSerialization.jsonObject(with: sigsData) as? [String: Any],
+              let sigs = sigsJson["result"] as? [[String: Any]] else {
+            return []
+        }
+        var results: [ExternalTx] = []
+        for sigEntry in sigs {
+            guard let signature = sigEntry["signature"] as? String else { continue }
+            let blockTime = (sigEntry["blockTime"] as? NSNumber)?.doubleValue
+            let failed = sigEntry["err"] as? NSNull == nil && sigEntry["err"] != nil
+            let txBody: [String: Any] = [
+                "jsonrpc": "2.0", "id": 1,
+                "method": "getTransaction",
+                "params": [signature, ["encoding": "json", "maxSupportedTransactionVersion": 0]],
+            ]
+            let txData = try await rpcCall(url: rpcURL, body: txBody)
+            guard let txJson = try JSONSerialization.jsonObject(with: txData) as? [String: Any],
+                  let result = txJson["result"] as? [String: Any],
+                  let meta = result["meta"] as? [String: Any],
+                  let tx = result["transaction"] as? [String: Any],
+                  let msg = tx["message"] as? [String: Any],
+                  let accounts = msg["accountKeys"] as? [String],
+                  let pre = meta["preBalances"] as? [NSNumber],
+                  let post = meta["postBalances"] as? [NSNumber],
+                  let idx = accounts.firstIndex(of: safe),
+                  idx < pre.count, idx < post.count
+            else { continue }
+            let delta = post[idx].int64Value - pre[idx].int64Value
+            let fee = (meta["fee"] as? NSNumber)?.uint64Value ?? 0
+            // Counterparty: first non-self account key that's not a program.
+            let other = accounts.first { $0 != safe } ?? ""
+            results.append(ExternalTx(
+                txHash: signature,
+                blockTime: blockTime.map { Date(timeIntervalSince1970: $0) },
+                from: delta < 0 ? safe : other,
+                to: delta < 0 ? other : safe,
+                deltaSmallest: delta,
+                feeSmallest: fee,
+                confirmed: !failed
+            ))
+        }
+        return results
+    }
+
+    private func rpcCall(url: String, body: [String: Any]) async throws -> Data {
+        guard let u = URL(string: url) else { throw BlockchainError.invalidURL(url) }
+        var req = URLRequest(url: u)
+        req.httpMethod = "POST"
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        req.httpBody = try JSONSerialization.data(withJSONObject: body)
+        let (data, response) = try await session.data(for: req)
+        try validateHTTP(response)
+        return data
+    }
+
     /// Convert a TRON hex address (41XX…) back to base58. Uses the same
     /// base58check + 0x41 network-byte scheme as tronBase58AddressToHex20 in
     /// reverse.

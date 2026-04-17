@@ -47,8 +47,17 @@ final class TransactionHistorySyncer {
             return try await service.esploraRecentTxs(address: wallet.address, apiURL: config.litecoinAPI)
         case .tron:
             return try await service.tronRecentTxs(address: wallet.address, apiURL: config.tronAPI)
+        case .solana:
+            return try await service.solanaRecentTxs(address: wallet.address, rpcURL: config.solanaRPC)
         default:
-            // EVM / Solana: not yet wired. Quietly skip.
+            // EVM chains (all variants).
+            if wallet.chain.isEVM {
+                return try await service.etherscanRecentTxs(
+                    address: wallet.address,
+                    chainId: config.evmChainId,
+                    apiKey: config.etherscanAPIKey
+                )
+            }
             return []
         }
     }
@@ -95,7 +104,19 @@ final class TransactionHistorySyncer {
             return String(format: "%.6f TRX", trx)
                 .replacingOccurrences(of: #"0+ TRX$"#, with: " TRX", options: .regularExpression)
                 .replacingOccurrences(of: #"\. TRX$"#, with: " TRX", options: .regularExpression)
+        case .solana:
+            let sol = Double(smallest) / 1e9
+            return String(format: "%.9f SOL", sol)
+                .replacingOccurrences(of: #"0+ SOL$"#, with: " SOL", options: .regularExpression)
+                .replacingOccurrences(of: #"\. SOL$"#, with: " SOL", options: .regularExpression)
         default:
+            if chain.isEVM {
+                // wei → ether with up to 6 decimal places of precision.
+                let ether = Double(smallest) / 1e18
+                return String(format: "%.6f %@", ether, chain.symbol)
+                    .replacingOccurrences(of: #"0+ \w+$"#, with: " \(chain.symbol)", options: .regularExpression)
+                    .replacingOccurrences(of: #"\. \w+$"#, with: " \(chain.symbol)", options: .regularExpression)
+            }
             return "\(smallest)"
         }
     }
