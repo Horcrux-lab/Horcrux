@@ -315,19 +315,46 @@ final class CreateShardViewModel: ObservableObject {
         }
     }
 
+    /// Error cases surfaced by `saveWallet` so the caller can show the
+    /// user an alert instead of a silent no-op.
+    enum SaveError: LocalizedError {
+        case missingKeygenResult
+        case noDerivedAddresses
+        case encryptFailed(Error)
+        case storeFailed(Error)
+
+        var errorDescription: String? {
+            switch self {
+            case .missingKeygenResult: return "密钥生成结果丢失，无法保存。请重新生成分片。"
+            case .noDerivedAddresses: return "未推导出任何链上地址，无法保存钱包。"
+            case .encryptFailed(let e): return "加密分片失败：\(e.localizedDescription)"
+            case .storeFailed(let e): return "写入钥匙串失败：\(e.localizedDescription)"
+            }
+        }
+    }
+
     /// Save the freshly-generated shard. Pass the PBKDF2-derived key material
     /// directly (callers may use `AppState.cachedShardKey()` to reuse the key
     /// from the just-completed unlock and skip a second PIN prompt).
-    func saveWallet(to appState: AppState, keyMaterial: Data) {
-        guard let result = keygenResult else { return }
+    func saveWallet(to appState: AppState, keyMaterial: Data) throws {
+        guard let result = keygenResult else {
+            NSLog("[Save] ❌ keygenResult is nil")
+            throw SaveError.missingKeygenResult
+        }
+        guard !generatedAddresses.isEmpty else {
+            NSLog("[Save] ❌ generatedAddresses is empty (curve=\(selectedCurve))")
+            throw SaveError.noDerivedAddresses
+        }
 
         let baseId = sessionId ?? UUID().uuidString
         // accountId is the hex of the DKG group public key and is shared
         // across all derived chains. We write the encrypted shard exactly
         // once, keyed by accountId.
         let accountId = result.publicKey.map { String(format: "%02x", $0) }.joined()
+        NSLog("[Save] accountId=\(accountId.prefix(16))… addresses=\(generatedAddresses.count)")
 
-        // Persist the shard once.
+        // Persist the shard once. Any failure here must abort — otherwise
+        // we'd add wallet rows pointing at a non-existent key share.
         do {
             let deviceKey = try appState.deviceKey
             let encrypted = try appState.bridge.encryptShard(
@@ -337,8 +364,10 @@ final class CreateShardViewModel: ObservableObject {
             )
             let encoded = try JSONEncoder().encode(EncryptedShardDTO(encrypted))
             try appState.walletStore.storeKeyShare(encoded, accountId: accountId)
+            NSLog("[Save] ✅ key share persisted (\(encoded.count)B)")
         } catch {
-            SecureLog.error("Failed to store key share: \(error)")
+            NSLog("[Save] ❌ store key share failed: \(error)")
+            throw SaveError.storeFailed(error)
         }
 
         // Save one wallet entry per derived chain address.
@@ -357,6 +386,7 @@ final class CreateShardViewModel: ObservableObject {
             )
 
             appState.walletStore.add(wallet)
+            NSLog("[Save] ✅ wallet added: \(wallet.name) (\(entry.chain.rawValue))")
 
             // Register shard with the in-memory shard manager once.
             if index == 0 {
@@ -375,16 +405,18 @@ final class CreateShardViewModel: ObservableObject {
         }
 
         // Clean up MPC session
-        appState.bridge.removeSession(sessionId: sessionId!)
+        if let sid = sessionId {
+            appState.bridge.removeSession(sessionId: sid)
+        }
     }
 
     /// Convenience: unwrap the Shard Wrap Key via PIN and save. Used as
     /// the fallback path when the SWK isn't already cached (e.g. session
     /// was unlocked via biometric on a build without an SE-sealed SWK).
-    func saveWallet(to appState: AppState, pin: String) {
+    func saveWallet(to appState: AppState, pin: String) throws {
         guard appState.verifyPin(pin) else { return }
         guard let swk = appState.cachedShardKey() else { return }
-        saveWallet(to: appState, keyMaterial: swk)
+        try saveWallet(to: appState, keyMaterial: swk)
     }
 }
 

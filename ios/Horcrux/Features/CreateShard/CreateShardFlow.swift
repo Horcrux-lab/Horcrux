@@ -636,6 +636,7 @@ struct DKGCompleteView: View {
     @State private var showBackupGate = false
     @State private var showSkipBackupWarn = false
     @State private var acknowledgedBackup = false
+    @State private var saveError: String?
     @ScaledMetric(relativeTo: .largeTitle) private var successIconSize: CGFloat = 72
 
     var body: some View {
@@ -693,10 +694,15 @@ struct DKGCompleteView: View {
                     pinError = L10n.DKG.incorrectPin
                     return
                 }
-                viewModel.saveWallet(to: appState, pin: pin)
-                pin = ""
-                // Gate dismissal on backup acknowledgement
-                showBackupGate = true
+                do {
+                    try viewModel.saveWallet(to: appState, pin: pin)
+                    pin = ""
+                    // Gate dismissal on backup acknowledgement
+                    showBackupGate = true
+                } catch {
+                    pin = ""
+                    saveError = error.localizedDescription
+                }
             }
             Button(L10n.Common.cancel, role: .cancel) { pin = "" }
         } message: {
@@ -728,6 +734,14 @@ struct DKGCompleteView: View {
         } message: {
             Text("如果你丢失或损坏这台设备，没有备份将无法恢复这份分片，可能导致钱包永久锁死。")
         }
+        .alert("保存失败", isPresented: Binding(
+            get: { saveError != nil },
+            set: { if !$0 { saveError = nil } }
+        )) {
+            Button("好", role: .cancel) { saveError = nil }
+        } message: {
+            Text(saveError ?? "")
+        }
     }
 
     /// Try to save silently (cache → biometric). Only prompt for PIN as a
@@ -735,9 +749,13 @@ struct DKGCompleteView: View {
     /// provisioned via onboarding or biometric unlock.
     private func saveTapped() async {
         if let key = appState.cachedShardKey() {
-            viewModel.saveWallet(to: appState, keyMaterial: key)
-            Haptics.success()
-            showBackupGate = true
+            do {
+                try viewModel.saveWallet(to: appState, keyMaterial: key)
+                Haptics.success()
+                showBackupGate = true
+            } catch {
+                saveError = error.localizedDescription
+            }
             return
         }
         // Cache was cleared (e.g. app backgrounded during DKG). Try
@@ -745,9 +763,13 @@ struct DKGCompleteView: View {
         if SecureKeyVault.hasSESealed {
             if await appState.unlockShardKeyWithBiometric(),
                let key = appState.cachedShardKey() {
-                viewModel.saveWallet(to: appState, keyMaterial: key)
-                Haptics.success()
-                showBackupGate = true
+                do {
+                    try viewModel.saveWallet(to: appState, keyMaterial: key)
+                    Haptics.success()
+                    showBackupGate = true
+                } catch {
+                    saveError = error.localizedDescription
+                }
                 return
             }
         }
