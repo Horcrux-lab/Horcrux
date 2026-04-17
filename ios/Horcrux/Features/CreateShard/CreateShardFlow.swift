@@ -52,6 +52,23 @@ struct ConfigureView: View {
 
     var body: some View {
         Form {
+            // Role selector — creator (chooses m/n/curve) vs joiner
+            // (adopts creator's SessionBegin broadcast automatically).
+            Section {
+                Picker("角色", selection: $viewModel.role) {
+                    Text("创建新钱包").tag(CreateShardViewModel.Role.create)
+                    Text("加入他人创建").tag(CreateShardViewModel.Role.join)
+                }
+                .pickerStyle(.segmented)
+                .accessibilityIdentifier("configure_rolePicker")
+            } footer: {
+                Text(viewModel.role == .create
+                     ? "由你决定门限、参与方数量与链类型。其他设备只需输入相同的房间码即可加入。"
+                     : "只需输入与发起人一致的房间码。参数、链和开始时机都由发起人决定。")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
+
             // Value-prop header (item 2: convey MPC core value)
             Section {
                 VStack(alignment: .leading, spacing: 8) {
@@ -68,9 +85,15 @@ struct ConfigureView: View {
                         }
                         .accessibilityLabel("什么是门限签名")
                     }
-                    Text("无需助记词。密钥分成 \(viewModel.totalParties) 片分发到不同设备，任意 \(viewModel.threshold) 片即可签名 —— 丢失任一设备仍可恢复。")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                    if viewModel.role == .create {
+                        Text("无需助记词。密钥分成 \(viewModel.totalParties) 片分发到不同设备，任意 \(viewModel.threshold) 片即可签名 —— 丢失任一设备仍可恢复。")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    } else {
+                        Text("无需助记词。你将加入发起人创建的门限签名钱包，并在本机获得一份密钥分片。")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
                 }
                 .padding(.vertical, 4)
             }
@@ -82,31 +105,45 @@ struct ConfigureView: View {
                     .accessibilityIdentifier("configure_walletNameField")
             }
 
-            Section(L10n.CreateShard.blockchain) {
-                Picker(L10n.CreateShard.chain, selection: $viewModel.selectedCurve) {
-                    Text("EVM 链 + Bitcoin")
-                        .tag(FfiCurveType.secp256k1)
-                    Text("Solana")
-                        .tag(FfiCurveType.ed25519)
-                }
-                .pickerStyle(.inline)
+            if viewModel.role == .create {
+                Section(L10n.CreateShard.blockchain) {
+                    Picker(L10n.CreateShard.chain, selection: $viewModel.selectedCurve) {
+                        Text("EVM 链 + Bitcoin")
+                            .tag(FfiCurveType.secp256k1)
+                        Text("Solana")
+                            .tag(FfiCurveType.ed25519)
+                    }
+                    .pickerStyle(.inline)
 
-                Text(viewModel.selectedCurve == .secp256k1
-                     ? "将生成：ETH · BTC 地址（共享同一密钥分片）"
-                     : "将生成：SOL 地址")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-
-            // Advanced settings (item 1: reduce cognitive load)
-            Section {
-                DisclosureGroup("高级设置", isExpanded: $showAdvanced) {
-                    advancedThresholdStepper
-                    advancedTransportToggles
+                    Text(viewModel.selectedCurve == .secp256k1
+                         ? "将生成：ETH · BTC 地址（共享同一密钥分片）"
+                         : "将生成：SOL 地址")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                 }
-            } footer: {
-                if !showAdvanced {
-                    Text("默认：2-of-3 · 通过中继服务器发现设备 · 房间码已自动生成")
+
+                // Advanced settings (item 1: reduce cognitive load)
+                Section {
+                    DisclosureGroup("高级设置", isExpanded: $showAdvanced) {
+                        advancedThresholdStepper
+                        advancedTransportToggles
+                    }
+                } footer: {
+                    if !showAdvanced {
+                        Text("默认：2-of-3 · 通过中继服务器发现设备 · 房间码已自动生成")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+            } else {
+                // Joiner only exposes transports + room code; m/n and
+                // curve will be dictated by the creator's SessionBegin.
+                Section {
+                    DisclosureGroup("连接方式", isExpanded: $showAdvanced) {
+                        advancedTransportToggles
+                    }
+                } footer: {
+                    Text("输入与发起人一致的房间码即可。")
                         .font(.caption2)
                         .foregroundStyle(.secondary)
                 }
@@ -114,14 +151,18 @@ struct ConfigureView: View {
 
             Section {
                 Button {
-                    if viewModel.threshold == viewModel.totalParties && viewModel.totalParties > 1 {
+                    if viewModel.role == .create
+                        && viewModel.threshold == viewModel.totalParties
+                        && viewModel.totalParties > 1 {
                         showNofNConfirm = true
                     } else {
                         viewModel.step = .discover
                         viewModel.startDiscovery()
                     }
                 } label: {
-                    Text(L10n.CreateShard.nextFindPeers)
+                    Text(viewModel.role == .create
+                         ? L10n.CreateShard.nextFindPeers
+                         : "下一步：等待发起人")
                         .frame(maxWidth: .infinity)
                         .font(.headline)
                 }
@@ -421,9 +462,23 @@ struct PeerDiscoveryView: View {
     @State private var timeRemaining = 60
     @State private var timerTask: Task<Void, Never>?
 
+    /// App-level presence count (unique deviceNames), not transport
+    /// peers — so the same physical device on both relay and WiFi-LAN
+    /// only counts once.
+    private var presentCount: Int {
+        viewModel.roomPresence.count
+    }
+
     private var progress: Double {
+        if viewModel.role == .join {
+            return presentCount > 0 ? 1.0 : 0.0
+        }
         let needed = max(viewModel.totalParties - 1, 1)
-        return min(Double(viewModel.foundPeers.count) / Double(needed), 1.0)
+        return min(Double(presentCount) / Double(needed), 1.0)
+    }
+
+    private var creatorCanStart: Bool {
+        presentCount >= viewModel.totalParties - 1
     }
 
     var body: some View {
@@ -448,9 +503,13 @@ struct PeerDiscoveryView: View {
                 .foregroundStyle(.secondary)
 
             HStack(spacing: 8) {
-                Image(systemName: "person.crop.circle.badge.checkmark")
-                    .foregroundStyle(HorcruxTheme.accentCyan)
-                Text("My ID: \(viewModel.localPeerId)")
+                Image(systemName: viewModel.role == .create
+                      ? "crown.fill"
+                      : "person.crop.circle.badge.checkmark")
+                    .foregroundStyle(viewModel.role == .create ? .orange : HorcruxTheme.accentCyan)
+                Text(viewModel.role == .create
+                     ? "发起人 · My ID: \(viewModel.localPeerId)"
+                     : "加入者 · My ID: \(viewModel.localPeerId)")
                     .font(.system(.caption, design: .monospaced))
                     .foregroundStyle(HorcruxTheme.accentCyan)
             }
@@ -458,42 +517,86 @@ struct PeerDiscoveryView: View {
             .padding(.vertical, 8)
             .background(HorcruxTheme.accentCyan.opacity(0.1), in: Capsule())
 
-            Text(L10n.Discovery.peersFound(viewModel.foundPeers.count, viewModel.totalParties - 1))
-                .font(.headline)
-                .accessibilityLabel(L10n.Discovery.peersFoundAccessibility(viewModel.foundPeers.count, viewModel.totalParties - 1))
-
-            List(viewModel.foundPeers) { peer in
-                HStack {
-                    Image(systemName: "person.circle.fill")
-                        .foregroundStyle(.blue)
-                    VStack(alignment: .leading) {
-                        Text(peer.name)
-                            .font(.headline)
-                        Text("\(peer.channel) · \(String(peer.id.prefix(8)))")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
+            if viewModel.role == .create {
+                Text(L10n.Discovery.peersFound(presentCount, viewModel.totalParties - 1))
+                    .font(.headline)
+                    .accessibilityLabel(L10n.Discovery.peersFoundAccessibility(presentCount, viewModel.totalParties - 1))
+            } else {
+                HStack(spacing: 8) {
+                    if presentCount == 0 {
+                        ProgressView().controlSize(.small)
+                        Text("正在等待发起人…")
+                    } else {
+                        Image(systemName: "antenna.radiowaves.left.and.right")
+                            .foregroundStyle(.green)
+                        Text("已连接 \(presentCount) 台设备 · 等待发起人启动")
                     }
-                    Spacer()
-                    Image(systemName: "checkmark.circle.fill")
-                        .foregroundStyle(.green)
+                }
+                .font(.headline)
+            }
+
+            // List of room-present devices (app-level beacon). Falls
+            // back to transport-level foundPeers if no presence yet.
+            let presenceList = viewModel.roomPresence.values.sorted { $0.deviceName < $1.deviceName }
+            if !presenceList.isEmpty {
+                List(presenceList, id: \.deviceName) { pres in
+                    HStack {
+                        Image(systemName: pres.role == "create" ? "crown.fill" : "person.circle.fill")
+                            .foregroundStyle(pres.role == "create" ? .orange : .blue)
+                        VStack(alignment: .leading) {
+                            Text(pres.deviceName)
+                                .font(.headline)
+                            Text(pres.role == "create" ? "发起人" : "加入者")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                        Spacer()
+                        Image(systemName: "checkmark.circle.fill")
+                            .foregroundStyle(.green)
+                    }
+                }
+            } else {
+                List(viewModel.foundPeers) { peer in
+                    HStack {
+                        Image(systemName: "person.circle.fill")
+                            .foregroundStyle(.gray)
+                        VStack(alignment: .leading) {
+                            Text(peer.name)
+                                .font(.headline)
+                            Text("\(peer.channel) · \(String(peer.id.prefix(8)))")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                        Spacer()
+                    }
                 }
             }
 
-            if viewModel.foundPeers.count >= viewModel.totalParties - 1 {
-                Button {
-                    timerTask?.cancel()
-                    viewModel.startDKG()
-                } label: {
-                    Text(L10n.Discovery.startKeyGeneration)
-                        .frame(maxWidth: .infinity)
-                        .font(.headline)
+            if viewModel.role == .create {
+                if creatorCanStart {
+                    Button {
+                        timerTask?.cancel()
+                        viewModel.creatorStartDKG()
+                    } label: {
+                        Text(L10n.Discovery.startKeyGeneration)
+                            .frame(maxWidth: .infinity)
+                            .font(.headline)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .padding(.horizontal)
+                    .accessibilityHint(L10n.Discovery.startKeyGenHint)
+                    .accessibilityIdentifier("discover_startDKGButton")
+                } else {
+                    Text("提示：加入者需在同一房间码下开启「加入他人创建」流程")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal)
                 }
-                .buttonStyle(.borderedProminent)
-                .padding(.horizontal)
-                .accessibilityHint(L10n.Discovery.startKeyGenHint)
-                .accessibilityIdentifier("discover_startDKGButton")
             } else {
-                Text("提示：另一台设备需在同一房间码下开启创建流程")
+                // Joiner: no button. Auto-advances when the creator's
+                // SessionBegin arrives (handled in the view model).
+                Text("发起人点击开始后，本机会自动进入密钥生成。")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)

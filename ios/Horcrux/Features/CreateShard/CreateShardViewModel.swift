@@ -12,8 +12,18 @@ final class CreateShardViewModel: ObservableObject {
         case configure, discover, dkg, complete, error
     }
 
+    /// Whether this device is the session creator (chooses m/n/curve
+    /// and triggers start) or a joiner (adopts the creator's
+    /// `SessionBegin` broadcast and auto-enters DKG).
+    enum Role: String, CaseIterable, Identifiable {
+        case create
+        case join
+        var id: String { rawValue }
+    }
+
     // Configuration
     @Published var step: Step = .configure
+    @Published var role: Role = .create
     @Published var walletName: String = ""
     @Published var selectedCurve: FfiCurveType = .secp256k1
     @Published var threshold: Int = 2
@@ -24,6 +34,12 @@ final class CreateShardViewModel: ObservableObject {
 
     // Discovery
     @Published var foundPeers: [Peer] = []
+    /// App-level presence beacon keyed by deviceName. Populated from
+    /// `RoomPresenceDTO` broadcasts during `.discover`. Used to gate the
+    /// creator's Start button (rather than relying on transport-layer
+    /// `foundPeers`, which can double-count a single peer discovered on
+    /// both relay and WiFi-LAN).
+    @Published var roomPresence: [String: RoomPresenceDTO] = [:]
 
     // DKG progress
     @Published var dkgProgress: Double = 0
@@ -41,6 +57,11 @@ final class CreateShardViewModel: ObservableObject {
     private var bridge: HorcruxBridge?
     private var cancellables = Set<AnyCancellable>()
     private var ceremonyTask: Task<Void, Never>?
+    private var presenceTask: Task<Void, Never>?
+    private var roomListenerTask: Task<Void, Never>?
+    /// Recently-consumed `SessionBegin` session IDs — so a re-broadcast
+    /// or echo doesn't accidentally kick us back into DKG.
+    private var consumedSessionBegins: Set<String> = []
 
     /// Local peer identifier shown during discovery.
     var localPeerId: String {
@@ -67,6 +88,8 @@ final class CreateShardViewModel: ObservableObject {
     func startDiscovery() {
         totalRounds = selectedCurve == .ed25519 ? 3 : 9
         dkgStatusMessage = L10n.DKG.searchingDevices
+        roomPresence.removeAll()
+        consumedSessionBegins.removeAll()
 
         if selectedTransports.contains(.relay) && !roomCode.isEmpty {
             Task {
@@ -80,9 +103,146 @@ final class CreateShardViewModel: ObservableObject {
             }
         }
         peerManager?.startDiscovery(transports: selectedTransports)
+
+        // Periodically announce our presence so other devices in the
+        // room know we're here (with our role/proposed t,n) and the
+        // creator's Start gate can fire without each device having to
+        // hit a button.
+        presenceTask?.cancel()
+        presenceTask = Task { [weak self] in
+            while !Task.isCancelled {
+                await self?.broadcastPresence()
+                try? await Task.sleep(nanoseconds: 2_000_000_000)
+            }
+        }
+
+        // Listen for room-phase messages: presence beacons from peers
+        // and — for joiners — the creator's SessionBegin that carries
+        // the final authoritative config + participant list.
+        roomListenerTask?.cancel()
+        roomListenerTask = Task { @MainActor [weak self] in
+            guard let self, let peerManager = self.peerManager else { return }
+            for await (peer, data) in peerManager.incomingMpcMessages {
+                if Task.isCancelled { break }
+                // Stop consuming once we've left the discover state —
+                // the DKG loop needs this stream too.
+                if self.step != .discover { break }
+
+                if let pres = try? JSONDecoder().decode(RoomPresenceDTO.self, from: data),
+                   pres.magic == RoomPresenceDTO.magic {
+                    if pres.deviceName != UIDevice.current.name {
+                        self.roomPresence[pres.deviceName] = pres
+                    }
+                    continue
+                }
+                if let begin = try? JSONDecoder().decode(SessionBeginDTO.self, from: data),
+                   begin.magic == SessionBeginDTO.magic {
+                    if self.consumedSessionBegins.contains(begin.sessionId) { continue }
+                    self.consumedSessionBegins.insert(begin.sessionId)
+                    NSLog("[DKG] Received SessionBegin sid=\(begin.sessionId.prefix(8))… from creator; auto-joining")
+                    self.autoJoinFromBegin(begin)
+                    continue
+                }
+                // Non-hello/non-begin payload — real MPC bytes that
+                // showed up before the creator's SessionBegin did.
+                // Stash for runDKGRounds to drain.
+                NSLog("[DKG] Stashing room-phase MPC payload from \(peer.name) (\(data.count)B)")
+                self.pendingMpcMessages.append((peer, data))
+            }
+        }
     }
 
-    func startDKG() {
+    private func stopDiscoveryTasks() {
+        presenceTask?.cancel()
+        presenceTask = nil
+        roomListenerTask?.cancel()
+        roomListenerTask = nil
+    }
+
+    /// One presence broadcast.
+    private func broadcastPresence() async {
+        guard let peerManager else { return }
+        let beacon = RoomPresenceDTO(
+            deviceName: UIDevice.current.name,
+            role: role,
+            proposedThreshold: role == .create ? threshold : nil,
+            proposedTotalParties: role == .create ? totalParties : nil,
+            curve: role == .create ? selectedCurve : nil
+        )
+        guard let data = try? JSONEncoder().encode(beacon) else { return }
+        try? await peerManager.broadcastMpcMessage(data)
+    }
+
+    /// Called when a joiner receives a `SessionBegin` broadcast from the
+    /// creator. Adopts the authoritative config + participant list and
+    /// transitions straight into DKG — no button press required.
+    private func autoJoinFromBegin(_ begin: SessionBeginDTO) {
+        guard step == .discover else { return }
+        guard let myIdx = begin.participantIds.firstIndex(of: UIDevice.current.name) else {
+            NSLog("[DKG] SessionBegin ignored — I am not in the participant list \(begin.participantIds)")
+            return
+        }
+        threshold = Int(begin.threshold)
+        totalParties = Int(begin.totalParties)
+        selectedCurve = begin.curve == "ed25519" ? .ed25519 : .secp256k1
+        totalRounds = selectedCurve == .ed25519 ? 3 : 9
+        partyIndex = myIdx + 1
+        sessionId = begin.sessionId
+        stopDiscoveryTasks()
+        startDKG(precomputed: true)
+    }
+
+    /// Called by the creator when they tap Start. Publishes a
+    /// `SessionBegin` with the final authoritative config + a
+    /// deterministic participant list, then enters DKG. All joiners
+    /// receive the broadcast and auto-enter.
+    func creatorStartDKG() {
+        guard role == .create else { return }
+
+        // Participant list: self + presences, sorted by deviceName,
+        // trimmed to exactly `totalParties`.
+        var names = Array(roomPresence.keys)
+        names.append(UIDevice.current.name)
+        names = Array(Set(names)).sorted()
+        guard names.count >= totalParties else {
+            errorMessage = "在场设备不足（需要 \(totalParties) 台，当前 \(names.count) 台）"
+            step = .error
+            return
+        }
+        let participants = Array(names.prefix(totalParties))
+        guard let myIdx = participants.firstIndex(of: UIDevice.current.name) else {
+            errorMessage = "未能在参与者列表中找到本机 — 请重试"
+            step = .error
+            return
+        }
+        partyIndex = myIdx + 1
+        let sid = roomCode.isEmpty ? UUID().uuidString : roomCode
+        sessionId = sid
+
+        let begin = SessionBeginDTO(
+            threshold: threshold,
+            totalParties: totalParties,
+            curve: selectedCurve,
+            participantIds: participants,
+            sessionId: sid
+        )
+        consumedSessionBegins.insert(sid)
+
+        // Fire-and-forget re-broadcast so late joiners still see it.
+        Task { [weak self] in
+            guard let peerManager = self?.peerManager else { return }
+            guard let data = try? JSONEncoder().encode(begin) else { return }
+            for i in 0..<5 {
+                try? await peerManager.broadcastMpcMessage(data)
+                try? await Task.sleep(nanoseconds: UInt64(200 + i * 200) * 1_000_000)
+            }
+        }
+
+        stopDiscoveryTasks()
+        startDKG(precomputed: true)
+    }
+
+    func startDKG(precomputed: Bool = false) {
         // Block on jailbroken devices
         guard !SecurityEnvironment.isCompromised else {
             errorMessage = L10n.DKG.compromisedDevice
@@ -97,24 +257,22 @@ final class CreateShardViewModel: ObservableObject {
 
         step = .dkg
         // Use room code as session ID so both parties share the same MPC session
-        sessionId = roomCode.isEmpty ? UUID().uuidString : roomCode
+        if sessionId == nil {
+            sessionId = roomCode.isEmpty ? UUID().uuidString : roomCode
+        }
         peerManager?.stopDiscovery()
 
-        // Auto-assign party index: sort local + peer IDs deterministically
-        autoAssignPartyIndex()
+        // Legacy path: if caller didn't pre-resolve the config (no
+        // SessionBegin adopted), fall back to sorted-ID party index.
+        if !precomputed {
+            autoAssignPartyIndex()
+        }
 
         NSLog("[DKG] Starting DKG: sessionId=\(self.sessionId!), party=\(self.partyIndex), threshold=\(self.threshold)/\(self.totalParties), peers=\(self.foundPeers.count)")
 
         ceremonyTask = Task {
             do {
                 guard let bridge else { throw DKGError.notInitialized }
-
-                // Negotiate config with peers BEFORE starting keygen. Two
-                // devices that pick different (t,n,curve) will otherwise
-                // each send messages addressed to phantom parties and
-                // silently hang at round 1/9 for the full 2-minute timeout.
-                dkgStatusMessage = L10n.DKG.negotiatingConfig
-                try await negotiateConfigOrThrow()
 
                 let config = FfiHorcruxConfig(
                     threshold: UInt16(threshold),
@@ -155,6 +313,7 @@ final class CreateShardViewModel: ObservableObject {
     func cancel() {
         ceremonyTask?.cancel()
         ceremonyTask = nil
+        stopDiscoveryTasks()
         peerManager?.stopDiscovery()
         if let sessionId, let bridge {
             bridge.removeSession(sessionId: sessionId)
@@ -202,103 +361,10 @@ final class CreateShardViewModel: ObservableObject {
         partyIndex = myIndex
     }
 
-    /// Pre-DKG config handshake. Each party broadcasts its (t,n,curve)
-    /// and waits up to 10s for peers' equivalents. Any mismatch aborts.
-    ///
-    /// We tolerate slow WiFi-LAN and relay paths by collecting until
-    /// we hear from every discovered peer, OR the timeout fires. For a
-    /// 2-party ceremony that means waiting for 1 reply.
-    private func negotiateConfigOrThrow() async throws {
-        guard let peerManager else { return }
-        let expectedPeers = peerManager.allPeers.count
-        if expectedPeers == 0 { return } // local-only; nothing to negotiate
-
-        let myHello = ConfigHelloDTO(
-            threshold: threshold,
-            totalParties: totalParties,
-            curve: selectedCurve,
-            partyIndex: partyIndex,
-            deviceName: UIDevice.current.name
-        )
-        let helloData = try JSONEncoder().encode(myHello)
-        let mySummary = myHello.summary
-
-        NSLog("[DKG] Broadcasting config hello: \(mySummary) to \(expectedPeers) peers")
-        try await peerManager.broadcastMpcMessage(helloData)
-
-        // Re-broadcast a few times so peers that entered the ceremony
-        // slightly later still see our hello before their 10s timeout.
-        let rebroadcast = Task { [helloData, peerManager] in
-            for delayMs in [500, 1500, 3500] {
-                try? await Task.sleep(nanoseconds: UInt64(delayMs) * 1_000_000)
-                try? await peerManager.broadcastMpcMessage(helloData)
-            }
-        }
-        defer { rebroadcast.cancel() }
-
-        // Single consumer loop with a separate timeout task that
-        // throws to break us out. Creating a fresh for-await iterator
-        // per message (previous implementation) dropped inbound bytes
-        // because AsyncStream is single-consumer and the dropped
-        // iterators took buffered values with them.
-        var heard: [String: ConfigHelloDTO] = [:]
-
-        enum Done: Error { case timeout, satisfied, mismatch(DKGError) }
-
-        do {
-            try await withThrowingTaskGroup(of: Void.self) { group in
-                group.addTask { [expectedPeers] in
-                    try await Task.sleep(nanoseconds: 10 * 1_000_000_000)
-                    _ = expectedPeers
-                    throw Done.timeout
-                }
-                group.addTask { @MainActor in
-                    for await (peer, data) in peerManager.incomingMpcMessages {
-                        if let hello = try? JSONDecoder().decode(ConfigHelloDTO.self, from: data),
-                           hello.magic == ConfigHelloDTO.magic {
-                            if heard[peer.id] == nil {
-                                heard[peer.id] = hello
-                                NSLog("[DKG] Got config hello from \(peer.name): \(hello.summary)")
-                            }
-                            if hello.threshold != myHello.threshold
-                                || hello.totalParties != myHello.totalParties
-                                || hello.curve != myHello.curve {
-                                throw Done.mismatch(.configMismatch(
-                                    local: mySummary,
-                                    remote: hello.summary,
-                                    peer: peer.name
-                                ))
-                            }
-                            if heard.count >= expectedPeers {
-                                throw Done.satisfied
-                            }
-                        } else {
-                            // Non-hello MPC bytes arrived during the
-                            // handshake window; stash for the round
-                            // loop so we don't lose them.
-                            self.pendingMpcMessages.append((peer, data))
-                            NSLog("[DKG] Stashing non-hello payload from \(peer.name) for DKG loop (\(data.count)B)")
-                        }
-                    }
-                }
-                try await group.next()
-                group.cancelAll()
-            }
-        } catch Done.satisfied {
-            NSLog("[DKG] Config agreed: \(mySummary)")
-            return
-        } catch Done.timeout {
-            NSLog("[DKG] Config negotiation timed out — heard from \(heard.count)/\(expectedPeers)")
-            if heard.isEmpty { throw DKGError.configTimeout }
-            NSLog("[DKG] Config partially agreed (\(heard.count) peers): \(mySummary)")
-            return
-        } catch Done.mismatch(let err) {
-            throw err
-        }
-    }
-
-    /// Non-hello messages received during negotiation are replayed into
-    /// the DKG round loop. Keep them in arrival order.
+    /// Non-room-phase MPC messages that arrive during `.discover` (e.g.
+    /// the creator's initial keygen outputs that reach us before our
+    /// `SessionBegin` handler fires) are stashed here and replayed into
+    /// the DKG round loop in arrival order.
     private var pendingMpcMessages: [(Peer, Data)] = []
 
     private func runDKGRounds(initialMessages: [FfiMpcMessage]) async {
@@ -334,12 +400,14 @@ final class CreateShardViewModel: ObservableObject {
                 }
                 processedPayloads.insert(data)
 
-                // Ignore any late ConfigHello echoes so the MPC decoder
-                // below doesn't trip on them.
-                if let hello = try? JSONDecoder().decode(ConfigHelloDTO.self, from: data),
-                   hello.magic == ConfigHelloDTO.magic {
-                    NSLog("[DKG] Ignoring late config hello from \(peer.name)")
-                    return false
+                // Ignore any late room-phase echoes (presence beacons
+                // or SessionBegin re-broadcasts from the creator).
+                if let magic = try? JSONDecoder().decode(MagicPeek.self, from: data) {
+                    if magic.magic == RoomPresenceDTO.magic
+                        || magic.magic == SessionBeginDTO.magic {
+                        NSLog("[DKG] Ignoring late room-phase payload (\(magic.magic)) from \(peer.name)")
+                        return false
+                    }
                 }
 
                 let decodedDTO: MpcMessageDTO?
@@ -573,41 +641,49 @@ final class CreateShardViewModel: ObservableObject {
 private enum DKGError: LocalizedError {
     case notInitialized
     case keygenIncomplete
-    case configMismatch(local: String, remote: String, peer: String)
-    case configTimeout
 
     var errorDescription: String? {
         switch self {
         case .notInitialized: return "Session not initialized"
         case .keygenIncomplete: return "Key generation did not complete"
-        case .configMismatch(let local, let remote, let peer):
-            return "参数不一致：本机 \(local)，对端「\(peer)」为 \(remote)。请双方选择相同的门限/总数/曲线后重试。"
-        case .configTimeout:
-            return "等待对端参数超时。请确认双方都已进入此界面后重试。"
         }
     }
 }
 
-/// Pre-DKG handshake: every party broadcasts its (t,n,curve) so
-/// mismatches abort cleanly instead of hanging for the full 2-minute
-/// keygen timeout. Tagged with a magic string so the main MPC message
-/// decoder can ignore it.
-struct ConfigHelloDTO: Codable {
-    static let magic = "HCFG-v1"
+/// Lightweight envelope used to peek at a payload's `magic` field
+/// without fully decoding. Lets `runDKGRounds` drop stray room-phase
+/// broadcasts (presence beacons, SessionBegin echoes) that arrive
+/// after we've left `.discover`.
+private struct MagicPeek: Codable {
     let magic: String
-    let threshold: UInt16
-    let totalParties: UInt16
-    let curve: String
-    let partyIndex: UInt16
-    let deviceName: String
+}
 
-    init(threshold: Int, totalParties: Int, curve: FfiCurveType, partyIndex: Int, deviceName: String) {
+/// Periodic presence beacon broadcast during `.discover`. Every party
+/// sends these so the creator's Start gate can fire on app-level
+/// presence rather than transport-level `foundPeers` (which double-
+/// counts peers seen on multiple channels).
+struct RoomPresenceDTO: Codable {
+    static let magic = "HRP-v1"
+    let magic: String
+    let deviceName: String
+    let role: String
+    let proposedThreshold: UInt16?
+    let proposedTotalParties: UInt16?
+    let curve: String?
+
+    init(
+        deviceName: String,
+        role: CreateShardViewModel.Role,
+        proposedThreshold: Int?,
+        proposedTotalParties: Int?,
+        curve: FfiCurveType?
+    ) {
         self.magic = Self.magic
-        self.threshold = UInt16(threshold)
-        self.totalParties = UInt16(totalParties)
-        self.curve = Self.curveString(curve)
-        self.partyIndex = UInt16(partyIndex)
         self.deviceName = deviceName
+        self.role = role.rawValue
+        self.proposedThreshold = proposedThreshold.map(UInt16.init)
+        self.proposedTotalParties = proposedTotalParties.map(UInt16.init)
+        self.curve = curve.map(Self.curveString)
     }
 
     static func curveString(_ c: FfiCurveType) -> String {
@@ -616,8 +692,36 @@ struct ConfigHelloDTO: Codable {
         case .ed25519: return "ed25519"
         }
     }
+}
 
-    var summary: String { "\(threshold)/\(totalParties) \(curve)" }
+/// Authoritative "let's start" broadcast from the session creator.
+/// Carries the final (t,n,curve) + the ordered participant list that
+/// all devices use to derive their `partyIndex`. Joiners receiving
+/// this auto-enter DKG without needing a manual Start tap.
+struct SessionBeginDTO: Codable {
+    static let magic = "HSB-v1"
+    let magic: String
+    let threshold: UInt16
+    let totalParties: UInt16
+    let curve: String
+    /// Sorted device names. Index in this list (1-based) = partyIndex.
+    let participantIds: [String]
+    let sessionId: String
+
+    init(
+        threshold: Int,
+        totalParties: Int,
+        curve: FfiCurveType,
+        participantIds: [String],
+        sessionId: String
+    ) {
+        self.magic = Self.magic
+        self.threshold = UInt16(threshold)
+        self.totalParties = UInt16(totalParties)
+        self.curve = RoomPresenceDTO.curveString(curve)
+        self.participantIds = participantIds
+        self.sessionId = sessionId
+    }
 }
 
 /// Codable DTO for serializing FfiMpcMessage.
