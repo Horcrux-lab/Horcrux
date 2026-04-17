@@ -202,14 +202,12 @@ final class CreateShardViewModel: ObservableObject {
         partyIndex = myIndex
     }
 
-    /// Pre-DKG config handshake. Each party broadcasts its proposed
-    /// (t,n,curve) and listens for peers'. The party with the lowest
-    /// sorted ID (partyIndex == 1) is authoritative; everyone else
-    /// silently adopts their config. This is "第一个为准" — no mismatch
-    /// error, the initiator wins.
+    /// Pre-DKG config handshake. Each party broadcasts its (t,n,curve)
+    /// and waits up to 10s for peers' equivalents. Any mismatch aborts.
     ///
-    /// We still abort if we hear nothing at all within 10s (indicates
-    /// the other side never reached this screen).
+    /// We tolerate slow WiFi-LAN and relay paths by collecting until
+    /// we hear from every discovered peer, OR the timeout fires. For a
+    /// 2-party ceremony that means waiting for 1 reply.
     private func negotiateConfigOrThrow() async throws {
         guard let peerManager else { return }
         let expectedPeers = peerManager.allPeers.count
@@ -225,88 +223,77 @@ final class CreateShardViewModel: ObservableObject {
         let helloData = try JSONEncoder().encode(myHello)
         let mySummary = myHello.summary
 
-        NSLog("[DKG] Broadcasting config hello: \(mySummary) (party=\(partyIndex)) to \(expectedPeers) peer entries")
+        NSLog("[DKG] Broadcasting config hello: \(mySummary) to \(expectedPeers) peers")
         try await peerManager.broadcastMpcMessage(helloData)
 
         // Re-broadcast a few times so peers that entered the ceremony
-        // slightly later still see our hello before the collection window ends.
+        // slightly later still see our hello before their 10s timeout.
         let rebroadcast = Task { [helloData, peerManager] in
-            for delayMs in [500, 1500, 3500, 6500] {
+            for delayMs in [500, 1500, 3500] {
                 try? await Task.sleep(nanoseconds: UInt64(delayMs) * 1_000_000)
                 try? await peerManager.broadcastMpcMessage(helloData)
             }
         }
         defer { rebroadcast.cancel() }
 
-        // Dedupe by deviceName — a single physical peer discovered on
-        // both relay and wifi-lan should count once.
+        // Single consumer loop with a separate timeout task that
+        // throws to break us out. Creating a fresh for-await iterator
+        // per message (previous implementation) dropped inbound bytes
+        // because AsyncStream is single-consumer and the dropped
+        // iterators took buffered values with them.
         var heard: [String: ConfigHelloDTO] = [:]
-        var lastHelloAt = Date()
 
-        enum Done: Error { case done }
+        enum Done: Error { case timeout, satisfied, mismatch(DKGError) }
 
         do {
             try await withThrowingTaskGroup(of: Void.self) { group in
-                // Hard stop after 10s.
-                group.addTask {
+                group.addTask { [expectedPeers] in
                     try await Task.sleep(nanoseconds: 10 * 1_000_000_000)
-                    throw Done.done
+                    _ = expectedPeers
+                    throw Done.timeout
                 }
                 group.addTask { @MainActor in
                     for await (peer, data) in peerManager.incomingMpcMessages {
                         if let hello = try? JSONDecoder().decode(ConfigHelloDTO.self, from: data),
                            hello.magic == ConfigHelloDTO.magic {
-                            if heard[hello.deviceName] == nil {
-                                heard[hello.deviceName] = hello
-                                lastHelloAt = Date()
-                                NSLog("[DKG] Got config hello from \(peer.name) (\(hello.deviceName)): \(hello.summary) party=\(hello.partyIndex)")
+                            if heard[peer.id] == nil {
+                                heard[peer.id] = hello
+                                NSLog("[DKG] Got config hello from \(peer.name): \(hello.summary)")
+                            }
+                            if hello.threshold != myHello.threshold
+                                || hello.totalParties != myHello.totalParties
+                                || hello.curve != myHello.curve {
+                                throw Done.mismatch(.configMismatch(
+                                    local: mySummary,
+                                    remote: hello.summary,
+                                    peer: peer.name
+                                ))
+                            }
+                            if heard.count >= expectedPeers {
+                                throw Done.satisfied
                             }
                         } else {
-                            // Real MPC bytes arriving during negotiation —
-                            // stash for the round loop.
+                            // Non-hello MPC bytes arrived during the
+                            // handshake window; stash for the round
+                            // loop so we don't lose them.
                             self.pendingMpcMessages.append((peer, data))
                             NSLog("[DKG] Stashing non-hello payload from \(peer.name) for DKG loop (\(data.count)B)")
-                        }
-                    }
-                }
-                // Soft stop: if we've heard from at least one peer AND
-                // 3s has elapsed since the last hello, we're done.
-                group.addTask { @MainActor in
-                    while true {
-                        try await Task.sleep(nanoseconds: 500_000_000)
-                        if !heard.isEmpty && Date().timeIntervalSince(lastHelloAt) > 3.0 {
-                            throw Done.done
                         }
                     }
                 }
                 try await group.next()
                 group.cancelAll()
             }
-        } catch { /* Done.done */ }
-
-        if heard.isEmpty {
-            NSLog("[DKG] Config negotiation timed out — no peers responded")
-            throw DKGError.configTimeout
-        }
-
-        // Pick the authoritative hello: lowest partyIndex among {me, peers}.
-        // Ties broken by deviceName ascending.
-        var all: [ConfigHelloDTO] = Array(heard.values)
-        all.append(myHello)
-        let authoritative = all.min { a, b in
-            if a.partyIndex != b.partyIndex { return a.partyIndex < b.partyIndex }
-            return a.deviceName < b.deviceName
-        }!
-
-        if authoritative.deviceName == myHello.deviceName
-            && authoritative.partyIndex == myHello.partyIndex {
-            NSLog("[DKG] I am party 1 — keeping my config: \(mySummary)")
-        } else {
-            NSLog("[DKG] Adopting party-1 config from \(authoritative.deviceName): \(authoritative.summary) (mine was \(mySummary))")
-            threshold = Int(authoritative.threshold)
-            totalParties = Int(authoritative.totalParties)
-            selectedCurve = (authoritative.curve == "ed25519") ? .ed25519 : .secp256k1
-            totalRounds = selectedCurve == .ed25519 ? 3 : 9
+        } catch Done.satisfied {
+            NSLog("[DKG] Config agreed: \(mySummary)")
+            return
+        } catch Done.timeout {
+            NSLog("[DKG] Config negotiation timed out — heard from \(heard.count)/\(expectedPeers)")
+            if heard.isEmpty { throw DKGError.configTimeout }
+            NSLog("[DKG] Config partially agreed (\(heard.count) peers): \(mySummary)")
+            return
+        } catch Done.mismatch(let err) {
+            throw err
         }
     }
 
@@ -586,12 +573,15 @@ final class CreateShardViewModel: ObservableObject {
 private enum DKGError: LocalizedError {
     case notInitialized
     case keygenIncomplete
+    case configMismatch(local: String, remote: String, peer: String)
     case configTimeout
 
     var errorDescription: String? {
         switch self {
         case .notInitialized: return "Session not initialized"
         case .keygenIncomplete: return "Key generation did not complete"
+        case .configMismatch(let local, let remote, let peer):
+            return "参数不一致：本机 \(local)，对端「\(peer)」为 \(remote)。请双方选择相同的门限/总数/曲线后重试。"
         case .configTimeout:
             return "等待对端参数超时。请确认双方都已进入此界面后重试。"
         }
