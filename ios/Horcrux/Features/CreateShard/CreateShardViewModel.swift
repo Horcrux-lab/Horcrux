@@ -158,27 +158,40 @@ final class CreateShardViewModel: ObservableObject {
 
     /// Auto-assign party index by sorting all participant IDs deterministically.
     /// Both devices independently reach the same assignment without negotiation.
+    ///
+    /// IMPORTANT: the identifiers used for sorting MUST live in the same
+    /// namespace on both sides. Previously we used `peer.id` (a Bonjour
+    /// service name with `\032` escapes on WiFi-LAN, a UUID on relay) but
+    /// compared it against `UIDevice.current.name` locally — causing both
+    /// devices to sort themselves to index 1 over WiFi-LAN.
     private func autoAssignPartyIndex() {
-        // Use peer.id for comparison — ensures same namespace on both sides.
-        // For relay: peer.id is the remote deviceId (UUID), local is relay.deviceId (UUID).
-        // For WiFi-LAN: peer.id is the device name, local is UIDevice.current.name.
         let hasRelayPeer = foundPeers.contains { $0.channel == "relay" }
-        let localId = hasRelayPeer
-            ? (peerManager?.relay.deviceId ?? UIDevice.current.name)
-            : UIDevice.current.name
+        let localId: String
+        let peerIdOf: (Peer) -> String
+        if hasRelayPeer {
+            // Relay namespace: both sides use the relay device UUID.
+            localId = peerManager?.relay.deviceId ?? UIDevice.current.name
+            peerIdOf = { $0.id }
+        } else {
+            // WiFi-LAN namespace: use the Bonjour *display name* on both
+            // sides (matches UIDevice.current.name on the peer).
+            localId = UIDevice.current.name
+            peerIdOf = { $0.name }
+        }
 
         var peerIds: [String] = []
         var seen: Set<String> = []
         for peer in foundPeers {
-            if seen.insert(peer.id).inserted {
-                peerIds.append(peer.id)
+            let pid = peerIdOf(peer)
+            if seen.insert(pid).inserted {
+                peerIds.append(pid)
             }
         }
         var allIds = peerIds
         allIds.append(localId)
         allIds.sort()
         let myIndex = (allIds.firstIndex(of: localId) ?? 0) + 1
-        NSLog("[DKG] Auto-assign party index: localId=\"\(localId.prefix(8))\", participants=\(allIds.map { String($0.prefix(8)) }), myIndex=\(myIndex)")
+        NSLog("[DKG] Auto-assign party index: localId=\"\(localId)\", participants=\(allIds), myIndex=\(myIndex)")
         partyIndex = myIndex
     }
 
