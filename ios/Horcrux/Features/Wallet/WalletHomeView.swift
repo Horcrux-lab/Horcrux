@@ -395,7 +395,7 @@ struct WalletRow: View {
                 .accessibilityHidden(true)
 
             VStack(alignment: .leading, spacing: 4) {
-                Text(wallet.name)
+                Text(wallet.chain.rawValue)
                     .font(.headline)
                     .foregroundStyle(.white)
 
