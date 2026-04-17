@@ -27,12 +27,13 @@ enum AddressValidator {
     static func validate(_ address: String, chain: Chain) throws {
         guard !address.isEmpty else { throw ValidationError.empty }
 
+        if chain.isEVM { try validateEthereum(address); return }
         switch chain {
-        case .ethereum: try validateEthereum(address)
         case .bitcoin:  try validateBitcoin(address)
         case .litecoin: try validateLitecoin(address)
         case .solana:   try validateSolana(address)
         case .tron:     try validateTron(address)
+        default:        throw ValidationError.invalidEthAddress
         }
     }
 

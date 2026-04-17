@@ -19,7 +19,7 @@ final class ModelTests: XCTestCase {
     }
 
     func testChainCaseIterable() {
-        XCTAssertEqual(Chain.allCases.count, 3)
+        XCTAssertEqual(Chain.allCases.count, 11)
     }
 
     func testChainCodable() throws {

@@ -491,6 +491,12 @@ struct Wallet: Identifiable, Codable {
 
 enum Chain: String, Codable, CaseIterable, Identifiable {
     case ethereum = "Ethereum"
+    case bnb = "BNB Smart Chain"
+    case avalanche = "Avalanche"
+    case optimism = "Optimism"
+    case zksync = "zkSync Era"
+    case linea = "Linea"
+    case scroll = "Scroll"
     case bitcoin = "Bitcoin"
     case litecoin = "Litecoin"
     case solana = "Solana"
@@ -498,16 +504,45 @@ enum Chain: String, Codable, CaseIterable, Identifiable {
 
     var id: String { rawValue }
 
-    var curveType: FfiCurveType {
+    /// All EVM-family chains share the same secp256k1 derivation and EIP-55
+    /// address format; only chainId, RPC endpoint and explorer differ.
+    var isEVM: Bool {
         switch self {
-        case .ethereum, .bitcoin, .litecoin, .tron: return .secp256k1
+        case .ethereum, .bnb, .avalanche, .optimism, .zksync, .linea, .scroll: return true
+        case .bitcoin, .litecoin, .solana, .tron: return false
+        }
+    }
+
+    /// Default EVMNetwork mapping for non-Ethereum EVM chains. Returns the
+    /// canonical mainnet network — Ethereum itself defers to NetworkConfig
+    /// so users can pick mainnet vs Sepolia vs a custom chainId.
+    var defaultEVMNetwork: EVMNetwork? {
+        switch self {
+        case .ethereum: return .mainnet
+        case .bnb: return .bnb
+        case .avalanche: return .avalanche
+        case .optimism: return .optimism
+        case .zksync: return .zkSyncEra
+        case .linea: return .linea
+        case .scroll: return .scroll
+        default: return nil
+        }
+    }
+
+    var curveType: FfiCurveType {
+        if isEVM { return .secp256k1 }
+        switch self {
+        case .bitcoin, .litecoin, .tron: return .secp256k1
         case .solana: return .ed25519
+        default: return .secp256k1
         }
     }
 
     var symbol: String {
         switch self {
-        case .ethereum: return "ETH"
+        case .ethereum, .optimism, .zksync, .linea, .scroll: return "ETH"
+        case .bnb: return "BNB"
+        case .avalanche: return "AVAX"
         case .bitcoin: return "BTC"
         case .litecoin: return "LTC"
         case .solana: return "SOL"
@@ -518,6 +553,12 @@ enum Chain: String, Codable, CaseIterable, Identifiable {
     var iconName: String {
         switch self {
         case .ethereum: return "e.circle.fill"
+        case .bnb: return "b.circle.fill"
+        case .avalanche: return "a.circle.fill"
+        case .optimism: return "o.circle.fill"
+        case .zksync: return "z.circle.fill"
+        case .linea: return "l.square.fill"
+        case .scroll: return "scroll.fill"
         case .bitcoin: return "bitcoinsign.circle.fill"
         case .litecoin: return "l.circle.fill"
         case .solana: return "s.circle.fill"
@@ -528,6 +569,12 @@ enum Chain: String, Codable, CaseIterable, Identifiable {
     var color: Color {
         switch self {
         case .ethereum: return .blue
+        case .bnb: return Color(red: 0.94, green: 0.73, blue: 0.11)
+        case .avalanche: return Color(red: 0.91, green: 0.26, blue: 0.26)
+        case .optimism: return .red
+        case .zksync: return Color(red: 0.54, green: 0.53, blue: 0.98)
+        case .linea: return Color(red: 0.32, green: 0.89, blue: 0.74)
+        case .scroll: return Color(red: 0.98, green: 0.91, blue: 0.79)
         case .bitcoin: return .orange
         case .litecoin: return Color(red: 0.65, green: 0.65, blue: 0.7)
         case .solana: return .purple
@@ -537,10 +584,13 @@ enum Chain: String, Codable, CaseIterable, Identifiable {
 
     /// True when the current release can produce broadcastable signatures for this chain.
     /// Litecoin/Tron currently ship as read-only (address + balance); signing is a later milestone.
+    /// All EVM-family chains share Ethereum's signing path.
     var signingSupported: Bool {
+        if isEVM { return true }
         switch self {
-        case .ethereum, .bitcoin, .solana: return true
+        case .bitcoin, .solana: return true
         case .litecoin, .tron: return false
+        default: return false
         }
     }
 }

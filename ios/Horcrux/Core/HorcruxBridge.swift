@@ -71,9 +71,11 @@ final class HorcruxBridge: ObservableObject {
 
     /// Derive an on-chain address from the group public key for the given chain.
     func deriveAddress(chain: Chain, publicKey: Data) throws -> String {
-        switch chain {
-        case .ethereum:
+        if chain.isEVM {
+            // All EVM-family chains share the same keccak-based derivation.
             return try evmAddress(uncompressedPublicKey: publicKey)
+        }
+        switch chain {
         case .bitcoin:
             return try btcAddress(compressedPublicKey: publicKey)
         case .litecoin:
@@ -83,6 +85,9 @@ final class HorcruxBridge: ObservableObject {
             return try solanaAddress(publicKey: publicKey)
         case .tron:
             return try TronAddress.derive(uncompressedPublicKey: publicKey)
+        default:
+            throw NSError(domain: "HorcruxBridge", code: -1,
+                          userInfo: [NSLocalizedDescriptionKey: "Unsupported chain: \(chain)"])
         }
     }
 

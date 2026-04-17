@@ -110,6 +110,11 @@ final class NetworkConfig: ObservableObject, @unchecked Sendable {
         let raw: String
         switch chain {
         case .ethereum: raw = ethereumRPC
+        case .bnb, .avalanche, .optimism, .zksync, .linea, .scroll:
+            // New EVM chains use hardcoded defaults for now; no per-chain
+            // override field yet. Users can reach the same node via RPC
+            // fallbacks if the default is unreachable.
+            raw = chain.defaultEVMNetwork?.defaultRPC ?? ""
         case .bitcoin: raw = bitcoinAPI
         case .litecoin: raw = litecoinAPI
         case .solana: raw = solanaRPC
@@ -124,10 +129,13 @@ final class NetworkConfig: ObservableObject, @unchecked Sendable {
     func substituteAPIKey(in url: String, chain: Chain) -> String {
         guard url.contains("{KEY}") else { return url }
         let key: String
-        switch chain {
-        case .ethereum: key = alchemyAPIKey
-        case .solana: key = heliusAPIKey
-        case .bitcoin, .litecoin, .tron: key = ""  // no provider template wired yet
+        if chain.isEVM {
+            key = alchemyAPIKey
+        } else {
+            switch chain {
+            case .solana: key = heliusAPIKey
+            default: key = ""
+            }
         }
         guard !key.isEmpty else { return url }
         return url.replacingOccurrences(of: "{KEY}", with: key)
@@ -369,10 +377,11 @@ actor NetworkStatus {
     func check(chain: Chain, config: NetworkConfig) async -> Bool {
         let service = BlockchainService()
         do {
-            switch chain {
-            case .ethereum:
-                _ = try await service.ethBlockNumber(rpcURL: config.ethereumRPC)
+            if chain.isEVM {
+                _ = try await service.ethBlockNumber(rpcURL: config.rpcURL(for: chain))
                 return true
+            }
+            switch chain {
             case .bitcoin:
                 let base = config.bitcoinAPI
                 guard let url = URL(string: "\(base)/blocks/tip/height") else { return false }
@@ -403,6 +412,8 @@ actor NetworkStatus {
                 let (_, response) = try await PinnedURLSession.shared.session.data(for: req)
                 if let http = response as? HTTPURLResponse { return (200...299).contains(http.statusCode) }
                 return false
+            default:
+                return false
             }
         } catch {
             return false
@@ -411,18 +422,14 @@ actor NetworkStatus {
 
     /// Check if the active chain endpoints are reachable.
     func checkAll(config: NetworkConfig) async -> [Chain: Bool] {
-        async let ethOk = check(chain: .ethereum, config: config)
-        async let btcOk = check(chain: .bitcoin, config: config)
-        async let ltcOk = check(chain: .litecoin, config: config)
-        async let solOk = check(chain: .solana, config: config)
-        async let trxOk = check(chain: .tron, config: config)
-        return [
-            .ethereum: await ethOk,
-            .bitcoin: await btcOk,
-            .litecoin: await ltcOk,
-            .solana: await solOk,
-            .tron: await trxOk
-        ]
+        var result: [Chain: Bool] = [:]
+        await withTaskGroup(of: (Chain, Bool).self) { group in
+            for chain in Chain.allCases {
+                group.addTask { (chain, await self.check(chain: chain, config: config)) }
+            }
+            for await (chain, ok) in group { result[chain] = ok }
+        }
+        return result
     }
 }
 
@@ -489,73 +496,15 @@ enum RPCProviderTemplate {
 /// mainnet-beta goes down.
 enum RPCFallbacks {
     static func endpoints(for chain: Chain, config: NetworkConfig) -> [String] {
+        // New EVM chains each map to a fixed EVMNetwork; re-use the same
+        // mainnet fallback table as Ethereum once the network is resolved.
+        if chain.isEVM, chain != .ethereum, let net = chain.defaultEVMNetwork {
+            return endpoints(forEVMNetwork: net)
+        }
         switch chain {
         case .ethereum:
             guard let net = EVMNetwork(rawValue: config.evmChainId) else { return [] }
-            switch net {
-            case .mainnet:
-                return [
-                    "https://eth.llamarpc.com",
-                    "https://ethereum.publicnode.com",
-                    "https://rpc.ankr.com/eth"
-                ]
-            case .sepolia:
-                return [
-                    "https://eth-sepolia.public.blastapi.io",
-                    "https://ethereum-sepolia.publicnode.com"
-                ]
-            case .polygon:
-                return [
-                    "https://polygon-rpc.com",
-                    "https://polygon.llamarpc.com",
-                    "https://polygon.publicnode.com"
-                ]
-            case .arbitrumOne:
-                return [
-                    "https://arb1.arbitrum.io/rpc",
-                    "https://arbitrum.llamarpc.com",
-                    "https://arbitrum.publicnode.com"
-                ]
-            case .base:
-                return [
-                    "https://mainnet.base.org",
-                    "https://base.llamarpc.com",
-                    "https://base.publicnode.com"
-                ]
-            case .optimism:
-                return [
-                    "https://mainnet.optimism.io",
-                    "https://optimism.llamarpc.com",
-                    "https://optimism.publicnode.com"
-                ]
-            case .bnb:
-                return [
-                    "https://bsc-dataseed.bnbchain.org",
-                    "https://bsc-dataseed1.defibit.io",
-                    "https://bsc.publicnode.com"
-                ]
-            case .avalanche:
-                return [
-                    "https://api.avax.network/ext/bc/C/rpc",
-                    "https://avalanche.publicnode.com",
-                    "https://rpc.ankr.com/avalanche"
-                ]
-            case .zkSyncEra:
-                return [
-                    "https://mainnet.era.zksync.io",
-                    "https://zksync.drpc.org"
-                ]
-            case .linea:
-                return [
-                    "https://rpc.linea.build",
-                    "https://linea.drpc.org"
-                ]
-            case .scroll:
-                return [
-                    "https://rpc.scroll.io",
-                    "https://scroll.drpc.org"
-                ]
-            }
+            return endpoints(forEVMNetwork: net)
         case .bitcoin:
             return config.btcTestnet
                 ? ["https://blockstream.info/testnet/api", "https://mempool.space/testnet/api"]
@@ -575,6 +524,78 @@ enum RPCFallbacks {
             return [
                 "https://api.trongrid.io",
                 "https://api.tronstack.io"
+            ]
+        default:
+            return []
+        }
+    }
+
+    /// Mainnet RPC fallback table keyed by EVMNetwork. Shared by Ethereum
+    /// (when evmChainId resolves to a known network) and by each of the
+    /// first-class EVM Chain cases.
+    private static func endpoints(forEVMNetwork net: EVMNetwork) -> [String] {
+        switch net {
+        case .mainnet:
+            return [
+                "https://eth.llamarpc.com",
+                "https://ethereum.publicnode.com",
+                "https://rpc.ankr.com/eth"
+            ]
+        case .sepolia:
+            return [
+                "https://eth-sepolia.public.blastapi.io",
+                "https://ethereum-sepolia.publicnode.com"
+            ]
+        case .polygon:
+            return [
+                "https://polygon-rpc.com",
+                "https://polygon.llamarpc.com",
+                "https://polygon.publicnode.com"
+            ]
+        case .arbitrumOne:
+            return [
+                "https://arb1.arbitrum.io/rpc",
+                "https://arbitrum.llamarpc.com",
+                "https://arbitrum.publicnode.com"
+            ]
+        case .base:
+            return [
+                "https://mainnet.base.org",
+                "https://base.llamarpc.com",
+                "https://base.publicnode.com"
+            ]
+        case .optimism:
+            return [
+                "https://mainnet.optimism.io",
+                "https://optimism.llamarpc.com",
+                "https://optimism.publicnode.com"
+            ]
+        case .bnb:
+            return [
+                "https://bsc-dataseed.bnbchain.org",
+                "https://bsc-dataseed1.defibit.io",
+                "https://bsc.publicnode.com"
+            ]
+        case .avalanche:
+            return [
+                "https://api.avax.network/ext/bc/C/rpc",
+                "https://avalanche.publicnode.com",
+                "https://rpc.ankr.com/avalanche"
+            ]
+        case .zkSyncEra:
+            return [
+                "https://mainnet.era.zksync.io",
+                "https://zksync.drpc.org"
+            ]
+        case .linea:
+            return [
+                "https://rpc.linea.build",
+                "https://linea.drpc.org"
+            ]
+        case .scroll:
+            return [
+                "https://rpc.scroll.io",
+                "https://scroll.drpc.org"
             ]
         }
     }

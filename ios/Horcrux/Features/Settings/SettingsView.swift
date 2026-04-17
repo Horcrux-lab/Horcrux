@@ -901,35 +901,39 @@ struct NodeStatusRow: View {
 
         Task {
             do {
-                switch chain {
-                case .ethereum:
-                    _ = try await service.ethBlockNumber(rpcURL: config.rpcURL(for: .ethereum))
-                case .bitcoin:
-                    let urlString = "\(config.rpcURL(for: .bitcoin))/blocks/tip/hash"
-                    guard let url = URL(string: urlString) else { throw BlockchainError.invalidURL(urlString) }
-                    let (_, response) = try await PinnedURLSession.shared.session.data(from: url)
-                    guard let http = response as? HTTPURLResponse, (200...299).contains(http.statusCode) else {
-                        throw BlockchainError.httpError(statusCode: (response as? HTTPURLResponse)?.statusCode ?? 0)
-                    }
-                case .litecoin:
-                    let urlString = "\(config.rpcURL(for: .litecoin))/blocks/tip/hash"
-                    guard let url = URL(string: urlString) else { throw BlockchainError.invalidURL(urlString) }
-                    let (_, response) = try await PinnedURLSession.shared.session.data(from: url)
-                    guard let http = response as? HTTPURLResponse, (200...299).contains(http.statusCode) else {
-                        throw BlockchainError.httpError(statusCode: (response as? HTTPURLResponse)?.statusCode ?? 0)
-                    }
-                case .solana:
-                    _ = try await service.solHealth(rpcURL: config.rpcURL(for: .solana))
-                case .tron:
-                    let urlString = "\(config.rpcURL(for: .tron))/wallet/getnowblock"
-                    guard let url = URL(string: urlString) else { throw BlockchainError.invalidURL(urlString) }
-                    var req = URLRequest(url: url)
-                    req.httpMethod = "POST"
-                    req.httpBody = Data("{}".utf8)
-                    req.setValue("application/json", forHTTPHeaderField: "Content-Type")
-                    let (_, response) = try await PinnedURLSession.shared.session.data(for: req)
-                    guard let http = response as? HTTPURLResponse, (200...299).contains(http.statusCode) else {
-                        throw BlockchainError.httpError(statusCode: (response as? HTTPURLResponse)?.statusCode ?? 0)
+                if chain.isEVM {
+                    _ = try await service.ethBlockNumber(rpcURL: config.rpcURL(for: chain))
+                } else {
+                    switch chain {
+                    case .bitcoin:
+                        let urlString = "\(config.rpcURL(for: .bitcoin))/blocks/tip/hash"
+                        guard let url = URL(string: urlString) else { throw BlockchainError.invalidURL(urlString) }
+                        let (_, response) = try await PinnedURLSession.shared.session.data(from: url)
+                        guard let http = response as? HTTPURLResponse, (200...299).contains(http.statusCode) else {
+                            throw BlockchainError.httpError(statusCode: (response as? HTTPURLResponse)?.statusCode ?? 0)
+                        }
+                    case .litecoin:
+                        let urlString = "\(config.rpcURL(for: .litecoin))/blocks/tip/hash"
+                        guard let url = URL(string: urlString) else { throw BlockchainError.invalidURL(urlString) }
+                        let (_, response) = try await PinnedURLSession.shared.session.data(from: url)
+                        guard let http = response as? HTTPURLResponse, (200...299).contains(http.statusCode) else {
+                            throw BlockchainError.httpError(statusCode: (response as? HTTPURLResponse)?.statusCode ?? 0)
+                        }
+                    case .solana:
+                        _ = try await service.solHealth(rpcURL: config.rpcURL(for: .solana))
+                    case .tron:
+                        let urlString = "\(config.rpcURL(for: .tron))/wallet/getnowblock"
+                        guard let url = URL(string: urlString) else { throw BlockchainError.invalidURL(urlString) }
+                        var req = URLRequest(url: url)
+                        req.httpMethod = "POST"
+                        req.httpBody = Data("{}".utf8)
+                        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+                        let (_, response) = try await PinnedURLSession.shared.session.data(for: req)
+                        guard let http = response as? HTTPURLResponse, (200...299).contains(http.statusCode) else {
+                            throw BlockchainError.httpError(statusCode: (response as? HTTPURLResponse)?.statusCode ?? 0)
+                        }
+                    default:
+                        break
                     }
                 }
                 await MainActor.run {

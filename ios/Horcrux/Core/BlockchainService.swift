@@ -388,12 +388,18 @@ actor BlockchainService {
         var lastError: Error = BlockchainError.invalidURL("no endpoints")
         for (idx, url) in attempts.enumerated() {
             do {
-                switch wallet.chain {
-                case .ethereum:
+                if wallet.chain.isEVM {
                     let wei = try await ethBalance(address: wallet.address, rpcURL: url)
-                    if idx > 0 { SecureLog.info("RPC fallback \(idx) succeeded for ETH balance") }
-                    let symbol = EVMNetwork(rawValue: config.evmChainId)?.nativeSymbol ?? "ETH"
+                    if idx > 0 { SecureLog.info("RPC fallback \(idx) succeeded for \(wallet.chain.symbol) balance") }
+                    let symbol: String = {
+                        if wallet.chain == .ethereum {
+                            return EVMNetwork(rawValue: config.evmChainId)?.nativeSymbol ?? "ETH"
+                        }
+                        return wallet.chain.symbol
+                    }()
                     return formatEthBalance(wei: wei, symbol: symbol)
+                }
+                switch wallet.chain {
                 case .bitcoin:
                     let sats = try await btcBalance(address: wallet.address, apiURL: url)
                     if idx > 0 { SecureLog.info("RPC fallback \(idx) succeeded for BTC balance") }
@@ -411,6 +417,8 @@ actor BlockchainService {
                     let sun = try await tronBalance(address: wallet.address, apiURL: url)
                     if idx > 0 { SecureLog.info("RPC fallback \(idx) succeeded for TRX balance") }
                     return formatTronBalance(sun: sun)
+                default:
+                    throw BlockchainError.invalidURL("Unsupported chain: \(wallet.chain)")
                 }
             } catch {
                 lastError = error
@@ -549,13 +557,19 @@ actor BlockchainService {
         let tokens = TokenList.tokens(for: wallet.chain)
         guard !tokens.isEmpty else { return [] }
 
+        if wallet.chain.isEVM {
+            // All EVM chains use ERC-20 semantics. Each chain's token list
+            // is routed through the chain-specific RPC so balances read the
+            // right ledger.
+            return await erc20Balances(tokens: tokens, ownerAddress: wallet.address, rpcURL: config.rpcURL(for: wallet.chain))
+        }
         switch wallet.chain {
-        case .ethereum:
-            return await erc20Balances(tokens: tokens, ownerAddress: wallet.address, rpcURL: config.ethereumRPC)
         case .solana:
             return await splTokenBalances(tokens: tokens, ownerAddress: wallet.address, rpcURL: config.solanaRPC)
         case .bitcoin, .litecoin, .tron:
             // UTXO chains and TRC20 not wired yet.
+            return []
+        default:
             return []
         }
     }

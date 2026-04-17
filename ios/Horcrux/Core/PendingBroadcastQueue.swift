@@ -59,20 +59,26 @@ final class PendingBroadcastQueue: ObservableObject {
         for tx in pending {
             do {
                 let result: String
-                switch tx.chain {
-                case .ethereum:
+                if tx.chain.isEVM {
                     result = try await service.ethSendRawTransaction(
-                        signedTxHex: tx.signedPayload, rpcURL: config.ethereumRPC)
-                case .bitcoin:
-                    result = try await service.btcBroadcast(
-                        signedTxHex: tx.signedPayload, apiURL: config.bitcoinAPI)
-                case .solana:
-                    result = try await service.solSendTransaction(
-                        signedTxBase64: tx.signedPayload, rpcURL: config.solanaRPC)
-                case .litecoin, .tron:
-                    throw BlockchainError.invalidURL(
-                        "Broadcast for \(tx.chain.rawValue) is not implemented yet"
-                    )
+                        signedTxHex: tx.signedPayload, rpcURL: config.rpcURL(for: tx.chain))
+                } else {
+                    switch tx.chain {
+                    case .bitcoin:
+                        result = try await service.btcBroadcast(
+                            signedTxHex: tx.signedPayload, apiURL: config.bitcoinAPI)
+                    case .solana:
+                        result = try await service.solSendTransaction(
+                            signedTxBase64: tx.signedPayload, rpcURL: config.solanaRPC)
+                    case .litecoin, .tron:
+                        throw BlockchainError.invalidURL(
+                            "Broadcast for \(tx.chain.rawValue) is not implemented yet"
+                        )
+                    default:
+                        throw BlockchainError.invalidURL(
+                            "Broadcast for \(tx.chain.rawValue) is not implemented yet"
+                        )
+                    }
                 }
                 // Success — update transaction store and remove from queue
                 transactionStore.updateStatus(id: tx.id, status: .broadcast, txHash: result)

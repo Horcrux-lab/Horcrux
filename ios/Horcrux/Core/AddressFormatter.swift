@@ -36,12 +36,10 @@ enum AddressFormatter {
         return result
     }
 
-    /// Return `address` formatted appropriately for the chain. ETH uses EIP-55.
+    /// Return `address` formatted appropriately for the chain. All EVM chains use EIP-55.
     static func canonical(_ address: String, chain: Chain) -> String {
-        switch chain {
-        case .ethereum: return eip55(address)
-        case .bitcoin, .litecoin, .solana, .tron: return address
-        }
+        if chain.isEVM { return eip55(address) }
+        return address
     }
 
     // MARK: - Readable chunked display
@@ -78,6 +76,18 @@ enum AddressFormatter {
         switch chain {
         case .ethereum:
             return URL(string: "https://etherscan.io/address/\(address)")
+        case .bnb:
+            return URL(string: "https://bscscan.com/address/\(address)")
+        case .avalanche:
+            return URL(string: "https://snowtrace.io/address/\(address)")
+        case .optimism:
+            return URL(string: "https://optimistic.etherscan.io/address/\(address)")
+        case .zksync:
+            return URL(string: "https://explorer.zksync.io/address/\(address)")
+        case .linea:
+            return URL(string: "https://lineascan.build/address/\(address)")
+        case .scroll:
+            return URL(string: "https://scrollscan.com/address/\(address)")
         case .bitcoin:
             return URL(string: "https://mempool.space/address/\(address)")
         case .litecoin:
@@ -93,6 +103,18 @@ enum AddressFormatter {
         switch chain {
         case .ethereum:
             return URL(string: "https://etherscan.io/tx/\(txHash)")
+        case .bnb:
+            return URL(string: "https://bscscan.com/tx/\(txHash)")
+        case .avalanche:
+            return URL(string: "https://snowtrace.io/tx/\(txHash)")
+        case .optimism:
+            return URL(string: "https://optimistic.etherscan.io/tx/\(txHash)")
+        case .zksync:
+            return URL(string: "https://explorer.zksync.io/tx/\(txHash)")
+        case .linea:
+            return URL(string: "https://lineascan.build/tx/\(txHash)")
+        case .scroll:
+            return URL(string: "https://scrollscan.com/tx/\(txHash)")
         case .bitcoin:
             return URL(string: "https://mempool.space/tx/\(txHash)")
         case .litecoin:

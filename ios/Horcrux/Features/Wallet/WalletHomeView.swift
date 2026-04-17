@@ -208,20 +208,24 @@ struct WalletHomeView: View {
     private func retryBroadcast(_ tx: PendingBroadcastQueue.PendingTransaction) async {
         do {
             let result: String
-            switch tx.chain {
-            case .ethereum:
+            if tx.chain.isEVM {
                 result = try await appState.blockchainService.ethSendRawTransaction(
-                    signedTxHex: tx.signedPayload, rpcURL: appState.networkConfig.ethereumRPC)
-            case .bitcoin:
-                result = try await appState.blockchainService.btcBroadcast(
-                    signedTxHex: tx.signedPayload, apiURL: appState.networkConfig.bitcoinAPI)
-            case .solana:
-                result = try await appState.blockchainService.solSendTransaction(
-                    signedTxBase64: tx.signedPayload, rpcURL: appState.networkConfig.solanaRPC)
-            case .litecoin, .tron:
-                // Broadcast not implemented — should never be reachable because
-                // signing is blocked for these chains.
-                throw BlockchainError.invalidURL("Broadcast not supported for \(tx.chain.rawValue)")
+                    signedTxHex: tx.signedPayload, rpcURL: appState.networkConfig.rpcURL(for: tx.chain))
+            } else {
+                switch tx.chain {
+                case .bitcoin:
+                    result = try await appState.blockchainService.btcBroadcast(
+                        signedTxHex: tx.signedPayload, apiURL: appState.networkConfig.bitcoinAPI)
+                case .solana:
+                    result = try await appState.blockchainService.solSendTransaction(
+                        signedTxBase64: tx.signedPayload, rpcURL: appState.networkConfig.solanaRPC)
+                case .litecoin, .tron:
+                    // Broadcast not implemented — should never be reachable because
+                    // signing is blocked for these chains.
+                    throw BlockchainError.invalidURL("Broadcast not supported for \(tx.chain.rawValue)")
+                default:
+                    throw BlockchainError.invalidURL("Broadcast not supported for \(tx.chain.rawValue)")
+                }
             }
             appState.transactionStore.updateStatus(id: tx.id, status: .broadcast, txHash: result)
             appState.pendingBroadcastQueue.dequeue(id: tx.id)
@@ -590,8 +594,8 @@ struct WalletDetailView: View {
                     .accessibilityIdentifier("walletDetail_receiveButton")
                 }
 
-                // Tokens
-                if wallet.chain != .bitcoin && wallet.chain != .litecoin && wallet.chain != .tron {
+                // Tokens (only for chains that have a token list)
+                if !TokenList.tokens(for: wallet.chain).isEmpty {
                     VStack(alignment: .leading, spacing: 10) {
                         VaultSectionHeader(L10n.WalletDetail.tokens, icon: "circle.grid.2x2")
                             .padding(.horizontal, 4)

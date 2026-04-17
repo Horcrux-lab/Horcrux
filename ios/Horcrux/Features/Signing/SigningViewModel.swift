@@ -24,11 +24,12 @@ final class SigningViewModel: ObservableObject {
     /// Decimals of the asset currently being transferred (18 for ETH, 8 for BTC, 9 for SOL, token-specific for ERC-20/SPL).
     var transferDecimals: Int {
         if let selectedToken { return Int(selectedToken.decimals) }
+        if wallet.chain.isEVM { return 18 }
         switch wallet.chain {
-        case .ethereum: return 18
         case .bitcoin, .litecoin: return 8
         case .solana: return 9
         case .tron: return 6
+        default: return 18
         }
     }
 
@@ -160,8 +161,7 @@ final class SigningViewModel: ObservableObject {
         isEstimatingGas = true
         Task {
             do {
-                switch wallet.chain {
-                case .ethereum:
+                if wallet.chain.isEVM {
                     // If ERC-20: call goes to token contract with value=0 and transfer() calldata
                     let (txTo, txValueWei, txData): (String, String, String?) = {
                         if let token = self.selectedToken {
@@ -172,47 +172,56 @@ final class SigningViewModel: ObservableObject {
                             return (recipientAddress, ethToWei(amount), nil)
                         }
                     }()
+                    let rpc = networkConfig.rpcURL(for: wallet.chain)
                     let estimate = try await blockchainService.ethEstimateGas(
                         from: wallet.address,
                         to: txTo,
                         valueWei: txValueWei,
                         data: txData,
-                        rpcURL: networkConfig.ethereumRPC
+                        rpcURL: rpc
                     )
                     let feeDisplay = try await blockchainService.ethFeeEstimateDisplay(
                         from: wallet.address,
                         to: txTo,
                         valueWei: txValueWei,
-                        rpcURL: networkConfig.ethereumRPC
+                        rpcURL: rpc
                     )
                     await MainActor.run {
                         estimatedGas = "\(estimate.gasLimit)"
                         estimatedFee = "≈ \(feeDisplay.estimatedFee)"
                         isEstimatingGas = false
                     }
-                case .bitcoin:
-                    let feeDisplay = try await blockchainService.btcFeeEstimateDisplay(
-                        inputCount: 1, outputCount: 2,
-                        apiURL: networkConfig.bitcoinAPI
-                    )
-                    await MainActor.run {
-                        estimatedFee = "≈ \(feeDisplay.estimatedFee)"
-                        isEstimatingGas = false
-                    }
-                case .solana:
-                    let feeDisplay = try await blockchainService.solFeeEstimateDisplay(
-                        rpcURL: networkConfig.solanaRPC
-                    )
-                    await MainActor.run {
-                        estimatedFee = "≈ \(feeDisplay.estimatedFee)"
-                        isEstimatingGas = false
-                    }
-                case .litecoin, .tron:
-                    // Signing not wired yet; show a hint so the user knows the
-                    // preview is informational only.
-                    await MainActor.run {
-                        estimatedFee = L10n.Signing.unableToEstimate
-                        isEstimatingGas = false
+                } else {
+                    switch wallet.chain {
+                    case .bitcoin:
+                        let feeDisplay = try await blockchainService.btcFeeEstimateDisplay(
+                            inputCount: 1, outputCount: 2,
+                            apiURL: networkConfig.bitcoinAPI
+                        )
+                        await MainActor.run {
+                            estimatedFee = "≈ \(feeDisplay.estimatedFee)"
+                            isEstimatingGas = false
+                        }
+                    case .solana:
+                        let feeDisplay = try await blockchainService.solFeeEstimateDisplay(
+                            rpcURL: networkConfig.solanaRPC
+                        )
+                        await MainActor.run {
+                            estimatedFee = "≈ \(feeDisplay.estimatedFee)"
+                            isEstimatingGas = false
+                        }
+                    case .litecoin, .tron:
+                        // Signing not wired yet; show a hint so the user knows the
+                        // preview is informational only.
+                        await MainActor.run {
+                            estimatedFee = L10n.Signing.unableToEstimate
+                            isEstimatingGas = false
+                        }
+                    default:
+                        await MainActor.run {
+                            estimatedFee = L10n.Signing.unableToEstimate
+                            isEstimatingGas = false
+                        }
                     }
                 }
             } catch {
@@ -461,9 +470,11 @@ final class SigningViewModel: ObservableObject {
             return horcruxKeccak256(data: Data("\(amount) \(wallet.chain.symbol) → \(recipientAddress)".utf8))
         }
 
-        switch wallet.chain {
-        case .ethereum:
-            // Build real EIP-1559 sign hash via Rust FFI
+        if wallet.chain.isEVM {
+            // Build real EIP-1559 sign hash via Rust FFI. For Ethereum itself
+            // we use the user-configured chainId (allows Sepolia); for the
+            // other first-class EVM chains the chainId is fixed to that
+            // network's mainnet id.
             let (txTo, txValueWei, txData): (String, String, Data) = {
                 if let token = self.selectedToken {
                     let raw = Self.amountToRawUnits(amount, decimals: Int(token.decimals))
@@ -473,6 +484,10 @@ final class SigningViewModel: ObservableObject {
                     return (recipientAddress, ethToWei(amount), Data())
                 }
             }()
+            let chainId: UInt64 = {
+                if wallet.chain == .ethereum { return networkConfig.evmChainId }
+                return wallet.chain.defaultEVMNetwork?.rawValue ?? networkConfig.evmChainId
+            }()
             let params = FfiEvmTxParams(
                 to: txTo,
                 valueWei: txValueWei,
@@ -480,7 +495,7 @@ final class SigningViewModel: ObservableObject {
                 gasLimit: UInt64(estimatedGas) ?? 21000,
                 maxFeePerGas: "0",
                 maxPriorityFeePerGas: "0",
-                chainId: networkConfig.evmChainId,
+                chainId: chainId,
                 data: txData
             )
             if let tx = try? horcruxBuildEvmTransaction(params: params) {
@@ -489,7 +504,9 @@ final class SigningViewModel: ObservableObject {
             // Fallback: hash a stable string representation
             let txBytes = "\(params.chainId):\(params.nonce):\(params.to):\(params.valueWei):\(params.gasLimit):\(txData.count)"
             return horcruxKeccak256(data: Data(txBytes.utf8))
+        }
 
+        switch wallet.chain {
         case .bitcoin:
             let txData = "\(amount) BTC → \(recipientAddress)"
             return horcruxKeccak256(data: Data(txData.utf8))
@@ -507,6 +524,9 @@ final class SigningViewModel: ObservableObject {
         case .tron:
             let txData = "\(amount) TRX → \(recipientAddress)"
             return horcruxKeccak256(data: Data(txData.utf8))
+
+        default:
+            return horcruxKeccak256(data: Data("\(amount) \(wallet.chain.symbol) → \(recipientAddress)".utf8))
         }
     }
 
@@ -518,11 +538,10 @@ final class SigningViewModel: ObservableObject {
 
         Task {
             do {
-                switch wallet.chain {
-                case .ethereum:
+                if wallet.chain.isEVM {
                     let result = try await blockchainService.ethSendRawTransaction(
                         signedTxHex: txHash,
-                        rpcURL: networkConfig.ethereumRPC
+                        rpcURL: networkConfig.rpcURL(for: wallet.chain)
                     )
                     await MainActor.run {
                         broadcastStatus = "Broadcast OK: \(result.prefix(20))…"
@@ -532,39 +551,48 @@ final class SigningViewModel: ObservableObject {
                             transactionStore?.updateStatus(id: id, status: .broadcast, txHash: result)
                         }
                     }
-                case .bitcoin:
-                    let result = try await blockchainService.btcBroadcast(
-                        signedTxHex: txHash,
-                        apiURL: networkConfig.bitcoinAPI
-                    )
-                    await MainActor.run {
-                        broadcastStatus = "Broadcast OK: \(result.prefix(20))…"
-                        isBroadcasting = false
-                        Haptics.success()
-                        if let id = currentRecordId {
-                            transactionStore?.updateStatus(id: id, status: .broadcast, txHash: result)
+                } else {
+                    switch wallet.chain {
+                    case .bitcoin:
+                        let result = try await blockchainService.btcBroadcast(
+                            signedTxHex: txHash,
+                            apiURL: networkConfig.bitcoinAPI
+                        )
+                        await MainActor.run {
+                            broadcastStatus = "Broadcast OK: \(result.prefix(20))…"
+                            isBroadcasting = false
+                            Haptics.success()
+                            if let id = currentRecordId {
+                                transactionStore?.updateStatus(id: id, status: .broadcast, txHash: result)
+                            }
                         }
-                    }
-                case .solana:
-                    let result = try await blockchainService.solSendTransaction(
-                        signedTxBase64: txHash,
-                        rpcURL: networkConfig.solanaRPC
-                    )
-                    await MainActor.run {
-                        broadcastStatus = "Broadcast OK: \(result.prefix(20))…"
-                        isBroadcasting = false
-                        Haptics.success()
-                        if let id = currentRecordId {
-                            transactionStore?.updateStatus(id: id, status: .broadcast, txHash: result)
+                    case .solana:
+                        let result = try await blockchainService.solSendTransaction(
+                            signedTxBase64: txHash,
+                            rpcURL: networkConfig.solanaRPC
+                        )
+                        await MainActor.run {
+                            broadcastStatus = "Broadcast OK: \(result.prefix(20))…"
+                            isBroadcasting = false
+                            Haptics.success()
+                            if let id = currentRecordId {
+                                transactionStore?.updateStatus(id: id, status: .broadcast, txHash: result)
+                            }
                         }
-                    }
-                case .litecoin, .tron:
-                    await MainActor.run {
-                        broadcastStatus = "Broadcast for \(wallet.chain.rawValue) is not supported yet."
-                        isBroadcasting = false
-                        Haptics.error()
-                        if let id = currentRecordId {
-                            transactionStore?.updateStatus(id: id, status: .failed)
+                    case .litecoin, .tron:
+                        await MainActor.run {
+                            broadcastStatus = "Broadcast for \(wallet.chain.rawValue) is not supported yet."
+                            isBroadcasting = false
+                            Haptics.error()
+                            if let id = currentRecordId {
+                                transactionStore?.updateStatus(id: id, status: .failed)
+                            }
+                        }
+                    default:
+                        await MainActor.run {
+                            broadcastStatus = "Broadcast for \(wallet.chain.rawValue) is not supported yet."
+                            isBroadcasting = false
+                            Haptics.error()
                         }
                     }
                 }

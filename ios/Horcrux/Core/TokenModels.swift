@@ -56,6 +56,10 @@ enum TokenList {
     static func tokens(for chain: Chain) -> [Token] {
         switch chain {
         case .ethereum: return ethereum
+        case .bnb, .avalanche, .optimism, .zksync, .linea, .scroll:
+            // Token registries for new EVM chains are not wired yet. The
+            // native balance still works; tokens arrive in a later milestone.
+            return []
         case .bitcoin, .litecoin: return []   // UTXO chains have no native token standard
         case .solana: return solana
         case .tron: return []   // TRC20 not wired yet (notable: USDT-TRC20 later)

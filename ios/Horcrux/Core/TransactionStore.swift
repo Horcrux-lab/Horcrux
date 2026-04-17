@@ -24,18 +24,7 @@ struct TransactionRecord: Identifiable, Codable {
     /// Explorer URL for this transaction.
     var explorerURL: URL? {
         guard let txHash, !txHash.isEmpty else { return nil }
-        switch chain {
-        case .ethereum:
-            return URL(string: "https://etherscan.io/tx/\(txHash)")
-        case .bitcoin:
-            return URL(string: "https://blockstream.info/tx/\(txHash)")
-        case .litecoin:
-            return URL(string: "https://litecoinspace.org/tx/\(txHash)")
-        case .solana:
-            return URL(string: "https://solscan.io/tx/\(txHash)")
-        case .tron:
-            return URL(string: "https://tronscan.org/#/transaction/\(txHash)")
-        }
+        return AddressFormatter.txExplorerURL(txHash: txHash, chain: chain)
     }
 
     var statusIcon: String {

@@ -49,9 +49,10 @@ actor TransactionConfirmationPoller {
                                    service: BlockchainService,
                                    config: NetworkConfig) async -> Bool {
         do {
+            if chain.isEVM {
+                return try await checkEthConfirmation(txHash: txHash, service: service, rpcURL: config.rpcURL(for: chain))
+            }
             switch chain {
-            case .ethereum:
-                return try await checkEthConfirmation(txHash: txHash, service: service, rpcURL: config.ethereumRPC)
             case .bitcoin:
                 return try await checkBtcConfirmation(txHash: txHash, apiURL: config.bitcoinAPI)
             case .solana:
@@ -60,6 +61,8 @@ actor TransactionConfirmationPoller {
                 // Signing not yet supported for these chains; we'll never see
                 // a pending tx hash — leave confirmation reporting as "not yet"
                 // so the UI doesn't spin on something that can't arrive.
+                return false
+            default:
                 return false
             }
         } catch {
