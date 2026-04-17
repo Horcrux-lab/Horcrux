@@ -20,7 +20,7 @@ final class CreateShardViewModel: ObservableObject {
     @Published var totalParties: Int = 3
     @Published var partyIndex: Int = 1
     @Published var selectedTransports: Set<TransportType> = [.relay]
-    @Published var roomCode: String = RoomCode.generate()
+    @Published var roomCode: String = "apple-tiger-moon"
 
     // Discovery
     @Published var foundPeers: [Peer] = []
