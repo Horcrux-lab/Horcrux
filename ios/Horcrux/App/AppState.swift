@@ -22,6 +22,11 @@ final class AppState: ObservableObject {
     /// Persistent wallet storage
     let walletStore = WalletStore()
 
+    /// Bridges child ObservableObject changes (walletStore) to our own
+    /// objectWillChange so views using `@EnvironmentObject appState` refresh
+    /// when wallets are added/removed.
+    private var childCancellables = Set<AnyCancellable>()
+
     /// Blockchain RPC endpoint configuration
     let networkConfig = NetworkConfig.shared
 
@@ -57,6 +62,17 @@ final class AppState: ObservableObject {
     ///
     /// Zeroed on app backgrounding and auto-lock.
     private var cachedShardKeyMaterial: Data?
+
+    init() {
+        // Propagate walletStore changes through our own objectWillChange so
+        // every @EnvironmentObject appState consumer re-renders when wallets
+        // are added, removed, or renamed. Without this, WalletHomeView would
+        // show a stale empty list after a fresh DKG save.
+        walletStore.objectWillChange
+            .receive(on: RunLoop.main)
+            .sink { [weak self] _ in self?.objectWillChange.send() }
+            .store(in: &childCancellables)
+    }
 
     /// Whether this is the first launch (no PIN set yet)
     var isFirstLaunch: Bool {

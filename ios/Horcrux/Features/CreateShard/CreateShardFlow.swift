@@ -574,15 +574,6 @@ struct DKGProgressView: View {
                 }
             }
 
-            if viewModel.selectedCurve == .secp256k1 &&
-               viewModel.currentRound >= 3 && viewModel.currentRound <= 5 {
-                Label("第 3-5 步计算 Paillier 同态密钥，为整个流程最耗时阶段", systemImage: "lightbulb.fill")
-                    .font(.caption)
-                    .foregroundStyle(.yellow)
-                    .padding(.horizontal)
-                    .multilineTextAlignment(.center)
-            }
-
             Spacer()
 
             Text(L10n.DKG.keepDevicesNearby)
@@ -655,34 +646,10 @@ struct DKGCompleteView: View {
                     .foregroundStyle(.secondary)
             }
 
-            // Backup nudge (mandatory gate after save)
-            VStack(alignment: .leading, spacing: 8) {
-                Label {
-                    Text("强烈建议：立即备份分片").font(.subheadline.bold())
-                } icon: {
-                    Image(systemName: "exclamationmark.shield.fill").foregroundStyle(.orange)
-                }
-                Text("保存后会要求你备份。未备份丢失设备时可能永久失去资金。")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-            .padding(12)
-            .background(RoundedRectangle(cornerRadius: 12).fill(Color.orange.opacity(0.1)))
-            .padding(.horizontal)
-
             Spacer()
 
             Button {
-                // Fast path: reuse the key derived at unlock / onboarding —
-                // no second PIN prompt. Falls back to the alert flow only when
-                // the cache is empty (e.g. biometric-only unlock).
-                if let key = appState.cachedShardKey() {
-                    viewModel.saveWallet(to: appState, keyMaterial: key)
-                    Haptics.success()
-                    showBackupGate = true
-                } else {
-                    showPinPrompt = true
-                }
+                Task { await saveTapped() }
             } label: {
                 Text(L10n.DKG.saveEncryptShard)
                     .frame(maxWidth: .infinity)
@@ -737,6 +704,30 @@ struct DKGCompleteView: View {
         } message: {
             Text("如果你丢失或损坏这台设备，没有备份将无法恢复这份分片，可能导致钱包永久锁死。")
         }
+    }
+
+    /// Try to save silently (cache → biometric). Only prompt for PIN as a
+    /// last resort. This avoids a second PIN prompt when the SWK was just
+    /// provisioned via onboarding or biometric unlock.
+    private func saveTapped() async {
+        if let key = appState.cachedShardKey() {
+            viewModel.saveWallet(to: appState, keyMaterial: key)
+            Haptics.success()
+            showBackupGate = true
+            return
+        }
+        // Cache was cleared (e.g. app backgrounded during DKG). Try
+        // biometric silently before bothering the user for a PIN.
+        if SecureKeyVault.hasSESealed {
+            if await appState.unlockShardKeyWithBiometric(),
+               let key = appState.cachedShardKey() {
+                viewModel.saveWallet(to: appState, keyMaterial: key)
+                Haptics.success()
+                showBackupGate = true
+                return
+            }
+        }
+        showPinPrompt = true
     }
 }
 
