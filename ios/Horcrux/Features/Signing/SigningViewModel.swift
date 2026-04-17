@@ -18,7 +18,24 @@ final class SigningViewModel: ObservableObject {
     }
     @Published var amount: String = ""
     /// Selected ERC-20 / SPL token (nil = native coin transfer).
-    @Published var selectedToken: Token? = nil
+    @Published var selectedToken: Token? = nil {
+        didSet {
+            // Prime the Max button for token transfers by prefetching the
+            // token balance into the shared cache. No-op for native coin.
+            guard selectedToken?.id != oldValue?.id,
+                  let token = selectedToken,
+                  let cfg = networkConfig,
+                  let svc = blockchainService else { return }
+            let w = wallet
+            Task { @MainActor in
+                _ = await BalanceCache.shared.tokenBalance(
+                    wallet: w, token: token,
+                    service: svc, config: cfg)
+                // Kick a view refresh so the Max button re-evaluates canFillMax.
+                self.objectWillChange.send()
+            }
+        }
+    }
 
     /// User-selected fee priority. Scales the cached EVM gas estimate
     /// and (in future) BTC fee rate. Normal = network-suggested values.
@@ -1188,11 +1205,16 @@ final class SigningViewModel: ObservableObject {
 
     /// Populate `amount` with the maximum sendable value.
     ///
-    /// Only supported for native transfers (no token selected). For tokens
-    /// we don't currently cache a per-token balance, so the button is
-    /// hidden from the UI in that case.
+    /// Supports native transfers and ERC-20/SPL/TRC-20 token transfers. For
+    /// tokens we read the cached whole-token balance from `BalanceCache`;
+    /// if the cache is empty the button is disabled via `canFillMax`.
     func fillMax() {
-        guard selectedToken == nil else { return }
+        // Token path: no gas deduction needed (fee is paid in native).
+        if let token = selectedToken {
+            guard let bal = BalanceCache.shared.cachedTokenBalance(walletId: wallet.id, tokenId: token.id) else { return }
+            amount = Self.formatAmountTrimmed(bal)
+            return
+        }
 
         // Parse "1.234 ETH" → 1.234.
         guard let raw = preTxBalance,
@@ -1221,7 +1243,10 @@ final class SigningViewModel: ObservableObject {
 
     /// Whether the Max button should be shown for the current compose state.
     var canFillMax: Bool {
-        selectedToken == nil && preTxBalance != nil
+        if let token = selectedToken {
+            return BalanceCache.shared.cachedTokenBalance(walletId: wallet.id, tokenId: token.id) != nil
+        }
+        return preTxBalance != nil
     }
 
     private static func formatAmountTrimmed(_ v: Double) -> String {

@@ -61,6 +61,7 @@ struct TransactionHistoryView: View {
 
 struct TransactionRow: View {
     let transaction: TransactionRecord
+    @State private var ensName: String?
 
     var body: some View {
         HStack(spacing: 12) {
@@ -101,16 +102,30 @@ struct TransactionRow: View {
                 }
 
                 HStack {
-                    Text("→ " + shortAddress(transaction.toAddress))
-                        .font(.caption)
-                        .foregroundStyle(HorcruxTheme.subtleText)
-                        .monospaced()
+                    Group {
+                        if let ens = ensName {
+                            Text("→ " + ens)
+                                .foregroundStyle(HorcruxTheme.accentBlue)
+                        } else {
+                            Text("→ " + shortAddress(transaction.toAddress))
+                                .foregroundStyle(HorcruxTheme.subtleText)
+                                .monospaced()
+                        }
+                    }
+                    .font(.caption)
                     Spacer()
                     Text(transaction.createdAt.formatted(date: .abbreviated, time: .shortened))
                         .font(.caption2)
                         .foregroundStyle(HorcruxTheme.subtleText)
                 }
             }
+        }
+        .task(id: transaction.toAddress) {
+            // Only Ethereum mainnet has ENS. Kick off a best-effort reverse
+            // lookup once per row; results are memoised in ENSResolver so
+            // this won't hammer the RPC on re-renders.
+            guard transaction.chain == .ethereum else { return }
+            ensName = await ENSResolver.reverse(transaction.toAddress)
         }
     }
 

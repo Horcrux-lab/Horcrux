@@ -22,7 +22,15 @@ final class BalanceCache: ObservableObject {
 
     @Published private(set) var entries: [String: Entry] = [:]
 
+    /// Token-balance cache keyed by "<walletId>:<tokenId>" → numeric amount
+    /// (in whole-token units, already decimal-adjusted). Populated lazily
+    /// when a view explicitly asks for a token balance; used by the Max
+    /// button on the signing compose form.
+    @Published private(set) var tokenEntries: [String: Double] = [:]
+    private var tokenFetchedAt: [String: Date] = [:]
+
     private var inflight: [String: Task<String?, Never>] = [:]
+    private var tokenInflight: [String: Task<Double?, Never>] = [:]
     private let ttl: TimeInterval = 30
 
     private init() {}
@@ -77,5 +85,55 @@ final class BalanceCache: ObservableObject {
     /// Drop all cached entries. Useful when the network config changes.
     func invalidateAll() {
         entries.removeAll()
+        tokenEntries.removeAll()
+        tokenFetchedAt.removeAll()
+    }
+
+    /// Returns the cached whole-token balance (e.g. 42.5 for 42.5 USDC),
+    /// or nil if we haven't fetched it yet / it's stale.
+    func cachedTokenBalance(walletId: String, tokenId: String) -> Double? {
+        let k = "\(walletId):\(tokenId)"
+        if let ts = tokenFetchedAt[k], Date().timeIntervalSince(ts) < ttl * 4 {
+            return tokenEntries[k]
+        }
+        return tokenEntries[k] // stale value still useful for Max; poller refreshes
+    }
+
+    /// Fetch a single token's balance for the wallet. Coalesces concurrent
+    /// callers for the same (wallet, token) pair. Uses the chain's already-
+    /// wired balance-fetch path (`service.tokenBalances`) and extracts the
+    /// single matching entry.
+    @discardableResult
+    func tokenBalance(wallet: Wallet, token: Token,
+                      service: BlockchainService,
+                      config: NetworkConfig,
+                      force: Bool = false) async -> Double? {
+        let key = "\(wallet.id):\(token.id)"
+        if !force, let cached = tokenEntries[key],
+           let ts = tokenFetchedAt[key],
+           Date().timeIntervalSince(ts) < ttl {
+            return cached
+        }
+        if let existing = tokenInflight[key] {
+            return await existing.value
+        }
+        let task = Task<Double?, Never> { [weak self] in
+            let snapshots = await service.tokenBalances(for: wallet, config: config)
+            let match = snapshots.first(where: { $0.token.id == token.id })
+            let value: Double? = match.flatMap {
+                // displayBalance is e.g. "42.5 USDC" — strip the symbol.
+                let first = $0.displayBalance.split(separator: " ").first.map(String.init) ?? ""
+                return Double(first.replacingOccurrences(of: ",", with: ""))
+            }
+            await MainActor.run {
+                guard let self else { return }
+                if let value { self.tokenEntries[key] = value }
+                self.tokenFetchedAt[key] = Date()
+                self.tokenInflight[key] = nil
+            }
+            return value
+        }
+        tokenInflight[key] = task
+        return await task.value
     }
 }
