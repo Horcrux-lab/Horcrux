@@ -150,7 +150,7 @@
 "createShard.totalPartiesHint" = "调整参与的设备总数";
 "createShard.signingThreshold" = "签名阈值：%d";
 "createShard.signingThresholdHint" = "调整签名所需的最少设备数";
-"createShard.requiresDevices" = "需要 **%d** / **%d** 台设备签名";
+"createShard.requiresDevices" = "需要 %d / %d 台设备签名";
 "createShard.communication" = "通信方式";
 "createShard.nextFindPeers" = "下一步：发现设备";
 "createShard.findPeersHint" = "继续发现附近设备以进行密钥生成";

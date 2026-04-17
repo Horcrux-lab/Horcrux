@@ -150,7 +150,7 @@
 "createShard.totalPartiesHint" = "Adjust the total number of devices participating";
 "createShard.signingThreshold" = "Signing Threshold: %d";
 "createShard.signingThresholdHint" = "Adjust the minimum number of devices needed to sign";
-"createShard.requiresDevices" = "Requires **%d** of **%d** devices to sign";
+"createShard.requiresDevices" = "Requires %d of %d devices to sign";
 "createShard.communication" = "Communication";
 "createShard.nextFindPeers" = "Next: Find Peers";
 "createShard.findPeersHint" = "Proceed to discover nearby devices for key generation";
