@@ -51,25 +51,65 @@ struct CopyToastOverlay: ViewModifier {
     func body(content: Content) -> some View {
         content.overlay(alignment: .top) {
             if let msg = feedback.message {
-                HStack(spacing: 8) {
-                    Image(systemName: "checkmark.circle.fill")
-                        .foregroundStyle(.green)
+                HStack(spacing: 10) {
+                    ZStack {
+                        Circle()
+                            .fill(HorcruxTheme.accentPurple.opacity(0.25))
+                            .frame(width: 26, height: 26)
+                        Image(systemName: "checkmark")
+                            .font(.system(size: 12, weight: .bold))
+                            .foregroundStyle(HorcruxTheme.accentCyan)
+                    }
                     Text(msg)
-                        .font(.subheadline.weight(.medium))
+                        .font(.subheadline.weight(.semibold))
                         .foregroundStyle(.white)
                 }
-                .padding(.horizontal, 14)
+                .padding(.horizontal, 16)
                 .padding(.vertical, 10)
                 .background(
-                    Capsule().fill(Color.black.opacity(0.85))
-                        .overlay(Capsule().stroke(Color.white.opacity(0.12), lineWidth: 1))
+                    Capsule()
+                        .fill(.ultraThinMaterial)
+                        .overlay(
+                            Capsule().fill(
+                                LinearGradient(
+                                    colors: [
+                                        HorcruxTheme.accentPurple.opacity(0.18),
+                                        HorcruxTheme.accentBlue.opacity(0.10)
+                                    ],
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
+                                )
+                            )
+                        )
+                        .overlay(
+                            Capsule().stroke(
+                                LinearGradient(
+                                    colors: [
+                                        HorcruxTheme.accentPurple.opacity(0.55),
+                                        HorcruxTheme.accentCyan.opacity(0.35)
+                                    ],
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
+                                ),
+                                lineWidth: 1
+                            )
+                        )
+                        .shadow(color: HorcruxTheme.accentPurple.opacity(0.35), radius: 16, y: 6)
+                        .shadow(color: .black.opacity(0.25), radius: 6, y: 2)
                 )
-                .padding(.top, 12)
-                .transition(.move(edge: .top).combined(with: .opacity))
+                .padding(.top, 14)
+                .transition(
+                    .asymmetric(
+                        insertion: .move(edge: .top)
+                            .combined(with: .opacity)
+                            .combined(with: .scale(scale: 0.9, anchor: .top)),
+                        removal: .opacity.combined(with: .scale(scale: 0.95, anchor: .top))
+                    )
+                )
                 .zIndex(1000)
             }
         }
-        .animation(.spring(response: 0.35, dampingFraction: 0.75), value: feedback.message)
+        .animation(.spring(response: 0.4, dampingFraction: 0.72), value: feedback.message)
     }
 }
 
