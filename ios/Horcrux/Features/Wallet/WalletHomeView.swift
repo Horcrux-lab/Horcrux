@@ -188,7 +188,7 @@ struct WalletHomeView: View {
         return buckets
             .map { (accountId, list) -> WalletGroup in
                 let first = list.first!
-                let fallback = first.name.replacingOccurrences(of: " (\(first.chain.symbol))", with: "")
+                let fallback = first.name.replacingOccurrences(of: " (\(first.chain.rawValue))", with: "")
                 let label = accountStore.name(for: accountId, fallback: fallback)
                 return WalletGroup(
                     accountId: accountId,

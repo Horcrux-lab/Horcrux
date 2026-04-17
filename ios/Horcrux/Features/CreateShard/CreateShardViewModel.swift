@@ -629,10 +629,13 @@ final class CreateShardViewModel: ObservableObject {
 
         // Save one wallet entry per derived chain address.
         for (index, entry) in generatedAddresses.enumerated() {
-            let walletId = generatedAddresses.count > 1 ? "\(baseId)-\(entry.chain.symbol)" : baseId
+            // Use rawValue (unique per chain) to avoid ID/name collisions
+            // between EVM chains that share the same symbol (ETH).
+            let chainKey = entry.chain.rawValue.replacingOccurrences(of: " ", with: "-")
+            let walletId = generatedAddresses.count > 1 ? "\(baseId)-\(chainKey)" : baseId
             let wallet = Wallet(
                 id: walletId,
-                name: generatedAddresses.count > 1 ? "\(walletName) (\(entry.chain.symbol))" : walletName,
+                name: generatedAddresses.count > 1 ? "\(walletName) (\(entry.chain.rawValue))" : walletName,
                 chain: entry.chain,
                 address: entry.address,
                 groupPublicKey: result.publicKey,
