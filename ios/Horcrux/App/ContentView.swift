@@ -524,7 +524,13 @@ struct LockScreenView: View {
         guard BiometricAuth.shared.availableType != .none else { return }
         let success = await BiometricAuth.shared.authenticate()
         if success {
+            // Unwrap the Shard Wrap Key via the SE-sealed copy so the user
+            // won't be asked for the PIN again when signing. If no sealed
+            // copy exists yet (older install), the SWK cache stays nil and
+            // the signing flow falls back to the PIN prompt.
+            _ = await appState.unlockShardKeyWithBiometric()
             appState.isUnlocked = true
+            Haptics.success()
         }
     }
 }

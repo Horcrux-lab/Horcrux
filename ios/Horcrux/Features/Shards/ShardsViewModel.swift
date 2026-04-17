@@ -35,10 +35,26 @@ final class ShardsViewModel: ObservableObject {
             // Decrypt the shard so the backup is portable across devices
             let dto = try JSONDecoder().decode(EncryptedShardDTO.self, from: storedData)
             let deviceKey = try appState.deviceKey
+            // Prefer the cached SWK (populated at unlock). Fall back to
+            // unwrapping via PIN so backup still works after auto-lock.
+            let swk: Data
+            if let cached = appState.cachedShardKey() {
+                swk = cached
+            } else {
+                guard appState.verifyPin(pin) else {
+                    error = "Incorrect PIN"
+                    return
+                }
+                guard let unwrapped = appState.cachedShardKey() else {
+                    error = "Failed to unlock shard key"
+                    return
+                }
+                swk = unwrapped
+            }
             let plaintext = try appState.bridge.decryptShard(
                 encrypted: dto.toFfi(),
                 deviceKey: deviceKey,
-                pin: try AppState.pinKeyMaterial(pin)
+                pin: swk
             )
 
             let encoder = JSONEncoder()
@@ -92,13 +108,26 @@ final class ShardsViewModel: ObservableObject {
             throw ShardImportError.duplicateWallet(backup.walletName)
         }
 
-        // Re-encrypt the shard with this device's credentials
+        // Re-encrypt the shard with this device's credentials. Import is
+        // always user-initiated from an unlocked session, so the SWK is in
+        // cache; fall back to PIN unwrap if the user is mid-recovery.
         let deviceKey = try appState.deviceKey
-        let pinData = try AppState.pinKeyMaterial(pin)
+        let swk: Data
+        if let cached = appState.cachedShardKey() {
+            swk = cached
+        } else {
+            guard appState.verifyPin(pin) else {
+                throw ShardImportError.invalidPin
+            }
+            guard let unwrapped = appState.cachedShardKey() else {
+                throw ShardImportError.invalidPin
+            }
+            swk = unwrapped
+        }
         let encrypted = try appState.bridge.encryptShard(
             plaintext: backup.encryptedShard,
             deviceKey: deviceKey,
-            pin: pinData
+            pin: swk
         )
         let encoded = try JSONEncoder().encode(EncryptedShardDTO(encrypted))
 
@@ -161,6 +190,7 @@ enum ShardImportError: LocalizedError {
     case duplicateWallet(String)
     case invalidData
     case decryptionFailed
+    case invalidPin
 
     var errorDescription: String? {
         switch self {
@@ -172,6 +202,8 @@ enum ShardImportError: LocalizedError {
             return "Invalid backup data"
         case .decryptionFailed:
             return "Failed to decrypt shard — check your PIN"
+        case .invalidPin:
+            return "Incorrect PIN"
         }
     }
 }

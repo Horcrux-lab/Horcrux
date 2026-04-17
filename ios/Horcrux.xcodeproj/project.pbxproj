@@ -90,6 +90,7 @@
 		4D664723A80343ECADB1A722 /* DKGTestView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 21A20567AD7B48158FA9E2D9 /* DKGTestView.swift */; };
 		FE666EF536CF628D22F7E53C /* NotificationManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE08B520705A65B470D38D5B /* NotificationManager.swift */; };
 		FE9D1ADF07AB02CF4E5C83F5 /* SecureEnclaveManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 353EC9343608DC72569F5226 /* SecureEnclaveManager.swift */; };
+		63ADF587E92C0E0B6AC9485A /* SecureKeyVault.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4BB6F2B69C7D60FF3B363D64 /* SecureKeyVault.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -127,6 +128,7 @@
 		2F2D677F4FC0A239EA253203 /* PendingBroadcastQueueTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HorcruxTests/PendingBroadcastQueueTests.swift; sourceTree = SOURCE_ROOT; };
 		3175D60C78853AD441A91030 /* BLETransport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BLETransport.swift; sourceTree = "<group>"; };
 		353EC9343608DC72569F5226 /* SecureEnclaveManager.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SecureEnclaveManager.swift; sourceTree = "<group>"; };
+		4BB6F2B69C7D60FF3B363D64 /* SecureKeyVault.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SecureKeyVault.swift; sourceTree = "<group>"; };
 		36FEFBACE024F46E9D1DAB72 /* SigningViewModelTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HorcruxTests/SigningViewModelTests.swift; sourceTree = SOURCE_ROOT; };
 		381AF38EB22187DD56EF23DC /* MessagePaddingTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HorcruxTests/MessagePaddingTests.swift; sourceTree = SOURCE_ROOT; };
 		3935002B5AD730445E22C6BD /* TransportProtocol.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TransportProtocol.swift; sourceTree = "<group>"; };
@@ -301,6 +303,7 @@
 				4B6E4D6FF4E1E291334F81AD /* MessagePadding.swift */,
 				ECD46EFA897275FDEA93B9F9 /* SecureClipboard.swift */,
 				353EC9343608DC72569F5226 /* SecureEnclaveManager.swift */,
+				4BB6F2B69C7D60FF3B363D64 /* SecureKeyVault.swift */,
 				78F9508910EF69F531BC2DAC /* SecureLog.swift */,
 				B9B552A0CE360220FEBE7581 /* SecurityEnvironment.swift */,
 			);
@@ -701,6 +704,7 @@
 				72B9C0F1D4A8390BAB6AC043 /* MessagePadding.swift in Sources */,
 				6B039D31656F69A7D842A293 /* SecureClipboard.swift in Sources */,
 				FE9D1ADF07AB02CF4E5C83F5 /* SecureEnclaveManager.swift in Sources */,
+				63ADF587E92C0E0B6AC9485A /* SecureKeyVault.swift in Sources */,
 				F793DAC7968D28DD9C964416 /* SecureLog.swift in Sources */,
 				C8811E1FD0482CC30F308AFC /* SecurityEnvironment.swift in Sources */,
 				3B0F012FE11B9AAAB8CB633D /* L10n.swift in Sources */,

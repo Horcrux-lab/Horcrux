@@ -361,11 +361,13 @@ final class CreateShardViewModel: ObservableObject {
         appState.bridge.removeSession(sessionId: sessionId!)
     }
 
-    /// Convenience: derive key material from PIN and save. Used as the fallback
-    /// path when there's no cached key (e.g. biometric-unlocked session).
+    /// Convenience: unwrap the Shard Wrap Key via PIN and save. Used as
+    /// the fallback path when the SWK isn't already cached (e.g. session
+    /// was unlocked via biometric on a build without an SE-sealed SWK).
     func saveWallet(to appState: AppState, pin: String) {
-        guard let material = try? AppState.pinKeyMaterial(pin) else { return }
-        saveWallet(to: appState, keyMaterial: material)
+        guard appState.verifyPin(pin) else { return }
+        guard let swk = appState.cachedShardKey() else { return }
+        saveWallet(to: appState, keyMaterial: swk)
     }
 }
 

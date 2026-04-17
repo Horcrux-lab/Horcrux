@@ -46,16 +46,16 @@ final class AppState: ObservableObject {
     /// Whether the app is unlocked (PIN / biometric verified)
     @Published var isUnlocked: Bool = false
 
-    /// PIN-derived key material cached in RAM for the duration of this
-    /// unlocked session. Used to encrypt freshly-generated shards in the
-    /// *same* session that performed the unlock (no re-prompt for PIN).
+    /// Shard Wrap Key cached in RAM for the duration of this unlocked
+    /// session. The SWK is a random 32-byte key that directly encrypts
+    /// every shard's ciphertext; it is unwrapped at unlock time via either
+    /// PIN (PBKDF2-derived wrap key) or biometric (Secure Enclave seal).
     ///
-    /// Security posture: sensitive operations that move value or egress
-    /// data (transaction signing, backup export) still re-prompt for PIN.
-    /// This cache only removes the second prompt when the user has just
-    /// authenticated AND is persisting a locally-generated shard.
+    /// Callers that need to encrypt/decrypt shards should read this value
+    /// via `cachedShardKey()`. If it is `nil` (locked / backgrounded), the
+    /// UI must prompt PIN or biometric to unwrap the SWK via `SecureKeyVault`.
     ///
-    /// Zeroed on app backgrounding (see `HorcruxApp.swift`).
+    /// Zeroed on app backgrounding and auto-lock.
     private var cachedShardKeyMaterial: Data?
 
     /// Whether this is the first launch (no PIN set yet)
@@ -102,19 +102,29 @@ final class AppState: ObservableObject {
         return actualSalt + derivedKey
     }
 
-    /// Set (or change) the user's PIN. Stores salt||hash in Keychain.
+    /// Set the user's PIN during onboarding. Generates a fresh Shard Wrap
+    /// Key and persists both the PIN-wrapped and (if available) SE-sealed
+    /// copies. To change an existing PIN use `changePin` — that path only
+    /// re-wraps the SWK and leaves shard ciphertexts untouched.
     func setPin(_ pin: String) throws {
         let saltedHash = Self.hashPin(pin)
         try KeychainManager.shared.store(key: KeychainKeys.pinHash, data: saltedHash)
-        // Reset attempt counter
         resetFailedAttempts()
-        // Cache derived key material for this session (same rationale as verifyPin).
-        if let derived = try? Self.pinKeyMaterial(pin) {
-            cachedShardKeyMaterial = derived
+
+        // Provision SWK on first PIN set. If one already exists (user wiped
+        // PIN hash but not vault?), unwrap + re-wrap with the new PIN.
+        if SecureKeyVault.hasPinWrapped {
+            // Unexpected but tolerate: we can't unwrap without the old PIN,
+            // so the only safe thing is to overwrite with a fresh SWK. Any
+            // existing shards will become undecryptable — caller should
+            // only hit this branch during a recovery flow.
+            SecureKeyVault.wipe()
         }
+        cachedShardKeyMaterial = try SecureKeyVault.provision(pin: pin)
     }
 
     /// Verify a PIN against the stored salt||hash. Returns false if locked out.
+    /// On success, unwraps the Shard Wrap Key and caches it for the session.
     func verifyPin(_ pin: String) -> Bool {
         if isLockedOut { return false }
         let storedData: Data?
@@ -130,32 +140,109 @@ final class AppState: ObservableObject {
         }
         let salt = stored.prefix(Self.saltSize)
         let recomputed = Self.hashPin(pin, salt: Data(salt))
-        if recomputed == stored {
-            resetFailedAttempts()
-            // Cache the derived key material so the immediate save-shard step
-            // within this unlock session doesn't need a second PIN prompt.
-            if let derived = try? Self.pinKeyMaterial(pin) {
-                cachedShardKeyMaterial = derived
-            }
-            return true
-        } else {
+        guard recomputed == stored else {
             recordFailedAttempt()
+            return false
+        }
+        resetFailedAttempts()
+
+        // Happy path: vault exists → unwrap SWK.
+        if SecureKeyVault.hasPinWrapped {
+            cachedShardKeyMaterial = try? SecureKeyVault.unwrapWithPin(pin)
+            if let swk = cachedShardKeyMaterial {
+                SecureKeyVault.ensureSealed(swk: swk)
+            }
+        } else {
+            // Legacy install: shards were encrypted directly with
+            // PBKDF2(PIN, saltFromPinHash). Run one-time migration.
+            do {
+                try migrateLegacyShardsToSWK(pin: pin)
+            } catch {
+                SecureLog.error("SWK migration failed: \(error.localizedDescription)")
+                // Don't block unlock — user can try again; wallets remain
+                // encrypted under the old scheme.
+            }
+        }
+        return true
+    }
+
+    /// Unwrap the SWK via biometric (Face ID / Touch ID) and cache it.
+    /// Returns true if successful. Safe to call from the lock screen after
+    /// `BiometricAuth.authenticate()` has already surfaced a prompt.
+    func unlockShardKeyWithBiometric() async -> Bool {
+        guard SecureKeyVault.hasSESealed else { return false }
+        do {
+            let swk = try await Task.detached {
+                try SecureKeyVault.unwrapWithBiometric()
+            }.value
+            await MainActor.run { self.cachedShardKeyMaterial = swk }
+            return true
+        } catch {
+            SecureLog.error("Biometric SWK unwrap failed: \(error.localizedDescription)")
             return false
         }
     }
 
-    /// Returns the cached PIN-derived shard encryption key, if one is available
-    /// for this unlocked session. Caller should fall back to a PIN prompt when nil.
+    /// Returns the cached SWK, or nil when the app is locked / backgrounded.
+    /// Callers that receive nil must prompt the user to re-authenticate.
     func cachedShardKey() -> Data? {
         cachedShardKeyMaterial
     }
 
-    /// Forget the cached shard-key material. Called on app backgrounding and logout.
+    /// Forget the cached SWK. Called on app backgrounding and logout.
     func clearCachedShardKey() {
         if var k = cachedShardKeyMaterial {
             k.resetBytes(in: 0..<k.count)
         }
         cachedShardKeyMaterial = nil
+    }
+
+    /// One-time migration: legacy installs encrypted shards with the raw
+    /// PBKDF2(PIN) output. This routine decrypts all shards with that old
+    /// scheme, provisions an SWK, and re-encrypts them under the SWK.
+    ///
+    /// Runs inline during `verifyPin` the first time the user unlocks an
+    /// upgraded build. If no shards exist (brand-new install that somehow
+    /// lost its vault), it simply provisions a new SWK.
+    private func migrateLegacyShardsToSWK(pin: String) throws {
+        let legacyKey = try Self.pinKeyMaterial(pin)
+        defer {
+            var k = legacyKey
+            k.resetBytes(in: 0..<k.count)
+        }
+
+        let dk = try deviceKey
+        let wallets = walletStore.wallets
+
+        // Decrypt all shards first (in memory, under a unique-id set to skip
+        // duplicate same-curve siblings that share a shard).
+        var seen = Set<String>()
+        var plaintexts: [(String, Data)] = []
+        defer {
+            for i in 0..<plaintexts.count {
+                plaintexts[i].1.resetBytes(in: 0..<plaintexts[i].1.count)
+            }
+        }
+        for wallet in wallets {
+            guard !seen.contains(wallet.id) else { continue }
+            guard let encoded = try walletStore.loadKeyShare(walletId: wallet.id) else { continue }
+            let dto = try JSONDecoder().decode(EncryptedShardDTO.self, from: encoded)
+            let pt = try bridge.decryptShard(encrypted: dto.toFfi(), deviceKey: dk, pin: legacyKey)
+            plaintexts.append((wallet.id, pt))
+            seen.insert(wallet.id)
+        }
+
+        let swk = try SecureKeyVault.provision(pin: pin)
+
+        // Re-encrypt shards with the SWK and overwrite Keychain entries.
+        for (walletId, plaintext) in plaintexts {
+            let encrypted = try bridge.encryptShard(plaintext: plaintext, deviceKey: dk, pin: swk)
+            let encoded = try JSONEncoder().encode(EncryptedShardDTO(encrypted))
+            try walletStore.storeKeyShare(encoded, walletId: walletId)
+        }
+
+        cachedShardKeyMaterial = swk
+        SecureLog.info("SWK migration completed for \(plaintexts.count) shard(s)")
     }
 
     /// Derive encryption key material from PIN using PBKDF2.
@@ -190,111 +277,39 @@ final class AppState: ObservableObject {
         return derivedKey
     }
 
-    /// Change the user's PIN, **re-encrypting every stored shard** so the
-    /// wallets remain accessible under the new PIN. Throws on any failure;
-    /// if a Keychain write fails mid-way, the on-disk state may be
-    /// inconsistent and the user should recover via MPC.
-    ///
-    /// Flow:
-    ///   1. Derive oldKey from currentPin (validate by decrypting each shard).
-    ///   2. Pre-encrypt every shard with newKey in memory.
-    ///   3. Commit: write new pinHash, then overwrite each shard ciphertext.
+    /// Change the user's PIN. With SWK-based shard encryption this only
+    /// re-wraps the Shard Wrap Key under the new PIN; the SWK itself does
+    /// not change, so existing shards remain decryptable immediately and
+    /// no bulk re-encryption is required.
     func changePin(
         current currentPin: String,
         new newPin: String,
         walletStore: WalletStore
     ) throws {
+        _ = walletStore // retained for source compat
         guard verifyPin(currentPin) else {
             throw AppError.invalidPin
         }
-        let oldKey = try Self.pinKeyMaterial(currentPin)
-        defer {
-            var k = oldKey
-            k.resetBytes(in: 0..<k.count)
+        // `verifyPin` will have populated the cache (either directly or via
+        // the migration path). Fall back to an explicit unwrap if needed.
+        let swk: Data
+        if let cached = cachedShardKeyMaterial {
+            swk = cached
+        } else if SecureKeyVault.hasPinWrapped {
+            swk = try SecureKeyVault.unwrapWithPin(currentPin)
+        } else {
+            throw AppError.keychainUnavailable("Shard Wrap Key not provisioned")
         }
 
-        let dk = try deviceKey
-        let wallets = walletStore.wallets
-
-        // Collect unique shard ids (same curve wallets share a shard).
-        var processedShardIds = Set<String>()
-        var plaintexts: [(shardId: String, plaintext: Data)] = []
-
-        do {
-            for wallet in wallets {
-                // Same shard id appears for same-curve siblings; skip dupes.
-                guard !processedShardIds.contains(wallet.id) else { continue }
-                guard let encoded = try walletStore.loadKeyShare(walletId: wallet.id) else { continue }
-                let dto = try JSONDecoder().decode(EncryptedShardDTO.self, from: encoded)
-                let pt = try bridge.decryptShard(encrypted: dto.toFfi(), deviceKey: dk, pin: oldKey)
-                plaintexts.append((wallet.id, pt))
-                processedShardIds.insert(wallet.id)
-            }
-        } catch {
-            // Zero anything we collected.
-            for i in 0..<plaintexts.count {
-                plaintexts[i].plaintext.resetBytes(in: 0..<plaintexts[i].plaintext.count)
-            }
-            throw AppError.invalidPin
-        }
-        defer {
-            for i in 0..<plaintexts.count {
-                plaintexts[i].plaintext.resetBytes(in: 0..<plaintexts[i].plaintext.count)
-            }
-        }
-
-        // Generate fresh salt + pinHash for the new PIN (not yet written).
+        // Write the new PIN hash (new salt).
         let newPinHash = Self.hashPin(newPin)
-        let newSalt = newPinHash.prefix(Self.saltSize)
-        var newKey = try Self.pinKeyMaterialWithSalt(newPin, salt: Data(newSalt))
-        defer { newKey.resetBytes(in: 0..<newKey.count) }
-
-        // Re-encrypt everything with the new key, still in memory.
-        var newCiphertexts: [(shardId: String, encoded: Data)] = []
-        for entry in plaintexts {
-            let encrypted = try bridge.encryptShard(plaintext: entry.plaintext, deviceKey: dk, pin: newKey)
-            let encoded = try JSONEncoder().encode(EncryptedShardDTO(encrypted))
-            newCiphertexts.append((entry.shardId, encoded))
-        }
-
-        // Commit: pinHash first (single atomic Keychain write), then shards.
-        // A crash between the pinHash write and the shard writes is the only
-        // remaining failure window; callers should warn users that if the
-        // app is killed during PIN change they must recover via MPC.
         try KeychainManager.shared.store(key: KeychainKeys.pinHash, data: newPinHash)
-        for entry in newCiphertexts {
-            try walletStore.storeKeyShare(entry.encoded, walletId: entry.shardId)
-        }
-
-        // Refresh in-RAM cache so the next DKG-save in this session is free.
-        clearCachedShardKey()
-        cachedShardKeyMaterial = newKey
         resetFailedAttempts()
-    }
 
-    /// Variant of `pinKeyMaterial` that takes an explicit salt (used during
-    /// PIN change, where we need the new key before writing the new pinHash).
-    private static func pinKeyMaterialWithSalt(_ pin: String, salt: Data) throws -> Data {
-        let pinData = Data(pin.utf8)
-        var derivedKey = Data(count: 32)
-        derivedKey.withUnsafeMutableBytes { derivedBuf in
-            pinData.withUnsafeBytes { pinBuf in
-                salt.withUnsafeBytes { saltBuf in
-                    CCKeyDerivationPBKDF(
-                        CCPBKDFAlgorithm(kCCPBKDF2),
-                        pinBuf.baseAddress?.assumingMemoryBound(to: Int8.self),
-                        pinData.count,
-                        saltBuf.baseAddress?.assumingMemoryBound(to: UInt8.self),
-                        salt.count,
-                        CCPseudoRandomAlgorithm(kCCPRFHmacAlgSHA256),
-                        pbkdf2Iterations,
-                        derivedBuf.baseAddress?.assumingMemoryBound(to: UInt8.self),
-                        32
-                    )
-                }
-            }
-        }
-        return derivedKey
+        // Re-wrap SWK under the new PIN. SE-sealed copy is left alone.
+        try SecureKeyVault.rewrapPinWrapped(swk: swk, newPin: newPin)
+
+        cachedShardKeyMaterial = swk
     }
 
     // MARK: - Brute-Force Protection
@@ -463,6 +478,7 @@ final class AppState: ObservableObject {
         walletStore.wipeAll()
         transactionStore.wipeAll()
         pendingBroadcastQueue.wipeAll()
+        SecureKeyVault.wipe()
         try? KeychainManager.shared.delete(key: KeychainKeys.pinHash)
         try? KeychainManager.shared.delete(key: KeychainKeys.deviceKey)
         try? KeychainManager.shared.delete(key: KeychainKeys.deviceKeySE)

@@ -68,7 +68,6 @@ final class SigningViewModel: ObservableObject {
     private var networkConfig: NetworkConfig?
     private var blockchainService: BlockchainService?
     private var sessionId: String?
-    private var signingPin: String?
     private var currentRecordId: String?
     private var cancellables = Set<AnyCancellable>()
     private var signingTask: Task<Void, Never>?
@@ -217,8 +216,12 @@ final class SigningViewModel: ObservableObject {
         }
     }
 
-    func setPin(_ pin: String) {
-        self.signingPin = pin
+    /// Cached Shard Wrap Key bytes — set either directly (cached session
+    /// SWK) or produced by unwrapping via PIN/biometric from the signing UI.
+    private var signingShardKey: Data?
+
+    func setShardKey(_ swk: Data) {
+        signingShardKey = swk
     }
 
     func startSigning() {
@@ -249,10 +252,12 @@ final class SigningViewModel: ObservableObject {
                 guard let bridge, let peerManager, let deviceKey else {
                     throw SigningError.notInitialized
                 }
-                guard let pin = signingPin, !pin.isEmpty else {
+                guard var swk = signingShardKey, !swk.isEmpty else {
                     throw SigningError.notInitialized
                 }
-                signingPin = nil  // Zero sensitive PIN from memory immediately
+                // Zero the local reference from the view model after copying.
+                signingShardKey = nil
+                defer { swk.resetBytes(in: 0..<swk.count) }
 
                 let config = FfiHorcruxConfig(
                     threshold: wallet.threshold,
@@ -261,8 +266,8 @@ final class SigningViewModel: ObservableObject {
                     curve: wallet.chain.curveType
                 )
 
-                // Load and decrypt the key share
-                var shardData = try loadKeyShare(deviceKey: deviceKey, pin: pin)
+                // Load and decrypt the key share using the Shard Wrap Key.
+                var shardData = try loadKeyShare(deviceKey: deviceKey, swk: swk)
                 defer { shardData.resetBytes(in: 0..<shardData.count) }
 
                 // Build the transaction hash to sign
@@ -298,7 +303,10 @@ final class SigningViewModel: ObservableObject {
     func cancelSigning() {
         signingTask?.cancel()
         signingTask = nil
-        signingPin = nil
+        if var k = signingShardKey {
+            k.resetBytes(in: 0..<k.count)
+            signingShardKey = nil
+        }
         if let sessionId {
             bridge?.removeSession(sessionId: sessionId)
         }
@@ -308,7 +316,10 @@ final class SigningViewModel: ObservableObject {
 
     /// Clear sensitive in-memory state (called on app background).
     func clearSensitiveState() {
-        signingPin = nil
+        if var k = signingShardKey {
+            k.resetBytes(in: 0..<k.count)
+            signingShardKey = nil
+        }
         if var key = deviceKey {
             key.resetBytes(in: key.startIndex..<key.endIndex)
             deviceKey = nil
@@ -418,7 +429,7 @@ final class SigningViewModel: ObservableObject {
         }
     }
 
-    private func loadKeyShare(deviceKey: Data, pin: String) throws -> Data {
+    private func loadKeyShare(deviceKey: Data, swk: Data) throws -> Data {
         guard let walletStore,
               let encoded = try walletStore.loadKeyShare(walletId: wallet.id) else {
             throw SigningError.shardNotFound
@@ -429,7 +440,7 @@ final class SigningViewModel: ObservableObject {
         return try bridge.decryptShard(
             encrypted: encrypted,
             deviceKey: deviceKey,
-            pin: try AppState.pinKeyMaterial(pin)
+            pin: swk
         )
     }
 

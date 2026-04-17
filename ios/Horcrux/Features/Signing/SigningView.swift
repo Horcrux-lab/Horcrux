@@ -279,7 +279,13 @@ struct InviteSignersView: View {
 
             if viewModel.joinedSigners.count >= viewModel.wallet.threshold - 1 {
                 Button {
-                    showPinPrompt = true
+                    // Fast path: SWK is cached from the unlock session.
+                    if let swk = appState.cachedShardKey() {
+                        viewModel.setShardKey(swk)
+                        viewModel.startSigning()
+                    } else {
+                        showPinPrompt = true
+                    }
                 } label: {
                     Text(L10n.Signing.signTransaction)
                         .frame(maxWidth: .infinity)
@@ -302,7 +308,14 @@ struct InviteSignersView: View {
                     showPinPrompt = true
                     return
                 }
-                viewModel.setPin(pin)
+                // `verifyPin` populated the cache; grab the SWK and start.
+                guard let swk = appState.cachedShardKey() else {
+                    pinError = L10n.Signing.incorrectPin
+                    pin = ""
+                    showPinPrompt = true
+                    return
+                }
+                viewModel.setShardKey(swk)
                 pin = ""
                 viewModel.startSigning()
             }
