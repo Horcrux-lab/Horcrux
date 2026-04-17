@@ -558,7 +558,7 @@ enum Chain: String, Codable, CaseIterable, Identifiable {
         case .optimism: return "o.circle.fill"
         case .zksync: return "z.circle.fill"
         case .linea: return "l.square.fill"
-        case .scroll: return "scroll.fill"
+        case .scroll: return "s.square.fill"
         case .bitcoin: return "bitcoinsign.circle.fill"
         case .litecoin: return "l.circle.fill"
         case .solana: return "s.circle.fill"
