@@ -59,6 +59,12 @@ final class CreateShardViewModel: ObservableObject {
     private var ceremonyTask: Task<Void, Never>?
     private var presenceTask: Task<Void, Never>?
     private var roomListenerTask: Task<Void, Never>?
+    /// PeerManager subscription ID for our room listener. Stored so
+    /// `stopAllListeners()` can unsubscribe synchronously — Task
+    /// cancellation alone doesn't release the AsyncStream continuation,
+    /// so stale subscribers would otherwise eat half the DKG messages
+    /// in the next ceremony attempt.
+    private var roomListenerSubId: UUID?
     /// Recently-consumed `SessionBegin` session IDs — so a re-broadcast
     /// or echo doesn't accidentally kick us back into DKG.
     private var consumedSessionBegins: Set<String> = []
@@ -148,10 +154,12 @@ final class CreateShardViewModel: ObservableObject {
         self.dkgMessageStream = stream
 
         roomListenerTask?.cancel()
+        let (subId, mpcStream) = peerManager!.mpcMessageStream()
+        self.roomListenerSubId = subId
         roomListenerTask = Task { @MainActor [weak self] in
-            guard let self, let peerManager = self.peerManager else { return }
+            guard let self else { return }
             NSLog("[DKG] roomListenerTask started")
-            for await (peer, data) in peerManager.mpcMessageStream() {
+            for await (peer, data) in mpcStream {
                 if Task.isCancelled { break }
                 NSLog("[DKG] roomListener got \(data.count)B from \(peer.name) ch=\(peer.channel)")
 
@@ -194,6 +202,10 @@ final class CreateShardViewModel: ObservableObject {
         presenceTask = nil
         roomListenerTask?.cancel()
         roomListenerTask = nil
+        if let subId = roomListenerSubId {
+            peerManager?.unsubscribeMpc(subId)
+            roomListenerSubId = nil
+        }
         dkgMessageContinuation?.finish()
         dkgMessageContinuation = nil
         dkgMessageStream = nil

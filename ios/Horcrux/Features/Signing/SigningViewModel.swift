@@ -329,6 +329,9 @@ final class SigningViewModel: ObservableObject {
     private func runSigningRounds(initialMessages: [FfiMpcMessage]) async {
         guard let bridge, let peerManager else { return }
 
+        let (subId, mpcStream) = peerManager.mpcMessageStream()
+        defer { peerManager.unsubscribeMpc(subId) }
+
         do {
             // Send initial messages
             for msg in initialMessages {
@@ -337,7 +340,7 @@ final class SigningViewModel: ObservableObject {
             }
 
             // Process incoming messages
-            for await (peer, data) in peerManager.mpcMessageStream() {
+            for await (peer, data) in mpcStream {
                 // Real per-peer state: first inbound bytes from a peer flips them to .signing.
                 if peerStates[peer.id] != .done {
                     peerStates[peer.id] = .signing

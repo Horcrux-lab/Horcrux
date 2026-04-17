@@ -35,19 +35,33 @@ final class PeerManager: ObservableObject {
     /// starved the second subscriber.
     private var mpcMessageContinuations: [UUID: AsyncStream<(Peer, Data)>.Continuation] = [:]
 
-    /// Returns a fresh, independent stream of incoming MPC bytes. Each
-    /// call wires up its own continuation, so multiple tasks (DKG
-    /// listener + runDKGRounds + signing) can iterate concurrently
-    /// without cannibalising each other's messages.
-    func mpcMessageStream() -> AsyncStream<(Peer, Data)> {
-        AsyncStream { cont in
-            let id = UUID()
+    /// Returns a fresh, independent stream of incoming MPC bytes plus
+    /// a subscription ID the caller should pass to `unsubscribeMpc(_:)`
+    /// when they're done. This is needed because `AsyncStream`'s
+    /// `onTermination` only fires when the iterator is actually dropped
+    /// — cancelling the consuming Task alone does not drop the
+    /// continuation, so stale subscribers can leak across ceremonies
+    /// and eat messages from the live subscriber (the fan-out yields
+    /// to every live continuation). Callers must explicitly unsubscribe
+    /// on teardown.
+    func mpcMessageStream() -> (id: UUID, stream: AsyncStream<(Peer, Data)>) {
+        let id = UUID()
+        let stream = AsyncStream<(Peer, Data)> { cont in
             self.mpcMessageContinuations[id] = cont
             cont.onTermination = { [weak self] _ in
                 Task { @MainActor in
                     self?.mpcMessageContinuations.removeValue(forKey: id)
                 }
             }
+        }
+        return (id, stream)
+    }
+
+    /// Synchronously removes and finishes a subscription created by
+    /// `mpcMessageStream()`. Safe to call more than once.
+    func unsubscribeMpc(_ id: UUID) {
+        if let cont = mpcMessageContinuations.removeValue(forKey: id) {
+            cont.finish()
         }
     }
 
