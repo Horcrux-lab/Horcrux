@@ -172,6 +172,7 @@ struct ShardAccountRow: View {
 struct ShardAccountDetailView: View {
     let account: ShardAccount
     @ObservedObject var viewModel: ShardsViewModel
+    @Environment(\.dismiss) private var dismiss
     @State private var showBackupSheet = false
     @State private var showDeleteConfirm = false
 
@@ -275,7 +276,11 @@ struct ShardAccountDetailView: View {
             AccountBackupView(account: account, viewModel: viewModel)
         }
         .sheet(isPresented: $showDeleteConfirm) {
-            DeleteAccountConfirmView(account: account, viewModel: viewModel)
+            DeleteAccountConfirmView(account: account, viewModel: viewModel) {
+                // Account was deleted — pop back to the shards list so the
+                // user isn't stranded on a detail page for a missing account.
+                dismiss()
+            }
         }
     }
 
@@ -737,6 +742,7 @@ struct AccountImportView: View {
 struct DeleteAccountConfirmView: View {
     let account: ShardAccount
     @ObservedObject var viewModel: ShardsViewModel
+    var onDeleted: (() -> Void)? = nil
     @EnvironmentObject private var appState: AppState
     @Environment(\.dismiss) private var dismiss
 
@@ -826,5 +832,10 @@ struct DeleteAccountConfirmView: View {
         }
         viewModel.deleteAccount(accountId: account.id)
         dismiss()
+        // Defer slightly so the sheet-dismiss animation doesn't fight the
+        // navigation pop; SwiftUI otherwise drops one of the two transitions.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+            onDeleted?()
+        }
     }
 }
