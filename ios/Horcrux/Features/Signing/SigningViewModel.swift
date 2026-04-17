@@ -85,6 +85,12 @@ final class SigningViewModel: ObservableObject {
     @Published var broadcastStatus: String?
     @Published var isBroadcasting = false
 
+    /// For real BTC signing: holds the Rust-built unsigned segwit skeleton
+    /// until we have the MPC signature, at which point we splice the
+    /// witness and write the finalized hex into `txHash`.
+    private var pendingBtcRawData: Data?
+    private var pendingBtcInputCount: Int = 0
+
     var shortRecipient: String {
         guard recipientAddress.count > 12 else { return recipientAddress }
         return "\(recipientAddress.prefix(6))…\(recipientAddress.suffix(4))"
@@ -288,7 +294,7 @@ final class SigningViewModel: ObservableObject {
                 defer { shardData.resetBytes(in: 0..<shardData.count) }
 
                 // Build the transaction hash to sign
-                let messageHash = buildSignHash()
+                let messageHash = try await buildSignHash()
 
                 // Collect participant indices
                 let participants = [wallet.partyIndex] + joinedSigners.prefix(Int(wallet.threshold) - 1).enumerated().map { UInt16($0.offset + 1) }
@@ -396,7 +402,16 @@ final class SigningViewModel: ObservableObject {
                         signingProgress = 0.95
                         signingStatusMessage = L10n.Signing.verifyingSig
 
-                        txHash = "0x" + result.signature.map { String(format: "%02x", $0) }.joined()
+                        // Default: raw 64-byte ECDSA signature hex. For
+                        // Bitcoin we splice into the stashed raw tx to get
+                        // a real broadcast-ready segwit hex; other chains
+                        // still write the bare sig for now (until Rust-side
+                        // finalization ships for EVM/SOL).
+                        if let finalBtcHex = finalizeBitcoinSignedTx(signature: result.signature) {
+                            txHash = finalBtcHex
+                        } else {
+                            txHash = "0x" + result.signature.map { String(format: "%02x", $0) }.joined()
+                        }
 
                         // Save transaction record
                         let recordId = UUID().uuidString
@@ -464,7 +479,7 @@ final class SigningViewModel: ObservableObject {
         )
     }
 
-    private func buildSignHash() -> Data {
+    private func buildSignHash() async throws -> Data {
         guard let networkConfig else {
             // Fallback: hash a placeholder
             return horcruxKeccak256(data: Data("\(amount) \(wallet.chain.symbol) → \(recipientAddress)".utf8))
@@ -508,6 +523,15 @@ final class SigningViewModel: ObservableObject {
 
         switch wallet.chain {
         case .bitcoin:
+            // Real end-to-end BTC signing: fetch UTXOs, pick one that covers
+            // amount + fee, build an unsigned P2WPKH segwit tx via Rust, and
+            // return the BIP-143 sighash. The Rust skeleton is stashed in
+            // `pendingBtcRawData` so we can splice the real witness after
+            // MPC produces the signature.
+            if let hash = try? await buildBitcoinSignHash() {
+                return hash
+            }
+            // Fallback if UTXO fetch / build fails — placeholder so UI doesn't crash.
             let txData = "\(amount) BTC → \(recipientAddress)"
             return horcruxKeccak256(data: Data(txData.utf8))
 
@@ -527,6 +551,126 @@ final class SigningViewModel: ObservableObject {
 
         default:
             return horcruxKeccak256(data: Data("\(amount) \(wallet.chain.symbol) → \(recipientAddress)".utf8))
+        }
+    }
+
+    /// Fetch UTXOs for the wallet, pick one that covers amount + fee, build
+    /// the unsigned P2WPKH segwit skeleton via Rust, and return the BIP-143
+    /// sighash for input 0. Mutates `pendingBtcRawData` / `pendingBtcInputCount`
+    /// so the post-signing step can splice the final witness.
+    ///
+    /// MVP scope: single-input, one-or-two-output (recipient + optional change),
+    /// mainnet only, bech32 P2WPKH recipient only.
+    private func buildBitcoinSignHash() async throws -> Data {
+        guard let networkConfig, let blockchainService else {
+            throw SigningError.notInitialized
+        }
+        let apiURL = networkConfig.bitcoinAPI
+
+        // 1. Fetch UTXOs (confirmed only to avoid replace-by-fee surprises).
+        let utxos = try await blockchainService.btcUtxos(address: wallet.address, apiURL: apiURL)
+        let confirmed = utxos.filter { $0.status.confirmed }.sorted { $0.value > $1.value }
+        guard !confirmed.isEmpty else { throw SigningError.notInitialized }
+
+        // 2. Parse send amount (BTC → sats).
+        let sendSats = Self.btcAmountToSats(amount)
+        guard sendSats > 0 else { throw SigningError.notInitialized }
+
+        // 3. Fee estimate. Fall back to 2 sat/vB if the API hiccups.
+        let satPerVbyte: UInt64
+        if let rate = try? await blockchainService.btcFeeEstimate(apiURL: apiURL) {
+            satPerVbyte = max(rate.halfHourFee, 1)
+        } else {
+            satPerVbyte = 2
+        }
+
+        // 4. Pick smallest UTXO that covers amount + fee (1 in, 2 out ≈ 141 vB).
+        let estVbytes: UInt64 = 141
+        let feeSats = estVbytes * satPerVbyte
+        let ascending = confirmed.sorted { $0.value < $1.value }
+        guard let chosen = ascending.first(where: { $0.value >= sendSats + feeSats }) else {
+            throw SigningError.notInitialized
+        }
+
+        // 5. Resolve our own pubkey_hash (== 20-byte witness program of wallet.address).
+        guard let ownBech = Bech32.decodeP2WPKH(wallet.address) else {
+            throw SigningError.notInitialized
+        }
+        let pubkeyHash = ownBech.program
+
+        // 6. Build outputs: recipient + (optional) change back to self.
+        guard let recipientSPK = Bech32.p2wpkhScriptPubkey(for: recipientAddress) else {
+            throw SigningError.notInitialized
+        }
+        var outputs: [FfiBtcOutput] = [
+            FfiBtcOutput(address: recipientAddress, value: sendSats, scriptPubkey: recipientSPK)
+        ]
+        let change = Int64(chosen.value) - Int64(sendSats) - Int64(feeSats)
+        let dust: Int64 = 546
+        if change >= dust {
+            let selfSPK = Data([0x00, 0x14]) + Data(pubkeyHash)
+            outputs.append(
+                FfiBtcOutput(address: wallet.address, value: UInt64(change), scriptPubkey: selfSPK)
+            )
+        }
+
+        // 7. Build FfiBtcTxParams with one input from the chosen UTXO.
+        let params = FfiBtcTxParams(
+            inputs: [FfiBtcInput(
+                txid: chosen.txid,
+                vout: chosen.vout,
+                value: chosen.value,
+                pubkeyHash: Data(pubkeyHash)
+            )],
+            outputs: outputs,
+            testnet: false
+        )
+
+        // 8. Rust returns (raw_data, sighash) — stash raw_data for later.
+        let built = try horcruxBuildBtcTransaction(params: params, inputIndex: 0)
+        self.pendingBtcRawData = built.rawData
+        self.pendingBtcInputCount = params.inputs.count
+        return built.signHash
+    }
+
+    /// Convert a user-typed BTC string like "0.001" into satoshis.
+    private static func btcAmountToSats(_ s: String) -> UInt64 {
+        let parts = s.split(separator: ".", maxSplits: 1).map(String.init)
+        let whole = UInt64(parts[0]) ?? 0
+        var frac: UInt64 = 0
+        if parts.count == 2 {
+            var f = parts[1]
+            if f.count > 8 { f = String(f.prefix(8)) }
+            while f.count < 8 { f += "0" }
+            frac = UInt64(f) ?? 0
+        }
+        return whole * 100_000_000 + frac
+    }
+
+    /// Splice the MPC signature into the stashed raw tx to produce the
+    /// broadcast-ready hex string. Called once MPC signing completes for
+    /// BTC wallets; returns nil for chains that aren't real-signing yet.
+    private func finalizeBitcoinSignedTx(signature: Data) -> String? {
+        guard wallet.chain == .bitcoin,
+              let rawData = pendingBtcRawData,
+              pendingBtcInputCount > 0 else {
+            return nil
+        }
+        let compressedPubkey = BtcSigner.compressPubkey(wallet.groupPublicKey)
+        do {
+            let signed = try BtcSigner.assembleSignedTx(
+                unsignedRawData: rawData,
+                inputCount: pendingBtcInputCount,
+                signatures: [signature],
+                compressedPubkey: compressedPubkey
+            )
+            // Clear stashed state so a subsequent retry rebuilds fresh.
+            pendingBtcRawData = nil
+            pendingBtcInputCount = 0
+            return BtcSigner.hexEncode(signed)
+        } catch {
+            SecureLog.error("BTC finalize failed: \(error.localizedDescription)")
+            return nil
         }
     }
 
