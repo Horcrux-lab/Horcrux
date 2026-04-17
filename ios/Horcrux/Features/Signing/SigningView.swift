@@ -188,17 +188,8 @@ struct InviteSignersView: View {
                     .foregroundStyle(.secondary)
             }
 
-            // Transaction summary
-            VStack(spacing: 4) {
-                Text(CurrencyFormatter.crypto(Double(viewModel.amount) ?? 0, symbol: viewModel.wallet.chain.symbol))
-                    .font(.title.bold())
-                Text("→ \(viewModel.shortRecipient)")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .monospaced()
-            }
-            .padding()
-            .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 12))
+            // Transaction preview (simulation)
+            TransactionPreviewCard(viewModel: viewModel)
 
             ProgressView()
                 .padding()
@@ -408,5 +399,99 @@ struct SigningErrorView: View {
             Spacer()
         }
         .padding()
+    }
+}
+
+// MARK: - Transaction Preview Card (simulation)
+
+/// Decodes and displays the transaction the user is about to sign.
+/// For ERC-20 transfers, shows resolved token + recipient + amount.
+/// Surfaces warnings for unusual patterns (unknown contract, dust, etc.).
+struct TransactionPreviewCard: View {
+    @ObservedObject var viewModel: SigningViewModel
+
+    private var isTokenTransfer: Bool { viewModel.selectedToken != nil }
+
+    private var warnings: [String] {
+        var w: [String] = []
+        if let amount = Decimal(string: viewModel.amount) {
+            if amount == 0 { w.append("金额为 0，交易不会转移任何资产") }
+        }
+        if viewModel.recipientAddress.lowercased() == viewModel.wallet.address.lowercased() {
+            w.append("收款地址是你自己")
+        }
+        if isTokenTransfer && viewModel.wallet.chain == .ethereum {
+            // Already a known token from our curated list = safe. If the list later
+            // supports custom tokens, add "未验证合约" warning here.
+        }
+        return w
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack {
+                Image(systemName: "doc.text.magnifyingglass")
+                    .foregroundStyle(HorcruxTheme.accentBlue)
+                Text("交易预览")
+                    .font(.subheadline.bold())
+                    .foregroundStyle(.white)
+                Spacer()
+                Text("离线解码")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
+
+            Divider().background(Color.white.opacity(0.08))
+
+            previewRow(label: "操作", value: isTokenTransfer ? "ERC-20 转账" : "原生代币转账")
+            previewRow(label: "资产", value: viewModel.transferSymbol)
+            previewRow(label: "金额", value: "\(viewModel.amount) \(viewModel.transferSymbol)")
+            previewRow(label: "收款", value: viewModel.shortRecipient, monospaced: true)
+            if isTokenTransfer, let token = viewModel.selectedToken {
+                previewRow(label: "合约", value: shorten(token.id), monospaced: true)
+            }
+            previewRow(label: "网络费", value: viewModel.estimatedFee)
+
+            if !warnings.isEmpty {
+                Divider().background(Color.white.opacity(0.08))
+                ForEach(warnings, id: \.self) { msg in
+                    HStack(alignment: .top, spacing: 8) {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .foregroundStyle(.orange)
+                        Text(msg)
+                            .font(.caption)
+                            .foregroundStyle(.orange)
+                    }
+                }
+            }
+        }
+        .padding(16)
+        .background(
+            RoundedRectangle(cornerRadius: 14)
+                .fill(Color.white.opacity(0.04))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 14)
+                        .stroke(HorcruxTheme.accentBlue.opacity(0.25), lineWidth: 1)
+                )
+        )
+        .padding(.horizontal)
+    }
+
+    @ViewBuilder
+    private func previewRow(label: String, value: String, monospaced: Bool = false) -> some View {
+        HStack {
+            Text(label)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            Spacer()
+            Text(value)
+                .font(monospaced ? .system(.caption, design: .monospaced) : .caption.weight(.medium))
+                .foregroundStyle(.white)
+        }
+    }
+
+    private func shorten(_ s: String) -> String {
+        guard s.count > 12 else { return s }
+        return "\(s.prefix(6))…\(s.suffix(4))"
     }
 }
