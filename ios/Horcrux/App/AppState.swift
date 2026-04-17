@@ -324,9 +324,16 @@ final class AppState: ObservableObject {
     ///   `defer { var k = key; k.resetBytes(in: 0..<k.count) }`
     var deviceKey: Data {
         get throws {
-            // Try SE-sealed path first
+            // Try SE-sealed path first. On simulators / devices without a
+            // passcode, SE key creation fails (`errSecAuthFailed`) because
+            // the ACL requires `WhenPasscodeSet`. Fall back to software in
+            // that case rather than blocking all shard writes.
             if SecureEnclaveManager.shared.isAvailable {
-                return try deviceKeyViaSE()
+                do {
+                    return try deviceKeyViaSE()
+                } catch {
+                    SecureLog.warning("SE device-key path failed, falling back to software: \(error.localizedDescription)")
+                }
             }
             // Fallback: software-only Keychain storage
             return try deviceKeySoftware()

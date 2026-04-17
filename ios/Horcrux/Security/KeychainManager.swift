@@ -60,6 +60,9 @@ final class KeychainManager: @unchecked Sendable {
 
     /// Store sensitive data (shard keys, device key) with SecAccessControl.
     /// Requires device passcode; won't migrate to other devices.
+    /// On devices without a passcode (e.g. simulator or a user who never
+    /// set one), falls back to `kSecAttrAccessibleWhenUnlockedThisDeviceOnly`
+    /// so writes still succeed.
     func storeSecure(key: String, data: Data) throws {
         let deleteQuery: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
@@ -68,28 +71,44 @@ final class KeychainManager: @unchecked Sendable {
         ]
         SecItemDelete(deleteQuery as CFDictionary)
 
+        // First attempt: passcode-gated access control.
         var aclError: Unmanaged<CFError>?
-        guard let access = SecAccessControlCreateWithFlags(
+        if let access = SecAccessControlCreateWithFlags(
             kCFAllocatorDefault,
             kSecAttrAccessibleWhenPasscodeSetThisDeviceOnly,
-            .privateKeyUsage,
+            [],
             &aclError
-        ) else {
-            throw KeychainError.storeFailed(errSecParam)
+        ) {
+            let context = LAContext()
+            let query: [String: Any] = [
+                kSecClass as String: kSecClassGenericPassword,
+                kSecAttrService as String: service,
+                kSecAttrAccount as String: key,
+                kSecValueData as String: data,
+                kSecAttrAccessControl as String: access,
+                kSecUseAuthenticationContext as String: context
+            ]
+            let status = SecItemAdd(query as CFDictionary, nil)
+            context.invalidate()
+            if status == errSecSuccess { return }
+            // errSecAuthFailed (-25293) is what we see on simulators / devices
+            // without a passcode. Fall through to the softer path.
+            if status != errSecAuthFailed && status != errSecDecode {
+                throw KeychainError.storeFailed(status)
+            }
         }
 
-        let context = LAContext()
-        let query: [String: Any] = [
+        // Fallback: no ACL, just `WhenUnlockedThisDeviceOnly`. Still safe
+        // (can't be extracted while device is locked, doesn't leave device)
+        // but doesn't require the user to have set a passcode.
+        let fallbackQuery: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
             kSecAttrAccount as String: key,
             kSecValueData as String: data,
-            kSecAttrAccessControl as String: access,
-            kSecUseAuthenticationContext as String: context
+            kSecAttrAccessible as String: kSecAttrAccessibleWhenUnlockedThisDeviceOnly
         ]
-
-        let status = SecItemAdd(query as CFDictionary, nil)
-        context.invalidate()
+        let status = SecItemAdd(fallbackQuery as CFDictionary, nil)
         guard status == errSecSuccess else {
             throw KeychainError.storeFailed(status)
         }
