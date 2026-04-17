@@ -62,6 +62,14 @@ final class CreateShardViewModel: ObservableObject {
     /// Recently-consumed `SessionBegin` session IDs — so a re-broadcast
     /// or echo doesn't accidentally kick us back into DKG.
     private var consumedSessionBegins: Set<String> = []
+    /// Channel that the persistent room listener uses to forward
+    /// non-room-phase (i.e. actual MPC) bytes to `runDKGRounds`. Using
+    /// a single consumer of `peerManager.incomingMpcMessages` across
+    /// the whole ceremony avoids the AsyncStream single-consumer
+    /// pitfall that otherwise drops messages when we transition from
+    /// discovery to DKG.
+    private var dkgMessageStream: AsyncStream<(Peer, Data)>?
+    private var dkgMessageContinuation: AsyncStream<(Peer, Data)>.Continuation?
 
     /// Local peer identifier shown during discovery.
     var localPeerId: String {
@@ -116,17 +124,22 @@ final class CreateShardViewModel: ObservableObject {
             }
         }
 
-        // Listen for room-phase messages: presence beacons from peers
-        // and — for joiners — the creator's SessionBegin that carries
-        // the final authoritative config + participant list.
+        // Single persistent consumer of `incomingMpcMessages` for the
+        // whole ceremony. Room-phase packets (presence / SessionBegin)
+        // are handled inline; everything else gets forwarded to
+        // `dkgMessageStream` for `runDKGRounds` to consume. This avoids
+        // the AsyncStream single-consumer trap we'd otherwise hit when
+        // transitioning from discovery to DKG.
+        let stream = AsyncStream<(Peer, Data)> { cont in
+            self.dkgMessageContinuation = cont
+        }
+        self.dkgMessageStream = stream
+
         roomListenerTask?.cancel()
         roomListenerTask = Task { @MainActor [weak self] in
             guard let self, let peerManager = self.peerManager else { return }
             for await (peer, data) in peerManager.incomingMpcMessages {
                 if Task.isCancelled { break }
-                // Stop consuming once we've left the discover state —
-                // the DKG loop needs this stream too.
-                if self.step != .discover { break }
 
                 if let pres = try? JSONDecoder().decode(RoomPresenceDTO.self, from: data),
                    pres.magic == RoomPresenceDTO.magic {
@@ -143,20 +156,32 @@ final class CreateShardViewModel: ObservableObject {
                     self.autoJoinFromBegin(begin)
                     continue
                 }
-                // Non-hello/non-begin payload — real MPC bytes that
-                // showed up before the creator's SessionBegin did.
-                // Stash for runDKGRounds to drain.
-                NSLog("[DKG] Stashing room-phase MPC payload from \(peer.name) (\(data.count)B)")
-                self.pendingMpcMessages.append((peer, data))
+                // Real MPC payload — forward to the DKG loop (which may
+                // not have started yet; AsyncStream buffers for us).
+                self.dkgMessageContinuation?.yield((peer, data))
             }
+            self.dkgMessageContinuation?.finish()
         }
     }
 
+    /// Stops the periodic presence beacon broadcast but leaves the
+    /// room listener task alive — it keeps forwarding real MPC bytes
+    /// into `dkgMessageStream` throughout the DKG rounds.
     private func stopDiscoveryTasks() {
+        presenceTask?.cancel()
+        presenceTask = nil
+    }
+
+    /// Called only on full ceremony teardown (completion, error,
+    /// cancel). Kills the room listener and closes the DKG stream.
+    private func stopAllListeners() {
         presenceTask?.cancel()
         presenceTask = nil
         roomListenerTask?.cancel()
         roomListenerTask = nil
+        dkgMessageContinuation?.finish()
+        dkgMessageContinuation = nil
+        dkgMessageStream = nil
     }
 
     /// One presence broadcast.
@@ -313,7 +338,7 @@ final class CreateShardViewModel: ObservableObject {
     func cancel() {
         ceremonyTask?.cancel()
         ceremonyTask = nil
-        stopDiscoveryTasks()
+        stopAllListeners()
         peerManager?.stopDiscovery()
         if let sessionId, let bridge {
             bridge.removeSession(sessionId: sessionId)
@@ -361,10 +386,9 @@ final class CreateShardViewModel: ObservableObject {
         partyIndex = myIndex
     }
 
-    /// Non-room-phase MPC messages that arrive during `.discover` (e.g.
-    /// the creator's initial keygen outputs that reach us before our
-    /// `SessionBegin` handler fires) are stashed here and replayed into
-    /// the DKG round loop in arrival order.
+    /// Legacy buffer (kept for API compatibility); unused now that the
+    /// persistent room listener forwards MPC bytes straight into
+    /// `dkgMessageStream`.
     private var pendingMpcMessages: [(Peer, Data)] = []
 
     private func runDKGRounds(initialMessages: [FfiMpcMessage]) async {
@@ -383,11 +407,6 @@ final class CreateShardViewModel: ObservableObject {
             // Listen for incoming messages and process rounds
             var msgCount = 0
             var processedPayloads: Set<Data> = [] // Deduplicate messages from multiple transports
-
-            // Drain anything the negotiation step stashed (real MPC
-            // messages that arrived before we finished negotiating).
-            var initialQueue = pendingMpcMessages
-            pendingMpcMessages.removeAll()
 
             func process(_ peer: Peer, _ data: Data) async throws -> Bool {
                 // Returns true if keygen is now complete.
@@ -451,18 +470,12 @@ final class CreateShardViewModel: ObservableObject {
                 return false
             }
 
-            for (peer, data) in initialQueue {
-                if try await process(peer, data) {
-                    if let result = bridge.getKeygenResult(sessionId: sessionId!) {
-                        NSLog("[DKG] ✅ Keygen complete (from stashed queue)! publicKey=\(result.publicKey.count)B shard=\(result.shardData.count)B")
-                        keygenResult = result
-                        break
-                    }
-                }
-            }
-
             if keygenResult == nil {
-                for await (peer, data) in peerManager.incomingMpcMessages {
+                guard let dkgStream = self.dkgMessageStream else {
+                    NSLog("[DKG] ❌ dkgMessageStream missing — aborting")
+                    throw DKGError.keygenIncomplete
+                }
+                for await (peer, data) in dkgStream {
                     if try await process(peer, data) {
                         if let result = bridge.getKeygenResult(sessionId: sessionId!) {
                             NSLog("[DKG] ✅ Keygen complete! publicKey=\(result.publicKey.count)B shard=\(result.shardData.count)B")
@@ -494,11 +507,13 @@ final class CreateShardViewModel: ObservableObject {
 
             dkgProgress = 1.0
             step = .complete
+            stopAllListeners()
 
         } catch {
             NSLog("[DKG] ❌ runDKGRounds error: \(error)")
             errorMessage = error.localizedDescription
             step = .error
+            stopAllListeners()
         }
     }
 
