@@ -1,4 +1,6 @@
 import SwiftUI
+import CoreImage.CIFilterBuiltins
+import UIKit
 
 /// Multi-step flow for creating a new MPC wallet (DKG ceremony).
 struct CreateShardFlow: View {
@@ -44,6 +46,7 @@ struct ConfigureView: View {
     @ObservedObject var viewModel: CreateShardViewModel
     @State private var showAdvanced = false
     @State private var showExplainer = false
+    @State private var showQRScanner = false
 
     var body: some View {
         Form {
@@ -126,6 +129,18 @@ struct ConfigureView: View {
             MPCExplainerSheet()
                 .presentationDetents([.medium, .large])
         }
+        .sheet(isPresented: $showQRScanner) {
+            RoomCodeScanSheet { scanned in
+                let parsed = scanned.hasPrefix("horcrux-room:")
+                    ? String(scanned.dropFirst("horcrux-room:".count))
+                    : scanned
+                let normalized = RoomCode.normalize(parsed)
+                if RoomCode.isValid(normalized) {
+                    viewModel.roomCode = normalized
+                }
+                showQRScanner = false
+            }
+        }
     }
 
     @ViewBuilder
@@ -175,9 +190,25 @@ struct ConfigureView: View {
 
         if viewModel.selectedTransports.contains(.relay) {
             VStack(alignment: .leading, spacing: 8) {
+                HStack {
+                    Text("中继服务器")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Spacer()
+                    Text(RelayConfig.effectiveURL)
+                        .font(.caption2.monospaced())
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                }
+                Text("如需更改服务器地址，前往 设置 → 中继服务器")
+                    .font(.caption2)
+                    .foregroundStyle(.tertiary)
+
                 Text("房间码（3 个单词）")
                     .font(.caption)
                     .foregroundStyle(.secondary)
+                    .padding(.top, 4)
 
                 HStack {
                     TextField("apple-tiger-moon", text: $viewModel.roomCode)
@@ -200,6 +231,15 @@ struct ConfigureView: View {
                     .accessibilityLabel("生成新房间码")
 
                     Button {
+                        showQRScanner = true
+                    } label: {
+                        Image(systemName: "qrcode.viewfinder")
+                    }
+                    .buttonStyle(.bordered)
+                    .accessibilityLabel("扫码加入房间")
+                    .accessibilityIdentifier("configure_scanRoomCodeButton")
+
+                    Button {
                         SecureClipboard.copy(viewModel.roomCode)
                     } label: {
                         Image(systemName: "doc.on.doc")
@@ -208,17 +248,76 @@ struct ConfigureView: View {
                     .accessibilityLabel("复制房间码")
                 }
 
-                if !viewModel.roomCode.isEmpty && !RoomCode.isValid(viewModel.roomCode) {
+                if RoomCode.isValid(viewModel.roomCode) {
+                    HStack {
+                        Spacer()
+                        RoomCodeQRView(code: viewModel.roomCode)
+                            .frame(width: 140, height: 140)
+                        Spacer()
+                    }
+                    .padding(.top, 4)
+                    Text("让对方扫码即可快速输入房间码")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                        .frame(maxWidth: .infinity, alignment: .center)
+                } else if !viewModel.roomCode.isEmpty {
                     Text("房间码应为 3 个用连字符分隔的单词")
                         .font(.caption2)
                         .foregroundStyle(.orange)
-                } else {
-                    Text("把这三个单词读给对方，便于电话/语音传递")
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
                 }
             }
         }
+    }
+}
+
+/// Sheet wrapping QRScannerView with a cancel button.
+private struct RoomCodeScanSheet: View {
+    let onScan: (String) -> Void
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        NavigationStack {
+            QRScannerView(onScan: onScan)
+                .ignoresSafeArea()
+                .navigationTitle("扫描房间码")
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar {
+                    ToolbarItem(placement: .cancellationAction) {
+                        Button(L10n.Common.cancel) { dismiss() }
+                    }
+                }
+        }
+    }
+}
+
+/// Generates a QR code for a room code so peers can scan to join.
+private struct RoomCodeQRView: View {
+    let code: String
+
+    var body: some View {
+        if let image = generate(code) {
+            Image(uiImage: image)
+                .interpolation(.none)
+                .resizable()
+                .scaledToFit()
+                .background(Color.white)
+                .cornerRadius(6)
+        } else {
+            Image(systemName: "qrcode")
+                .resizable()
+                .scaledToFit()
+                .foregroundStyle(.secondary)
+        }
+    }
+
+    private func generate(_ text: String) -> UIImage? {
+        let data = Data("horcrux-room:\(text)".utf8)
+        guard let filter = CIFilter(name: "CIQRCodeGenerator") else { return nil }
+        filter.setValue(data, forKey: "inputMessage")
+        filter.setValue("M", forKey: "inputCorrectionLevel")
+        guard let ci = filter.outputImage?.transformed(by: CGAffineTransform(scaleX: 8, y: 8)),
+              let cg = CIContext().createCGImage(ci, from: ci.extent) else { return nil }
+        return UIImage(cgImage: cg)
     }
 }
 
@@ -292,19 +391,22 @@ struct PeerDiscoveryView: View {
     @State private var timerTask: Task<Void, Never>?
 
     private var progress: Double {
-        1.0 - Double(timeRemaining) / Double(totalTimeout)
+        let needed = max(viewModel.totalParties - 1, 1)
+        return min(Double(viewModel.foundPeers.count) / Double(needed), 1.0)
     }
 
     var body: some View {
         VStack(spacing: 20) {
-            ZStack {
+            // Ring shows % of peers discovered; countdown is adjacent (no overlap).
+            HStack(spacing: 24) {
                 ProgressRing(progress: progress)
-                    .frame(width: 120, height: 120)
+                    .frame(width: 100, height: 100)
+
                 VStack(spacing: 2) {
                     Text("\(timeRemaining)")
-                        .font(.title.monospacedDigit().bold())
+                        .font(.system(size: 44, weight: .bold, design: .monospaced))
                         .foregroundStyle(timeRemaining < 15 ? Color.red : Color.primary)
-                    Text("秒")
+                    Text("秒后超时")
                         .font(.caption2)
                         .foregroundStyle(.secondary)
                 }
