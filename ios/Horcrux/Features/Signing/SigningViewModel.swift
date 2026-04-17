@@ -97,6 +97,11 @@ final class SigningViewModel: ObservableObject {
     private var pendingEvmRawData: Data?
     private var pendingEvmGas: BlockchainService.EvmGasEstimate?
 
+    /// For real Solana signing: holds the serialized transfer message
+    /// (which is identical to the sign payload) so we can prepend the
+    /// MPC-produced ed25519 signature after signing completes.
+    private var pendingSolMessage: Data?
+
     var shortRecipient: String {
         guard recipientAddress.count > 12 else { return recipientAddress }
         return "\(recipientAddress.prefix(6))…\(recipientAddress.suffix(4))"
@@ -419,6 +424,8 @@ final class SigningViewModel: ObservableObject {
                             recoveryId: result.recoveryId
                         ) {
                             txHash = finalEvmHex
+                        } else if let finalSolB64 = finalizeSolanaSignedTx(signature: result.signature) {
+                            txHash = finalSolB64
                         } else {
                             txHash = "0x" + result.signature.map { String(format: "%02x", $0) }.joined()
                         }
@@ -558,6 +565,15 @@ final class SigningViewModel: ObservableObject {
             return horcruxKeccak256(data: Data(txData.utf8))
 
         case .solana:
+            // Real Solana signing: fetch a recent blockhash, build a
+            // System Program transfer via Rust, stash the message bytes
+            // (raw_data == sign payload for SOL) so the post-signing step
+            // can prepend the ed25519 signature and produce a base64 tx.
+            if let built = try? await buildSolanaSignHash() {
+                return built
+            }
+            // Placeholder fallback so the preview doesn't crash if the
+            // RPC hiccups.
             let txData = "\(amount) SOL → \(recipientAddress)"
             return Data(txData.utf8)
 
@@ -696,6 +712,53 @@ final class SigningViewModel: ObservableObject {
             SecureLog.error("BTC finalize failed: \(error.localizedDescription)")
             return nil
         }
+    }
+
+    /// Fetch a recent blockhash and build a Solana System Program transfer
+    /// via Rust, returning the message bytes (which are also the payload
+    /// the Ed25519 sig is computed over). The message is stashed so the
+    /// post-signing step can prepend the signature for broadcast.
+    private func buildSolanaSignHash() async throws -> Data {
+        guard let networkConfig, let blockchainService else {
+            throw SigningError.notInitialized
+        }
+        // Parse amount "1.5" → lamports (1 SOL = 10^9 lamports).
+        let lamports = Self.amountToRawUnits(amount, decimals: 9)
+        guard let lamportsU64 = UInt64(lamports), lamportsU64 > 0 else {
+            throw SigningError.notInitialized
+        }
+        let blockhash = try await blockchainService.solRecentBlockhash(
+            rpcURL: networkConfig.solanaRPC)
+        let params = FfiSolanaTxParams(
+            fromAddress: wallet.address,
+            toAddress: recipientAddress,
+            lamports: lamportsU64,
+            recentBlockhash: blockhash,
+            devnet: false
+        )
+        let tx = try horcruxBuildSolanaTransaction(params: params)
+        self.pendingSolMessage = tx.rawData
+        return tx.signHash
+    }
+
+    /// Prepend the MPC ed25519 signature to the stashed Solana message and
+    /// base64-encode the result for `sendTransaction`. Returns nil for
+    /// non-Solana chains or when the stashed message is missing.
+    private func finalizeSolanaSignedTx(signature: Data) -> String? {
+        guard wallet.chain == .solana,
+              let message = pendingSolMessage,
+              signature.count == 64 else {
+            return nil
+        }
+        // Solana signed tx layout:
+        //   compact_u16(num_signatures=1) || 64-byte sig || message
+        // Compact-u16 for 1 is a single byte 0x01.
+        var signed = Data()
+        signed.append(0x01)
+        signed.append(signature)
+        signed.append(message)
+        pendingSolMessage = nil
+        return signed.base64EncodedString()
     }
 
     /// Splice the MPC (r,s) + recovery_id into the stashed EIP-1559 envelope
