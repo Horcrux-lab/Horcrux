@@ -94,7 +94,7 @@ struct OnboardingView: View {
     @State private var animateIn = false
 
     enum OnboardingStep {
-        case welcome, createPin, confirmPin
+        case welcome, valueProp1, valueProp2, valueProp3, createPin, confirmPin
     }
 
     var body: some View {
@@ -124,6 +124,24 @@ struct OnboardingView: View {
                 switch step {
                 case .welcome:
                     welcomeContent
+                case .valueProp1:
+                    valuePropPage(
+                        icon: "shield.lefthalf.filled",
+                        title: "无需助记词",
+                        subtitle: "Horcrux 不用 12/24 个助记词。私钥被切分成多个分片，从未以完整形式存在于任何地方。"
+                    )
+                case .valueProp2:
+                    valuePropPage(
+                        icon: "iphone.and.arrow.forward",
+                        title: "多设备阈值签名",
+                        subtitle: "任意 2 台设备即可一起签名。单台设备被窃取或丢失，你的资产仍然安全。"
+                    )
+                case .valueProp3:
+                    valuePropPage(
+                        icon: "arrow.triangle.2.circlepath.circle.fill",
+                        title: "多链支持，一套分片",
+                        subtitle: "同一曲线的链（ETH / BTC）共用一套密钥分片，减少备份压力，自动派生多链地址。"
+                    )
                 case .createPin:
                     createPinContent
                 case .confirmPin:
@@ -134,7 +152,7 @@ struct OnboardingView: View {
 
                 // Step indicator
                 HStack(spacing: 8) {
-                    ForEach(0..<3) { i in
+                    ForEach(0..<6) { i in
                         Capsule()
                             .fill(stepIndex >= i ? HorcruxTheme.accentPurple : Color.white.opacity(0.15))
                             .frame(width: stepIndex == i ? 24 : 8, height: 8)
@@ -153,8 +171,46 @@ struct OnboardingView: View {
     private var stepIndex: Int {
         switch step {
         case .welcome: return 0
-        case .createPin: return 1
-        case .confirmPin: return 2
+        case .valueProp1: return 1
+        case .valueProp2: return 2
+        case .valueProp3: return 3
+        case .createPin: return 4
+        case .confirmPin: return 5
+        }
+    }
+
+    @ViewBuilder
+    private func valuePropPage(icon: String, title: String, subtitle: String) -> some View {
+        VStack(spacing: 32) {
+            Image(systemName: icon)
+                .font(.system(size: 64, weight: .thin))
+                .foregroundStyle(HorcruxTheme.shieldGradient)
+                .shadow(color: HorcruxTheme.accentPurple.opacity(0.4), radius: 10)
+
+            VStack(spacing: 12) {
+                Text(title)
+                    .font(.system(size: 28, weight: .bold, design: .rounded))
+                    .foregroundStyle(.white)
+                    .multilineTextAlignment(.center)
+
+                Text(subtitle)
+                    .font(.subheadline)
+                    .multilineTextAlignment(.center)
+                    .foregroundStyle(HorcruxTheme.subtleText)
+                    .lineSpacing(4)
+            }
+
+            Button("继续") {
+                withAnimation(.spring(response: 0.5)) {
+                    switch step {
+                    case .valueProp1: step = .valueProp2
+                    case .valueProp2: step = .valueProp3
+                    case .valueProp3: step = .createPin
+                    default: break
+                    }
+                }
+            }
+            .buttonStyle(GradientButtonStyle())
         }
     }
 
@@ -181,7 +237,7 @@ struct OnboardingView: View {
             .offset(y: animateIn ? 0 : 10)
 
             Button(L10n.Onboarding.getStarted) {
-                withAnimation(.spring(response: 0.5)) { step = .createPin }
+                withAnimation(.spring(response: 0.5)) { step = .valueProp1 }
             }
             .buttonStyle(GradientButtonStyle())
             .accessibilityHint(L10n.Onboarding.getStartedHint)
