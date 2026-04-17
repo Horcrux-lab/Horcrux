@@ -76,8 +76,13 @@ final class HorcruxBridge: ObservableObject {
             return try evmAddress(uncompressedPublicKey: publicKey)
         case .bitcoin:
             return try btcAddress(compressedPublicKey: publicKey)
+        case .litecoin:
+            // Litecoin SegWit P2WPKH shares BTC's bech32 scheme; hrp is "ltc".
+            return try btcAddress(compressedPublicKey: publicKey, hrp: "ltc")
         case .solana:
             return try solanaAddress(publicKey: publicKey)
+        case .tron:
+            return try TronAddress.derive(uncompressedPublicKey: publicKey)
         }
     }
 

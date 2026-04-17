@@ -30,6 +30,18 @@ final class NetworkConfig: ObservableObject, @unchecked Sendable {
             invalidateBalances()
         }
     }
+    @Published var litecoinAPI: String {
+        didSet {
+            save(litecoinAPI, forKey: Keys.litecoinAPI)
+            invalidateBalances()
+        }
+    }
+    @Published var tronAPI: String {
+        didSet {
+            save(tronAPI, forKey: Keys.tronAPI)
+            invalidateBalances()
+        }
+    }
     @Published var solanaRPC: String {
         didSet {
             save(solanaRPC, forKey: Keys.solanaRPC)
@@ -80,6 +92,8 @@ final class NetworkConfig: ObservableObject, @unchecked Sendable {
         let ud = UserDefaults.standard
         self.ethereumRPC = ud.string(forKey: Keys.ethereumRPC) ?? Defaults.ethereumRPC
         self.bitcoinAPI = ud.string(forKey: Keys.bitcoinAPI) ?? Defaults.bitcoinAPI
+        self.litecoinAPI = ud.string(forKey: Keys.litecoinAPI) ?? Defaults.litecoinAPI
+        self.tronAPI = ud.string(forKey: Keys.tronAPI) ?? Defaults.tronAPI
         self.solanaRPC = ud.string(forKey: Keys.solanaRPC) ?? Defaults.solanaRPC
         let storedChainId = ud.integer(forKey: Keys.evmChainId)
         if storedChainId == 0 && ud.object(forKey: Keys.evmChainId) != nil {
@@ -97,7 +111,9 @@ final class NetworkConfig: ObservableObject, @unchecked Sendable {
         switch chain {
         case .ethereum: raw = ethereumRPC
         case .bitcoin: raw = bitcoinAPI
+        case .litecoin: raw = litecoinAPI
         case .solana: raw = solanaRPC
+        case .tron: raw = tronAPI
         }
         return substituteAPIKey(in: raw, chain: chain)
     }
@@ -111,7 +127,7 @@ final class NetworkConfig: ObservableObject, @unchecked Sendable {
         switch chain {
         case .ethereum: key = alchemyAPIKey
         case .solana: key = heliusAPIKey
-        case .bitcoin: key = ""  // no provider template for BTC
+        case .bitcoin, .litecoin, .tron: key = ""  // no provider template wired yet
         }
         guard !key.isEmpty else { return url }
         return url.replacingOccurrences(of: "{KEY}", with: key)
@@ -365,9 +381,28 @@ actor NetworkStatus {
                 let (_, response) = try await PinnedURLSession.shared.session.data(for: req)
                 if let http = response as? HTTPURLResponse { return (200...299).contains(http.statusCode) }
                 return false
+            case .litecoin:
+                let base = config.litecoinAPI
+                guard let url = URL(string: "\(base)/blocks/tip/height") else { return false }
+                var req = URLRequest(url: url, timeoutInterval: 5)
+                req.httpMethod = "GET"
+                let (_, response) = try await PinnedURLSession.shared.session.data(for: req)
+                if let http = response as? HTTPURLResponse { return (200...299).contains(http.statusCode) }
+                return false
             case .solana:
                 _ = try await service.solHealth(rpcURL: config.solanaRPC)
                 return true
+            case .tron:
+                // TronGrid exposes `/wallet/getnowblock` as a lightweight liveness probe.
+                let base = config.tronAPI
+                guard let url = URL(string: "\(base)/wallet/getnowblock") else { return false }
+                var req = URLRequest(url: url, timeoutInterval: 5)
+                req.httpMethod = "POST"
+                req.httpBody = Data("{}".utf8)
+                req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+                let (_, response) = try await PinnedURLSession.shared.session.data(for: req)
+                if let http = response as? HTTPURLResponse { return (200...299).contains(http.statusCode) }
+                return false
             }
         } catch {
             return false
@@ -378,11 +413,15 @@ actor NetworkStatus {
     func checkAll(config: NetworkConfig) async -> [Chain: Bool] {
         async let ethOk = check(chain: .ethereum, config: config)
         async let btcOk = check(chain: .bitcoin, config: config)
+        async let ltcOk = check(chain: .litecoin, config: config)
         async let solOk = check(chain: .solana, config: config)
+        async let trxOk = check(chain: .tron, config: config)
         return [
             .ethereum: await ethOk,
             .bitcoin: await btcOk,
-            .solana: await solOk
+            .litecoin: await ltcOk,
+            .solana: await solOk,
+            .tron: await trxOk
         ]
     }
 }
@@ -393,7 +432,9 @@ private extension NetworkConfig {
     enum Keys {
         static let ethereumRPC = "com.horcrux.rpc.ethereum"
         static let bitcoinAPI = "com.horcrux.rpc.bitcoin"
+        static let litecoinAPI = "com.horcrux.rpc.litecoin"
         static let solanaRPC = "com.horcrux.rpc.solana"
+        static let tronAPI = "com.horcrux.rpc.tron"
         static let evmChainId = "com.horcrux.rpc.evmChainId"
         static let btcTestnet = "com.horcrux.rpc.btcTestnet"
         static let solDevnet = "com.horcrux.rpc.solDevnet"
@@ -404,7 +445,9 @@ private extension NetworkConfig {
     enum Defaults {
         static let ethereumRPC = EVMNetwork.mainnet.defaultRPC
         static let bitcoinAPI = BitcoinNetwork.mainnet.defaultAPI
+        static let litecoinAPI = "https://litecoinspace.org/api"
         static let solanaRPC = SolanaNetwork.mainnet.defaultRPC
+        static let tronAPI = "https://api.trongrid.io"
     }
 }
 
@@ -517,6 +560,10 @@ enum RPCFallbacks {
             return config.btcTestnet
                 ? ["https://blockstream.info/testnet/api", "https://mempool.space/testnet/api"]
                 : ["https://blockstream.info/api", "https://mempool.space/api"]
+        case .litecoin:
+            return [
+                "https://litecoinspace.org/api"
+            ]
         case .solana:
             return config.solDevnet
                 ? ["https://api.devnet.solana.com"]
@@ -524,6 +571,11 @@ enum RPCFallbacks {
                     "https://api.mainnet-beta.solana.com",
                     "https://solana.publicnode.com"
                 ]
+        case .tron:
+            return [
+                "https://api.trongrid.io",
+                "https://api.tronstack.io"
+            ]
         }
     }
 

@@ -56,6 +56,11 @@ actor TransactionConfirmationPoller {
                 return try await checkBtcConfirmation(txHash: txHash, apiURL: config.bitcoinAPI)
             case .solana:
                 return try await checkSolConfirmation(txHash: txHash, service: service, rpcURL: config.solanaRPC)
+            case .litecoin, .tron:
+                // Signing not yet supported for these chains; we'll never see
+                // a pending tx hash — leave confirmation reporting as "not yet"
+                // so the UI doesn't spin on something that can't arrive.
+                return false
             }
         } catch {
             return false

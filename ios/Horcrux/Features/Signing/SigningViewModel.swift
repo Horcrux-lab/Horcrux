@@ -26,8 +26,9 @@ final class SigningViewModel: ObservableObject {
         if let selectedToken { return Int(selectedToken.decimals) }
         switch wallet.chain {
         case .ethereum: return 18
-        case .bitcoin: return 8
+        case .bitcoin, .litecoin: return 8
         case .solana: return 9
+        case .tron: return 6
         }
     }
 
@@ -204,6 +205,13 @@ final class SigningViewModel: ObservableObject {
                     )
                     await MainActor.run {
                         estimatedFee = "≈ \(feeDisplay.estimatedFee)"
+                        isEstimatingGas = false
+                    }
+                case .litecoin, .tron:
+                    // Signing not wired yet; show a hint so the user knows the
+                    // preview is informational only.
+                    await MainActor.run {
+                        estimatedFee = L10n.Signing.unableToEstimate
                         isEstimatingGas = false
                     }
                 }
@@ -486,9 +494,19 @@ final class SigningViewModel: ObservableObject {
             let txData = "\(amount) BTC → \(recipientAddress)"
             return horcruxKeccak256(data: Data(txData.utf8))
 
+        case .litecoin:
+            // Signing not yet wired for LTC; stable placeholder hash keeps
+            // the preview flow from crashing when users peek at the preview.
+            let txData = "\(amount) LTC → \(recipientAddress)"
+            return horcruxKeccak256(data: Data(txData.utf8))
+
         case .solana:
             let txData = "\(amount) SOL → \(recipientAddress)"
             return Data(txData.utf8)
+
+        case .tron:
+            let txData = "\(amount) TRX → \(recipientAddress)"
+            return horcruxKeccak256(data: Data(txData.utf8))
         }
     }
 
@@ -538,6 +556,15 @@ final class SigningViewModel: ObservableObject {
                         Haptics.success()
                         if let id = currentRecordId {
                             transactionStore?.updateStatus(id: id, status: .broadcast, txHash: result)
+                        }
+                    }
+                case .litecoin, .tron:
+                    await MainActor.run {
+                        broadcastStatus = "Broadcast for \(wallet.chain.rawValue) is not supported yet."
+                        isBroadcasting = false
+                        Haptics.error()
+                        if let id = currentRecordId {
+                            transactionStore?.updateStatus(id: id, status: .failed)
                         }
                     }
                 }

@@ -40,7 +40,7 @@ enum AddressFormatter {
     static func canonical(_ address: String, chain: Chain) -> String {
         switch chain {
         case .ethereum: return eip55(address)
-        case .bitcoin, .solana: return address
+        case .bitcoin, .litecoin, .solana, .tron: return address
         }
     }
 
@@ -80,8 +80,12 @@ enum AddressFormatter {
             return URL(string: "https://etherscan.io/address/\(address)")
         case .bitcoin:
             return URL(string: "https://mempool.space/address/\(address)")
+        case .litecoin:
+            return URL(string: "https://litecoinspace.org/address/\(address)")
         case .solana:
             return URL(string: "https://solscan.io/account/\(address)")
+        case .tron:
+            return URL(string: "https://tronscan.org/#/address/\(address)")
         }
     }
 
@@ -91,8 +95,12 @@ enum AddressFormatter {
             return URL(string: "https://etherscan.io/tx/\(txHash)")
         case .bitcoin:
             return URL(string: "https://mempool.space/tx/\(txHash)")
+        case .litecoin:
+            return URL(string: "https://litecoinspace.org/tx/\(txHash)")
         case .solana:
             return URL(string: "https://solscan.io/tx/\(txHash)")
+        case .tron:
+            return URL(string: "https://tronscan.org/#/transaction/\(txHash)")
         }
     }
 }

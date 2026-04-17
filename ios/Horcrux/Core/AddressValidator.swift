@@ -7,14 +7,18 @@ enum AddressValidator {
         case empty
         case invalidEthAddress
         case invalidBtcAddress
+        case invalidLtcAddress
         case invalidSolAddress
+        case invalidTronAddress
 
         var errorDescription: String? {
             switch self {
             case .empty: return "Address is empty"
             case .invalidEthAddress: return "Invalid Ethereum address (expected 0x + 40 hex chars)"
             case .invalidBtcAddress: return "Invalid Bitcoin address"
+            case .invalidLtcAddress: return "Invalid Litecoin address"
             case .invalidSolAddress: return "Invalid Solana address (expected 32-44 base58 chars)"
+            case .invalidTronAddress: return "Invalid TRON address (expected 34 chars starting with T)"
             }
         }
     }
@@ -26,7 +30,9 @@ enum AddressValidator {
         switch chain {
         case .ethereum: try validateEthereum(address)
         case .bitcoin:  try validateBitcoin(address)
+        case .litecoin: try validateLitecoin(address)
         case .solana:   try validateSolana(address)
+        case .tron:     try validateTron(address)
         }
     }
 
@@ -87,6 +93,38 @@ enum AddressValidator {
         guard (32...44).contains(address.count),
               address.unicodeScalars.allSatisfy({ base58Chars.contains($0) }) else {
             throw ValidationError.invalidSolAddress
+        }
+    }
+
+    // MARK: - Litecoin
+
+    private static func validateLitecoin(_ address: String) throws {
+        let lower = address.lowercased()
+        // SegWit bech32 (ltc1... mainnet, tltc1... testnet)
+        if lower.hasPrefix("ltc1") || lower.hasPrefix("tltc1") {
+            let payload = lower.hasPrefix("ltc1") ? String(lower.dropFirst(4)) : String(lower.dropFirst(5))
+            guard payload.count >= 11 && payload.count <= 71,
+                  payload.unicodeScalars.allSatisfy({ bech32Chars.contains($0) }) else {
+                throw ValidationError.invalidLtcAddress
+            }
+            return
+        }
+        // Legacy P2PKH (L...) / P2SH (M... or 3...)
+        if address.hasPrefix("L") || address.hasPrefix("M") || address.hasPrefix("3") {
+            guard (25...34).contains(address.count),
+                  address.unicodeScalars.allSatisfy({ base58Chars.contains($0) }) else {
+                throw ValidationError.invalidLtcAddress
+            }
+            return
+        }
+        throw ValidationError.invalidLtcAddress
+    }
+
+    // MARK: - TRON
+
+    private static func validateTron(_ address: String) throws {
+        guard TronAddress.looksValid(address) else {
+            throw ValidationError.invalidTronAddress
         }
     }
 }

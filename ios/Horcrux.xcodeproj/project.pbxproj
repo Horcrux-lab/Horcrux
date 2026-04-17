@@ -12,6 +12,7 @@
 		90803886A22680E3AD03A524 /* NodeErrorMapper.swift in Sources */ = {isa = PBXBuildFile; fileRef = A8303C767CD13576FA6B6246 /* NodeErrorMapper.swift */; };
 		16BDEDFBE061FF53ED64D520 /* PriceService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 13BA8115A370850B07FF2F86 /* PriceService.swift */; };
 		B1A2C3D4E5F6000000000001 /* BalanceCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1A2C3D4E5F6000000000002 /* BalanceCache.swift */; };
+		C2D3E4F500000001A0000001 /* TronAddress.swift in Sources */ = {isa = PBXBuildFile; fileRef = C2D3E4F500000001A0000002 /* TronAddress.swift */; };
 		D37A9AF8A4624B971FFAE188 /* AddressBook.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8C97796FFFAABDFCD418E7D7 /* AddressBook.swift */; };
 		D460D2E954132338FD6F7901 /* ENSResolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = 99F429C0ADA329B2E7CD4AC4 /* ENSResolver.swift */; };
 		FBAECAADBB1F5AD0828F0FEE /* Haptics.swift in Sources */ = {isa = PBXBuildFile; fileRef = A9E22485814B645E0AE85424 /* Haptics.swift */; };
@@ -163,6 +164,7 @@
 		A8303C767CD13576FA6B6246 /* NodeErrorMapper.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = NodeErrorMapper.swift; sourceTree = "<group>"; };
 		13BA8115A370850B07FF2F86 /* PriceService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PriceService.swift; sourceTree = "<group>"; };
 		B1A2C3D4E5F6000000000002 /* BalanceCache.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = BalanceCache.swift; sourceTree = "<group>"; };
+		C2D3E4F500000001A0000002 /* TronAddress.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TronAddress.swift; sourceTree = "<group>"; };
 		8C97796FFFAABDFCD418E7D7 /* AddressBook.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AddressBook.swift; sourceTree = "<group>"; };
 		99F429C0ADA329B2E7CD4AC4 /* ENSResolver.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ENSResolver.swift; sourceTree = "<group>"; };
 		A9E22485814B645E0AE85424 /* Haptics.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Haptics.swift; sourceTree = "<group>"; };
@@ -475,6 +477,7 @@
 				A8303C767CD13576FA6B6246 /* NodeErrorMapper.swift */,
 				13BA8115A370850B07FF2F86 /* PriceService.swift */,
 				B1A2C3D4E5F6000000000002 /* BalanceCache.swift */,
+				C2D3E4F500000001A0000002 /* TronAddress.swift */,
 				8C97796FFFAABDFCD418E7D7 /* AddressBook.swift */,
 				99F429C0ADA329B2E7CD4AC4 /* ENSResolver.swift */,
 				A9E22485814B645E0AE85424 /* Haptics.swift */,
@@ -695,6 +698,7 @@
 				90803886A22680E3AD03A524 /* NodeErrorMapper.swift in Sources */,
 				16BDEDFBE061FF53ED64D520 /* PriceService.swift in Sources */,
 				B1A2C3D4E5F6000000000001 /* BalanceCache.swift in Sources */,
+				C2D3E4F500000001A0000001 /* TronAddress.swift in Sources */,
 				D37A9AF8A4624B971FFAE188 /* AddressBook.swift in Sources */,
 				D460D2E954132338FD6F7901 /* ENSResolver.swift in Sources */,
 				FBAECAADBB1F5AD0828F0FEE /* Haptics.swift in Sources */,

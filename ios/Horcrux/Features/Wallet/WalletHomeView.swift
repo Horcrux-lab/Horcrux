@@ -218,6 +218,10 @@ struct WalletHomeView: View {
             case .solana:
                 result = try await appState.blockchainService.solSendTransaction(
                     signedTxBase64: tx.signedPayload, rpcURL: appState.networkConfig.solanaRPC)
+            case .litecoin, .tron:
+                // Broadcast not implemented — should never be reachable because
+                // signing is blocked for these chains.
+                throw BlockchainError.invalidURL("Broadcast not supported for \(tx.chain.rawValue)")
             }
             appState.transactionStore.updateStatus(id: tx.id, status: .broadcast, txHash: result)
             appState.pendingBroadcastQueue.dequeue(id: tx.id)

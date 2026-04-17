@@ -69,6 +69,10 @@ final class PendingBroadcastQueue: ObservableObject {
                 case .solana:
                     result = try await service.solSendTransaction(
                         signedTxBase64: tx.signedPayload, rpcURL: config.solanaRPC)
+                case .litecoin, .tron:
+                    throw BlockchainError.invalidURL(
+                        "Broadcast for \(tx.chain.rawValue) is not implemented yet"
+                    )
                 }
                 // Success — update transaction store and remove from queue
                 transactionStore.updateStatus(id: tx.id, status: .broadcast, txHash: result)

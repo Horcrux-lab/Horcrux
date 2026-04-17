@@ -492,13 +492,15 @@ struct Wallet: Identifiable, Codable {
 enum Chain: String, Codable, CaseIterable, Identifiable {
     case ethereum = "Ethereum"
     case bitcoin = "Bitcoin"
+    case litecoin = "Litecoin"
     case solana = "Solana"
+    case tron = "Tron"
 
     var id: String { rawValue }
 
     var curveType: FfiCurveType {
         switch self {
-        case .ethereum, .bitcoin: return .secp256k1
+        case .ethereum, .bitcoin, .litecoin, .tron: return .secp256k1
         case .solana: return .ed25519
         }
     }
@@ -507,7 +509,9 @@ enum Chain: String, Codable, CaseIterable, Identifiable {
         switch self {
         case .ethereum: return "ETH"
         case .bitcoin: return "BTC"
+        case .litecoin: return "LTC"
         case .solana: return "SOL"
+        case .tron: return "TRX"
         }
     }
 
@@ -515,7 +519,9 @@ enum Chain: String, Codable, CaseIterable, Identifiable {
         switch self {
         case .ethereum: return "e.circle.fill"
         case .bitcoin: return "bitcoinsign.circle.fill"
+        case .litecoin: return "l.circle.fill"
         case .solana: return "s.circle.fill"
+        case .tron: return "t.circle.fill"
         }
     }
 
@@ -523,7 +529,18 @@ enum Chain: String, Codable, CaseIterable, Identifiable {
         switch self {
         case .ethereum: return .blue
         case .bitcoin: return .orange
+        case .litecoin: return Color(red: 0.65, green: 0.65, blue: 0.7)
         case .solana: return .purple
+        case .tron: return .red
+        }
+    }
+
+    /// True when the current release can produce broadcastable signatures for this chain.
+    /// Litecoin/Tron currently ship as read-only (address + balance); signing is a later milestone.
+    var signingSupported: Bool {
+        switch self {
+        case .ethereum, .bitcoin, .solana: return true
+        case .litecoin, .tron: return false
         }
     }
 }

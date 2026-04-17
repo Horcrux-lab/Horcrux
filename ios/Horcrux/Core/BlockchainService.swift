@@ -288,6 +288,30 @@ actor BlockchainService {
         return result
     }
 
+    // MARK: - TRON
+
+    /// Fetch native TRX balance (in `sun` = 1e-6 TRX) via TronGrid's
+    /// `/wallet/getaccount` HTTP endpoint with `visible=true` so we can pass
+    /// the human-readable Base58 address directly.
+    func tronBalance(address: String, apiURL: String) async throws -> UInt64 {
+        guard let url = URL(string: "\(apiURL)/wallet/getaccount") else {
+            throw BlockchainError.invalidURL(apiURL)
+        }
+        let body: [String: Any] = ["address": address, "visible": true]
+        var req = URLRequest(url: url)
+        req.httpMethod = "POST"
+        req.httpBody = try JSONSerialization.data(withJSONObject: body)
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        let (data, response) = try await session.data(for: req)
+        try validateHTTP(response)
+
+        // TronGrid returns `{}` for a never-activated account. Balance field is
+        // missing in that case — treat as zero, not an error.
+        struct AccountResult: Decodable { let balance: UInt64? }
+        let decoded = try JSONDecoder().decode(AccountResult.self, from: data)
+        return decoded.balance ?? 0
+    }
+
     /// Fetch a recent blockhash for transaction construction.
     func solRecentBlockhash(rpcURL: String) async throws -> String {
         struct BlockhashResult: Decodable {
@@ -374,10 +398,19 @@ actor BlockchainService {
                     let sats = try await btcBalance(address: wallet.address, apiURL: url)
                     if idx > 0 { SecureLog.info("RPC fallback \(idx) succeeded for BTC balance") }
                     return formatBtcBalance(satoshis: sats)
+                case .litecoin:
+                    // litecoinspace.org exposes the Esplora API, same shape as Blockstream.
+                    let litoshi = try await btcBalance(address: wallet.address, apiURL: url)
+                    if idx > 0 { SecureLog.info("RPC fallback \(idx) succeeded for LTC balance") }
+                    return formatGenericSatoshis(litoshi, symbol: "LTC")
                 case .solana:
                     let lamports = try await solBalance(address: wallet.address, rpcURL: url)
                     if idx > 0 { SecureLog.info("RPC fallback \(idx) succeeded for SOL balance") }
                     return formatSolBalance(lamports: lamports)
+                case .tron:
+                    let sun = try await tronBalance(address: wallet.address, apiURL: url)
+                    if idx > 0 { SecureLog.info("RPC fallback \(idx) succeeded for TRX balance") }
+                    return formatTronBalance(sun: sun)
                 }
             } catch {
                 lastError = error
@@ -521,7 +554,8 @@ actor BlockchainService {
             return await erc20Balances(tokens: tokens, ownerAddress: wallet.address, rpcURL: config.ethereumRPC)
         case .solana:
             return await splTokenBalances(tokens: tokens, ownerAddress: wallet.address, rpcURL: config.solanaRPC)
-        case .bitcoin:
+        case .bitcoin, .litecoin, .tron:
+            // UTXO chains and TRC20 not wired yet.
             return []
         }
     }
@@ -611,10 +645,25 @@ actor BlockchainService {
     }
 
     private func formatBtcBalance(satoshis: UInt64) -> String {
-        let btc = Double(satoshis) / 1e8
-        if btc == 0 { return "0 BTC" }
-        if btc < 0.0001 { return String(format: "%.8f BTC", btc) }
-        return String(format: "%.8f BTC", btc)
+        formatGenericSatoshis(satoshis, symbol: "BTC")
+    }
+
+    /// Format an 8-decimal satoshi-like amount with the given ticker. Shared by
+    /// Bitcoin and Litecoin (both use 1e8 base units).
+    private func formatGenericSatoshis(_ sats: UInt64, symbol: String) -> String {
+        let value = Double(sats) / 1e8
+        if value == 0 { return "0 \(symbol)" }
+        if value < 0.00000001 { return "0 \(symbol)" }
+        if value < 0.0001 { return String(format: "%.8f \(symbol)", value) }
+        return String(format: "%.4f \(symbol)", value)
+    }
+
+    /// Format TRX balance (`sun` = 1e-6 TRX).
+    private func formatTronBalance(sun: UInt64) -> String {
+        let value = Double(sun) / 1_000_000
+        if value == 0 { return "0 TRX" }
+        if value < 0.0001 { return String(format: "%.6f TRX", value) }
+        return String(format: "%.4f TRX", value)
     }
 
     private func formatSolBalance(lamports: UInt64) -> String {

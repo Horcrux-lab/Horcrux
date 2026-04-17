@@ -721,6 +721,24 @@ struct BlockchainNodeSettingsView: View {
                 NodeStatusRow(chain: .bitcoin)
             }
 
+            Section("Litecoin (read-only)") {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(L10n.NodeSettings.restAPIURL)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    TextField("https://litecoinspace.org/api", text: $config.litecoinAPI)
+                        .font(.system(.body, design: .monospaced))
+                        .autocorrectionDisabled()
+                        .textInputAutocapitalization(.never)
+                    URLValidationHint(urlString: config.litecoinAPI)
+                    Text("Signing not yet supported — balance + address only.")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
+
+                NodeStatusRow(chain: .litecoin)
+            }
+
             Section(L10n.NodeSettings.solana) {
                 VStack(alignment: .leading, spacing: 4) {
                     Text(L10n.NodeSettings.rpcURL)
@@ -753,6 +771,24 @@ struct BlockchainNodeSettingsView: View {
                 }
 
                 NodeStatusRow(chain: .solana)
+            }
+
+            Section("Tron (read-only)") {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(L10n.NodeSettings.restAPIURL)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    TextField("https://api.trongrid.io", text: $config.tronAPI)
+                        .font(.system(.body, design: .monospaced))
+                        .autocorrectionDisabled()
+                        .textInputAutocapitalization(.never)
+                    URLValidationHint(urlString: config.tronAPI)
+                    Text("Signing not yet supported — balance + address only.")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
+
+                NodeStatusRow(chain: .tron)
             }
 
             Section {
@@ -875,8 +911,26 @@ struct NodeStatusRow: View {
                     guard let http = response as? HTTPURLResponse, (200...299).contains(http.statusCode) else {
                         throw BlockchainError.httpError(statusCode: (response as? HTTPURLResponse)?.statusCode ?? 0)
                     }
+                case .litecoin:
+                    let urlString = "\(config.rpcURL(for: .litecoin))/blocks/tip/hash"
+                    guard let url = URL(string: urlString) else { throw BlockchainError.invalidURL(urlString) }
+                    let (_, response) = try await PinnedURLSession.shared.session.data(from: url)
+                    guard let http = response as? HTTPURLResponse, (200...299).contains(http.statusCode) else {
+                        throw BlockchainError.httpError(statusCode: (response as? HTTPURLResponse)?.statusCode ?? 0)
+                    }
                 case .solana:
                     _ = try await service.solHealth(rpcURL: config.rpcURL(for: .solana))
+                case .tron:
+                    let urlString = "\(config.rpcURL(for: .tron))/wallet/getnowblock"
+                    guard let url = URL(string: urlString) else { throw BlockchainError.invalidURL(urlString) }
+                    var req = URLRequest(url: url)
+                    req.httpMethod = "POST"
+                    req.httpBody = Data("{}".utf8)
+                    req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+                    let (_, response) = try await PinnedURLSession.shared.session.data(for: req)
+                    guard let http = response as? HTTPURLResponse, (200...299).contains(http.statusCode) else {
+                        throw BlockchainError.httpError(statusCode: (response as? HTTPURLResponse)?.statusCode ?? 0)
+                    }
                 }
                 await MainActor.run {
                     status = .connected

@@ -29,8 +29,12 @@ struct TransactionRecord: Identifiable, Codable {
             return URL(string: "https://etherscan.io/tx/\(txHash)")
         case .bitcoin:
             return URL(string: "https://blockstream.info/tx/\(txHash)")
+        case .litecoin:
+            return URL(string: "https://litecoinspace.org/tx/\(txHash)")
         case .solana:
             return URL(string: "https://solscan.io/tx/\(txHash)")
+        case .tron:
+            return URL(string: "https://tronscan.org/#/transaction/\(txHash)")
         }
     }
 

@@ -56,8 +56,9 @@ enum TokenList {
     static func tokens(for chain: Chain) -> [Token] {
         switch chain {
         case .ethereum: return ethereum
-        case .bitcoin: return []   // Bitcoin has no token standard
+        case .bitcoin, .litecoin: return []   // UTXO chains have no native token standard
         case .solana: return solana
+        case .tron: return []   // TRC20 not wired yet (notable: USDT-TRC20 later)
         }
     }
 }
