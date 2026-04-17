@@ -417,7 +417,11 @@ struct SettingsView: View {
     private var networkSummary: String {
         let config = appState.networkConfig
         var parts: [String] = []
-        parts.append(config.evmChainId == 1 ? "ETH Mainnet" : "ETH Chain \(config.evmChainId)")
+        if let net = EVMNetwork(rawValue: config.evmChainId) {
+            parts.append("EVM: \(net.displayName)")
+        } else {
+            parts.append("EVM Chain \(config.evmChainId)")
+        }
         parts.append(config.btcTestnet ? "BTC Testnet" : "BTC Mainnet")
         parts.append(config.solDevnet ? "SOL Devnet" : "SOL Mainnet")
         return parts.joined(separator: " · ")
@@ -669,14 +673,13 @@ struct BlockchainNodeSettingsView: View {
                         .font(.system(.body, design: .monospaced))
                         .autocorrectionDisabled()
                         .textInputAutocapitalization(.never)
+                    URLValidationHint(urlString: config.ethereumRPC)
                 }
 
                 Picker(L10n.NodeSettings.networkPicker, selection: $config.evmChainId) {
-                    Text(L10n.NodeSettings.mainnet).tag(UInt64(1))
-                    Text(L10n.NodeSettings.sepoliaTestnet).tag(UInt64(11155111))
-                    Text(L10n.NodeSettings.polygon).tag(UInt64(137))
-                    Text(L10n.NodeSettings.arbitrumOne).tag(UInt64(42161))
-                    Text(L10n.NodeSettings.base).tag(UInt64(8453))
+                    ForEach(EVMNetwork.allCases) { net in
+                        Text(net.displayName).tag(net.rawValue)
+                    }
                 }
 
                 NodeStatusRow(chain: .ethereum)
@@ -691,6 +694,7 @@ struct BlockchainNodeSettingsView: View {
                         .font(.system(.body, design: .monospaced))
                         .autocorrectionDisabled()
                         .textInputAutocapitalization(.never)
+                    URLValidationHint(urlString: config.bitcoinAPI)
                 }
 
                 Toggle(L10n.NodeSettings.testnet, isOn: $config.btcTestnet)
@@ -708,6 +712,7 @@ struct BlockchainNodeSettingsView: View {
                         .font(.system(.body, design: .monospaced))
                         .autocorrectionDisabled()
                         .textInputAutocapitalization(.never)
+                    URLValidationHint(urlString: config.solanaRPC)
                 }
 
                 Toggle(L10n.NodeSettings.devnet, isOn: $config.solDevnet)
@@ -738,7 +743,30 @@ struct BlockchainNodeSettingsView: View {
     private func isCurrentPreset(_ preset: NetworkPreset) -> Bool {
         config.ethereumRPC == preset.ethereumRPC &&
         config.bitcoinAPI == preset.bitcoinAPI &&
-        config.solanaRPC == preset.solanaRPC
+        config.solanaRPC == preset.solanaRPC &&
+        config.evmChainId == preset.evmChainId &&
+        config.btcTestnet == preset.btcTestnet &&
+        config.solDevnet == preset.solDevnet
+    }
+}
+
+/// Inline warning chip for a user-entered RPC URL. Hidden when the URL is
+/// valid HTTPS. Shown in amber for insecure http:// and in red for malformed.
+struct URLValidationHint: View {
+    let urlString: String
+
+    var body: some View {
+        let v = NetworkConfig.validate(url: urlString)
+        if let warning = v.warning {
+            HStack(spacing: 6) {
+                Image(systemName: v.ok ? "exclamationmark.triangle.fill" : "xmark.octagon.fill")
+                    .font(.caption2)
+                Text(warning)
+                    .font(.caption2)
+            }
+            .foregroundStyle(v.ok ? .orange : .red)
+            .accessibilityLabel(warning)
+        }
     }
 }
 
@@ -805,8 +833,7 @@ struct NodeStatusRow: View {
             do {
                 switch chain {
                 case .ethereum:
-                    // Simple eth_blockNumber call
-                    _ = try await service.ethBalance(address: "0x0000000000000000000000000000000000000000", rpcURL: config.ethereumRPC)
+                    _ = try await service.ethBlockNumber(rpcURL: config.ethereumRPC)
                 case .bitcoin:
                     let urlString = "\(config.bitcoinAPI)/blocks/tip/hash"
                     guard let url = URL(string: urlString) else { throw BlockchainError.invalidURL(urlString) }
@@ -815,7 +842,7 @@ struct NodeStatusRow: View {
                         throw BlockchainError.httpError(statusCode: (response as? HTTPURLResponse)?.statusCode ?? 0)
                     }
                 case .solana:
-                    _ = try await service.solBalance(address: "11111111111111111111111111111111", rpcURL: config.solanaRPC)
+                    _ = try await service.solHealth(rpcURL: config.solanaRPC)
                 }
                 await MainActor.run {
                     status = .connected

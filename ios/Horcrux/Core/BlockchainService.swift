@@ -266,6 +266,28 @@ actor BlockchainService {
         return result.value
     }
 
+    /// Lightweight EVM health probe: returns the current block number as a
+    /// decimal string. Cheap for public RPCs (no per-address quota) and
+    /// verifies the endpoint speaks JSON-RPC.
+    func ethBlockNumber(rpcURL: String) async throws -> String {
+        let hex: String = try await ethCall(
+            method: "eth_blockNumber",
+            params: [] as [String],
+            rpcURL: rpcURL
+        )
+        return hexToDecimal(hex)
+    }
+
+    /// Lightweight Solana health probe. Returns "ok" when the node is healthy.
+    func solHealth(rpcURL: String) async throws -> String {
+        let result: String = try await solanaCall(
+            method: "getHealth",
+            params: [] as [String],
+            rpcURL: rpcURL
+        )
+        return result
+    }
+
     /// Fetch a recent blockhash for transaction construction.
     func solRecentBlockhash(rpcURL: String) async throws -> String {
         struct BlockhashResult: Decodable {
