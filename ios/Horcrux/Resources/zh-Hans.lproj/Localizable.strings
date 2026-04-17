@@ -298,7 +298,7 @@
 "shardBackup.exportEncrypted" = "导出加密分片";
 "shardBackup.ready" = "分片备份已就绪";
 "shardBackup.exportOptions" = "导出选项";
-"shardBackup.saveToFiles" = "保存到文件";
+"shardBackup.saveToFiles" = "保存到文件（iCloud Drive / 本地）";
 "shardBackup.copyToClipboard" = "复制到剪贴板";
 "shardBackup.copiedAutoClears" = "已复制！（%d 秒后自动清除）";
 "shardBackup.qrCode" = "二维码";

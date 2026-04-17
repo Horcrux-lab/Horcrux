@@ -297,7 +297,6 @@ struct AccountBackupView: View {
     @State private var isExporting = false
     @State private var showFileExporter = false
     @State private var copiedToClipboard = false
-    @State private var iCloudSaveStatus: String?
 
     private var backupFilename: String {
         let fmt = DateFormatter()
@@ -406,12 +405,6 @@ struct AccountBackupView: View {
                 Label(L10n.ShardBackup.saveToFiles, systemImage: "folder.fill")
             }
             Button {
-                saveToiCloudDrive()
-            } label: {
-                Label(iCloudSaveStatus ?? "保存到 iCloud Drive", systemImage: "icloud.and.arrow.up.fill")
-            }
-            .disabled(viewModel.exportData == nil || iCloudSaveStatus != nil)
-            Button {
                 if let data = viewModel.exportData,
                    let str = String(data: data, encoding: .utf8) {
                     SecureClipboard.copy(str)
@@ -443,26 +436,6 @@ struct AccountBackupView: View {
                     Text(L10n.ShardBackup.unableToGenerateQR).foregroundStyle(.secondary)
                 }
             }
-        }
-    }
-
-    private func saveToiCloudDrive() {
-        guard let data = viewModel.exportData else {
-            iCloudSaveStatus = "没有可保存的数据"
-            return
-        }
-        guard let container = FileManager.default.url(forUbiquityContainerIdentifier: nil) else {
-            iCloudSaveStatus = "iCloud 未启用"
-            return
-        }
-        let docs = container.appendingPathComponent("Documents", isDirectory: true)
-        do {
-            try FileManager.default.createDirectory(at: docs, withIntermediateDirectories: true)
-            let target = docs.appendingPathComponent(backupFilename)
-            try data.write(to: target, options: [.atomic, .completeFileProtection])
-            iCloudSaveStatus = "✓ 已保存到 iCloud Drive"
-        } catch {
-            iCloudSaveStatus = "保存失败: \(error.localizedDescription)"
         }
     }
 
