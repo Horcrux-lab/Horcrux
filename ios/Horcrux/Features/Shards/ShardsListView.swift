@@ -365,14 +365,41 @@ struct AccountBackupView: View {
                 .foregroundStyle(.secondary)
         }
 
-        Section {
-            SecureField(L10n.ShardBackup.enterPin, text: $pin)
-                .keyboardType(.numberPad)
-        } header: {
-            Text("备份密码（= 设备 PIN）")
-        } footer: {
-            Text("导出文件使用该 PIN 加密。恢复到其它设备时需要输入同一个 PIN 才能解密。")
-                .font(.caption)
+        let rkReady = RecoveryKeyManager.isProvisioned
+        if rkReady {
+            Section {
+                Label {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("将用 iCloud 恢复密钥加密")
+                            .font(.subheadline)
+                        Text("在任何登录同一 Apple ID 的设备上恢复此备份时无需输入 PIN。")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                } icon: {
+                    Image(systemName: "icloud.fill")
+                        .foregroundStyle(.blue)
+                }
+            }
+        }
+
+        // PIN is still needed in two cases:
+        // 1. SWK isn't cached (app was biometric-unlocked, but biometric
+        //    path didn't populate the shard key) — we need PIN to decrypt
+        //    the device-resident shard.
+        // 2. RK isn't yet provisioned on this device (rare first-run race).
+        if needsPin || !rkReady {
+            Section {
+                SecureField(L10n.ShardBackup.enterPin, text: $pin)
+                    .keyboardType(.numberPad)
+            } header: {
+                Text(rkReady ? "设备 PIN（解锁分片用）" : "备份密码（= 设备 PIN）")
+            } footer: {
+                Text(rkReady
+                     ? "iCloud 恢复密钥负责加密备份；此处的 PIN 仅用于本机解锁分片。"
+                     : "导出文件将用该 PIN 加密。恢复到其它设备时需输入同一 PIN。")
+                    .font(.caption)
+            }
         }
 
         Section {
@@ -389,8 +416,13 @@ struct AccountBackupView: View {
                 }
             }
             .buttonStyle(.borderedProminent)
-            .disabled(pin.count < 6)
+            .disabled(exportDisabled(rkReady: rkReady))
         }
+    }
+
+    private func exportDisabled(rkReady: Bool) -> Bool {
+        if rkReady && !needsPin { return false }
+        return pin.count < 6
     }
 
     @ViewBuilder
@@ -489,6 +521,11 @@ struct AccountImportView: View {
 
     private var needsPin: Bool { appState.cachedShardKey() == nil }
 
+    private func importDisabled(usesRK: Bool) -> Bool {
+        if usesRK && !needsPin { return false }
+        return pin.count < 6
+    }
+
     var body: some View {
         NavigationStack {
             Form {
@@ -542,6 +579,14 @@ struct AccountImportView: View {
         }
     }
 
+    /// v5 backups can be decrypted with the iCloud-synced Recovery Key
+    /// alone; v4/v3 need a PIN. The "need PIN for local SWK unlock"
+    /// consideration still applies even on v5.
+    private func backupUsesRecoveryKey(_ preview: BackupPreview) -> Bool {
+        if case .account(let b) = preview { return b.version >= 5 }
+        return false
+    }
+
     @ViewBuilder
     private func previewSection(_ preview: BackupPreview) -> some View {
         Section(L10n.ShardImport.backupInfo) {
@@ -551,19 +596,36 @@ struct AccountImportView: View {
             LabeledContent(L10n.Shards.threshold, value: L10n.Shards.thresholdValue(Int(preview.threshold.t), Int(preview.threshold.total)))
             if case .account(let b) = preview {
                 LabeledContent("派生钱包", value: "\(b.wallets.count) 条链")
+                LabeledContent("加密方式", value: b.version >= 5 ? "iCloud 恢复密钥" : "PIN")
             } else if case .legacy = preview {
                 LabeledContent(L10n.ShardImport.backupVersion, value: "旧格式 (单链)")
             }
         }
 
-        Section {
-            SecureField(L10n.ShardImport.enterDevicePin, text: $pin)
-                .keyboardType(.numberPad)
-            Text("输入备份时使用的 PIN 以解密文件；此 PIN 将同时作为本设备的 PIN。")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-        } header: {
-            Text(L10n.ShardBackup.devicePin)
+        let usesRK = backupUsesRecoveryKey(preview)
+        if usesRK {
+            Section {
+                Label {
+                    Text("此备份由另一台登录同 Apple ID 的设备导出。只要 iCloud Keychain 已同步，无需输入密码即可恢复。")
+                        .font(.caption)
+                } icon: {
+                    Image(systemName: "icloud.fill").foregroundStyle(.blue)
+                }
+            }
+        }
+
+        if !usesRK || needsPin {
+            Section {
+                SecureField(L10n.ShardImport.enterDevicePin, text: $pin)
+                    .keyboardType(.numberPad)
+                Text(usesRK
+                     ? "本机解锁分片仍需 PIN。"
+                     : "输入备份时使用的 PIN 以解密文件；此 PIN 将同时作为本设备的 PIN。")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            } header: {
+                Text(L10n.ShardBackup.devicePin)
+            }
         }
 
         Section {
@@ -575,7 +637,7 @@ struct AccountImportView: View {
                 }
             }
             .buttonStyle(.borderedProminent)
-            .disabled(pin.count < 6 || isImporting)
+            .disabled(importDisabled(usesRK: usesRK) || isImporting)
         }
 
         Section {

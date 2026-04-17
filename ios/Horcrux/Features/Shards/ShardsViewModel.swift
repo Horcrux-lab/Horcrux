@@ -24,16 +24,18 @@ final class ShardsViewModel: ObservableObject {
     // MARK: - Backup (account-level)
 
     /// Export every wallet belonging to the account identified by
-    /// `accountId` into a single portable v4 backup file. The shard
-    /// plaintext is wrapped by `PortableBackupCrypto` using the user's
-    /// PIN as a password, so the file is safe to store off-device
-    /// (iCloud Drive, email, etc).
+    /// `accountId` into a single portable backup file.
     ///
-    /// The PIN serves two roles here: it unlocks the SWK that decrypts
-    /// the device-resident ciphertext, and it acts as the portable
-    /// backup password. The caller must always collect a fresh PIN
-    /// even when the SWK is cached, because the portable envelope has
-    /// to bind to a password the user can reproduce on any device.
+    /// Two wire formats are supported:
+    /// - **v5 (preferred)** — shard is wrapped with the iCloud-synced
+    ///   Recovery Key (HKDF-SHA256 → AES-GCM). Restoring on any peer
+    ///   Apple-ID device is frictionless; no PIN / password needed.
+    /// - **v4 (fallback)** — shard is wrapped with PBKDF2(PIN). Used
+    ///   when the user has no iCloud Keychain / RK provisioned.
+    ///
+    /// When `pin` is empty and an RK is present we always choose v5.
+    /// When `pin` is non-empty we produce both paths' inputs and write
+    /// v5 preferentially, falling back to v4 if RK provisioning fails.
     func backupAccount(accountId: String, pin: String) {
         guard let appState else { return }
         exportData = nil
@@ -44,13 +46,18 @@ final class ShardsViewModel: ObservableObject {
             error = "Account not found"
             return
         }
-        guard !pin.isEmpty else {
-            error = "请输入 PIN 作为备份密码"
-            return
-        }
-        guard appState.verifyPin(pin) else {
-            error = "PIN 错误"
-            return
+
+        // Need plaintext SWK to decrypt the device-wrapped ciphertext.
+        // If it's not cached, the caller supplied a PIN; verify + unlock.
+        if appState.cachedShardKey() == nil {
+            guard !pin.isEmpty else {
+                error = "请输入 PIN 以解锁分片"
+                return
+            }
+            guard appState.verifyPin(pin) else {
+                error = "PIN 错误"
+                return
+            }
         }
 
         do {
@@ -68,10 +75,27 @@ final class ShardsViewModel: ObservableObject {
                 pin: swk
             )
 
-            // Wrap the plaintext shard in a password-protected envelope.
-            // This is what actually goes to disk / iCloud — never the raw
-            // shard bytes.
-            let envelope = try PortableBackupCrypto.encrypt(plaintext: plaintext, password: pin)
+            // Prefer v5 (Recovery Key) so restoring on another Apple-ID
+            // device doesn't need a PIN. Fall back to v4 (PIN) only if
+            // RK provisioning fails AND the user gave us a PIN.
+            let envelope: Data
+            let backupVersion: Int
+            let usedRK: Bool
+            do {
+                let rk = try RecoveryKeyManager.getOrCreate()
+                envelope = try PortableBackupCrypto.encrypt(plaintext: plaintext, recoveryKey: rk)
+                backupVersion = 5
+                usedRK = true
+            } catch {
+                SecureLog.warning("RK unavailable for backup, falling back to PIN: \(error.localizedDescription)")
+                guard !pin.isEmpty else {
+                    self.error = "无法访问 iCloud 恢复密钥，请输入 PIN 作为备份密码"
+                    return
+                }
+                envelope = try PortableBackupCrypto.encrypt(plaintext: plaintext, password: pin)
+                backupVersion = 4
+                usedRK = false
+            }
 
             let walletEntries = siblings.map { w in
                 AccountBackup.WalletEntry(
@@ -87,7 +111,7 @@ final class ShardsViewModel: ObservableObject {
                 .replacingOccurrences(of: " (\(anchor.chain.symbol))", with: "")
 
             let backup = AccountBackup(
-                version: 4,
+                version: backupVersion,
                 accountId: accountId,
                 accountName: accountName,
                 partyIndex: anchor.partyIndex,
@@ -105,8 +129,9 @@ final class ShardsViewModel: ObservableObject {
 
             let data = try encoder.encode(backup)
             exportData = data
-            backupStatus = "Account exported — \(siblings.count) chain\(siblings.count > 1 ? "s" : "") · \(data.count) bytes (PIN-encrypted)"
-            SecureLog.info("Account backup created for \(accountId.prefix(8))")
+            let mode = usedRK ? "iCloud 恢复密钥" : "PIN"
+            backupStatus = "Account exported — \(siblings.count) chain\(siblings.count > 1 ? "s" : "") · \(data.count) bytes (\(mode) 加密)"
+            SecureLog.info("Account backup created for \(accountId.prefix(8)) (v\(backupVersion))")
         } catch {
             self.error = error.localizedDescription
             SecureLog.error("Account backup failed: \(error.localizedDescription)")
@@ -134,18 +159,34 @@ final class ShardsViewModel: ObservableObject {
     }
 
     private func importAccount(backup: AccountBackup, pin: String, appState: AppState) throws {
-        guard backup.version >= 3 && backup.version <= 4 else {
+        guard backup.version >= 3 && backup.version <= 5 else {
             throw ShardImportError.unsupportedVersion(backup.version)
         }
         if appState.walletStore.wallets.contains(where: { $0.accountId == backup.accountId }) {
             throw ShardImportError.duplicateWallet(backup.accountName)
         }
 
-        // v4 wraps the shard in a portable PIN-derived envelope; v3 files
-        // predated that and shipped the plaintext shard directly. In both
-        // cases we end up with the plaintext shard here.
+        // Decode the portable envelope into the raw shard plaintext.
+        //  v5 → iCloud Recovery Key (no PIN needed)
+        //  v4 → PBKDF2(PIN)
+        //  v3 → plaintext (legacy, pre-encryption)
         let shardPlaintext: Data
-        if backup.version >= 4 {
+        switch backup.version {
+        case 5:
+            guard let rk = try? RecoveryKeyManager.getOrCreate() else {
+                throw ShardImportError.invalidPin
+            }
+            do {
+                shardPlaintext = try PortableBackupCrypto.decrypt(
+                    envelope: backup.encryptedShard,
+                    recoveryKey: rk
+                )
+            } catch PortableBackupCrypto.Error.decryptFailed {
+                // Same Apple ID expected but RK didn't match — likely a
+                // peer device hasn't finished syncing. Surface that.
+                throw ShardImportError.invalidPin
+            }
+        case 4:
             do {
                 shardPlaintext = try PortableBackupCrypto.decrypt(
                     envelope: backup.encryptedShard,
@@ -154,8 +195,8 @@ final class ShardsViewModel: ObservableObject {
             } catch PortableBackupCrypto.Error.decryptFailed {
                 throw ShardImportError.invalidPin
             }
-        } else {
-            shardPlaintext = backup.encryptedShard
+        default:
+            shardPlaintext = backup.encryptedShard // v3 legacy plaintext
         }
 
         let deviceKey = try appState.deviceKey
@@ -184,7 +225,7 @@ final class ShardsViewModel: ObservableObject {
         }
 
         importStatus = .success(accountName: backup.accountName, walletCount: backup.wallets.count)
-        SecureLog.info("Account imported: \(backup.accountId.prefix(8)) (\(backup.wallets.count) wallets)")
+        SecureLog.info("Account imported: \(backup.accountId.prefix(8)) (\(backup.wallets.count) wallets, v\(backup.version))")
     }
 
     private func importLegacy(backup: ShardBackup, pin: String, appState: AppState) throws {

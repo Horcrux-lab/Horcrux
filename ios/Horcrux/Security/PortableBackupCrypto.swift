@@ -29,7 +29,8 @@ import CommonCrypto
 /// the ciphertext (the standard CryptoKit combined representation).
 enum PortableBackupCrypto {
 
-    private static let version = 1
+    private static let pbkdf2Version = 1         // legacy v4 backups (PIN-derived)
+    private static let recoveryKeyVersion = 2    // new v5 backups (RK-derived, iCloud-synced)
     private static let iterations: UInt32 = 600_000
     private static let saltSize = 16
     private static let keySize = 32
@@ -43,7 +44,7 @@ enum PortableBackupCrypto {
             switch self {
             case .unsupportedVersion(let v): return "不支持的备份版本 v\(v)"
             case .malformed(let m): return "备份文件已损坏：\(m)"
-            case .decryptFailed: return "密码错误或备份已损坏"
+            case .decryptFailed: return "密码/恢复密钥无法解密此备份"
             }
         }
     }
@@ -73,7 +74,7 @@ enum PortableBackupCrypto {
         let ctAndTag = combined.dropFirst(12)
 
         let envelope = Envelope(
-            v: version,
+            v: pbkdf2Version,
             kdf: "pbkdf2-hmac-sha256",
             iter: Int(iterations),
             salt: salt.base64EncodedString(),
@@ -85,18 +86,46 @@ enum PortableBackupCrypto {
         return try enc.encode(envelope)
     }
 
-    /// Decrypt a portable envelope previously produced by `encrypt`.
+    /// Encrypt `plaintext` with the user's iCloud-synced recovery key.
+    /// The salt is random per-backup so two exports of the same shard
+    /// produce different ciphertexts. Decryption on any peer device
+    /// succeeds as soon as iCloud Keychain has synced the RK there.
+    static func encrypt(plaintext: Data, recoveryKey: SymmetricKey) throws -> Data {
+        var saltBytes = [UInt8](repeating: 0, count: saltSize)
+        let status = SecRandomCopyBytes(kSecRandomDefault, saltBytes.count, &saltBytes)
+        guard status == errSecSuccess else { throw Error.malformed("salt generation failed") }
+        let salt = Data(saltBytes)
+
+        let key = hkdfDerive(ikm: recoveryKey, salt: salt)
+        let nonce = AES.GCM.Nonce()
+        let sealed = try AES.GCM.seal(plaintext, using: key, nonce: nonce)
+        guard let combined = sealed.combined else {
+            throw Error.malformed("seal produced no combined output")
+        }
+        let nonceBytes = combined.prefix(12)
+        let ctAndTag = combined.dropFirst(12)
+
+        let envelope = Envelope(
+            v: recoveryKeyVersion,
+            kdf: "hkdf-sha256",
+            iter: nil,
+            salt: salt.base64EncodedString(),
+            nonce: Data(nonceBytes).base64EncodedString(),
+            ct: Data(ctAndTag).base64EncodedString()
+        )
+        let enc = JSONEncoder()
+        enc.outputFormatting = [.sortedKeys]
+        return try enc.encode(envelope)
+    }
+
+    /// Decrypt a portable envelope previously produced by `encrypt(plaintext:password:)`.
     /// Throws `Error.decryptFailed` on wrong password or tampering.
     static func decrypt(envelope data: Data, password: String) throws -> Data {
-        let dec = JSONDecoder()
-        let env: Envelope
-        do {
-            env = try dec.decode(Envelope.self, from: data)
-        } catch {
-            throw Error.malformed("envelope JSON invalid")
-        }
-        guard env.v == version else {
-            throw Error.unsupportedVersion(env.v)
+        let env = try parse(data)
+        guard env.v == pbkdf2Version else {
+            throw env.v == recoveryKeyVersion
+                ? Error.decryptFailed  // wrong key type — caller should use RK path
+                : Error.unsupportedVersion(env.v)
         }
         guard let salt = Data(base64Encoded: env.salt),
               let nonceData = Data(base64Encoded: env.nonce),
@@ -106,21 +135,37 @@ enum PortableBackupCrypto {
         guard nonceData.count == 12, salt.count == saltSize else {
             throw Error.malformed("field sizes invalid")
         }
+        let iter = UInt32(env.iter ?? Int(iterations))
+        let key = try deriveKey(password: password, salt: salt, iterations: iter)
+        return try open(nonce: nonceData, ciphertext: ct, using: key)
+    }
 
-        let key = try deriveKey(password: password, salt: salt, iterations: UInt32(env.iter))
-        let nonce = try AES.GCM.Nonce(data: nonceData)
-
-        // Rebuild the combined form CryptoKit expects on open.
-        var combined = Data(capacity: nonceData.count + ct.count)
-        combined.append(nonceData)
-        combined.append(ct)
-
-        do {
-            let box = try AES.GCM.SealedBox(combined: combined)
-            return try AES.GCM.open(box, using: key)
-        } catch {
-            throw Error.decryptFailed
+    /// Decrypt a v5 (RK-based) envelope. Throws `.decryptFailed` if the
+    /// RK on this device does not match the one used to produce the
+    /// file (e.g. different Apple ID).
+    static func decrypt(envelope data: Data, recoveryKey: SymmetricKey) throws -> Data {
+        let env = try parse(data)
+        guard env.v == recoveryKeyVersion else {
+            throw env.v == pbkdf2Version
+                ? Error.decryptFailed
+                : Error.unsupportedVersion(env.v)
         }
+        guard let salt = Data(base64Encoded: env.salt),
+              let nonceData = Data(base64Encoded: env.nonce),
+              let ct = Data(base64Encoded: env.ct) else {
+            throw Error.malformed("base64 field invalid")
+        }
+        guard nonceData.count == 12, salt.count == saltSize else {
+            throw Error.malformed("field sizes invalid")
+        }
+        let key = hkdfDerive(ikm: recoveryKey, salt: salt)
+        return try open(nonce: nonceData, ciphertext: ct, using: key)
+    }
+
+    /// Returns the wire-format version of an envelope without decrypting
+    /// it. Callers use this to decide between the PIN and RK paths.
+    static func envelopeVersion(_ data: Data) -> Int? {
+        (try? parse(data))?.v
     }
 
     /// True when `data` parses as an envelope (by peeking at JSON keys).
@@ -131,6 +176,36 @@ enum PortableBackupCrypto {
             return false
         }
         return obj["v"] != nil && obj["kdf"] != nil && obj["ct"] != nil
+    }
+
+    private static func parse(_ data: Data) throws -> Envelope {
+        let dec = JSONDecoder()
+        do {
+            return try dec.decode(Envelope.self, from: data)
+        } catch {
+            throw Error.malformed("envelope JSON invalid")
+        }
+    }
+
+    private static func open(nonce nonceData: Data, ciphertext: Data, using key: SymmetricKey) throws -> Data {
+        var combined = Data(capacity: nonceData.count + ciphertext.count)
+        combined.append(nonceData)
+        combined.append(ciphertext)
+        do {
+            let box = try AES.GCM.SealedBox(combined: combined)
+            return try AES.GCM.open(box, using: key)
+        } catch {
+            throw Error.decryptFailed
+        }
+    }
+
+    private static func hkdfDerive(ikm: SymmetricKey, salt: Data) -> SymmetricKey {
+        HKDF<SHA256>.deriveKey(
+            inputKeyMaterial: ikm,
+            salt: salt,
+            info: Data("horcrux-backup-v5".utf8),
+            outputByteCount: keySize
+        )
     }
 
     private static func deriveKey(
@@ -166,7 +241,7 @@ enum PortableBackupCrypto {
     private struct Envelope: Codable {
         let v: Int
         let kdf: String
-        let iter: Int
+        let iter: Int?
         let salt: String
         let nonce: String
         let ct: String
