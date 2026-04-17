@@ -123,6 +123,17 @@ struct ComposeTransactionView: View {
                     }
                 }
 
+                if let primaryName = viewModel.resolvedRecipientENS {
+                    HStack(spacing: 6) {
+                        Image(systemName: "checkmark.seal.fill")
+                            .foregroundStyle(.green)
+                        Text("ENS: \(primaryName)")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    .accessibilityIdentifier("compose_resolvedENS")
+                }
+
                 if let addressError {
                     Text(addressError)
                         .font(.caption)

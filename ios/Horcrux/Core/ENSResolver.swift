@@ -12,6 +12,10 @@ enum ENSResolver {
     /// Default RPC used for ENS lookups. Could be swapped for NetworkConfig.ethereumRPC.
     private static let rpcURL = "https://ethereum-rpc.publicnode.com"
 
+    /// Tiny memoisation so the signing form's "recipient → .eth" badge
+    /// doesn't re-hit the RPC on every keystroke once we've resolved.
+    private static var reverseCache: [String: String?] = [:]
+
     /// Resolve an ENS name (e.g. "vitalik.eth") to a hex address.
     /// Returns `nil` if resolution fails or the name isn't registered.
     static func resolve(_ name: String) async -> String? {
@@ -36,6 +40,78 @@ enum ENSResolver {
         }
         let addr = "0x" + String(addrRaw.suffix(40))
         return addr == "0x0000000000000000000000000000000000000000" ? nil : addr
+    }
+
+    /// Reverse-resolve an Ethereum address to its primary ENS name
+    /// (e.g. "0xd8dA…96045" → "vitalik.eth"). Returns nil when no
+    /// primary name is set, resolution fails, or the forward-verify
+    /// check (resolve(name) == address) doesn't match — which is
+    /// what ENS best-practice calls for to prevent spoofing.
+    static func reverse(_ address: String) async -> String? {
+        let normalized = address.lowercased()
+        guard normalized.hasPrefix("0x"), normalized.count == 42 else { return nil }
+        if let cached = reverseCache[normalized] { return cached }
+
+        let addrHex = String(normalized.dropFirst(2))
+        let reverseName = "\(addrHex).addr.reverse"
+        let nameHash = namehash(reverseName)
+
+        // 1. registry.resolver(nameHash)
+        let resolverCallData = "0x0178b8bf" + nameHash
+        guard let resolver = await ethCall(to: registry, data: resolverCallData),
+              resolver.count >= 42 else {
+            reverseCache[normalized] = .some(nil)
+            return nil
+        }
+        let resolverAddr = "0x" + String(resolver.suffix(40))
+        guard resolverAddr != "0x0000000000000000000000000000000000000000" else {
+            reverseCache[normalized] = .some(nil)
+            return nil
+        }
+
+        // 2. resolver.name(nameHash) → string (ABI-encoded: offset, length, utf8 bytes)
+        let nameCallData = "0x691f3431" + nameHash // selector for name(bytes32)
+        guard let raw = await ethCall(to: resolverAddr, data: nameCallData),
+              let name = decodeAbiString(raw), !name.isEmpty else {
+            reverseCache[normalized] = .some(nil)
+            return nil
+        }
+
+        // 3. Forward-verify: the claimed .eth must resolve back to this address.
+        guard let forward = await resolve(name),
+              forward.lowercased() == normalized else {
+            reverseCache[normalized] = .some(nil)
+            return nil
+        }
+
+        reverseCache[normalized] = .some(name)
+        return name
+    }
+
+    /// Decode a solidity-ABI-encoded dynamic `string` return value.
+    /// Layout: 32-byte offset (usually 0x20) | 32-byte length | utf8 bytes zero-padded to 32.
+    private static func decodeAbiString(_ hex: String) -> String? {
+        var s = hex
+        if s.hasPrefix("0x") { s.removeFirst(2) }
+        guard s.count >= 128 else { return nil }
+        // offset = first 32 bytes → usually 0x20 (32 decimal)
+        let lengthHex = String(s.dropFirst(64).prefix(64))
+        guard let length = UInt64(lengthHex, radix: 16), length > 0 else { return nil }
+        let dataStart = 128
+        let need = Int(length) * 2
+        guard s.count >= dataStart + need else { return nil }
+        let payload = String(s.dropFirst(dataStart).prefix(need))
+        var bytes: [UInt8] = []
+        bytes.reserveCapacity(Int(length))
+        var idx = payload.startIndex
+        while idx < payload.endIndex {
+            let next = payload.index(idx, offsetBy: 2)
+            if let b = UInt8(payload[idx..<next], radix: 16) {
+                bytes.append(b)
+            } else { return nil }
+            idx = next
+        }
+        return String(data: Data(bytes), encoding: .utf8)
     }
 
     /// Namehash implementation (EIP-137). Returns hex string without 0x prefix, 64 chars.

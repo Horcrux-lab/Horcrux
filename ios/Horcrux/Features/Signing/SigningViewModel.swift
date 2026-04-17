@@ -11,7 +11,11 @@ final class SigningViewModel: ObservableObject {
     let wallet: Wallet
 
     @Published var step: Step = .compose
-    @Published var recipientAddress: String = ""
+    @Published var recipientAddress: String = "" {
+        didSet {
+            if recipientAddress != oldValue { triggerReverseENSLookup() }
+        }
+    }
     @Published var amount: String = ""
     /// Selected ERC-20 / SPL token (nil = native coin transfer).
     @Published var selectedToken: Token? = nil
@@ -131,6 +135,13 @@ final class SigningViewModel: ObservableObject {
     /// MPC-produced ed25519 signature after signing completes.
     private var pendingSolMessage: Data?
 
+    /// ENS primary name (forward-verified) for the current `recipientAddress`,
+    /// when it's a valid EVM address on Ethereum mainnet. Populated asynchronously
+    /// after the user types or pastes the address. `nil` when no primary name is
+    /// set or the chain isn't Ethereum mainnet.
+    @Published var resolvedRecipientENS: String?
+    private var ensLookupTask: Task<Void, Never>?
+
     var shortRecipient: String {
         guard recipientAddress.count > 12 else { return recipientAddress }
         return "\(recipientAddress.prefix(6))…\(recipientAddress.suffix(4))"
@@ -146,6 +157,33 @@ final class SigningViewModel: ObservableObject {
     var recipientExplorerURL: URL? {
         let canonical = AddressFormatter.canonical(recipientAddress, chain: wallet.chain)
         return AddressFormatter.explorerURL(address: canonical, chain: wallet.chain)
+    }
+
+    /// Kick off an ENS reverse lookup after the recipient field changes.
+    /// No-op unless the wallet is on Ethereum mainnet and the input is a
+    /// syntactically-valid 0x… address. Coalesces rapid changes by
+    /// cancelling any in-flight task.
+    private func triggerReverseENSLookup() {
+        ensLookupTask?.cancel()
+        resolvedRecipientENS = nil
+
+        // Only Ethereum mainnet has a widely-used ENS deployment; other
+        // chains either don't have ENS or use CCIP-read which we don't
+        // support yet.
+        guard wallet.chain == .ethereum else { return }
+        let addr = recipientAddress.trimmingCharacters(in: .whitespaces)
+        guard addr.lowercased().hasPrefix("0x"), addr.count == 42 else { return }
+
+        ensLookupTask = Task { [weak self, addr] in
+            // Tiny debounce so we don't hammer the RPC mid-typing.
+            try? await Task.sleep(nanoseconds: 300_000_000)
+            if Task.isCancelled { return }
+            let name = await ENSResolver.reverse(addr)
+            if Task.isCancelled { return }
+            await MainActor.run { [weak self] in
+                self?.resolvedRecipientENS = name
+            }
+        }
     }
 
     init(wallet: Wallet) {
