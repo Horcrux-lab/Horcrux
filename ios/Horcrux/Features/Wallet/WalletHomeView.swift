@@ -376,8 +376,10 @@ struct WalletRow: View {
     var showThresholdBadge: Bool = false
     @EnvironmentObject private var appState: AppState
     @StateObject private var priceService = PriceService.shared
-    @State private var balance: String?
+    @ObservedObject private var balanceCache = BalanceCache.shared
     @State private var isLoading = false
+
+    private var balance: String? { balanceCache.cachedRaw(walletId: wallet.id) }
 
     var body: some View {
         HStack(spacing: 14) {
@@ -433,13 +435,12 @@ struct WalletRow: View {
     }
 
     private func fetchBalance() async {
+        if balanceCache.cachedRaw(walletId: wallet.id) != nil { return }
         isLoading = true
         defer { isLoading = false }
-        do {
-            balance = try await appState.blockchainService.balance(for: wallet, config: appState.networkConfig)
-        } catch {
-            balance = wallet.chain.symbol
-        }
+        _ = await balanceCache.balance(for: wallet,
+                                       service: appState.blockchainService,
+                                       config: appState.networkConfig)
     }
 
     /// Attempts to extract the numeric portion of a balance string like "1.234 ETH"
@@ -728,7 +729,7 @@ struct PortfolioSummaryCard: View {
     let wallets: [Wallet]
     @EnvironmentObject private var appState: AppState
     @StateObject private var priceService = PriceService.shared
-    @State private var nativeBalances: [String: Double] = [:] // walletId → numeric native amount
+    @ObservedObject private var balanceCache = BalanceCache.shared
     @State private var isLoading = false
 
     var body: some View {
@@ -771,7 +772,7 @@ struct PortfolioSummaryCard: View {
 
     private var totalFiatString: String {
         let total = wallets.reduce(0.0) { acc, w in
-            let amount = nativeBalances[w.id] ?? 0
+            let amount = balanceCache.nativeAmount(walletId: w.id) ?? 0
             return acc + amount * (priceService.usdPrice(symbol: w.chain.symbol) ?? 0)
         }
         let fmt = NumberFormatter()
@@ -785,18 +786,13 @@ struct PortfolioSummaryCard: View {
         priceService.refreshIfNeeded()
         isLoading = true
         defer { isLoading = false }
-        await withTaskGroup(of: (String, Double?).self) { group in
+        await withTaskGroup(of: Void.self) { group in
             for wallet in wallets {
-                group.addTask {
-                    let raw = try? await appState.blockchainService.balance(for: wallet, config: appState.networkConfig)
-                    let numeric = raw.flatMap { s -> Double? in
-                        Double(s.split(separator: " ").first.map(String.init) ?? "")
-                    }
-                    return (wallet.id, numeric)
+                group.addTask { @MainActor in
+                    _ = await BalanceCache.shared.balance(for: wallet,
+                                                          service: appState.blockchainService,
+                                                          config: appState.networkConfig)
                 }
-            }
-            for await (id, val) in group {
-                if let val { nativeBalances[id] = val }
             }
         }
     }
