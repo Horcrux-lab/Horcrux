@@ -527,26 +527,45 @@ struct WalletDetailView: View {
                 .glassCard(padding: 24)
 
                 // Action buttons
+                if !wallet.chain.signingSupported {
+                    HStack(spacing: 8) {
+                        Image(systemName: "eye.fill")
+                            .font(.caption)
+                        Text("Read-only chain — send/receive QR works, signing + broadcast will land in a later release.")
+                            .font(.caption2)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    .foregroundStyle(HorcruxTheme.subtleText)
+                    .padding(10)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(
+                        RoundedRectangle(cornerRadius: 10)
+                            .fill(Color.yellow.opacity(0.08))
+                            .overlay(RoundedRectangle(cornerRadius: 10).stroke(Color.yellow.opacity(0.25), lineWidth: 1))
+                    )
+                }
+
                 HStack(spacing: 12) {
                     Button {
                         showSigning = true
                     } label: {
                         VStack(spacing: 8) {
-                            Image(systemName: "arrow.up.circle.fill")
+                            Image(systemName: wallet.chain.signingSupported ? "arrow.up.circle.fill" : "lock.fill")
                                 .font(.title2)
                             Text(L10n.WalletDetail.sendTransaction)
                                 .font(.caption.weight(.medium))
                         }
-                        .foregroundStyle(.white)
+                        .foregroundStyle(wallet.chain.signingSupported ? .white : HorcruxTheme.subtleText)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 16)
                         .background(
                             RoundedRectangle(cornerRadius: 14)
-                                .fill(HorcruxTheme.accentPurple.opacity(0.2))
-                                .overlay(RoundedRectangle(cornerRadius: 14).stroke(HorcruxTheme.accentPurple.opacity(0.3), lineWidth: 1))
+                                .fill(HorcruxTheme.accentPurple.opacity(wallet.chain.signingSupported ? 0.2 : 0.06))
+                                .overlay(RoundedRectangle(cornerRadius: 14).stroke(HorcruxTheme.accentPurple.opacity(wallet.chain.signingSupported ? 0.3 : 0.12), lineWidth: 1))
                         )
                     }
-                    .accessibilityHint(L10n.WalletDetail.openSigningHint)
+                    .disabled(!wallet.chain.signingSupported)
+                    .accessibilityHint(wallet.chain.signingSupported ? L10n.WalletDetail.openSigningHint : "Signing not yet supported for this chain")
                     .accessibilityIdentifier("walletDetail_sendButton")
 
                     Button {
@@ -572,7 +591,7 @@ struct WalletDetailView: View {
                 }
 
                 // Tokens
-                if wallet.chain != .bitcoin {
+                if wallet.chain != .bitcoin && wallet.chain != .litecoin && wallet.chain != .tron {
                     VStack(alignment: .leading, spacing: 10) {
                         VaultSectionHeader(L10n.WalletDetail.tokens, icon: "circle.grid.2x2")
                             .padding(.horizontal, 4)
