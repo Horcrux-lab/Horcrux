@@ -41,3 +41,13 @@ tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 
 # Hex encoding
 hex = "0.4"
+
+# Patch gmp-mpfr-sys to add --disable-assembly for iOS cross-compilation.
+# Upstream GMP's hand-written aarch64 assembly uses non-GOT-relative ADRP
+# relocations that iOS clang rejects, breaking iOS device+simulator builds.
+# Our vendored copy (third_party/gmp-mpfr-sys) appends --disable-assembly
+# when the target triple contains "apple-ios", forcing GMP to fall back to
+# its portable C implementation. This unlocks `./ios/build-rust.sh` so we
+# can rebuild libhorcrux_core instead of shipping a stale prebuilt .a.
+[patch.crates-io]
+gmp-mpfr-sys = { path = "third_party/gmp-mpfr-sys" }

@@ -89,6 +89,16 @@ final class BalanceCache: ObservableObject {
         tokenFetchedAt.removeAll()
     }
 
+    /// Synchronously record a token balance that was fetched through another
+    /// code path (e.g. the wallet detail view fetching every supported token
+    /// at once). Lets other views — especially the Max button in signing —
+    /// read the value without triggering their own RPC call.
+    func seedTokenBalance(walletId: String, tokenId: String, value: Double) {
+        let key = "\(walletId):\(tokenId)"
+        tokenEntries[key] = value
+        tokenFetchedAt[key] = Date()
+    }
+
     /// Returns the cached whole-token balance (e.g. 42.5 for 42.5 USDC),
     /// or nil if we haven't fetched it yet / it's stale.
     func cachedTokenBalance(walletId: String, tokenId: String) -> Double? {

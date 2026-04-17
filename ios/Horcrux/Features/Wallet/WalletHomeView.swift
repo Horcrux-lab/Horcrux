@@ -794,11 +794,13 @@ struct WalletDetailView: View {
     private func fetchBalance() async {
         isLoadingBalance = true
         defer { isLoadingBalance = false }
-        do {
-            balance = try await appState.blockchainService.balance(for: wallet, config: appState.networkConfig)
-        } catch {
-            balance = nil
-        }
+        // Route through BalanceCache so the hero Portfolio card, the wallet
+        // list row, and this detail view all read the same source of truth
+        // and don't trigger three parallel RPC calls on navigation.
+        balance = await BalanceCache.shared.balance(for: wallet,
+                                                    service: appState.blockchainService,
+                                                    config: appState.networkConfig,
+                                                    force: true)
     }
 
     private func fetchTokenBalances() async {
@@ -806,6 +808,18 @@ struct WalletDetailView: View {
         isLoadingTokens = true
         defer { isLoadingTokens = false }
         tokenBalances = await appState.blockchainService.tokenBalances(for: wallet, config: appState.networkConfig)
+        // Seed each token into BalanceCache so the Max button in the
+        // signing compose form can honour cached balances without
+        // re-fetching them from the RPC.
+        for tb in tokenBalances {
+            let amt: Double? = {
+                let first = tb.displayBalance.split(separator: " ").first.map(String.init) ?? ""
+                return Double(first.replacingOccurrences(of: ",", with: ""))
+            }()
+            if let amt {
+                BalanceCache.shared.seedTokenBalance(walletId: wallet.id, tokenId: tb.token.id, value: amt)
+            }
+        }
     }
 }
 

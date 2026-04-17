@@ -6,6 +6,11 @@
 
 # iOS build artifacts
 ios/Horcrux/Core/Frameworks/*.a
+ios/Horcrux/Core/Frameworks/HorcruxCore.xcframework/
 ios/build/
 ios/DerivedData/
 ios/build-sim2/
+
+# Vendored gmp-mpfr-sys: skip the ~25MB of documentation, keep the C source
+# needed for iOS cross-builds.
+third_party/gmp-mpfr-sys/doc-c/
