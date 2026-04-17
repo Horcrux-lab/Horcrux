@@ -225,67 +225,76 @@ final class CreateShardViewModel: ObservableObject {
 
         NSLog("[DKG] Broadcasting config hello: \(mySummary) to \(expectedPeers) peers")
         try await peerManager.broadcastMpcMessage(helloData)
-        // Send again after a short delay to race against peers that
-        // started listening slightly later; the dedup-by-payload set in
-        // runDKGRounds is not yet active so duplicates are harmless
-        // here (the decoder is idempotent).
-        Task { [helloData, peerManager] in
-            try? await Task.sleep(nanoseconds: 500_000_000)
-            try? await peerManager.broadcastMpcMessage(helloData)
-        }
 
-        let deadline = Date().addingTimeInterval(10)
+        // Re-broadcast a few times so peers that entered the ceremony
+        // slightly later still see our hello before their 10s timeout.
+        let rebroadcast = Task { [helloData, peerManager] in
+            for delayMs in [500, 1500, 3500] {
+                try? await Task.sleep(nanoseconds: UInt64(delayMs) * 1_000_000)
+                try? await peerManager.broadcastMpcMessage(helloData)
+            }
+        }
+        defer { rebroadcast.cancel() }
+
+        // Single consumer loop with a separate timeout task that
+        // throws to break us out. Creating a fresh for-await iterator
+        // per message (previous implementation) dropped inbound bytes
+        // because AsyncStream is single-consumer and the dropped
+        // iterators took buffered values with them.
         var heard: [String: ConfigHelloDTO] = [:]
 
-        while Date() < deadline && heard.count < expectedPeers {
-            let remaining = deadline.timeIntervalSinceNow
-            if remaining <= 0 { break }
+        enum Done: Error { case timeout, satisfied, mismatch(DKGError) }
 
-            let next: (Peer, Data)? = await withTaskGroup(of: (Peer, Data)?.self) { group in
-                group.addTask {
-                    for await pair in peerManager.incomingMpcMessages { return pair }
-                    return nil
+        do {
+            try await withThrowingTaskGroup(of: Void.self) { group in
+                group.addTask { [expectedPeers] in
+                    try await Task.sleep(nanoseconds: 10 * 1_000_000_000)
+                    _ = expectedPeers
+                    throw Done.timeout
                 }
-                group.addTask {
-                    try? await Task.sleep(nanoseconds: UInt64(max(remaining, 0) * 1_000_000_000))
-                    return nil
+                group.addTask { @MainActor in
+                    for await (peer, data) in peerManager.incomingMpcMessages {
+                        if let hello = try? JSONDecoder().decode(ConfigHelloDTO.self, from: data),
+                           hello.magic == ConfigHelloDTO.magic {
+                            if heard[peer.id] == nil {
+                                heard[peer.id] = hello
+                                NSLog("[DKG] Got config hello from \(peer.name): \(hello.summary)")
+                            }
+                            if hello.threshold != myHello.threshold
+                                || hello.totalParties != myHello.totalParties
+                                || hello.curve != myHello.curve {
+                                throw Done.mismatch(.configMismatch(
+                                    local: mySummary,
+                                    remote: hello.summary,
+                                    peer: peer.name
+                                ))
+                            }
+                            if heard.count >= expectedPeers {
+                                throw Done.satisfied
+                            }
+                        } else {
+                            // Non-hello MPC bytes arrived during the
+                            // handshake window; stash for the round
+                            // loop so we don't lose them.
+                            self.pendingMpcMessages.append((peer, data))
+                            NSLog("[DKG] Stashing non-hello payload from \(peer.name) for DKG loop (\(data.count)B)")
+                        }
+                    }
                 }
-                let first = await group.next() ?? nil
+                try await group.next()
                 group.cancelAll()
-                return first
             }
-
-            guard let (peer, data) = next else { continue }
-
-            if let hello = try? JSONDecoder().decode(ConfigHelloDTO.self, from: data),
-               hello.magic == ConfigHelloDTO.magic {
-                heard[peer.id] = hello
-                NSLog("[DKG] Got config hello from \(peer.name): \(hello.summary)")
-                if hello.threshold != myHello.threshold
-                    || hello.totalParties != myHello.totalParties
-                    || hello.curve != myHello.curve {
-                    throw DKGError.configMismatch(
-                        local: mySummary,
-                        remote: hello.summary,
-                        peer: peer.name
-                    )
-                }
-            } else {
-                // Not a config message — likely a peer that already
-                // moved past the handshake. Push it back by re-yielding
-                // via a side channel is tricky; instead we stash it for
-                // the main DKG loop to re-consume via the stored queue.
-                pendingMpcMessages.append((peer, data))
-                NSLog("[DKG] Stashing non-hello payload from \(peer.name) for DKG loop (\(data.count)B)")
-            }
-        }
-
-        if heard.count < expectedPeers {
+        } catch Done.satisfied {
+            NSLog("[DKG] Config agreed: \(mySummary)")
+            return
+        } catch Done.timeout {
             NSLog("[DKG] Config negotiation timed out — heard from \(heard.count)/\(expectedPeers)")
             if heard.isEmpty { throw DKGError.configTimeout }
-            // Partial quorum: proceed (matched peers agreed), but log.
+            NSLog("[DKG] Config partially agreed (\(heard.count) peers): \(mySummary)")
+            return
+        } catch Done.mismatch(let err) {
+            throw err
         }
-        NSLog("[DKG] Config agreed: \(mySummary)")
     }
 
     /// Non-hello messages received during negotiation are replayed into
