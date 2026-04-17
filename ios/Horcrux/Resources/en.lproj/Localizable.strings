@@ -174,7 +174,6 @@
 /* DKG Status Messages */
 "dkg.searchingDevices" = "Searching for nearby devices…";
 "dkg.initializingKeyGen" = "Initializing key generation…";
-"dkg.negotiatingConfig" = "Negotiating parameters…";
 "dkg.exchangingCommitments" = "Exchanging commitments…";
 "dkg.verifyingShares" = "Verifying shares…";
 "dkg.finalizingKeyPackage" = "Finalizing key package…";

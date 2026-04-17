@@ -174,7 +174,6 @@
 /* DKG Status Messages */
 "dkg.searchingDevices" = "正在搜索附近设备…";
 "dkg.initializingKeyGen" = "正在初始化密钥生成…";
-"dkg.negotiatingConfig" = "正在协商参数…";
 "dkg.exchangingCommitments" = "正在交换承诺…";
 "dkg.verifyingShares" = "正在验证份额…";
 "dkg.finalizingKeyPackage" = "正在完成密钥包…";

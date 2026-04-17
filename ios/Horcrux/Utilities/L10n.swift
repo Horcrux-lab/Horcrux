@@ -293,7 +293,6 @@ enum L10n {
         // Status messages
         static let searchingDevices = NSLocalizedString("dkg.searchingDevices", comment: "")
         static let initializingKeyGen = NSLocalizedString("dkg.initializingKeyGen", comment: "")
-        static let negotiatingConfig = NSLocalizedString("dkg.negotiatingConfig", comment: "")
         static let exchangingCommitments = NSLocalizedString("dkg.exchangingCommitments", comment: "")
         static let verifyingShares = NSLocalizedString("dkg.verifyingShares", comment: "")
         static let finalizingKeyPackage = NSLocalizedString("dkg.finalizingKeyPackage", comment: "")

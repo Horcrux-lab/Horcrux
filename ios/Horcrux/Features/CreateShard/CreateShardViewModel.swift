@@ -30,7 +30,7 @@ final class CreateShardViewModel: ObservableObject {
     @Published var totalParties: Int = 3
     @Published var partyIndex: Int = 1
     @Published var selectedTransports: Set<TransportType> = [.relay]
-    @Published var roomCode: String = "apple-tiger-moon"
+    @Published var roomCode: String = ""
 
     // Discovery
     @Published var foundPeers: [Peer] = []
@@ -468,6 +468,15 @@ final class CreateShardViewModel: ObservableObject {
                 let msg = dto.toFfi()
                 NSLog("[DKG] Processing msg: from=\(msg.fromParty) to=\(msg.toParty) session=\(msg.sessionId.prefix(8))...")
 
+                // Advance the status label BEFORE the (potentially
+                // very long, up to ~90s on secp256k1) Rust computation
+                // so the user sees the right phase ("Paillier keys",
+                // "ZK proofs") while it's happening instead of the
+                // previous round's label.
+                currentRound = msgCount
+                updateProgress()
+                updateDKGStatusMessage()
+
                 let responses: [FfiMpcMessage]
                 do {
                     NSLog("[DKG] Calling bridge.handleMessage (off-main)...")
@@ -481,10 +490,6 @@ final class CreateShardViewModel: ObservableObject {
                     throw error
                 }
                 NSLog("[DKG] handleMessage returned \(responses.count) responses")
-
-                currentRound = msgCount
-                updateProgress()
-                updateDKGStatusMessage()
 
                 for response in responses {
                     let responseData = try JSONEncoder().encode(MpcMessageDTO(response))
