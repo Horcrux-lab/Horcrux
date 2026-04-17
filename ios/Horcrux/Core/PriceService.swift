@@ -12,8 +12,9 @@ final class PriceService: ObservableObject {
     static let shared = PriceService()
 
     struct Quote {
-        let symbol: String    // ETH / BTC / SOL / USDC / USDT
+        let symbol: String    // ETH / BTC / SOL / LTC / TRX / USDC / USDT
         let usd: Double
+        let change24h: Double  // Percent, e.g. -3.42
         let fetchedAt: Date
     }
 
@@ -30,7 +31,7 @@ final class PriceService: ObservableObject {
 
     /// Fetch prices for the listed CoinGecko IDs. Symbols are uppercase chain tickers.
     /// Call this lazily from views; repeated calls within TTL are ignored.
-    func refreshIfNeeded(symbols: [String] = ["ETH", "BTC", "SOL", "USDC", "USDT"]) {
+    func refreshIfNeeded(symbols: [String] = ["ETH", "BTC", "SOL", "LTC", "TRX", "USDC", "USDT"]) {
         let needRefresh = symbols.contains { symbol in
             guard let q = quotes[symbol] else { return true }
             return Date().timeIntervalSince(q.fetchedAt) > ttl
@@ -47,19 +48,23 @@ final class PriceService: ObservableObject {
             "ETH": "ethereum",
             "BTC": "bitcoin",
             "SOL": "solana",
+            "LTC": "litecoin",
+            "TRX": "tron",
             "USDC": "usd-coin",
             "USDT": "tether"
         ]
         let ids = symbols.compactMap { mapping[$0] }.joined(separator: ",")
-        guard let url = URL(string: "https://api.coingecko.com/api/v3/simple/price?ids=\(ids)&vs_currencies=usd") else { return }
+        guard let url = URL(string: "https://api.coingecko.com/api/v3/simple/price?ids=\(ids)&vs_currencies=usd&include_24hr_change=true") else { return }
 
         do {
             let (data, _) = try await session.data(from: url)
             guard let json = try JSONSerialization.jsonObject(with: data) as? [String: [String: Double]] else { return }
             var new: [String: Quote] = quotes
             for symbol in symbols {
-                guard let cgId = mapping[symbol], let usd = json[cgId]?["usd"] else { continue }
-                new[symbol] = Quote(symbol: symbol, usd: usd, fetchedAt: Date())
+                guard let cgId = mapping[symbol], let obj = json[cgId], let usd = obj["usd"] else { continue }
+                // CoinGecko returns `usd_24h_change` with this flag set.
+                let change = obj["usd_24h_change"] ?? 0
+                new[symbol] = Quote(symbol: symbol, usd: usd, change24h: change, fetchedAt: Date())
             }
             self.quotes = new
         } catch {
@@ -80,5 +85,10 @@ final class PriceService: ObservableObject {
 
     func usdPrice(symbol: String) -> Double? {
         quotes[symbol]?.usd
+    }
+
+    /// 24h percent change for a symbol (e.g. -3.42 means -3.42%).
+    func change24h(symbol: String) -> Double? {
+        quotes[symbol]?.change24h
     }
 }

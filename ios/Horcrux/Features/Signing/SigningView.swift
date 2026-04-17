@@ -190,6 +190,18 @@ struct ComposeTransactionView: View {
                     .pickerStyle(.segmented)
                     .accessibilityIdentifier("compose_feeTierPicker")
 
+                    if viewModel.feeTier == .custom {
+                        HStack {
+                            Text("Gas 价 (gwei)")
+                            Spacer()
+                            TextField("例: 25", text: $viewModel.customGasPriceGwei)
+                                .keyboardType(.decimalPad)
+                                .multilineTextAlignment(.trailing)
+                                .frame(minWidth: 80)
+                                .accessibilityIdentifier("compose_customGasGwei")
+                        }
+                    }
+
                     if viewModel.isEstimatingGas {
                         HStack {
                             Text(L10n.Signing.estimating)
@@ -202,8 +214,19 @@ struct ComposeTransactionView: View {
                         LabeledContent(L10n.Signing.estFee, value: viewModel.estimatedFee)
                     }
                 }
-            } else if viewModel.wallet.chain == .bitcoin || viewModel.wallet.chain == .solana {
+            } else if viewModel.wallet.chain == .bitcoin || viewModel.wallet.chain == .litecoin || viewModel.wallet.chain == .solana {
                 Section(L10n.Signing.fee) {
+                    if viewModel.wallet.chain != .solana {
+                        // Solana has no user-tunable feerate for native transfers.
+                        Picker("费用优先级", selection: $viewModel.feeTier) {
+                            // Custom tier not wired for UTXO chains yet.
+                            ForEach(SigningViewModel.FeeTier.allCases.filter { $0 != .custom }) { tier in
+                                Text(tier.label).tag(tier)
+                            }
+                        }
+                        .pickerStyle(.segmented)
+                        .accessibilityIdentifier("compose_feeTierPicker")
+                    }
                     if viewModel.isEstimatingGas {
                         HStack {
                             Text(L10n.Signing.estimating)
@@ -683,6 +706,16 @@ struct TransactionPreviewCard: View {
 
     private var isTokenTransfer: Bool { viewModel.selectedToken != nil }
 
+    /// Per-chain / per-standard label shown in the preview card.
+    private var operationLabel: String {
+        if !isTokenTransfer { return "原生代币转账" }
+        switch viewModel.wallet.chain {
+        case .tron: return "TRC-20 代币转账"
+        case .solana: return "SPL 代币转账"
+        default: return "ERC-20 代币转账"
+        }
+    }
+
     private var warnings: [String] {
         var w: [String] = []
         if let amount = Decimal(string: viewModel.amount) {
@@ -732,7 +765,7 @@ struct TransactionPreviewCard: View {
 
             Divider().background(Color.white.opacity(0.08))
 
-            previewRow(label: "操作", value: isTokenTransfer ? "ERC-20 转账" : "原生代币转账")
+            previewRow(label: "操作", value: operationLabel)
             previewRow(label: "资产", value: viewModel.transferSymbol)
             previewRow(label: "金额", value: "\(viewModel.amount) \(viewModel.transferSymbol)")
 

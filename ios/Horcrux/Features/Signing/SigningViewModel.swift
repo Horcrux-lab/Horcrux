@@ -46,24 +46,34 @@ final class SigningViewModel: ObservableObject {
     }
 
     enum FeeTier: String, CaseIterable, Identifiable {
-        case slow, normal, fast
+        case slow, normal, fast, custom
         var id: String { rawValue }
         var label: String {
             switch self {
             case .slow: return "慢"
             case .normal: return "标准"
             case .fast: return "快"
+            case .custom: return "自定义"
             }
         }
         /// Multiplier applied to maxFeePerGas & maxPriorityFeePerGas
-        /// (EVM) or to the suggested BTC feerate.
+        /// (EVM) or to the suggested BTC feerate. For `.custom`, the
+        /// caller reads `customMultiplier` instead.
         var multiplier: Double {
             switch self {
             case .slow: return 0.85
             case .normal: return 1.0
             case .fast: return 1.3
+            case .custom: return 1.0 // placeholder; see customMultiplier
             }
         }
+    }
+
+    /// User-entered gas price in gwei for `.custom` tier. Empty = fall back
+    /// to network-suggested. We translate this into a multiplier against
+    /// the cached network-suggested maxFeePerGas at fee-refresh time.
+    @Published var customGasPriceGwei: String = "" {
+        didSet { if feeTier == .custom { refreshFeeDisplay() } }
     }
 
     /// Available tokens for the current wallet chain. Native coin is represented as `nil`.
@@ -640,8 +650,19 @@ final class SigningViewModel: ObservableObject {
             let gas = self.pendingEvmGas
             let gasLimit: UInt64 = gas?.gasLimit ?? UInt64(estimatedGas) ?? 21000
             let tier = self.feeTier
-            let maxFee: String = Self.scaleDecimalWei(gas?.maxFeePerGas ?? "0", by: tier.multiplier)
-            let maxPriority: String = Self.scaleDecimalWei(gas?.maxPriorityFeePerGas ?? "0", by: tier.multiplier)
+            // For `.custom`, a non-empty gwei input overrides both maxFee and
+            // tip (we use the same value for simplicity — user signalled a
+            // flat price). Otherwise scale the network-suggested values.
+            let maxFee: String
+            let maxPriority: String
+            if tier == .custom, let gwei = Double(self.customGasPriceGwei), gwei > 0 {
+                let weiStr = String(UInt64(gwei * 1e9))
+                maxFee = weiStr
+                maxPriority = weiStr
+            } else {
+                maxFee = Self.scaleDecimalWei(gas?.maxFeePerGas ?? "0", by: tier.multiplier)
+                maxPriority = Self.scaleDecimalWei(gas?.maxPriorityFeePerGas ?? "0", by: tier.multiplier)
+            }
 
             let params = FfiEvmTxParams(
                 to: txTo,
@@ -734,9 +755,21 @@ final class SigningViewModel: ObservableObject {
         guard sendSats > 0 else { throw SigningError.notInitialized }
 
         // 3. Fee estimate. Fall back to 2 sat/vB if the API hiccups.
+        //    Apply the user's fee tier — .fast uses fastestFee, .slow uses
+        //    economyFee (falls back to halfHour × 0.85), .normal stays on
+        //    halfHourFee. Custom tier isn't exposed for UTXO chains yet
+        //    and falls through as normal.
         let satPerVbyte: UInt64
         if let rate = try? await blockchainService.btcFeeEstimate(apiURL: apiURL) {
-            satPerVbyte = max(rate.halfHourFee, 1)
+            let base = rate.halfHourFee
+            let scaled: UInt64 = {
+                switch feeTier {
+                case .fast: return rate.fastestFee
+                case .slow: return max(UInt64(Double(base) * 0.85), 1)
+                case .normal, .custom: return base
+                }
+            }()
+            satPerVbyte = max(scaled, 1)
         } else {
             satPerVbyte = 2
         }
@@ -1191,10 +1224,16 @@ final class SigningViewModel: ObservableObject {
     /// without hitting the network again.
     private func refreshFeeDisplay() {
         guard wallet.chain.isEVM, let gas = pendingEvmGas else { return }
-        let mult = feeTier.multiplier
         guard let maxFee = UInt64(gas.maxFeePerGas) else { return }
-        let scaled = UInt64(Double(maxFee) * mult)
-        let feeWei = scaled &* gas.gasLimit
+        let effectiveGasPrice: UInt64 = {
+            if feeTier == .custom, let gwei = Double(customGasPriceGwei), gwei > 0 {
+                // Convert gwei → wei, clamp to UInt64.
+                let wei = gwei * 1e9
+                return wei.isFinite ? UInt64(max(0, wei)) : maxFee
+            }
+            return UInt64(Double(maxFee) * feeTier.multiplier)
+        }()
+        let feeWei = effectiveGasPrice &* gas.gasLimit
         // Convert wei → ether with 6-decimal display, strip trailing zeros.
         let feeEth = Double(feeWei) / 1e18
         let display = String(format: "%.6f", feeEth)

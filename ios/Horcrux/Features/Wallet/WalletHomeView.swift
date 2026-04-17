@@ -851,6 +851,19 @@ struct PortfolioSummaryCard: View {
                 .font(.system(size: 32, weight: .bold, design: .rounded).monospacedDigit())
                 .foregroundStyle(.white)
                 .contentTransition(.numericText())
+            if let (percent, absolute) = total24hChange() {
+                HStack(spacing: 6) {
+                    Image(systemName: percent >= 0 ? "arrow.up.right" : "arrow.down.right")
+                        .font(.caption2.weight(.bold))
+                    Text(String(format: "%@%.2f%%  (%@$%.2f)  24h",
+                                percent >= 0 ? "+" : "",
+                                percent,
+                                absolute >= 0 ? "+" : "-",
+                                abs(absolute)))
+                        .font(.caption.weight(.medium).monospacedDigit())
+                }
+                .foregroundStyle(percent >= 0 ? HorcruxTheme.successGreen : HorcruxTheme.dangerRed)
+            }
             Text(summarySubtitle)
                 .font(.caption2)
                 .foregroundStyle(HorcruxTheme.subtleText)
@@ -882,6 +895,31 @@ struct PortfolioSummaryCard: View {
         fmt.currencyCode = "USD"
         fmt.maximumFractionDigits = 2
         return fmt.string(from: NSNumber(value: total)) ?? "$—"
+    }
+
+    /// Combined 24h change across all wallets as (percentDelta, absoluteUsd).
+    /// Returns nil if no quotes carry a change figure yet. The percent is
+    /// weighted by each wallet's current USD value so a wallet with $100
+    /// of ETH at -2% and $10 of BTC at +5% yields roughly -1.4%.
+    private func total24hChange() -> (percent: Double, absolute: Double)? {
+        var weightedChange = 0.0
+        var totalNow = 0.0
+        var totalAbs = 0.0
+        var hadAny = false
+        for w in wallets {
+            guard let amount = balanceCache.nativeAmount(walletId: w.id),
+                  let price = priceService.usdPrice(symbol: w.chain.symbol) else { continue }
+            let valueNow = amount * price
+            guard let change = priceService.change24h(symbol: w.chain.symbol) else { continue }
+            hadAny = true
+            // Derive "24 hours ago" value from now and change: v_now = v_old * (1 + change/100)
+            let valueThen = valueNow / (1 + change / 100)
+            weightedChange += change * valueNow
+            totalNow += valueNow
+            totalAbs += (valueNow - valueThen)
+        }
+        guard hadAny, totalNow > 0 else { return nil }
+        return (percent: weightedChange / totalNow, absolute: totalAbs)
     }
 
     private func refreshAll() async {
