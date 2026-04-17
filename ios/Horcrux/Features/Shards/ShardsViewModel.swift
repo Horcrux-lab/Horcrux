@@ -46,7 +46,7 @@ final class ShardsViewModel: ObservableObject {
             encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
 
             let backup = ShardBackup(
-                version: 1,
+                version: 2,
                 walletId: wallet.id,
                 walletName: wallet.name,
                 chain: wallet.chain,
@@ -55,7 +55,8 @@ final class ShardsViewModel: ObservableObject {
                 threshold: wallet.threshold,
                 totalParties: wallet.totalParties,
                 encryptedShard: plaintext,
-                exportedAt: Date()
+                exportedAt: Date(),
+                groupPublicKey: wallet.groupPublicKey
             )
 
             let data = try encoder.encode(backup)
@@ -83,7 +84,7 @@ final class ShardsViewModel: ObservableObject {
 
         let backup = try decoder.decode(ShardBackup.self, from: data)
 
-        guard backup.version == 1 else {
+        guard backup.version >= 1 && backup.version <= 2 else {
             throw ShardImportError.unsupportedVersion(backup.version)
         }
 
@@ -107,7 +108,7 @@ final class ShardsViewModel: ObservableObject {
             name: backup.walletName,
             chain: backup.chain,
             address: backup.address,
-            groupPublicKey: Data(),
+            groupPublicKey: backup.groupPublicKey ?? Data(),
             threshold: backup.threshold,
             totalParties: backup.totalParties,
             partyIndex: backup.partyIndex,
@@ -149,6 +150,8 @@ struct ShardBackup: Codable {
     let totalParties: UInt16
     let encryptedShard: Data
     let exportedAt: Date
+    // v2+: group public key preserved so restored wallet can verify signatures
+    let groupPublicKey: Data?
 }
 
 // MARK: - Import Errors

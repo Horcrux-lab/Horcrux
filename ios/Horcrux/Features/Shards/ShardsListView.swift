@@ -23,6 +23,18 @@ struct ShardsListView: View {
                             title: L10n.Shards.noShards,
                             subtitle: L10n.Shards.noShardsDescription
                         )
+                        Button {
+                            showImportSheet = true
+                        } label: {
+                            Label("从备份恢复钱包", systemImage: "square.and.arrow.down.fill")
+                                .font(.headline)
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 14)
+                                .background(HorcruxTheme.accentPurple.opacity(0.2))
+                                .foregroundStyle(HorcruxTheme.accentPurple)
+                                .clipShape(RoundedRectangle(cornerRadius: 14))
+                        }
+                        .padding(.horizontal, 32)
                         Spacer()
                     }
                 } else {
