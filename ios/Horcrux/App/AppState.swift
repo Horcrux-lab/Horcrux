@@ -612,7 +612,8 @@ enum Chain: String, Codable, CaseIterable, Identifiable {
         if isEVM { return true }
         switch self {
         case .bitcoin, .solana: return true
-        case .litecoin, .tron: return false
+        case .litecoin: return true
+        case .tron: return false
         default: return false
         }
     }

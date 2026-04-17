@@ -522,23 +522,16 @@ final class SigningViewModel: ObservableObject {
         }
 
         switch wallet.chain {
-        case .bitcoin:
-            // Real end-to-end BTC signing: fetch UTXOs, pick one that covers
-            // amount + fee, build an unsigned P2WPKH segwit tx via Rust, and
-            // return the BIP-143 sighash. The Rust skeleton is stashed in
-            // `pendingBtcRawData` so we can splice the real witness after
-            // MPC produces the signature.
-            if let hash = try? await buildBitcoinSignHash() {
+        case .bitcoin, .litecoin:
+            // Real end-to-end signing for P2WPKH segwit chains (BTC + LTC
+            // share the Esplora API shape and BIP-143 sighash path). Fetch
+            // UTXOs, coin-select, build unsigned skeleton via Rust, stash
+            // raw_data so the post-signing step can splice the witness.
+            if let hash = try? await buildP2WPKHSignHash() {
                 return hash
             }
-            // Fallback if UTXO fetch / build fails — placeholder so UI doesn't crash.
-            let txData = "\(amount) BTC → \(recipientAddress)"
-            return horcruxKeccak256(data: Data(txData.utf8))
-
-        case .litecoin:
-            // Signing not yet wired for LTC; stable placeholder hash keeps
-            // the preview flow from crashing when users peek at the preview.
-            let txData = "\(amount) LTC → \(recipientAddress)"
+            // Fallback placeholder if UTXO fetch / build fails.
+            let txData = "\(amount) \(wallet.chain.symbol) → \(recipientAddress)"
             return horcruxKeccak256(data: Data(txData.utf8))
 
         case .solana:
@@ -560,12 +553,19 @@ final class SigningViewModel: ObservableObject {
     /// so the post-signing step can splice the final witness.
     ///
     /// MVP scope: single-input, one-or-two-output (recipient + optional change),
-    /// mainnet only, bech32 P2WPKH recipient only.
-    private func buildBitcoinSignHash() async throws -> Data {
+    /// mainnet only, bech32 P2WPKH recipient only. Works for both Bitcoin
+    /// and Litecoin (hrp differs but the signing & finalizer paths are
+    /// byte-for-byte identical — Litespace exposes the same Esplora API).
+    private func buildP2WPKHSignHash() async throws -> Data {
         guard let networkConfig, let blockchainService else {
             throw SigningError.notInitialized
         }
-        let apiURL = networkConfig.bitcoinAPI
+        let apiURL: String
+        switch wallet.chain {
+        case .bitcoin: apiURL = networkConfig.bitcoinAPI
+        case .litecoin: apiURL = networkConfig.litecoinAPI
+        default: throw SigningError.notInitialized
+        }
 
         // 1. Fetch UTXOs (confirmed only to avoid replace-by-fee surprises).
         let utxos = try await blockchainService.btcUtxos(address: wallet.address, apiURL: apiURL)
@@ -649,9 +649,10 @@ final class SigningViewModel: ObservableObject {
 
     /// Splice the MPC signature into the stashed raw tx to produce the
     /// broadcast-ready hex string. Called once MPC signing completes for
-    /// BTC wallets; returns nil for chains that aren't real-signing yet.
+    /// P2WPKH chains (Bitcoin, Litecoin); returns nil for chains that
+    /// aren't real-signing yet.
     private func finalizeBitcoinSignedTx(signature: Data) -> String? {
-        guard wallet.chain == .bitcoin,
+        guard wallet.chain == .bitcoin || wallet.chain == .litecoin,
               let rawData = pendingBtcRawData,
               pendingBtcInputCount > 0 else {
             return nil
@@ -710,6 +711,19 @@ final class SigningViewModel: ObservableObject {
                                 transactionStore?.updateStatus(id: id, status: .broadcast, txHash: result)
                             }
                         }
+                    case .litecoin:
+                        let result = try await blockchainService.btcBroadcast(
+                            signedTxHex: txHash,
+                            apiURL: networkConfig.litecoinAPI
+                        )
+                        await MainActor.run {
+                            broadcastStatus = "Broadcast OK: \(result.prefix(20))…"
+                            isBroadcasting = false
+                            Haptics.success()
+                            if let id = currentRecordId {
+                                transactionStore?.updateStatus(id: id, status: .broadcast, txHash: result)
+                            }
+                        }
                     case .solana:
                         let result = try await blockchainService.solSendTransaction(
                             signedTxBase64: txHash,
@@ -723,7 +737,7 @@ final class SigningViewModel: ObservableObject {
                                 transactionStore?.updateStatus(id: id, status: .broadcast, txHash: result)
                             }
                         }
-                    case .litecoin, .tron:
+                    case .tron:
                         await MainActor.run {
                             broadcastStatus = "Broadcast for \(wallet.chain.rawValue) is not supported yet."
                             isBroadcasting = false
