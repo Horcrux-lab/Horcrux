@@ -109,6 +109,13 @@ final class CreateShardViewModel: ObservableObject {
             do {
                 guard let bridge else { throw DKGError.notInitialized }
 
+                // Negotiate config with peers BEFORE starting keygen. Two
+                // devices that pick different (t,n,curve) will otherwise
+                // each send messages addressed to phantom parties and
+                // silently hang at round 1/9 for the full 2-minute timeout.
+                dkgStatusMessage = L10n.DKG.negotiatingConfig
+                try await negotiateConfigOrThrow()
+
                 let config = FfiHorcruxConfig(
                     threshold: UInt16(threshold),
                     totalParties: UInt16(totalParties),
@@ -195,6 +202,96 @@ final class CreateShardViewModel: ObservableObject {
         partyIndex = myIndex
     }
 
+    /// Pre-DKG config handshake. Each party broadcasts its (t,n,curve)
+    /// and waits up to 10s for peers' equivalents. Any mismatch aborts.
+    ///
+    /// We tolerate slow WiFi-LAN and relay paths by collecting until
+    /// we hear from every discovered peer, OR the timeout fires. For a
+    /// 2-party ceremony that means waiting for 1 reply.
+    private func negotiateConfigOrThrow() async throws {
+        guard let peerManager else { return }
+        let expectedPeers = peerManager.allPeers.count
+        if expectedPeers == 0 { return } // local-only; nothing to negotiate
+
+        let myHello = ConfigHelloDTO(
+            threshold: threshold,
+            totalParties: totalParties,
+            curve: selectedCurve,
+            partyIndex: partyIndex,
+            deviceName: UIDevice.current.name
+        )
+        let helloData = try JSONEncoder().encode(myHello)
+        let mySummary = myHello.summary
+
+        NSLog("[DKG] Broadcasting config hello: \(mySummary) to \(expectedPeers) peers")
+        try await peerManager.broadcastMpcMessage(helloData)
+        // Send again after a short delay to race against peers that
+        // started listening slightly later; the dedup-by-payload set in
+        // runDKGRounds is not yet active so duplicates are harmless
+        // here (the decoder is idempotent).
+        Task { [helloData, peerManager] in
+            try? await Task.sleep(nanoseconds: 500_000_000)
+            try? await peerManager.broadcastMpcMessage(helloData)
+        }
+
+        let deadline = Date().addingTimeInterval(10)
+        var heard: [String: ConfigHelloDTO] = [:]
+
+        while Date() < deadline && heard.count < expectedPeers {
+            let remaining = deadline.timeIntervalSinceNow
+            if remaining <= 0 { break }
+
+            let next: (Peer, Data)? = await withTaskGroup(of: (Peer, Data)?.self) { group in
+                group.addTask {
+                    for await pair in peerManager.incomingMpcMessages { return pair }
+                    return nil
+                }
+                group.addTask {
+                    try? await Task.sleep(nanoseconds: UInt64(max(remaining, 0) * 1_000_000_000))
+                    return nil
+                }
+                let first = await group.next() ?? nil
+                group.cancelAll()
+                return first
+            }
+
+            guard let (peer, data) = next else { continue }
+
+            if let hello = try? JSONDecoder().decode(ConfigHelloDTO.self, from: data),
+               hello.magic == ConfigHelloDTO.magic {
+                heard[peer.id] = hello
+                NSLog("[DKG] Got config hello from \(peer.name): \(hello.summary)")
+                if hello.threshold != myHello.threshold
+                    || hello.totalParties != myHello.totalParties
+                    || hello.curve != myHello.curve {
+                    throw DKGError.configMismatch(
+                        local: mySummary,
+                        remote: hello.summary,
+                        peer: peer.name
+                    )
+                }
+            } else {
+                // Not a config message — likely a peer that already
+                // moved past the handshake. Push it back by re-yielding
+                // via a side channel is tricky; instead we stash it for
+                // the main DKG loop to re-consume via the stored queue.
+                pendingMpcMessages.append((peer, data))
+                NSLog("[DKG] Stashing non-hello payload from \(peer.name) for DKG loop (\(data.count)B)")
+            }
+        }
+
+        if heard.count < expectedPeers {
+            NSLog("[DKG] Config negotiation timed out — heard from \(heard.count)/\(expectedPeers)")
+            if heard.isEmpty { throw DKGError.configTimeout }
+            // Partial quorum: proceed (matched peers agreed), but log.
+        }
+        NSLog("[DKG] Config agreed: \(mySummary)")
+    }
+
+    /// Non-hello messages received during negotiation are replayed into
+    /// the DKG round loop. Keep them in arrival order.
+    private var pendingMpcMessages: [(Peer, Data)] = []
+
     private func runDKGRounds(initialMessages: [FfiMpcMessage]) async {
         guard let bridge, let peerManager else { return }
 
@@ -211,16 +308,30 @@ final class CreateShardViewModel: ObservableObject {
             // Listen for incoming messages and process rounds
             var msgCount = 0
             var processedPayloads: Set<Data> = [] // Deduplicate messages from multiple transports
-            for await (peer, data) in peerManager.incomingMpcMessages {
+
+            // Drain anything the negotiation step stashed (real MPC
+            // messages that arrived before we finished negotiating).
+            var initialQueue = pendingMpcMessages
+            pendingMpcMessages.removeAll()
+
+            func process(_ peer: Peer, _ data: Data) async throws -> Bool {
+                // Returns true if keygen is now complete.
                 msgCount += 1
                 NSLog("[DKG] Received msg #\(msgCount) from \(peer.id.prefix(8))... (\(data.count) bytes, channel=\(peer.channel))")
 
-                // Deduplicate: skip if we already processed identical payload
                 if processedPayloads.contains(data) {
                     NSLog("[DKG] Skipping duplicate message (already processed via another transport)")
-                    continue
+                    return false
                 }
                 processedPayloads.insert(data)
+
+                // Ignore any late ConfigHello echoes so the MPC decoder
+                // below doesn't trip on them.
+                if let hello = try? JSONDecoder().decode(ConfigHelloDTO.self, from: data),
+                   hello.magic == ConfigHelloDTO.magic {
+                    NSLog("[DKG] Ignoring late config hello from \(peer.name)")
+                    return false
+                }
 
                 let decodedDTO: MpcMessageDTO?
                 do {
@@ -228,50 +339,59 @@ final class CreateShardViewModel: ObservableObject {
                 } catch {
                     NSLog("[DKG] Failed to decode MPC message: \(error.localizedDescription)")
                     SecureLog.error("Failed to decode MPC message during DKG: \(error.localizedDescription)")
-                    decodedDTO = nil
+                    return false
                 }
-                if let dto = decodedDTO {
-                    let msg = dto.toFfi()
-                    NSLog("[DKG] Processing msg: from=\(msg.fromParty) to=\(msg.toParty) session=\(msg.sessionId.prefix(8))...")
+                guard let dto = decodedDTO else { return false }
+                let msg = dto.toFfi()
+                NSLog("[DKG] Processing msg: from=\(msg.fromParty) to=\(msg.toParty) session=\(msg.sessionId.prefix(8))...")
 
-                    let responses: [FfiMpcMessage]
-                    do {
-                        NSLog("[DKG] Calling bridge.handleMessage (off-main)...")
-                        // Paillier rounds are CPU-heavy (seconds per message).
-                        // Running them on the MainActor blocks SwiftUI rendering
-                        // and stalls our 1Hz elapsed timer — progress indicators
-                        // appear frozen. Offload to a background thread; the
-                        // UniFFI session manager is internally Mutex-protected.
-                        let session = bridge.session
-                        let msgToProcess = msg
-                        responses = try await Task.detached(priority: .userInitiated) {
-                            try session.handleMessage(msg: msgToProcess)
-                        }.value
-                    } catch {
-                        NSLog("[DKG] handleMessage error: \(error.localizedDescription)")
-                        throw error
-                    }
-                    NSLog("[DKG] handleMessage returned \(responses.count) responses")
+                let responses: [FfiMpcMessage]
+                do {
+                    NSLog("[DKG] Calling bridge.handleMessage (off-main)...")
+                    let session = bridge.session
+                    let msgToProcess = msg
+                    responses = try await Task.detached(priority: .userInitiated) {
+                        try session.handleMessage(msg: msgToProcess)
+                    }.value
+                } catch {
+                    NSLog("[DKG] handleMessage error: \(error.localizedDescription)")
+                    throw error
+                }
+                NSLog("[DKG] handleMessage returned \(responses.count) responses")
 
-                    // Update round progress (use msgCount since msg.round is always 0 from FFI)
-                    currentRound = msgCount
-                    updateProgress()
-                    updateDKGStatusMessage()
+                currentRound = msgCount
+                updateProgress()
+                updateDKGStatusMessage()
 
-                    // Send responses to peers
-                    for response in responses {
-                        let responseData = try JSONEncoder().encode(MpcMessageDTO(response))
-                        NSLog("[DKG] Sending response: to=\(response.toParty) data=\(responseData.count)B")
-                        try await peerManager.broadcastMpcMessage(responseData)
-                    }
+                for response in responses {
+                    let responseData = try JSONEncoder().encode(MpcMessageDTO(response))
+                    NSLog("[DKG] Sending response: to=\(response.toParty) data=\(responseData.count)B")
+                    try await peerManager.broadcastMpcMessage(responseData)
+                }
 
-                    // Check if keygen is complete
+                if bridge.getKeygenResult(sessionId: sessionId!) != nil { return true }
+                NSLog("[DKG] Keygen not yet complete, waiting for more messages...")
+                return false
+            }
+
+            for (peer, data) in initialQueue {
+                if try await process(peer, data) {
                     if let result = bridge.getKeygenResult(sessionId: sessionId!) {
-                        NSLog("[DKG] ✅ Keygen complete! publicKey=\(result.publicKey.count)B shard=\(result.shardData.count)B")
+                        NSLog("[DKG] ✅ Keygen complete (from stashed queue)! publicKey=\(result.publicKey.count)B shard=\(result.shardData.count)B")
                         keygenResult = result
                         break
-                    } else {
-                        NSLog("[DKG] Keygen not yet complete, waiting for more messages...")
+                    }
+                }
+            }
+
+            if keygenResult == nil {
+                for await (peer, data) in peerManager.incomingMpcMessages {
+                    if try await process(peer, data) {
+                        if let result = bridge.getKeygenResult(sessionId: sessionId!) {
+                            NSLog("[DKG] ✅ Keygen complete! publicKey=\(result.publicKey.count)B shard=\(result.shardData.count)B")
+                            keygenResult = result
+                            break
+                        }
                     }
                 }
             }
@@ -444,13 +564,51 @@ final class CreateShardViewModel: ObservableObject {
 private enum DKGError: LocalizedError {
     case notInitialized
     case keygenIncomplete
+    case configMismatch(local: String, remote: String, peer: String)
+    case configTimeout
 
     var errorDescription: String? {
         switch self {
         case .notInitialized: return "Session not initialized"
         case .keygenIncomplete: return "Key generation did not complete"
+        case .configMismatch(let local, let remote, let peer):
+            return "参数不一致：本机 \(local)，对端「\(peer)」为 \(remote)。请双方选择相同的门限/总数/曲线后重试。"
+        case .configTimeout:
+            return "等待对端参数超时。请确认双方都已进入此界面后重试。"
         }
     }
+}
+
+/// Pre-DKG handshake: every party broadcasts its (t,n,curve) so
+/// mismatches abort cleanly instead of hanging for the full 2-minute
+/// keygen timeout. Tagged with a magic string so the main MPC message
+/// decoder can ignore it.
+struct ConfigHelloDTO: Codable {
+    static let magic = "HCFG-v1"
+    let magic: String
+    let threshold: UInt16
+    let totalParties: UInt16
+    let curve: String
+    let partyIndex: UInt16
+    let deviceName: String
+
+    init(threshold: Int, totalParties: Int, curve: FfiCurveType, partyIndex: Int, deviceName: String) {
+        self.magic = Self.magic
+        self.threshold = UInt16(threshold)
+        self.totalParties = UInt16(totalParties)
+        self.curve = Self.curveString(curve)
+        self.partyIndex = UInt16(partyIndex)
+        self.deviceName = deviceName
+    }
+
+    static func curveString(_ c: FfiCurveType) -> String {
+        switch c {
+        case .secp256k1: return "secp256k1"
+        case .ed25519: return "ed25519"
+        }
+    }
+
+    var summary: String { "\(threshold)/\(totalParties) \(curve)" }
 }
 
 /// Codable DTO for serializing FfiMpcMessage.
