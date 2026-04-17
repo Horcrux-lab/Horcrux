@@ -163,9 +163,14 @@ final class AppState: ObservableObject {
         resetFailedAttempts()
 
         // Unwrap the SWK. The vault is always provisioned by setPin,
-        // so a missing vault indicates a corrupt install.
+        // so a missing vault indicates a device onboarded before the SWK
+        // feature shipped. Since that user has no shards yet (shards can
+        // only be created after PIN is set and an SWK exists), provision
+        // one now using this PIN and continue as normal. This keeps the
+        // lock screen from turning into a dead end.
         guard SecureKeyVault.hasPinWrapped else {
-            SecureLog.error("PIN verified but SWK vault is missing — shards inaccessible")
+            SecureLog.info("SWK vault missing — provisioning fresh vault with verified PIN")
+            cachedShardKeyMaterial = try? SecureKeyVault.provision(pin: pin)
             return true
         }
         cachedShardKeyMaterial = try? SecureKeyVault.unwrapWithPin(pin)

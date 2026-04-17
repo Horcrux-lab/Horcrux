@@ -414,8 +414,16 @@ final class CreateShardViewModel: ObservableObject {
     /// the fallback path when the SWK isn't already cached (e.g. session
     /// was unlocked via biometric on a build without an SE-sealed SWK).
     func saveWallet(to appState: AppState, pin: String) throws {
-        guard appState.verifyPin(pin) else { return }
-        guard let swk = appState.cachedShardKey() else { return }
+        guard appState.verifyPin(pin) else {
+            throw SaveError.missingKeygenResult // caller already validated PIN; shouldn't hit
+        }
+        guard let swk = appState.cachedShardKey() else {
+            NSLog("[Save] ❌ cachedShardKey() is nil after verifyPin — vault corrupt")
+            throw SaveError.storeFailed(NSError(
+                domain: "Horcrux.Save", code: 1,
+                userInfo: [NSLocalizedDescriptionKey: "无法解开密钥保险库。请在设置中重设 PIN 后重试。"]
+            ))
+        }
         try saveWallet(to: appState, keyMaterial: swk)
     }
 }
