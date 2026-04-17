@@ -2,9 +2,43 @@ import SwiftUI
 import UniformTypeIdentifiers
 import CoreImage.CIFilterBuiltins
 
+// MARK: - Account grouping helper
+
+/// A logical MPC account: all wallets sharing the same groupPublicKey share
+/// a single encrypted key share and one party index.
+struct ShardAccount: Identifiable {
+    let id: String          // accountId (hex groupPublicKey)
+    let name: String        // derived "display" name — first wallet's name stripped
+    let wallets: [Wallet]   // sorted by chain
+    let partyIndex: UInt16
+    let threshold: UInt16
+    let totalParties: UInt16
+
+    static func group(_ wallets: [Wallet]) -> [ShardAccount] {
+        let buckets = Dictionary(grouping: wallets, by: { $0.accountId })
+        return buckets
+            .map { (key, list) -> ShardAccount in
+                let sorted = list.sorted { $0.chain.rawValue < $1.chain.rawValue }
+                let first = sorted.first!
+                let displayName = first.name
+                    .replacingOccurrences(of: " (\(first.chain.symbol))", with: "")
+                return ShardAccount(
+                    id: key,
+                    name: displayName,
+                    wallets: sorted,
+                    partyIndex: first.partyIndex,
+                    threshold: first.threshold,
+                    totalParties: first.totalParties
+                )
+            }
+            .sorted { $0.name < $1.name }
+    }
+}
+
 // MARK: - Shard List
 
-/// Lists all key shards stored on this device — dark-tech glass card layout.
+/// One card per MPC account — a single DKG ceremony may derive multiple
+/// chain wallets but they all share the same key share on this device.
 struct ShardsListView: View {
     @EnvironmentObject private var appState: AppState
     @StateObject private var viewModel = ShardsViewModel()
@@ -16,53 +50,9 @@ struct ShardsListView: View {
                 HorcruxTheme.backgroundGradient.ignoresSafeArea()
 
                 if appState.walletStore.wallets.isEmpty {
-                    VStack(spacing: 28) {
-                        Spacer()
-                        VaultEmptyState(
-                            icon: "shield.slash",
-                            title: L10n.Shards.noShards,
-                            subtitle: L10n.Shards.noShardsDescription
-                        )
-                        Button {
-                            showImportSheet = true
-                        } label: {
-                            Label("从备份恢复钱包", systemImage: "square.and.arrow.down.fill")
-                                .font(.headline)
-                                .frame(maxWidth: .infinity)
-                                .padding(.vertical, 14)
-                                .background(HorcruxTheme.accentPurple.opacity(0.2))
-                                .foregroundStyle(HorcruxTheme.accentPurple)
-                                .clipShape(RoundedRectangle(cornerRadius: 14))
-                        }
-                        .padding(.horizontal, 32)
-                        Spacer()
-                    }
+                    emptyState
                 } else {
-                    ScrollView {
-                        LazyVStack(spacing: 16) {
-                            ForEach(groupedWallets(appState.walletStore.wallets), id: \.groupKey) { group in
-                                VStack(alignment: .leading, spacing: 8) {
-                                    Text(group.accountLabel)
-                                        .font(.caption.weight(.semibold))
-                                        .foregroundStyle(HorcruxTheme.subtleText)
-                                        .padding(.horizontal, 4)
-
-                                    LazyVStack(spacing: 12) {
-                                        ForEach(group.wallets) { wallet in
-                                            NavigationLink {
-                                                ShardDetailView(wallet: wallet, viewModel: viewModel)
-                                            } label: {
-                                                ShardRow(wallet: wallet)
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                        .padding(.horizontal, 16)
-                        .padding(.top, 8)
-                        .padding(.bottom, 24)
-                    }
+                    accountList
                 }
             }
             .navigationTitle(L10n.Shards.title)
@@ -77,62 +67,63 @@ struct ShardsListView: View {
                             .font(.body.weight(.semibold))
                             .foregroundStyle(HorcruxTheme.accentPurple)
                     }
+                    .accessibilityLabel("从备份恢复")
                 }
             }
             .sheet(isPresented: $showImportSheet) {
-                ShardImportView(viewModel: viewModel)
+                AccountImportView(viewModel: viewModel)
             }
-            .onAppear {
-                viewModel.bind(to: appState)
-            }
+            .onAppear { viewModel.bind(to: appState) }
             .preferredColorScheme(.dark)
         }
     }
 
-    // MARK: - Account grouping (P3.2)
-
-    struct WalletGroup {
-        let groupKey: String
-        let accountLabel: String
-        let wallets: [Wallet]
+    private var emptyState: some View {
+        VStack(spacing: 28) {
+            Spacer()
+            VaultEmptyState(
+                icon: "shield.slash",
+                title: L10n.Shards.noShards,
+                subtitle: L10n.Shards.noShardsDescription
+            )
+            Button {
+                showImportSheet = true
+            } label: {
+                Label("从备份恢复账户", systemImage: "square.and.arrow.down.fill")
+                    .font(.headline)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 14)
+                    .background(HorcruxTheme.accentPurple.opacity(0.2))
+                    .foregroundStyle(HorcruxTheme.accentPurple)
+                    .clipShape(RoundedRectangle(cornerRadius: 14))
+            }
+            .padding(.horizontal, 32)
+            Spacer()
+        }
     }
 
-    /// Group wallets by shared groupPublicKey (same DKG ceremony → one account).
-    /// Wallets from pre-P0.2 backups have empty groupPublicKey → treated as individual accounts.
-    private func groupedWallets(_ wallets: [Wallet]) -> [WalletGroup] {
-        var ordered: [String] = []
-        var buckets: [String: [Wallet]] = [:]
-        for (idx, w) in wallets.enumerated() {
-            let key: String
-            if w.groupPublicKey.isEmpty {
-                key = "solo:\(w.id)"
-            } else {
-                key = "grp:" + w.groupPublicKey.map { String(format: "%02x", $0) }.joined().prefix(16)
+    private var accountList: some View {
+        ScrollView {
+            LazyVStack(spacing: 12) {
+                ForEach(ShardAccount.group(appState.walletStore.wallets)) { account in
+                    NavigationLink {
+                        ShardAccountDetailView(account: account, viewModel: viewModel)
+                    } label: {
+                        ShardAccountRow(account: account)
+                    }
+                }
             }
-            if buckets[key] == nil {
-                ordered.append(key)
-                buckets[key] = []
-            }
-            buckets[key]?.append(w)
-            _ = idx
-        }
-        return ordered.enumerated().map { (i, key) in
-            let ws = buckets[key] ?? []
-            let label: String
-            if ws.count > 1 {
-                label = "账户 \(i + 1) · \(ws.count) 条链"
-            } else {
-                label = ws.first.map { "账户 \(i + 1) · \($0.chain.rawValue)" } ?? "账户 \(i + 1)"
-            }
-            return WalletGroup(groupKey: key, accountLabel: label, wallets: ws)
+            .padding(.horizontal, 16)
+            .padding(.top, 8)
+            .padding(.bottom, 24)
         }
     }
 }
 
-// MARK: - Shard Row
+// MARK: - Account Row
 
-struct ShardRow: View {
-    let wallet: Wallet
+struct ShardAccountRow: View {
+    let account: ShardAccount
 
     var body: some View {
         HStack(spacing: 14) {
@@ -141,24 +132,29 @@ struct ShardRow: View {
                 .foregroundStyle(HorcruxTheme.shieldGradient)
                 .shadow(color: HorcruxTheme.accentPurple.opacity(0.3), radius: 4)
 
-            VStack(alignment: .leading, spacing: 4) {
-                Text(L10n.Shards.shardNumber(Int(wallet.partyIndex)))
+            VStack(alignment: .leading, spacing: 6) {
+                Text(account.name)
                     .font(.headline)
                     .foregroundStyle(.white)
+                    .lineLimit(1)
 
-                Text(wallet.name)
-                    .font(.subheadline)
-                    .foregroundStyle(HorcruxTheme.subtleText)
+                HStack(spacing: 6) {
+                    Text("我的分片 #\(Int(account.partyIndex)) / \(Int(account.totalParties))")
+                        .font(.caption)
+                        .foregroundStyle(HorcruxTheme.subtleText)
+                    Text("·")
+                        .font(.caption)
+                        .foregroundStyle(HorcruxTheme.subtleText.opacity(0.5))
+                    Text(account.wallets.map(\.chain.symbol).joined(separator: " · "))
+                        .font(.caption.weight(.medium))
+                        .foregroundStyle(HorcruxTheme.accentPurple)
+                }
             }
 
             Spacer()
 
             VStack(alignment: .trailing, spacing: 6) {
-                Text(wallet.chain.symbol)
-                    .font(.caption.bold())
-                    .foregroundStyle(wallet.chain.color)
-
-                ShardStatusBadge(threshold: wallet.threshold, total: wallet.totalParties)
+                ShardStatusBadge(threshold: account.threshold, total: account.totalParties)
             }
 
             Image(systemName: "chevron.right")
@@ -170,13 +166,12 @@ struct ShardRow: View {
     }
 }
 
-// MARK: - Shard Detail
+// MARK: - Account Detail
 
-struct ShardDetailView: View {
-    let wallet: Wallet
+struct ShardAccountDetailView: View {
+    let account: ShardAccount
     @ObservedObject var viewModel: ShardsViewModel
     @State private var showBackupSheet = false
-    @State private var showDeleteAlert = false
     @State private var showDeleteConfirm = false
 
     var body: some View {
@@ -189,39 +184,43 @@ struct ShardDetailView: View {
                         .foregroundStyle(HorcruxTheme.shieldGradient)
                         .shadow(color: HorcruxTheme.accentPurple.opacity(0.4), radius: 8)
 
-                    Text(L10n.Shards.shardNumber(Int(wallet.partyIndex)))
+                    Text("我的分片 #\(Int(account.partyIndex))")
                         .font(.title2.bold())
                         .foregroundStyle(.white)
 
-                    ShardStatusBadge(threshold: wallet.threshold, total: wallet.totalParties)
+                    Text("此账户共 \(Int(account.totalParties)) 份分片，签名需 \(Int(account.threshold)) 份")
+                        .font(.caption)
+                        .foregroundStyle(HorcruxTheme.subtleText)
+
+                    ShardStatusBadge(threshold: account.threshold, total: account.totalParties)
                 }
                 .frame(maxWidth: .infinity)
                 .glassCard(padding: 24)
 
-                // Info
+                // Derived wallets
                 VStack(alignment: .leading, spacing: 10) {
-                    VaultSectionHeader(L10n.Shards.walletInfo, icon: "info.circle")
+                    VaultSectionHeader("派生地址", icon: "link")
                         .padding(.horizontal, 4)
 
                     VStack(spacing: 0) {
-                        infoRow(L10n.Shards.wallet, value: wallet.name)
-                        Divider().background(Color.white.opacity(0.06))
-                        infoRow(L10n.Shards.chain, value: wallet.chain.rawValue)
-                        Divider().background(Color.white.opacity(0.06))
-                        HStack {
-                            Text(L10n.Shards.address)
-                                .font(.subheadline)
-                                .foregroundStyle(HorcruxTheme.subtleText)
-                            Spacer()
-                            Text(wallet.address)
-                                .font(.caption2.monospaced())
-                                .foregroundStyle(.white)
-                                .lineLimit(1)
-                                .truncationMode(.middle)
+                        ForEach(account.wallets) { wallet in
+                            HStack(spacing: 12) {
+                                ChainIcon(chain: wallet.chain, size: 28)
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(wallet.chain.rawValue)
+                                        .font(.subheadline.weight(.medium))
+                                        .foregroundStyle(.white)
+                                    Text(shortAddress(wallet.address))
+                                        .font(.caption2.monospaced())
+                                        .foregroundStyle(HorcruxTheme.subtleText)
+                                }
+                                Spacer()
+                            }
+                            .padding(.vertical, 10)
+                            if wallet.id != account.wallets.last?.id {
+                                Divider().background(Color.white.opacity(0.06))
+                            }
                         }
-                        .padding(.vertical, 10)
-                        Divider().background(Color.white.opacity(0.06))
-                        infoRow(L10n.Shards.threshold, value: L10n.Shards.thresholdValue(Int(wallet.threshold), Int(wallet.totalParties)))
                     }
                     .glassCard()
                 }
@@ -232,11 +231,13 @@ struct ShardDetailView: View {
                         .padding(.horizontal, 4)
 
                     VStack(spacing: 1) {
-                        Button {
-                            showBackupSheet = true
-                        } label: {
+                        Button { showBackupSheet = true } label: {
                             HStack {
-                                VaultSettingsRow(icon: "arrow.down.doc.fill", iconColor: HorcruxTheme.accentBlue, title: L10n.Shards.backupShard)
+                                VaultSettingsRow(
+                                    icon: "arrow.down.doc.fill",
+                                    iconColor: HorcruxTheme.accentBlue,
+                                    title: "备份整个账户"
+                                )
                                 Spacer()
                                 Image(systemName: "chevron.right")
                                     .font(.caption)
@@ -245,11 +246,13 @@ struct ShardDetailView: View {
                         }
                         .glassCard()
 
-                        Button {
-                            showDeleteAlert = true
-                        } label: {
+                        Button { showDeleteConfirm = true } label: {
                             HStack {
-                                VaultSettingsRow(icon: "trash.fill", iconColor: HorcruxTheme.dangerRed, title: L10n.Shards.deleteShard)
+                                VaultSettingsRow(
+                                    icon: "trash.fill",
+                                    iconColor: HorcruxTheme.dangerRed,
+                                    title: "删除此账户"
+                                )
                                 Spacer()
                                 Image(systemName: "chevron.right")
                                     .font(.caption)
@@ -264,45 +267,31 @@ struct ShardDetailView: View {
             .padding(.vertical, 12)
         }
         .darkBackground()
-        .navigationTitle(L10n.Shards.shardDetails)
+        .navigationTitle(account.name)
         .navigationBarTitleDisplayMode(.inline)
         .toolbarColorScheme(.dark, for: .navigationBar)
         .sheet(isPresented: $showBackupSheet) {
-            ShardBackupView(wallet: wallet, viewModel: viewModel)
+            AccountBackupView(account: account, viewModel: viewModel)
         }
         .sheet(isPresented: $showDeleteConfirm) {
-            DeleteShardConfirmView(wallet: wallet, viewModel: viewModel)
-        }
-        .alert(L10n.Shards.deleteShardConfirm, isPresented: $showDeleteAlert) {
-            Button("继续（需要 PIN）", role: .destructive) {
-                showDeleteConfirm = true
-            }
-            Button(L10n.Common.cancel, role: .cancel) {}
-        } message: {
-            Text("删除此分片后，本设备将无法参与该钱包签名。如果总分片数已达阈值下限，钱包将永久无法使用。\n\n请确认其他设备仍持有该钱包的分片。")
+            DeleteAccountConfirmView(account: account, viewModel: viewModel)
         }
     }
 
-    private func infoRow(_ label: String, value: String) -> some View {
-        HStack {
-            Text(label)
-                .font(.subheadline)
-                .foregroundStyle(HorcruxTheme.subtleText)
-            Spacer()
-            Text(value)
-                .font(.subheadline.weight(.medium))
-                .foregroundStyle(.white)
-        }
-        .padding(.vertical, 10)
+    private func shortAddress(_ address: String) -> String {
+        guard address.count > 12 else { return address }
+        return "\(address.prefix(6))…\(address.suffix(4))"
     }
 }
 
-// MARK: - Shard Backup
+// MARK: - Account Backup
 
-struct ShardBackupView: View {
-    let wallet: Wallet
+struct AccountBackupView: View {
+    let account: ShardAccount
     @ObservedObject var viewModel: ShardsViewModel
+    @EnvironmentObject private var appState: AppState
     @Environment(\.dismiss) private var dismiss
+
     @State private var pin: String = ""
     @State private var isExporting = false
     @State private var showFileExporter = false
@@ -310,24 +299,24 @@ struct ShardBackupView: View {
     @State private var iCloudSaveStatus: String?
 
     private var backupFilename: String {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "yyyy-MM-dd"
-        let dateStr = formatter.string(from: Date())
-        let safeName = wallet.name
+        let fmt = DateFormatter()
+        fmt.dateFormat = "yyyy-MM-dd"
+        let safeName = account.name
             .replacingOccurrences(of: " ", with: "-")
             .lowercased()
-        return "horcrux-shard-\(safeName)-\(dateStr).json"
+        return "horcrux-account-\(safeName)-\(fmt.string(from: Date())).json"
     }
+
+    private var needsPin: Bool { appState.cachedShardKey() == nil }
 
     var body: some View {
         NavigationStack {
             Form {
                 if viewModel.exportData == nil {
-                    pinEntrySection
+                    inputSection
                 } else {
-                    exportResultsSection
+                    resultsSection
                 }
-
                 if let error = viewModel.error {
                     Section {
                         Label(error, systemImage: "exclamationmark.triangle.fill")
@@ -335,7 +324,7 @@ struct ShardBackupView: View {
                     }
                 }
             }
-            .navigationTitle(L10n.ShardBackup.title)
+            .navigationTitle("备份账户")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -366,77 +355,72 @@ struct ShardBackupView: View {
         }
     }
 
-    // MARK: - PIN Entry Phase
-
     @ViewBuilder
-    private var pinEntrySection: some View {
+    private var inputSection: some View {
         Section {
-            Text(L10n.ShardBackup.description)
+            Text("将账户「\(account.name)」在本设备上的加密分片导出为一份可跨设备恢复的文件。")
+                .foregroundStyle(.secondary)
+            Text("包含派生的 \(account.wallets.count) 条链地址，所有链共享同一份密钥材料。")
+                .font(.caption)
                 .foregroundStyle(.secondary)
         }
 
-        Section(L10n.ShardBackup.devicePin) {
-            SecureField(L10n.ShardBackup.enterPin, text: $pin)
-                .keyboardType(.numberPad)
+        if needsPin {
+            Section(L10n.ShardBackup.devicePin) {
+                SecureField(L10n.ShardBackup.enterPin, text: $pin)
+                    .keyboardType(.numberPad)
+            }
         }
 
         Section {
             Button {
                 isExporting = true
-                viewModel.backupShard(wallet: wallet, pin: pin)
+                viewModel.backupAccount(accountId: account.id, pin: pin)
                 isExporting = false
             } label: {
                 if isExporting {
-                    ProgressView()
-                        .frame(maxWidth: .infinity)
+                    ProgressView().frame(maxWidth: .infinity)
                 } else {
                     Text(L10n.ShardBackup.exportEncrypted)
                         .frame(maxWidth: .infinity)
                 }
             }
             .buttonStyle(.borderedProminent)
-            .disabled(pin.count < 6)
+            .disabled(needsPin && pin.count < 6)
         }
     }
 
-    // MARK: - Export Results Phase
-
     @ViewBuilder
-    private var exportResultsSection: some View {
+    private var resultsSection: some View {
         Section {
             Label(L10n.ShardBackup.ready, systemImage: "checkmark.circle.fill")
                 .foregroundStyle(.green)
-
             if let status = viewModel.backupStatus {
-                Text(status)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                Text(status).font(.caption).foregroundStyle(.secondary)
             }
         }
 
         Section(L10n.ShardBackup.exportOptions) {
-            Button {
-                showFileExporter = true
-            } label: {
+            Button { showFileExporter = true } label: {
                 Label(L10n.ShardBackup.saveToFiles, systemImage: "folder.fill")
             }
-
             Button {
                 saveToiCloudDrive()
             } label: {
                 Label(iCloudSaveStatus ?? "保存到 iCloud Drive", systemImage: "icloud.and.arrow.up.fill")
             }
             .disabled(viewModel.exportData == nil || iCloudSaveStatus != nil)
-
             Button {
                 if let data = viewModel.exportData,
-                   let jsonString = String(data: data, encoding: .utf8) {
-                    SecureClipboard.copy(jsonString)
+                   let str = String(data: data, encoding: .utf8) {
+                    SecureClipboard.copy(str)
                     copiedToClipboard = true
                 }
             } label: {
                 Label(
-                    copiedToClipboard ? L10n.ShardBackup.copiedAutoClears(Int(SecureClipboard.defaultExpireSeconds)) : L10n.ShardBackup.copyToClipboard,
+                    copiedToClipboard
+                        ? L10n.ShardBackup.copiedAutoClears(Int(SecureClipboard.defaultExpireSeconds))
+                        : L10n.ShardBackup.copyToClipboard,
                     systemImage: copiedToClipboard ? "checkmark" : "doc.on.doc"
                 )
             }
@@ -445,8 +429,8 @@ struct ShardBackupView: View {
 
         if let data = viewModel.exportData, data.count < 2048 {
             Section(L10n.ShardBackup.qrCode) {
-                if let qrImage = Self.generateQRCode(from: data) {
-                    Image(uiImage: qrImage)
+                if let img = Self.generateQRCode(from: data) {
+                    Image(uiImage: img)
                         .interpolation(.none)
                         .resizable()
                         .scaledToFit()
@@ -455,14 +439,11 @@ struct ShardBackupView: View {
                         .padding()
                         .accessibilityLabel(L10n.ShardBackup.shardBackupQR)
                 } else {
-                    Text(L10n.ShardBackup.unableToGenerateQR)
-                        .foregroundStyle(.secondary)
+                    Text(L10n.ShardBackup.unableToGenerateQR).foregroundStyle(.secondary)
                 }
             }
         }
     }
-
-    // MARK: - iCloud Drive
 
     private func saveToiCloudDrive() {
         guard let data = viewModel.exportData else {
@@ -470,7 +451,7 @@ struct ShardBackupView: View {
             return
         }
         guard let container = FileManager.default.url(forUbiquityContainerIdentifier: nil) else {
-            iCloudSaveStatus = "iCloud 未启用 — 请在系统设置启用"
+            iCloudSaveStatus = "iCloud 未启用"
             return
         }
         let docs = container.appendingPathComponent("Documents", isDirectory: true)
@@ -479,14 +460,10 @@ struct ShardBackupView: View {
             let target = docs.appendingPathComponent(backupFilename)
             try data.write(to: target, options: [.atomic, .completeFileProtection])
             iCloudSaveStatus = "✓ 已保存到 iCloud Drive"
-            SecureLog.info("Shard backup saved to iCloud Drive")
         } catch {
             iCloudSaveStatus = "保存失败: \(error.localizedDescription)"
-            SecureLog.error("iCloud save failed: \(error.localizedDescription)")
         }
     }
-
-    // MARK: - QR Code Generation
 
     static func generateQRCode(from data: Data) -> UIImage? {
         let filter = CIFilter.qrCodeGenerator()
@@ -495,65 +472,59 @@ struct ShardBackupView: View {
         guard let output = filter.outputImage else { return nil }
         let scaled = output.transformed(by: CGAffineTransform(scaleX: 4, y: 4))
         let context = CIContext()
-        guard let cgImage = context.createCGImage(scaled, from: scaled.extent) else { return nil }
-        return UIImage(cgImage: cgImage)
+        guard let cg = context.createCGImage(scaled, from: scaled.extent) else { return nil }
+        return UIImage(cgImage: cg)
     }
 }
 
-// MARK: - File Document for Export
+// MARK: - File Document
 
 struct ShardBackupDocument: FileDocument {
     static var readableContentTypes: [UTType] { [.json] }
-
     let data: Data
-
-    init(data: Data) {
-        self.data = data
-    }
-
+    init(data: Data) { self.data = data }
     init(configuration: ReadConfiguration) throws {
-        guard let data = configuration.file.regularFileContents else {
+        guard let d = configuration.file.regularFileContents else {
             throw CocoaError(.fileReadCorruptFile)
         }
-        self.data = data
+        self.data = d
     }
-
     func fileWrapper(configuration: WriteConfiguration) throws -> FileWrapper {
         FileWrapper(regularFileWithContents: data)
     }
 }
 
-// MARK: - Shard Import
+// MARK: - Account Import
 
-struct ShardImportView: View {
+struct AccountImportView: View {
     @ObservedObject var viewModel: ShardsViewModel
     @EnvironmentObject private var appState: AppState
     @Environment(\.dismiss) private var dismiss
 
     @State private var importData: Data?
-    @State private var parsedBackup: ShardBackup?
+    @State private var preview: BackupPreview?
     @State private var pin: String = ""
     @State private var showFileImporter = false
     @State private var showQRScanner = false
     @State private var importError: String?
     @State private var isImporting = false
     @State private var importSuccess = false
-    @ScaledMetric(relativeTo: .largeTitle) private var resultIconSize: CGFloat = 48
+
+    private var needsPin: Bool { appState.cachedShardKey() == nil }
 
     var body: some View {
         NavigationStack {
             Form {
                 if importSuccess {
                     successSection
-                } else if let backup = parsedBackup {
-                    previewSection(backup)
+                } else if let preview {
+                    previewSection(preview)
                 } else {
-                    sourceSelectionSection
+                    sourceSection
                 }
-
-                if let error = importError {
+                if let err = importError {
                     Section {
-                        Label(error, systemImage: "exclamationmark.triangle.fill")
+                        Label(err, systemImage: "exclamationmark.triangle.fill")
                             .foregroundStyle(.red)
                     }
                 }
@@ -569,118 +540,87 @@ struct ShardImportView: View {
                 isPresented: $showFileImporter,
                 allowedContentTypes: [.json],
                 allowsMultipleSelection: false
-            ) { result in
-                handleFileImport(result)
-            }
+            ) { handleFileImport($0) }
             .sheet(isPresented: $showQRScanner) {
-                QRScannerSheet { scannedString in
-                    handleScannedData(scannedString)
-                }
+                QRScannerSheet { scanned in handleScannedData(scanned) }
             }
         }
     }
 
-    // MARK: - Source Selection Phase
-
     @ViewBuilder
-    private var sourceSelectionSection: some View {
+    private var sourceSection: some View {
         Section {
-            Text(L10n.ShardImport.description)
-                .foregroundStyle(.secondary)
+            Text(L10n.ShardImport.description).foregroundStyle(.secondary)
         }
-
         Section(L10n.ShardImport.importSource) {
-            Button {
-                showFileImporter = true
-            } label: {
+            Button { showFileImporter = true } label: {
                 Label(L10n.ShardImport.chooseFile, systemImage: "doc.fill")
             }
-
-            Button {
-                pasteFromClipboard()
-            } label: {
+            Button { pasteFromClipboard() } label: {
                 Label(L10n.ShardImport.pasteFromClipboard, systemImage: "doc.on.clipboard")
             }
-
-            Button {
-                showQRScanner = true
-            } label: {
+            Button { showQRScanner = true } label: {
                 Label(L10n.ShardImport.scanQRCode, systemImage: "qrcode.viewfinder")
             }
         }
     }
 
-    // MARK: - Preview Phase
-
     @ViewBuilder
-    private func previewSection(_ backup: ShardBackup) -> some View {
+    private func previewSection(_ preview: BackupPreview) -> some View {
         Section(L10n.ShardImport.backupInfo) {
-            LabeledContent(L10n.Shards.wallet, value: backup.walletName)
-            LabeledContent(L10n.Shards.chain, value: backup.chain.rawValue)
-            LabeledContent(L10n.ShardImport.partyIndex, value: L10n.ShardImport.partyIndexValue(Int(backup.partyIndex)))
-            LabeledContent(L10n.Shards.threshold, value: L10n.Shards.thresholdValue(Int(backup.threshold), Int(backup.totalParties)))
-            LabeledContent(L10n.Shards.address) {
-                Text(backup.address)
-                    .font(.caption2)
-                    .monospaced()
-                    .lineLimit(1)
-                    .truncationMode(.middle)
-            }
-            if backup.version > 0 {
-                LabeledContent(L10n.ShardImport.backupVersion, value: L10n.ShardImport.backupVersionValue(backup.version))
+            LabeledContent("账户", value: preview.name)
+            LabeledContent("链", value: preview.chainLabel)
+            LabeledContent(L10n.ShardImport.partyIndex, value: L10n.ShardImport.partyIndexValue(Int(preview.partyIndex)))
+            LabeledContent(L10n.Shards.threshold, value: L10n.Shards.thresholdValue(Int(preview.threshold.t), Int(preview.threshold.total)))
+            if case .account(let b) = preview {
+                LabeledContent("派生钱包", value: "\(b.wallets.count) 条链")
+            } else if case .legacy = preview {
+                LabeledContent(L10n.ShardImport.backupVersion, value: "旧格式 (单链)")
             }
         }
 
-        Section(L10n.ShardBackup.devicePin) {
-            SecureField(L10n.ShardImport.enterDevicePin, text: $pin)
-                .keyboardType(.numberPad)
-
-            Text(L10n.ShardImport.reEncryptNote)
-                .font(.caption)
-                .foregroundStyle(.secondary)
+        if needsPin {
+            Section(L10n.ShardBackup.devicePin) {
+                SecureField(L10n.ShardImport.enterDevicePin, text: $pin)
+                    .keyboardType(.numberPad)
+                Text(L10n.ShardImport.reEncryptNote)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
         }
 
         Section {
-            Button {
-                performImport()
-            } label: {
+            Button { performImport() } label: {
                 if isImporting {
-                    ProgressView()
-                        .frame(maxWidth: .infinity)
+                    ProgressView().frame(maxWidth: .infinity)
                 } else {
-                    Text(L10n.ShardImport.importShard)
-                        .frame(maxWidth: .infinity)
+                    Text("恢复账户").frame(maxWidth: .infinity)
                 }
             }
             .buttonStyle(.borderedProminent)
-            .disabled(pin.count < 6 || isImporting)
+            .disabled((needsPin && pin.count < 6) || isImporting)
         }
 
         Section {
             Button(L10n.ShardImport.chooseDifferent, role: .cancel) {
                 importData = nil
-                parsedBackup = nil
+                self.preview = nil
                 pin = ""
                 importError = nil
             }
         }
     }
 
-    // MARK: - Success Phase
-
     @ViewBuilder
     private var successSection: some View {
         Section {
             VStack(spacing: 16) {
                 Image(systemName: "checkmark.circle.fill")
-                    .font(.system(size: resultIconSize))
+                    .font(.system(size: 48))
                     .foregroundStyle(.green)
-
-                Text(L10n.ShardImport.shardImported)
-                    .font(.title2.bold())
-
-                if let backup = parsedBackup {
-                    Text(L10n.ShardImport.addedToDevice(backup.walletName))
+                Text(L10n.ShardImport.shardImported).font(.title2.bold())
+                if case .success(let name, let count) = viewModel.importStatus {
+                    Text("已恢复账户「\(name)」· \(count) 条链")
                         .foregroundStyle(.secondary)
                         .multilineTextAlignment(.center)
                 }
@@ -689,8 +629,6 @@ struct ShardImportView: View {
             .padding()
         }
     }
-
-    // MARK: - Import Actions
 
     private func handleFileImport(_ result: Result<[URL], Error>) {
         importError = nil
@@ -702,32 +640,29 @@ struct ShardImportView: View {
                 return
             }
             defer { url.stopAccessingSecurityScopedResource() }
-
             do {
                 let data = try Data(contentsOf: url)
                 loadBackup(from: data)
             } catch {
-                importError = "Failed to read file: \(error.localizedDescription)"
+                importError = "读取失败: \(error.localizedDescription)"
             }
-
-        case .failure(let error):
-            importError = error.localizedDescription
+        case .failure(let err):
+            importError = err.localizedDescription
         }
     }
 
     private func pasteFromClipboard() {
         importError = nil
-        guard let clipString = UIPasteboard.general.string,
-              let data = clipString.data(using: .utf8) else {
+        guard let s = UIPasteboard.general.string, let data = s.data(using: .utf8) else {
             importError = L10n.ShardImport.noClipboardData
             return
         }
         loadBackup(from: data)
     }
 
-    private func handleScannedData(_ scannedString: String) {
+    private func handleScannedData(_ s: String) {
         importError = nil
-        guard let data = scannedString.data(using: .utf8) else {
+        guard let data = s.data(using: .utf8) else {
             importError = L10n.ShardImport.invalidQRData
             return
         }
@@ -735,51 +670,44 @@ struct ShardImportView: View {
     }
 
     private func loadBackup(from data: Data) {
-        do {
-            let backup = try viewModel.parseBackup(from: data)
-            importData = data
-            parsedBackup = backup
-            importError = nil
-        } catch {
-            importError = "Invalid backup file: \(error.localizedDescription)"
+        guard let p = viewModel.previewBackup(from: data) else {
+            importError = "无法解析备份文件"
+            return
         }
+        importData = data
+        preview = p
+        importError = nil
     }
 
     private func performImport() {
         guard let data = importData else { return }
         isImporting = true
         importError = nil
-
         do {
-            try viewModel.importShard(from: data, pin: pin, appState: appState)
+            try viewModel.importBackup(from: data, pin: pin, appState: appState)
             importSuccess = true
         } catch {
             importError = error.localizedDescription
         }
-
         isImporting = false
     }
 }
 
-// MARK: - Delete Shard Confirmation (PIN-gated)
+// MARK: - Delete Account Confirm
 
-/// PIN-gated delete flow for key shards.
-/// Requires the user to re-enter PIN and explicitly acknowledge the risk before
-/// the shard is removed. This is the last line of defense against accidental or
-/// adversarial removal on an unlocked device.
-struct DeleteShardConfirmView: View {
-    let wallet: Wallet
+struct DeleteAccountConfirmView: View {
+    let account: ShardAccount
     @ObservedObject var viewModel: ShardsViewModel
     @EnvironmentObject private var appState: AppState
     @Environment(\.dismiss) private var dismiss
 
     @State private var pin: String = ""
-    @State private var acknowledgedLoss: Bool = false
-    @State private var acknowledgedBackup: Bool = false
+    @State private var ackBackup: Bool = false
+    @State private var ackLoss: Bool = false
     @State private var errorMessage: String?
 
     private var canDelete: Bool {
-        pin.count >= 4 && acknowledgedLoss && acknowledgedBackup
+        pin.count >= 4 && ackBackup && ackLoss
     }
 
     var body: some View {
@@ -790,9 +718,15 @@ struct DeleteShardConfirmView: View {
                         Label("不可逆操作", systemImage: "exclamationmark.triangle.fill")
                             .foregroundStyle(HorcruxTheme.dangerRed)
                             .font(.headline)
-                        Text("即将删除「\(wallet.name)」在本设备上的分片（第 \(Int(wallet.partyIndex)) 份，共 \(Int(wallet.totalParties)) 份）。")
+                        Text("即将删除账户「\(account.name)」在本设备上的所有数据：")
                             .font(.subheadline)
-                        Text("删除后本机无法参与签名。若其他设备上的分片不足 \(Int(wallet.threshold)) 份，钱包将永久不可用。")
+                        Text("· 共享分片 #\(Int(account.partyIndex)) / \(Int(account.totalParties))")
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                        Text("· 派生的 \(account.wallets.count) 条链钱包：\(account.wallets.map(\.chain.symbol).joined(separator: " · "))")
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                        Text("删除后本机无法参与此账户的任何链签名。若其他设备持有的分片不足 \(Int(account.threshold)) 份，整个账户将永久不可用。")
                             .font(.footnote)
                             .foregroundStyle(.secondary)
                     }
@@ -800,14 +734,10 @@ struct DeleteShardConfirmView: View {
                 }
 
                 Section("请确认以下两项") {
-                    Toggle(isOn: $acknowledgedBackup) {
-                        Text("我已备份本分片 / 或确认无需保留")
-                            .font(.footnote)
-                    }
-                    Toggle(isOn: $acknowledgedLoss) {
-                        Text("我已确认其他设备上的分片数量足够 (\(Int(wallet.threshold)) 份签名阈值)")
-                            .font(.footnote)
-                    }
+                    Toggle("我已备份此账户分片 / 或确认无需保留", isOn: $ackBackup)
+                        .font(.footnote)
+                    Toggle("我已确认其他设备上的分片足够达到 \(Int(account.threshold)) 份阈值", isOn: $ackLoss)
+                        .font(.footnote)
                 }
 
                 Section("输入 PIN 以执行删除") {
@@ -831,7 +761,7 @@ struct DeleteShardConfirmView: View {
                     } label: {
                         HStack {
                             Spacer()
-                            Text("永久删除此分片")
+                            Text("永久删除此账户")
                                 .font(.headline)
                             Spacer()
                         }
@@ -839,7 +769,7 @@ struct DeleteShardConfirmView: View {
                     .disabled(!canDelete)
                 }
             }
-            .navigationTitle("删除分片")
+            .navigationTitle("删除账户")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -855,7 +785,7 @@ struct DeleteShardConfirmView: View {
             pin = ""
             return
         }
-        viewModel.deleteShard(wallet: wallet)
+        viewModel.deleteAccount(accountId: account.id)
         dismiss()
     }
 }

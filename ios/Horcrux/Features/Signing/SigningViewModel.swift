@@ -431,7 +431,7 @@ final class SigningViewModel: ObservableObject {
 
     private func loadKeyShare(deviceKey: Data, swk: Data) throws -> Data {
         guard let walletStore,
-              let encoded = try walletStore.loadKeyShare(walletId: wallet.id) else {
+              let encoded = try walletStore.loadKeyShare(accountId: wallet.accountId) else {
             throw SigningError.shardNotFound
         }
         let dto = try JSONDecoder().decode(EncryptedShardDTO.self, from: encoded)

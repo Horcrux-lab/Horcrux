@@ -309,8 +309,26 @@ final class CreateShardViewModel: ObservableObject {
         guard let result = keygenResult else { return }
 
         let baseId = sessionId ?? UUID().uuidString
+        // accountId is the hex of the DKG group public key and is shared
+        // across all derived chains. We write the encrypted shard exactly
+        // once, keyed by accountId.
+        let accountId = result.publicKey.map { String(format: "%02x", $0) }.joined()
 
-        // Save one wallet per derived chain address
+        // Persist the shard once.
+        do {
+            let deviceKey = try appState.deviceKey
+            let encrypted = try appState.bridge.encryptShard(
+                plaintext: result.shardData,
+                deviceKey: deviceKey,
+                pin: keyMaterial
+            )
+            let encoded = try JSONEncoder().encode(EncryptedShardDTO(encrypted))
+            try appState.walletStore.storeKeyShare(encoded, accountId: accountId)
+        } catch {
+            SecureLog.error("Failed to store key share: \(error)")
+        }
+
+        // Save one wallet entry per derived chain address.
         for (index, entry) in generatedAddresses.enumerated() {
             let walletId = generatedAddresses.count > 1 ? "\(baseId)-\(entry.chain.symbol)" : baseId
             let wallet = Wallet(
@@ -327,24 +345,10 @@ final class CreateShardViewModel: ObservableObject {
 
             appState.walletStore.add(wallet)
 
-            // Store encrypted key share in Keychain (same shard shared across same-curve chains)
+            // Register shard with the in-memory shard manager once.
             if index == 0 {
-                do {
-                    let deviceKey = try appState.deviceKey
-                    let encrypted = try appState.bridge.encryptShard(
-                        plaintext: result.shardData,
-                        deviceKey: deviceKey,
-                        pin: keyMaterial
-                    )
-                    let encoded = try JSONEncoder().encode(EncryptedShardDTO(encrypted))
-                    try appState.walletStore.storeKeyShare(encoded, walletId: walletId)
-                } catch {
-                    SecureLog.error("Failed to store key share: \(error)")
-                }
-
-                // Register shard with the in-memory shard manager
                 let shardInfo = FfiShardInfo(
-                    shardId: walletId,
+                    shardId: accountId,
                     publicKey: result.publicKey,
                     partyIndex: result.partyIndex,
                     threshold: result.threshold,

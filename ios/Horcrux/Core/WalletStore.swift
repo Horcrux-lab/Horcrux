@@ -23,8 +23,22 @@ final class WalletStore: ObservableObject {
     }
 
     func remove(id: String) {
+        let removed = wallets.first { $0.id == id }
         wallets.removeAll { $0.id == id }
-        try? keychain.delete(key: "shard_\(id)")
+        // Only delete the shared shard entry if no sibling (same accountId)
+        // wallets remain — shard is per-account, not per-chain.
+        if let removed,
+           !wallets.contains(where: { $0.accountId == removed.accountId }) {
+            try? keychain.delete(key: "shard_\(removed.accountId)")
+        }
+        save()
+    }
+
+    /// Remove every wallet belonging to the given account, plus the shared
+    /// shard entry. This is the user-facing "delete account" operation.
+    func removeAccount(accountId: String) {
+        wallets.removeAll { $0.accountId == accountId }
+        try? keychain.delete(key: "shard_\(accountId)")
         save()
     }
 
@@ -55,22 +69,26 @@ final class WalletStore: ObservableObject {
 
     // MARK: - Key Share Storage (Keychain)
 
-    /// Store an encrypted key share in the Keychain (with enhanced protection).
-    func storeKeyShare(_ data: Data, walletId: String) throws {
-        try keychain.storeSecure(key: "shard_\(walletId)", data: data)
+    /// Store an encrypted key share keyed by **accountId** (= hex of the
+    /// group public key). All wallets that share the same DKG ceremony
+    /// resolve to the same entry, so this is written exactly once per
+    /// account.
+    func storeKeyShare(_ data: Data, accountId: String) throws {
+        try keychain.storeSecure(key: "shard_\(accountId)", data: data)
     }
 
-    /// Retrieve the key share for a wallet from the Keychain.
-    func loadKeyShare(walletId: String) throws -> Data? {
-        try keychain.retrieve(key: "shard_\(walletId)")
+    /// Retrieve the key share for an account.
+    func loadKeyShare(accountId: String) throws -> Data? {
+        try keychain.retrieve(key: "shard_\(accountId)")
     }
 
     // MARK: - Wipe
 
     /// Delete all wallets and their key shares. Irreversible.
     func wipeAll() {
-        for wallet in wallets {
-            try? keychain.delete(key: "shard_\(wallet.id)")
+        var seen = Set<String>()
+        for wallet in wallets where seen.insert(wallet.accountId).inserted {
+            try? keychain.delete(key: "shard_\(wallet.accountId)")
         }
         wallets = []
         save()

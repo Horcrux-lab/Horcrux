@@ -8,7 +8,9 @@ private enum UXTiming {
 /// Wallet home screen — dark-tech card layout with balances and quick actions.
 struct WalletHomeView: View {
     @EnvironmentObject private var appState: AppState
+    @StateObject private var accountStore = AccountStore.shared
     @State private var showCreateShard = false
+    @State private var showRestoreSheet = false
     @State private var networkReachable: [Chain: Bool] = [:]
 
     var body: some View {
@@ -46,6 +48,9 @@ struct WalletHomeView: View {
             .sheet(isPresented: $showCreateShard) {
                 CreateShardFlow()
             }
+            .sheet(isPresented: $showRestoreSheet) {
+                AccountImportView(viewModel: ShardsViewModel())
+            }
             .task {
                 networkReachable = await NetworkStatus.shared.checkAll(config: appState.networkConfig)
             }
@@ -72,7 +77,7 @@ struct WalletHomeView: View {
     }
 
     private var emptyState: some View {
-        VStack(spacing: 28) {
+        VStack(spacing: 24) {
             Spacer()
 
             VaultEmptyState(
@@ -81,15 +86,29 @@ struct WalletHomeView: View {
                 subtitle: L10n.WalletHome.noWalletsSubtitle
             )
 
-            Button {
-                showCreateShard = true
-            } label: {
-                Label(L10n.WalletHome.createWallet, systemImage: "plus.circle.fill")
+            VStack(spacing: 12) {
+                Button {
+                    showCreateShard = true
+                } label: {
+                    Label(L10n.WalletHome.createWallet, systemImage: "plus.circle.fill")
+                }
+                .buttonStyle(GradientButtonStyle())
+                .accessibilityHint(L10n.WalletHome.startMPCHint)
+                .accessibilityIdentifier("walletHome_createWalletButton")
+
+                Button {
+                    showRestoreSheet = true
+                } label: {
+                    Label("从备份恢复", systemImage: "square.and.arrow.down")
+                        .font(.subheadline.weight(.medium))
+                        .foregroundStyle(HorcruxTheme.accentPurple)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 12)
+                        .background(HorcruxTheme.accentPurple.opacity(0.1), in: RoundedRectangle(cornerRadius: 12))
+                }
+                .accessibilityIdentifier("walletHome_restoreButton")
             }
-            .buttonStyle(GradientButtonStyle())
             .padding(.horizontal, 48)
-            .accessibilityHint(L10n.WalletHome.startMPCHint)
-            .accessibilityIdentifier("walletHome_createWalletButton")
 
             Spacer()
         }
@@ -120,8 +139,8 @@ struct WalletHomeView: View {
                     .padding(.bottom, 8)
                 }
 
-                // Wallets grouped by MPC root (same groupPublicKey → one wallet spanning multiple chains)
-                ForEach(walletGroups, id: \.rootID) { group in
+                // Wallets grouped by MPC account (same groupPublicKey → one account spanning multiple chains)
+                ForEach(walletGroups, id: \.accountId) { group in
                     VStack(alignment: .leading, spacing: 8) {
                         if walletGroups.count > 1 || group.wallets.count > 1 {
                             HStack(spacing: 6) {
@@ -143,7 +162,7 @@ struct WalletHomeView: View {
                             NavigationLink {
                                 WalletDetailView(wallet: wallet)
                             } label: {
-                                WalletRow(wallet: wallet)
+                                WalletRow(wallet: wallet, showThresholdBadge: group.wallets.count == 1 && walletGroups.count == 1)
                             }
                             .accessibilityLabel("\(wallet.name), \(wallet.chain.rawValue) wallet")
                             .accessibilityHint(L10n.WalletHome.viewDetailsHint)
@@ -156,29 +175,23 @@ struct WalletHomeView: View {
             .padding(.top, 8)
             .padding(.bottom, 24)
         }
-        .toolbar {
-            ToolbarItem(placement: .topBarLeading) {
-                EditButton()
-                    .foregroundStyle(HorcruxTheme.accentPurple)
-                    .accessibilityLabel(L10n.WalletHome.editWalletList)
-            }
-        }
     }
 
-    /// Group wallets by groupPublicKey. Wallets sharing the same public key
-    /// come from the same DKG ceremony and can be thought of as one root
-    /// identity that spans multiple chains.
+    /// Group wallets by accountId (derived from groupPublicKey). Each group
+    /// is a single MPC account; label is user-set via AccountStore with a
+    /// deterministic fallback based on the first wallet's name (stripped of
+    /// any "(SYMBOL)" chain suffix).
     private var walletGroups: [WalletGroup] {
         let wallets = appState.walletStore.wallets
-        let buckets = Dictionary(grouping: wallets, by: { $0.groupPublicKey })
+        let buckets = Dictionary(grouping: wallets, by: { $0.accountId })
         return buckets
-            .map { (key, list) -> WalletGroup in
+            .map { (accountId, list) -> WalletGroup in
                 let first = list.first!
-                // Strip "- Chain" suffix if present to derive a root label
-                let rootLabel = first.name.split(separator: " ").dropLast().joined(separator: " ").trimmingCharacters(in: .whitespaces)
+                let fallback = first.name.replacingOccurrences(of: " (\(first.chain.symbol))", with: "")
+                let label = accountStore.name(for: accountId, fallback: fallback)
                 return WalletGroup(
-                    rootID: key.base64EncodedString(),
-                    label: rootLabel.isEmpty ? first.name : rootLabel,
+                    accountId: accountId,
+                    label: label,
                     wallets: list.sorted { $0.chain.rawValue < $1.chain.rawValue }
                 )
             }
@@ -186,7 +199,7 @@ struct WalletHomeView: View {
     }
 
     private struct WalletGroup {
-        let rootID: String
+        let accountId: String
         let label: String
         let wallets: [Wallet]
     }
@@ -355,6 +368,11 @@ struct RBFInfoSheet: View {
 
 struct WalletRow: View {
     let wallet: Wallet
+    /// When true, render the N-of-M shard badge on the row. Usually false:
+    /// the group header above the row already shows threshold, so rendering
+    /// it again per row is redundant. Only shown for solo wallets that
+    /// don't have a group header.
+    var showThresholdBadge: Bool = false
     @EnvironmentObject private var appState: AppState
     @StateObject private var priceService = PriceService.shared
     @State private var balance: String?
@@ -398,8 +416,10 @@ struct WalletRow: View {
                         .foregroundStyle(HorcruxTheme.subtleText)
                 }
 
-                ShardStatusBadge(threshold: wallet.threshold, total: wallet.totalParties)
-                    .accessibilityLabel(L10n.Shards.thresholdValue(Int(wallet.threshold), Int(wallet.totalParties)))
+                if showThresholdBadge {
+                    ShardStatusBadge(threshold: wallet.threshold, total: wallet.totalParties)
+                        .accessibilityLabel(L10n.Shards.thresholdValue(Int(wallet.threshold), Int(wallet.totalParties)))
+                }
             }
         }
         .padding(.vertical, 12)
@@ -727,7 +747,7 @@ struct PortfolioSummaryCard: View {
                 .font(.system(size: 32, weight: .bold, design: .rounded).monospacedDigit())
                 .foregroundStyle(.white)
                 .contentTransition(.numericText())
-            Text("跨 \(wallets.count) 个钱包 · 实时 USD 报价（来源：CoinGecko）")
+            Text(summarySubtitle)
                 .font(.caption2)
                 .foregroundStyle(HorcruxTheme.subtleText)
         }
@@ -737,6 +757,15 @@ struct PortfolioSummaryCard: View {
         .task {
             await refreshAll()
         }
+    }
+
+    private var summarySubtitle: String {
+        let accountCount = Set(wallets.map { $0.accountId }).count
+        let chainCount = Set(wallets.map { $0.chain }).count
+        if accountCount <= 1 {
+            return "\(chainCount) 条链 · 实时 USD 报价（来源：CoinGecko）"
+        }
+        return "跨 \(accountCount) 个账户 · \(chainCount) 条链 · 实时 USD 报价（来源：CoinGecko）"
     }
 
     private var totalFiatString: String {

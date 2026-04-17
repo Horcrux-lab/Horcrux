@@ -447,6 +447,15 @@ struct Wallet: Identifiable, Codable {
     let totalParties: UInt16
     let partyIndex: UInt16
     let createdAt: Date
+
+    /// Canonical ID for the MPC account (= DKG ceremony). All wallets that
+    /// share the same `groupPublicKey` belong to one account and share the
+    /// same encrypted key share in the Keychain. Fallback to `id` for any
+    /// wallet that somehow lacks a group public key.
+    var accountId: String {
+        guard !groupPublicKey.isEmpty else { return id }
+        return groupPublicKey.map { String(format: "%02x", $0) }.joined()
+    }
 }
 
 enum Chain: String, Codable, CaseIterable, Identifiable {
