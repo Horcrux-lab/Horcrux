@@ -55,12 +55,15 @@ actor TransactionConfirmationPoller {
             switch chain {
             case .bitcoin:
                 return try await checkBtcConfirmation(txHash: txHash, apiURL: config.bitcoinAPI)
+            case .litecoin:
+                // litecoinspace.org exposes the same Esplora `/tx/{id}/status`
+                // endpoint as mempool.space, so we reuse the BTC prober.
+                return try await checkBtcConfirmation(txHash: txHash, apiURL: config.litecoinAPI)
             case .solana:
                 return try await checkSolConfirmation(txHash: txHash, service: service, rpcURL: config.solanaRPC)
-            case .litecoin, .tron:
-                // Signing not yet supported for these chains; we'll never see
-                // a pending tx hash — leave confirmation reporting as "not yet"
-                // so the UI doesn't spin on something that can't arrive.
+            case .tron:
+                // TRON signing not yet wired — no pending tx hashes should
+                // reach this branch, so "not yet" keeps the UI from spinning.
                 return false
             default:
                 return false
@@ -71,33 +74,16 @@ actor TransactionConfirmationPoller {
     }
 
     private func checkEthConfirmation(txHash: String, service: BlockchainService, rpcURL: String) async throws -> Bool {
-        // eth_getTransactionReceipt — returns null if not mined
-        guard let url = URL(string: rpcURL) else { return false }
-        let body: [String: Any] = [
-            "jsonrpc": "2.0", "id": 1,
-            "method": "eth_getTransactionReceipt",
-            "params": [txHash]
-        ]
-        let jsonBody = try JSONSerialization.data(withJSONObject: body)
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        request.httpBody = jsonBody
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        let session = PinnedURLSession.shared.session
-        let (data, _) = try await session.data(for: request)
-
-        struct ReceiptResponse: Decodable {
-            struct Receipt: Decodable {
-                let status: String? // "0x1" = success
-                let blockNumber: String?
-            }
-            let result: Receipt?
+        // BlockchainService already gives us a retry+pinned variant that
+        // returns `nil` for pending (null-result) receipts.
+        if let _ = try await service.ethTxConfirmed(txHash: txHash, rpcURL: rpcURL) {
+            return true
         }
-        let response = try JSONDecoder().decode(ReceiptResponse.self, from: data)
-        return response.result?.blockNumber != nil
+        return false
     }
 
     private func checkBtcConfirmation(txHash: String, apiURL: String) async throws -> Bool {
+        // Direct Esplora call — no need to go through BlockchainService.
         guard let url = URL(string: "\(apiURL)/tx/\(txHash)/status") else { return false }
         let session = PinnedURLSession.shared.session
         let (data, _) = try await session.data(from: url)
@@ -110,31 +96,6 @@ actor TransactionConfirmationPoller {
     }
 
     private func checkSolConfirmation(txHash: String, service: BlockchainService, rpcURL: String) async throws -> Bool {
-        guard let url = URL(string: rpcURL) else { return false }
-        let body: [String: Any] = [
-            "jsonrpc": "2.0", "id": 1,
-            "method": "getSignatureStatuses",
-            "params": [[txHash], ["searchTransactionHistory": true]]
-        ]
-        let jsonBody = try JSONSerialization.data(withJSONObject: body)
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        request.httpBody = jsonBody
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        let session = PinnedURLSession.shared.session
-        let (data, _) = try await session.data(for: request)
-
-        struct SolStatusResponse: Decodable {
-            struct Result: Decodable {
-                struct Value: Decodable {
-                    let confirmationStatus: String?
-                }
-                let value: [Value?]
-            }
-            let result: Result?
-        }
-        let response = try JSONDecoder().decode(SolStatusResponse.self, from: data)
-        let status = response.result?.value.first??.confirmationStatus
-        return status == "finalized" || status == "confirmed"
+        return try await service.solSigConfirmed(signature: txHash, rpcURL: rpcURL)
     }
 }

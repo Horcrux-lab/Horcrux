@@ -521,9 +521,15 @@ final class SigningViewModel: ObservableObject {
             }()
             let rpc = networkConfig.rpcURL(for: wallet.chain)
 
-            // Fresh nonce right before we sign.
-            let nonce: UInt64 = (try? await blockchainService?.ethNonce(
+            // Fresh nonce right before we sign, bumped past any locally-known pending.
+            let rpcNonce: UInt64 = (try? await blockchainService?.ethNonce(
                 address: wallet.address, rpcURL: rpc)) ?? 0
+            let nonce = PendingNonceTracker.shared.nextNonce(
+                chainId: chainId, address: wallet.address, rpcNonce: rpcNonce
+            )
+            PendingNonceTracker.shared.record(
+                chainId: chainId, address: wallet.address, nonce: nonce
+            )
 
             // Reuse cached gas estimate if present, otherwise fall back to
             // minimal sensible defaults so signing doesn't crash.
@@ -969,6 +975,53 @@ final class SigningViewModel: ObservableObject {
             createdAt: Date()
         )
         queue.enqueue(pending)
+    }
+
+    /// Populate `amount` with the maximum sendable value.
+    ///
+    /// Only supported for native transfers (no token selected). For tokens
+    /// we don't currently cache a per-token balance, so the button is
+    /// hidden from the UI in that case.
+    func fillMax() {
+        guard selectedToken == nil else { return }
+
+        // Parse "1.234 ETH" → 1.234.
+        guard let raw = preTxBalance,
+              let balStr = raw.split(separator: " ").first,
+              let bal = Double(String(balStr).replacingOccurrences(of: ",", with: ""))
+        else { return }
+
+        // Parse "≈ 0.00123 ETH" → 0.00123.
+        let fee: Double = {
+            let parts = estimatedFee.split(separator: " ")
+            for part in parts {
+                if let v = Double(String(part)) { return v }
+            }
+            // No numeric fee yet — use a conservative buffer.
+            switch wallet.chain {
+            case .bitcoin, .litecoin: return 0.00005
+            case .solana: return 0.000005
+            case .tron: return 1.1
+            default: return 0.0003 // EVM default
+            }
+        }()
+
+        let maxAmount = max(0, bal - fee)
+        amount = Self.formatAmountTrimmed(maxAmount)
+    }
+
+    /// Whether the Max button should be shown for the current compose state.
+    var canFillMax: Bool {
+        selectedToken == nil && preTxBalance != nil
+    }
+
+    private static func formatAmountTrimmed(_ v: Double) -> String {
+        if v == 0 { return "0" }
+        let s = String(format: "%.8f", v)
+        var trimmed = s
+        while trimmed.hasSuffix("0") { trimmed.removeLast() }
+        if trimmed.hasSuffix(".") { trimmed.removeLast() }
+        return trimmed
     }
 }
 

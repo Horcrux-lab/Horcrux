@@ -156,6 +156,14 @@ struct ComposeTransactionView: View {
                         .accessibilityLabel(L10n.Signing.amount)
                         .accessibilityHint(L10n.Signing.amountHint)
                         .accessibilityIdentifier("compose_amountField")
+                    if viewModel.canFillMax {
+                        Button("Max") {
+                            viewModel.fillMax()
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
+                        .accessibilityIdentifier("compose_maxButton")
+                    }
                     Text(viewModel.transferSymbol)
                         .foregroundStyle(.secondary)
                 }

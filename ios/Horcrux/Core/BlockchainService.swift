@@ -239,6 +239,41 @@ actor BlockchainService {
         return try JSONDecoder().decode(BtcFeeEstimate.self, from: data)
     }
 
+    /// Check if an EVM transaction has been mined. Returns:
+    ///   - `.some(true)` if receipt exists and status == 0x1 (success)
+    ///   - `.some(false)` if receipt exists and status == 0x0 (reverted)
+    ///   - `nil` if the node hasn't seen a receipt yet (still pending)
+    func ethTxConfirmed(txHash: String, rpcURL: String) async throws -> Bool? {
+        // The node returns `null` for pending txs; Codable needs a wrapper.
+        struct Receipt: Decodable {
+            let status: String?
+            let blockNumber: String?
+        }
+        let raw: Receipt? = try await ethCallOptional(
+            method: "eth_getTransactionReceipt",
+            params: [txHash],
+            rpcURL: rpcURL
+        )
+        guard let receipt = raw, receipt.blockNumber != nil else { return nil }
+        // status == "0x1" is success, "0x0" is reverted.
+        if let st = receipt.status {
+            return st == "0x1"
+        }
+        // Pre-Byzantium chains omit status; presence of blockNumber is enough.
+        return true
+    }
+
+    /// Check if a Bitcoin/Litecoin transaction has confirmed. Calls Esplora's
+    /// `/tx/{txid}/status` endpoint.
+    func btcTxConfirmed(txid: String, apiURL: String) async throws -> Bool {
+        struct Status: Decodable { let confirmed: Bool }
+        let url = try Self.validatedURL("\(apiURL)/tx/\(txid)/status")
+        let (data, response) = try await session.data(from: url)
+        try validateHTTP(response)
+        let status = try JSONDecoder().decode(Status.self, from: data)
+        return status.confirmed
+    }
+
     /// Broadcast a signed Bitcoin transaction (hex). Returns the txid.
     func btcBroadcast(signedTxHex: String, apiURL: String) async throws -> String {
         let url = try Self.validatedURL("\(apiURL)/tx")
@@ -379,6 +414,45 @@ actor BlockchainService {
             params: params,
             rpcURL: rpcURL
         )
+    }
+
+    /// Check if a Solana signature has been confirmed. Uses
+    /// `getSignatureStatuses` with `searchTransactionHistory: false` so we
+    /// only peek at the recent statuses block (enough for freshly broadcast
+    /// txs). Returns:
+    ///   - true  — confirmationStatus is "confirmed" or "finalized"
+    ///   - false — still "processed" or not found yet
+    func solSigConfirmed(signature: String, rpcURL: String) async throws -> Bool {
+        struct StatusesParams: Encodable {
+            let sigs: [String]
+            let config: [String: Bool]
+            func encode(to encoder: Encoder) throws {
+                var c = encoder.unkeyedContainer()
+                try c.encode(sigs)
+                try c.encode(config)
+            }
+        }
+        struct Result: Decodable {
+            struct Value: Decodable {
+                let confirmationStatus: String?
+                let err: AnyDecodable?
+            }
+            let value: [Value?]
+        }
+        // `AnyDecodable` is just a placeholder — we only check non-nil.
+        struct AnyDecodable: Decodable {}
+        let params = StatusesParams(
+            sigs: [signature],
+            config: ["searchTransactionHistory": false]
+        )
+        let result: Result = try await solanaCall(
+            method: "getSignatureStatuses",
+            params: params,
+            rpcURL: rpcURL
+        )
+        guard let first = result.value.first, let entry = first else { return false }
+        guard entry.err == nil else { return false }
+        return entry.confirmationStatus == "confirmed" || entry.confirmationStatus == "finalized"
     }
 
     // MARK: - Generic balance fetch
@@ -668,6 +742,18 @@ actor BlockchainService {
                 throw BlockchainError.emptyResult
             }
             return result
+        }
+    }
+
+    /// Variant of `ethCall` that tolerates a `null` result (JSON-RPC pending
+    /// responses). Returns nil when the node replies with null rather than
+    /// throwing `emptyResult`.
+    private func ethCallOptional<P: Encodable, R: Decodable>(method: String, params: P, rpcURL: String) async throws -> R? {
+        do {
+            let result: R = try await ethCall(method: method, params: params, rpcURL: rpcURL)
+            return result
+        } catch BlockchainError.emptyResult {
+            return nil
         }
     }
 

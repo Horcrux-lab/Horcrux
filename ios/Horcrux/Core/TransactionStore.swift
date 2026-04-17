@@ -13,6 +13,7 @@ struct TransactionRecord: Identifiable, Codable {
     var status: TxStatus
     let createdAt: Date
     var broadcastAt: Date?
+    var confirmedAt: Date?
 
     enum TxStatus: String, Codable {
         case signed     // Locally signed but not broadcast
@@ -78,7 +79,14 @@ final class TransactionStore: ObservableObject {
         records[idx].status = status
         if let txHash { records[idx] = withUpdatedHash(records[idx], txHash: txHash) }
         if status == .broadcast { records[idx].broadcastAt = Date() }
+        if status == .confirmed { records[idx].confirmedAt = Date() }
         save()
+    }
+
+    /// Records currently awaiting on-chain confirmation. Used by the
+    /// confirmation poller to know which hashes to track.
+    func pendingConfirmation() -> [TransactionRecord] {
+        records.filter { $0.status == .broadcast && ($0.txHash?.isEmpty == false) }
     }
 
     func records(for walletId: String) -> [TransactionRecord] {
