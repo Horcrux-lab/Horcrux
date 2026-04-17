@@ -34,7 +34,13 @@ enum RelayConfig {
            !override.isEmpty {
             return override
         }
+        #if DEBUG
+        // Pre-release builds point to a local dev relay on the host machine.
+        // Swap to `officialURL` before shipping.
+        return localDevelopmentURL
+        #else
         return officialURL
+        #endif
     }
 
     /// Saves a custom relay URL (and enables custom mode).
