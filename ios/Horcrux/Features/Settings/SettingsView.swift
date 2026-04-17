@@ -4,12 +4,13 @@ import SwiftUI
 struct SettingsView: View {
     @EnvironmentObject private var appState: AppState
     @AppStorage("biometricEnabled") private var biometricEnabled = true
-    @State private var relayURL = "ws://localhost:3210"
+    @AppStorage(RelayConfig.useCustomKey) private var useCustomRelay = false
+    @State private var relayURL = RelayConfig.effectiveURL
     @State private var showChangePin = false
     @State private var showWipeConfirmation = false
     @State private var relayWarning: String?
 
-    private static let relayURLKey = "horcrux_relay_url"
+    private static let relayURLKey = RelayConfig.customURLKey
 
     var body: some View {
         NavigationStack {
@@ -93,26 +94,59 @@ struct SettingsView: View {
                             .padding(.horizontal, 4)
 
                         VStack(spacing: 8) {
-                            TextField(L10n.Settings.webSocketURL, text: $relayURL)
-                                .font(.system(.caption, design: .monospaced))
-                                .autocorrectionDisabled()
-                                .textInputAutocapitalization(.never)
+                            // Official / Custom picker
+                            Picker("", selection: $useCustomRelay) {
+                                Text("官方 Relay").tag(false)
+                                Text("自定义").tag(true)
+                            }
+                            .pickerStyle(.segmented)
+                            .onChange(of: useCustomRelay) { _, isCustom in
+                                if !isCustom {
+                                    RelayConfig.resetToDefault()
+                                    relayURL = RelayConfig.effectiveURL
+                                    appState.peerManager.relay.relayURL = relayURL
+                                    relayWarning = nil
+                                }
+                            }
+
+                            if useCustomRelay {
+                                TextField(L10n.Settings.webSocketURL, text: $relayURL)
+                                    .font(.system(.caption, design: .monospaced))
+                                    .autocorrectionDisabled()
+                                    .textInputAutocapitalization(.never)
+                                    .padding(12)
+                                    .background(
+                                        RoundedRectangle(cornerRadius: 10)
+                                            .fill(Color.white.opacity(0.06))
+                                            .overlay(RoundedRectangle(cornerRadius: 10).stroke(Color.white.opacity(0.1), lineWidth: 1))
+                                    )
+                                    .foregroundStyle(.white)
+                                    .tint(HorcruxTheme.accentPurple)
+                                    .onChange(of: relayURL) { _, newValue in
+                                        relayWarning = Self.validateRelayURL(newValue)
+                                        appState.peerManager.relay.relayURL = newValue
+                                        try? RelayConfig.setCustom(newValue)
+                                    }
+                                    .accessibilityLabel(L10n.Settings.relayServerURL)
+                                    .accessibilityHint(L10n.Settings.relayURLHint)
+                                    .accessibilityIdentifier("settings_relayURLField")
+                            } else {
+                                HStack(spacing: 8) {
+                                    Image(systemName: "checkmark.seal.fill")
+                                        .foregroundStyle(HorcruxTheme.accentCyan)
+                                    Text(relayURL)
+                                        .font(.system(.caption, design: .monospaced))
+                                        .foregroundStyle(HorcruxTheme.subtleText)
+                                        .lineLimit(1)
+                                        .truncationMode(.middle)
+                                }
+                                .frame(maxWidth: .infinity, alignment: .leading)
                                 .padding(12)
                                 .background(
                                     RoundedRectangle(cornerRadius: 10)
-                                        .fill(Color.white.opacity(0.06))
-                                        .overlay(RoundedRectangle(cornerRadius: 10).stroke(Color.white.opacity(0.1), lineWidth: 1))
+                                        .fill(HorcruxTheme.accentCyan.opacity(0.08))
                                 )
-                                .foregroundStyle(.white)
-                                .tint(HorcruxTheme.accentPurple)
-                                .onChange(of: relayURL) { _, newValue in
-                                    relayWarning = Self.validateRelayURL(newValue)
-                                    appState.peerManager.relay.relayURL = newValue
-                                    try? KeychainManager.shared.store(key: Self.relayURLKey, data: Data(newValue.utf8))
-                                }
-                                .accessibilityLabel(L10n.Settings.relayServerURL)
-                                .accessibilityHint(L10n.Settings.relayURLHint)
-                                .accessibilityIdentifier("settings_relayURLField")
+                            }
 
                             if let relayWarning {
                                 HStack(spacing: 6) {
@@ -249,11 +283,8 @@ struct SettingsView: View {
                 Text(L10n.Settings.wipeMessage)
             }
             .onAppear {
-                if let data = try? KeychainManager.shared.retrieve(key: Self.relayURLKey),
-                   let url = String(data: data, encoding: .utf8), !url.isEmpty {
-                    relayURL = url
-                }
-                relayWarning = Self.validateRelayURL(relayURL)
+                relayURL = RelayConfig.effectiveURL
+                relayWarning = useCustomRelay ? Self.validateRelayURL(relayURL) : nil
             }
             .preferredColorScheme(.dark)
         }

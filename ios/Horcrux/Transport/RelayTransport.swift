@@ -12,7 +12,7 @@ final class RelayTransport: NSObject, TransportChannel, ObservableObject {
 
     @Published private(set) var isConnected: Bool = false
     @Published private(set) var discoveredPeers: [Peer] = []
-    @Published var relayURL: String = "ws://localhost:3210"
+    @Published var relayURL: String = RelayConfig.effectiveURL
 
     weak var delegate: TransportChannelDelegate?
 

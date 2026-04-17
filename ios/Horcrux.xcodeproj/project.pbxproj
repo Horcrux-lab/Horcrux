@@ -68,6 +68,7 @@
 		CAA62095ADB8219F055DB007 /* PeerManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6B60143CF0CBC4C79AB085D6 /* PeerManager.swift */; };
 		CB59CE6C90D457018B221099 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 46F96EED87A21ED0BBE9B1B0 /* SettingsView.swift */; };
 		D4E3C555F9B2C377BA01735A /* RelayTransport.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE490D34FEE7816E42DB8691 /* RelayTransport.swift */; };
+		D642BB163B604CB2BA09AC1F /* RelayConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = CD515007E92C4671B0DE7D1C /* RelayConfig.swift */; };
 		D577AD02733FE2E62EC0E916 /* TokenModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7B49C305B459B2D3E91C9718 /* TokenModels.swift */; };
 		DB6B04E3DB8E15D4FC56228F /* WalletHomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CB858890AFC1B2641328353D /* WalletHomeView.swift */; };
 		DCCF10ABD131094338D26558 /* DecimalMathTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 82CB35AD17D8FE1234DACEC9 /* DecimalMathTests.swift */; };
@@ -167,6 +168,7 @@
 		21A20567AD7B48158FA9E2D9 /* DKGTestView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DKGTestView.swift; sourceTree = "<group>"; };
 		CE08B520705A65B470D38D5B /* NotificationManager.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = NotificationManager.swift; sourceTree = "<group>"; };
 		CE490D34FEE7816E42DB8691 /* RelayTransport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RelayTransport.swift; sourceTree = "<group>"; };
+		CD515007E92C4671B0DE7D1C /* RelayConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RelayConfig.swift; sourceTree = "<group>"; };
 		D7E2EEBB63D88CA1BC34132E /* DeepLinkRouter.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = DeepLinkRouter.swift; sourceTree = "<group>"; };
 		D886FBBE2DF6B3AA6FA5A29C /* Components.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Components.swift; sourceTree = "<group>"; };
 		DDE984B2508670F746A23966 /* SecureClipboardTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HorcruxTests/SecureClipboardTests.swift; sourceTree = SOURCE_ROOT; };
@@ -262,6 +264,7 @@
 				6B60143CF0CBC4C79AB085D6 /* PeerManager.swift */,
 				7A849C84C85BCB4D83640A5B /* QRTransport.swift */,
 				CE490D34FEE7816E42DB8691 /* RelayTransport.swift */,
+				CD515007E92C4671B0DE7D1C /* RelayConfig.swift */,
 				3935002B5AD730445E22C6BD /* TransportProtocol.swift */,
 				422C50490783824C211D1A4E /* WiFiDirectTransport.swift */,
 				B557F92FAAF7C0F38B2CC6C6 /* WiFiLANTransport.swift */,
@@ -631,6 +634,7 @@
 				CAA62095ADB8219F055DB007 /* PeerManager.swift in Sources */,
 				413FFA707333203A9879D9D9 /* QRTransport.swift in Sources */,
 				D4E3C555F9B2C377BA01735A /* RelayTransport.swift in Sources */,
+				D642BB163B604CB2BA09AC1F /* RelayConfig.swift in Sources */,
 				CB59CE6C90D457018B221099 /* SettingsView.swift in Sources */,
 				1929C70C2E419C8D2D7A499C /* ShardsListView.swift in Sources */,
 				4B7B6F204D8AFDEB4EACE5EB /* ShardsViewModel.swift in Sources */,
