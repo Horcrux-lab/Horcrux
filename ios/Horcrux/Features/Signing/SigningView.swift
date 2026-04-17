@@ -87,13 +87,32 @@ struct ComposeTransactionView: View {
             }
 
             Section(L10n.Signing.amount) {
+                if !viewModel.availableTokens.isEmpty {
+                    Picker("资产", selection: Binding(
+                        get: { viewModel.selectedToken?.id ?? "__native__" },
+                        set: { newId in
+                            if newId == "__native__" {
+                                viewModel.selectedToken = nil
+                            } else {
+                                viewModel.selectedToken = viewModel.availableTokens.first { $0.id == newId }
+                            }
+                        }
+                    )) {
+                        Text(viewModel.wallet.chain.symbol + "（原生代币）").tag("__native__")
+                        ForEach(viewModel.availableTokens, id: \.id) { token in
+                            Text("\(token.symbol) — \(token.name)").tag(token.id)
+                        }
+                    }
+                    .pickerStyle(.menu)
+                }
+
                 HStack {
                     TextField("0.0", text: $viewModel.amount)
                         .keyboardType(.decimalPad)
                         .accessibilityLabel(L10n.Signing.amount)
                         .accessibilityHint(L10n.Signing.amountHint)
                         .accessibilityIdentifier("compose_amountField")
-                    Text(viewModel.wallet.chain.symbol)
+                    Text(viewModel.transferSymbol)
                         .foregroundStyle(.secondary)
                 }
             }

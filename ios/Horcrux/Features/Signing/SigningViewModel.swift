@@ -13,6 +13,28 @@ final class SigningViewModel: ObservableObject {
     @Published var step: Step = .compose
     @Published var recipientAddress: String = ""
     @Published var amount: String = ""
+    /// Selected ERC-20 / SPL token (nil = native coin transfer).
+    @Published var selectedToken: Token? = nil
+
+    /// Available tokens for the current wallet chain. Native coin is represented as `nil`.
+    var availableTokens: [Token] {
+        TokenList.tokens(for: wallet.chain)
+    }
+
+    /// Decimals of the asset currently being transferred (18 for ETH, 8 for BTC, 9 for SOL, token-specific for ERC-20/SPL).
+    var transferDecimals: Int {
+        if let selectedToken { return Int(selectedToken.decimals) }
+        switch wallet.chain {
+        case .ethereum: return 18
+        case .bitcoin: return 8
+        case .solana: return 9
+        }
+    }
+
+    /// Display symbol of the asset currently being transferred.
+    var transferSymbol: String {
+        selectedToken?.symbol ?? wallet.chain.symbol
+    }
 
     // Signing
     @Published var joinedSigners: [Peer] = []
@@ -100,17 +122,27 @@ final class SigningViewModel: ObservableObject {
             do {
                 switch wallet.chain {
                 case .ethereum:
-                    let weiAmount = ethToWei(amount)
+                    // If ERC-20: call goes to token contract with value=0 and transfer() calldata
+                    let (txTo, txValueWei, txData): (String, String, String?) = {
+                        if let token = self.selectedToken {
+                            let raw = Self.amountToRawUnits(amount, decimals: Int(token.decimals))
+                            let data = Self.erc20TransferCalldata(to: recipientAddress, amountRaw: raw)
+                            return (token.id, "0", "0x" + data.map { String(format: "%02x", $0) }.joined())
+                        } else {
+                            return (recipientAddress, ethToWei(amount), nil)
+                        }
+                    }()
                     let estimate = try await blockchainService.ethEstimateGas(
                         from: wallet.address,
-                        to: recipientAddress,
-                        valueWei: weiAmount,
+                        to: txTo,
+                        valueWei: txValueWei,
+                        data: txData,
                         rpcURL: networkConfig.ethereumRPC
                     )
                     let feeDisplay = try await blockchainService.ethFeeEstimateDisplay(
                         from: wallet.address,
-                        to: recipientAddress,
-                        valueWei: weiAmount,
+                        to: txTo,
+                        valueWei: txValueWei,
                         rpcURL: networkConfig.ethereumRPC
                     )
                     await MainActor.run {
@@ -349,19 +381,31 @@ final class SigningViewModel: ObservableObject {
 
         switch wallet.chain {
         case .ethereum:
-            // Build EIP-1559 transaction sign hash via Rust FFI
+            // Build real EIP-1559 sign hash via Rust FFI
+            let (txTo, txValueWei, txData): (String, String, Data) = {
+                if let token = self.selectedToken {
+                    let raw = Self.amountToRawUnits(amount, decimals: Int(token.decimals))
+                    let data = Self.erc20TransferCalldata(to: recipientAddress, amountRaw: raw)
+                    return (token.id, "0", data)
+                } else {
+                    return (recipientAddress, ethToWei(amount), Data())
+                }
+            }()
             let params = FfiEvmTxParams(
-                to: recipientAddress,
-                valueWei: ethToWei(amount),
-                nonce: UInt64(estimatedGas) ?? 0, // will be replaced by actual nonce
+                to: txTo,
+                valueWei: txValueWei,
+                nonce: 0,
                 gasLimit: UInt64(estimatedGas) ?? 21000,
                 maxFeePerGas: "0",
                 maxPriorityFeePerGas: "0",
                 chainId: networkConfig.evmChainId,
-                data: Data()
+                data: txData
             )
-            // For now, hash the RLP-like representation
-            let txBytes = "\(params.chainId):\(params.nonce):\(params.to):\(params.valueWei):\(params.gasLimit)"
+            if let tx = try? horcruxBuildEvmTransaction(params: params) {
+                return tx.signHash
+            }
+            // Fallback: hash a stable string representation
+            let txBytes = "\(params.chainId):\(params.nonce):\(params.to):\(params.valueWei):\(params.gasLimit):\(txData.count)"
             return horcruxKeccak256(data: Data(txBytes.utf8))
 
         case .bitcoin:
@@ -437,6 +481,71 @@ final class SigningViewModel: ObservableObject {
         let weiPerEth = Decimal(sign: .plus, exponent: 18, significand: 1)
         let wei = eth * weiPerEth
         return NSDecimalNumber(decimal: wei).stringValue
+    }
+
+    // MARK: - ERC-20 helpers
+
+    /// Convert a human-readable amount string to raw smallest-unit value (as decimal string).
+    /// Uses Decimal math — fine for any normal transfer amount.
+    static func amountToRawUnits(_ amountString: String, decimals: Int) -> String {
+        guard let amount = Decimal(string: amountString), amount > 0 else { return "0" }
+        let multiplier = Decimal(sign: .plus, exponent: decimals, significand: 1)
+        let raw = amount * multiplier
+        return NSDecimalNumber(decimal: raw).stringValue
+    }
+
+    /// Build ERC-20 `transfer(address,uint256)` calldata: 4-byte selector + 32-byte address + 32-byte amount.
+    /// selector = keccak256("transfer(address,uint256)")[0..4] = 0xa9059cbb
+    static func erc20TransferCalldata(to: String, amountRaw: String) -> Data {
+        var data = Data([0xa9, 0x05, 0x9c, 0xbb])
+        // Address: strip 0x, pad to 32 bytes left
+        let addrHex = to.hasPrefix("0x") ? String(to.dropFirst(2)) : to
+        let addrBytes = Self.hexToData(addrHex) ?? Data()
+        let padCount = max(0, 32 - addrBytes.count)
+        data.append(Data(repeating: 0, count: padCount))
+        data.append(addrBytes)
+        // Amount: u256 big-endian, 32 bytes
+        let amountBytes = Self.decimalStringToBigEndian(amountRaw, byteLength: 32)
+        data.append(amountBytes)
+        return data
+    }
+
+    /// Parse a hex string into Data. Supports optional `0x` prefix. Returns nil on invalid input.
+    static func hexToData(_ hex: String) -> Data? {
+        var s = hex.hasPrefix("0x") ? String(hex.dropFirst(2)) : hex
+        if s.count % 2 != 0 { s = "0" + s }
+        var bytes = [UInt8]()
+        bytes.reserveCapacity(s.count / 2)
+        var idx = s.startIndex
+        while idx < s.endIndex {
+            let next = s.index(idx, offsetBy: 2)
+            guard let b = UInt8(s[idx..<next], radix: 16) else { return nil }
+            bytes.append(b)
+            idx = next
+        }
+        return Data(bytes)
+    }
+
+    /// Encode a decimal string as big-endian bytes of the given length.
+    static func decimalStringToBigEndian(_ decString: String, byteLength: Int) -> Data {
+        var bytes = [UInt8](repeating: 0, count: byteLength)
+        var value = Decimal(string: decString) ?? 0
+        var base = Decimal(256)
+        var i = byteLength - 1
+        while value > 0 && i >= 0 {
+            var quotient = Decimal()
+            NSDecimalDivide(&quotient, &value, &base, .down)
+            var floored = Decimal()
+            NSDecimalRound(&floored, &quotient, 0, .down)
+            var mulBack = Decimal()
+            NSDecimalMultiply(&mulBack, &floored, &base, .plain)
+            var remainder = Decimal()
+            NSDecimalSubtract(&remainder, &value, &mulBack, .plain)
+            bytes[i] = UInt8(truncating: NSDecimalNumber(decimal: remainder))
+            value = floored
+            i -= 1
+        }
+        return Data(bytes)
     }
 
     /// Save signed transaction for later broadcast (offline mode).
