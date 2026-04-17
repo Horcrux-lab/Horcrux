@@ -94,6 +94,18 @@ final class CreateShardViewModel: ObservableObject {
     }
 
     func startDiscovery() {
+        // Idempotent: if a room listener is already running we're
+        // already in the discover phase — do nothing. Without this
+        // guard a double call (e.g. rapid button taps, or a view
+        // re-render triggering an extra button action) wipes
+        // `consumedSessionBegins` while a stale listener is still
+        // draining `mpcMessageStream()`, which lets the same
+        // SessionBegin trigger `autoJoinFromBegin` twice and spawn
+        // two concurrent DKG ceremonies on the same device.
+        if roomListenerTask != nil {
+            NSLog("[DKG] startDiscovery called while already running — ignoring")
+            return
+        }
         totalRounds = selectedCurve == .ed25519 ? 3 : 9
         dkgStatusMessage = L10n.DKG.searchingDevices
         roomPresence.removeAll()
