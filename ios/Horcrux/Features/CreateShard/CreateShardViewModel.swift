@@ -121,10 +121,14 @@ final class CreateShardViewModel: ObservableObject {
                 updateProgress()
 
                 NSLog("[DKG] Calling bridge.startKeygen (session=\(self.sessionId!))...")
-                let outgoing = try bridge.startKeygen(
-                    sessionId: sessionId!,
-                    config: config
-                )
+                // startKeygen can be heavy (Paillier setup on secp256k1).
+                // Offload to background so the UI doesn't freeze at step 3 start.
+                let session = bridge.session
+                let sid = sessionId!
+                let cfg = config
+                let outgoing: [FfiMpcMessage] = try await Task.detached(priority: .userInitiated) {
+                    try session.createKeygen(sessionId: sid, config: cfg)
+                }.value
                 NSLog("[DKG] startKeygen returned \(outgoing.count) messages")
 
                 dkgStatusMessage = L10n.DKG.exchangingCommitments
@@ -219,8 +223,17 @@ final class CreateShardViewModel: ObservableObject {
 
                     let responses: [FfiMpcMessage]
                     do {
-                        NSLog("[DKG] Calling bridge.handleMessage...")
-                        responses = try bridge.handleMessage(msg)
+                        NSLog("[DKG] Calling bridge.handleMessage (off-main)...")
+                        // Paillier rounds are CPU-heavy (seconds per message).
+                        // Running them on the MainActor blocks SwiftUI rendering
+                        // and stalls our 1Hz elapsed timer — progress indicators
+                        // appear frozen. Offload to a background thread; the
+                        // UniFFI session manager is internally Mutex-protected.
+                        let session = bridge.session
+                        let msgToProcess = msg
+                        responses = try await Task.detached(priority: .userInitiated) {
+                            try session.handleMessage(msg: msgToProcess)
+                        }.value
                     } catch {
                         NSLog("[DKG] handleMessage error: \(error.localizedDescription)")
                         throw error
