@@ -535,14 +535,38 @@ struct DKGProgressView: View {
         viewModel.selectedCurve == .ed25519 ? 15 : 45
     }
 
+    /// Smooth display progress derived from both the round index and
+    /// wall-clock elapsed. Individual rounds (esp. Paillier rounds 3-5)
+    /// can take 10-15s; a pure round-based ring would freeze for that
+    /// entire window while the seconds tick up, which looks like a hang
+    /// and is inconsistent with the timer. We take the max of the two
+    /// estimates and cap at 95% until the ceremony actually reports done.
+    private var displayProgress: Double {
+        let timeBased = min(Double(elapsedSeconds) / Double(estimatedTotal), 0.95)
+        let roundBased = viewModel.dkgProgress
+        // Once the view model has jumped to the finalization states
+        // (0.95/1.0), let those values through so the ring completes.
+        if roundBased >= 0.95 { return roundBased }
+        return max(roundBased, timeBased)
+    }
+
+    private var remainingLabel: String {
+        let remaining = estimatedTotal - elapsedSeconds
+        if remaining > 0 {
+            return "~\(remaining)s"
+        }
+        // We've already exceeded the estimate — don't lie with "0s".
+        return "收尾中…"
+    }
+
     var body: some View {
         VStack(spacing: 24) {
             Spacer()
 
-            ProgressRing(progress: viewModel.dkgProgress)
+            ProgressRing(progress: displayProgress)
                 .frame(width: 120, height: 120)
                 .accessibilityLabel(L10n.DKG.keyGenProgress)
-                .accessibilityValue("\(Int(viewModel.dkgProgress * 100)) percent")
+                .accessibilityValue("\(Int(displayProgress * 100)) percent")
 
             VStack(spacing: 8) {
                 Text(L10n.DKG.generatingKeyShards)
@@ -567,7 +591,7 @@ struct DKGProgressView: View {
                 }
                 Divider().frame(height: 30)
                 VStack {
-                    Text("~\(max(estimatedTotal - elapsedSeconds, 0))s")
+                    Text(remainingLabel)
                         .font(.headline.monospacedDigit())
                         .foregroundStyle(.secondary)
                     Text("预计剩余").font(.caption2).foregroundStyle(.secondary)
