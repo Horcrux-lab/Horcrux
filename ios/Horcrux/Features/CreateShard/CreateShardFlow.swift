@@ -118,10 +118,50 @@ struct ConfigureView: View {
                 }
 
                 if viewModel.selectedTransports.contains(.relay) {
-                    TextField("Room Code (e.g. my-wallet-123)", text: $viewModel.roomCode)
-                        .autocorrectionDisabled()
-                        .textInputAutocapitalization(.never)
-                        .accessibilityIdentifier("configure_roomCodeField")
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("房间码（3 个单词）")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+
+                        HStack {
+                            TextField("apple-tiger-moon", text: $viewModel.roomCode)
+                                .font(.system(.body, design: .monospaced))
+                                .autocorrectionDisabled()
+                                .textInputAutocapitalization(.never)
+                                .accessibilityIdentifier("configure_roomCodeField")
+                                .onChange(of: viewModel.roomCode) { _, newValue in
+                                    let normalized = RoomCode.normalize(newValue)
+                                    if normalized != newValue {
+                                        viewModel.roomCode = normalized
+                                    }
+                                }
+                            Button {
+                                viewModel.roomCode = RoomCode.generate()
+                            } label: {
+                                Image(systemName: "arrow.triangle.2.circlepath")
+                            }
+                            .buttonStyle(.bordered)
+                            .accessibilityLabel("生成新房间码")
+
+                            Button {
+                                SecureClipboard.copy(viewModel.roomCode)
+                            } label: {
+                                Image(systemName: "doc.on.doc")
+                            }
+                            .buttonStyle(.bordered)
+                            .accessibilityLabel("复制房间码")
+                        }
+
+                        if !viewModel.roomCode.isEmpty && !RoomCode.isValid(viewModel.roomCode) {
+                            Text("房间码应为 3 个用连字符分隔的单词")
+                                .font(.caption2)
+                                .foregroundStyle(.orange)
+                        } else {
+                            Text("把这三个单词读给对方，便于电话/语音传递")
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
                 }
             }
 
