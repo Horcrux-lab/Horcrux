@@ -190,6 +190,113 @@ final class AppState: ObservableObject {
         return derivedKey
     }
 
+    /// Change the user's PIN, **re-encrypting every stored shard** so the
+    /// wallets remain accessible under the new PIN. Throws on any failure;
+    /// if a Keychain write fails mid-way, the on-disk state may be
+    /// inconsistent and the user should recover via MPC.
+    ///
+    /// Flow:
+    ///   1. Derive oldKey from currentPin (validate by decrypting each shard).
+    ///   2. Pre-encrypt every shard with newKey in memory.
+    ///   3. Commit: write new pinHash, then overwrite each shard ciphertext.
+    func changePin(
+        current currentPin: String,
+        new newPin: String,
+        walletStore: WalletStore
+    ) throws {
+        guard verifyPin(currentPin) else {
+            throw AppError.invalidPin
+        }
+        let oldKey = try Self.pinKeyMaterial(currentPin)
+        defer {
+            var k = oldKey
+            k.resetBytes(in: 0..<k.count)
+        }
+
+        let dk = try deviceKey
+        let wallets = walletStore.wallets
+
+        // Collect unique shard ids (same curve wallets share a shard).
+        var processedShardIds = Set<String>()
+        var plaintexts: [(shardId: String, plaintext: Data)] = []
+
+        do {
+            for wallet in wallets {
+                // Same shard id appears for same-curve siblings; skip dupes.
+                guard !processedShardIds.contains(wallet.id) else { continue }
+                guard let encoded = try walletStore.loadKeyShare(walletId: wallet.id) else { continue }
+                let dto = try JSONDecoder().decode(EncryptedShardDTO.self, from: encoded)
+                let pt = try bridge.decryptShard(encrypted: dto.toFfi(), deviceKey: dk, pin: oldKey)
+                plaintexts.append((wallet.id, pt))
+                processedShardIds.insert(wallet.id)
+            }
+        } catch {
+            // Zero anything we collected.
+            for i in 0..<plaintexts.count {
+                plaintexts[i].plaintext.resetBytes(in: 0..<plaintexts[i].plaintext.count)
+            }
+            throw AppError.invalidPin
+        }
+        defer {
+            for i in 0..<plaintexts.count {
+                plaintexts[i].plaintext.resetBytes(in: 0..<plaintexts[i].plaintext.count)
+            }
+        }
+
+        // Generate fresh salt + pinHash for the new PIN (not yet written).
+        let newPinHash = Self.hashPin(newPin)
+        let newSalt = newPinHash.prefix(Self.saltSize)
+        var newKey = try Self.pinKeyMaterialWithSalt(newPin, salt: Data(newSalt))
+        defer { newKey.resetBytes(in: 0..<newKey.count) }
+
+        // Re-encrypt everything with the new key, still in memory.
+        var newCiphertexts: [(shardId: String, encoded: Data)] = []
+        for entry in plaintexts {
+            let encrypted = try bridge.encryptShard(plaintext: entry.plaintext, deviceKey: dk, pin: newKey)
+            let encoded = try JSONEncoder().encode(EncryptedShardDTO(encrypted))
+            newCiphertexts.append((entry.shardId, encoded))
+        }
+
+        // Commit: pinHash first (single atomic Keychain write), then shards.
+        // A crash between the pinHash write and the shard writes is the only
+        // remaining failure window; callers should warn users that if the
+        // app is killed during PIN change they must recover via MPC.
+        try KeychainManager.shared.store(key: KeychainKeys.pinHash, data: newPinHash)
+        for entry in newCiphertexts {
+            try walletStore.storeKeyShare(entry.encoded, walletId: entry.shardId)
+        }
+
+        // Refresh in-RAM cache so the next DKG-save in this session is free.
+        clearCachedShardKey()
+        cachedShardKeyMaterial = newKey
+        resetFailedAttempts()
+    }
+
+    /// Variant of `pinKeyMaterial` that takes an explicit salt (used during
+    /// PIN change, where we need the new key before writing the new pinHash).
+    private static func pinKeyMaterialWithSalt(_ pin: String, salt: Data) throws -> Data {
+        let pinData = Data(pin.utf8)
+        var derivedKey = Data(count: 32)
+        derivedKey.withUnsafeMutableBytes { derivedBuf in
+            pinData.withUnsafeBytes { pinBuf in
+                salt.withUnsafeBytes { saltBuf in
+                    CCKeyDerivationPBKDF(
+                        CCPBKDFAlgorithm(kCCPBKDF2),
+                        pinBuf.baseAddress?.assumingMemoryBound(to: Int8.self),
+                        pinData.count,
+                        saltBuf.baseAddress?.assumingMemoryBound(to: UInt8.self),
+                        salt.count,
+                        CCPseudoRandomAlgorithm(kCCPRFHmacAlgSHA256),
+                        pbkdf2Iterations,
+                        derivedBuf.baseAddress?.assumingMemoryBound(to: UInt8.self),
+                        32
+                    )
+                }
+            }
+        }
+        return derivedKey
+    }
+
     // MARK: - Brute-Force Protection
 
     /// Maximum failed PIN attempts before wipe.
@@ -379,10 +486,12 @@ extension Notification.Name {
 
 enum AppError: LocalizedError {
     case keychainUnavailable(String)
+    case invalidPin
 
     var errorDescription: String? {
         switch self {
         case .keychainUnavailable(let message): return message
+        case .invalidPin: return "Invalid PIN"
         }
     }
 }

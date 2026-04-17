@@ -546,19 +546,24 @@ struct ChangePinView: View {
     }
 
     private func changePin() {
-        guard appState.verifyPin(currentPin) else {
-            errorMessage = L10n.ChangePin.incorrectCurrent
-            return
-        }
         guard newPin == confirmPin else {
             errorMessage = L10n.ChangePin.dontMatch
             return
         }
         do {
-            try appState.setPin(newPin)
+            try appState.changePin(
+                current: currentPin,
+                new: newPin,
+                walletStore: appState.walletStore
+            )
+            Haptics.success()
             dismiss()
+        } catch AppError.invalidPin {
+            errorMessage = L10n.ChangePin.incorrectCurrent
+            Haptics.error()
         } catch {
             errorMessage = L10n.ChangePin.saveFailed
+            Haptics.error()
         }
     }
 }
