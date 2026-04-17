@@ -91,6 +91,12 @@ final class SigningViewModel: ObservableObject {
     private var pendingBtcRawData: Data?
     private var pendingBtcInputCount: Int = 0
 
+    /// For real EVM signing: holds the Rust-built unsigned EIP-1559 envelope
+    /// (`0x02 || RLP(...)`) plus the gas estimate used to build it, so the
+    /// post-signing step can splice in (y_parity, r, s) and broadcast.
+    private var pendingEvmRawData: Data?
+    private var pendingEvmGas: BlockchainService.EvmGasEstimate?
+
     var shortRecipient: String {
         guard recipientAddress.count > 12 else { return recipientAddress }
         return "\(recipientAddress.prefix(6))…\(recipientAddress.suffix(4))"
@@ -196,6 +202,7 @@ final class SigningViewModel: ObservableObject {
                         estimatedGas = "\(estimate.gasLimit)"
                         estimatedFee = "≈ \(feeDisplay.estimatedFee)"
                         isEstimatingGas = false
+                        self.pendingEvmGas = estimate
                     }
                 } else {
                     switch wallet.chain {
@@ -403,12 +410,15 @@ final class SigningViewModel: ObservableObject {
                         signingStatusMessage = L10n.Signing.verifyingSig
 
                         // Default: raw 64-byte ECDSA signature hex. For
-                        // Bitcoin we splice into the stashed raw tx to get
-                        // a real broadcast-ready segwit hex; other chains
-                        // still write the bare sig for now (until Rust-side
-                        // finalization ships for EVM/SOL).
+                        // P2WPKH chains (BTC/LTC) we splice into the stashed
+                        // raw tx; for EVM we RLP-wrap with (r,s,yParity).
                         if let finalBtcHex = finalizeBitcoinSignedTx(signature: result.signature) {
                             txHash = finalBtcHex
+                        } else if let finalEvmHex = finalizeEvmSignedTx(
+                            signature: result.signature,
+                            recoveryId: result.recoveryId
+                        ) {
+                            txHash = finalEvmHex
                         } else {
                             txHash = "0x" + result.signature.map { String(format: "%02x", $0) }.joined()
                         }
@@ -486,10 +496,9 @@ final class SigningViewModel: ObservableObject {
         }
 
         if wallet.chain.isEVM {
-            // Build real EIP-1559 sign hash via Rust FFI. For Ethereum itself
-            // we use the user-configured chainId (allows Sepolia); for the
-            // other first-class EVM chains the chainId is fixed to that
-            // network's mainnet id.
+            // Build real EIP-1559 sign hash via Rust FFI. Use the gas
+            // estimate cached during fee preview; re-fetch nonce right
+            // before signing to avoid races.
             let (txTo, txValueWei, txData): (String, String, Data) = {
                 if let token = self.selectedToken {
                     let raw = Self.amountToRawUnits(amount, decimals: Int(token.decimals))
@@ -503,17 +512,31 @@ final class SigningViewModel: ObservableObject {
                 if wallet.chain == .ethereum { return networkConfig.evmChainId }
                 return wallet.chain.defaultEVMNetwork?.rawValue ?? networkConfig.evmChainId
             }()
+            let rpc = networkConfig.rpcURL(for: wallet.chain)
+
+            // Fresh nonce right before we sign.
+            let nonce: UInt64 = (try? await blockchainService?.ethNonce(
+                address: wallet.address, rpcURL: rpc)) ?? 0
+
+            // Reuse cached gas estimate if present, otherwise fall back to
+            // minimal sensible defaults so signing doesn't crash.
+            let gas = self.pendingEvmGas
+            let gasLimit: UInt64 = gas?.gasLimit ?? UInt64(estimatedGas) ?? 21000
+            let maxFee: String = gas?.maxFeePerGas ?? "0"
+            let maxPriority: String = gas?.maxPriorityFeePerGas ?? "0"
+
             let params = FfiEvmTxParams(
                 to: txTo,
                 valueWei: txValueWei,
-                nonce: 0,
-                gasLimit: UInt64(estimatedGas) ?? 21000,
-                maxFeePerGas: "0",
-                maxPriorityFeePerGas: "0",
+                nonce: nonce,
+                gasLimit: gasLimit,
+                maxFeePerGas: maxFee,
+                maxPriorityFeePerGas: maxPriority,
                 chainId: chainId,
                 data: txData
             )
             if let tx = try? horcruxBuildEvmTransaction(params: params) {
+                self.pendingEvmRawData = tx.rawData
                 return tx.signHash
             }
             // Fallback: hash a stable string representation
@@ -671,6 +694,36 @@ final class SigningViewModel: ObservableObject {
             return BtcSigner.hexEncode(signed)
         } catch {
             SecureLog.error("BTC finalize failed: \(error.localizedDescription)")
+            return nil
+        }
+    }
+
+    /// Splice the MPC (r,s) + recovery_id into the stashed EIP-1559 envelope
+    /// to produce a broadcast-ready signed tx hex. Returns nil for chains
+    /// other than EVM, or if the stashed state is missing (e.g. fallback
+    /// placeholder sighash was used).
+    private func finalizeEvmSignedTx(signature: Data, recoveryId: UInt8?) -> String? {
+        guard wallet.chain.isEVM,
+              let rawData = pendingEvmRawData,
+              signature.count == 64,
+              let recId = recoveryId else {
+            return nil
+        }
+        let r = signature.prefix(32)
+        let s = signature.suffix(32)
+        // y_parity must be 0 or 1. Threshold ECDSA may return 2/3 when r
+        // overflowed the curve order — extremely rare; fall back to the
+        // low bit in that case so we still produce a tx (node will reject
+        // if truly wrong and user can retry).
+        let yParity: UInt8 = recId & 1
+        do {
+            let hex = try EvmSigner.assembleSignedTx(
+                rawUnsigned: rawData, r: Data(r), s: Data(s), yParity: yParity
+            )
+            pendingEvmRawData = nil
+            return hex
+        } catch {
+            SecureLog.error("EVM finalize failed: \(error.localizedDescription)")
             return nil
         }
     }

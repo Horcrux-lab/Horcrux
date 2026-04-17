@@ -11,6 +11,7 @@
 		9DCA2DF7062E2DFB22E30351 /* AddressFormatter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 85DE3C5A10CCE0DB2B96E51A /* AddressFormatter.swift */; };
 		B7C300001111AAA1 /* Bech32.swift in Sources */ = {isa = PBXBuildFile; fileRef = B7C300001111AAA0 /* Bech32.swift */; };
 		B7C300002222AAA1 /* BtcSigner.swift in Sources */ = {isa = PBXBuildFile; fileRef = B7C300002222AAA0 /* BtcSigner.swift */; };
+		B7C300003333AAA1 /* EvmSigner.swift in Sources */ = {isa = PBXBuildFile; fileRef = B7C300003333AAA0 /* EvmSigner.swift */; };
 		90803886A22680E3AD03A524 /* NodeErrorMapper.swift in Sources */ = {isa = PBXBuildFile; fileRef = A8303C767CD13576FA6B6246 /* NodeErrorMapper.swift */; };
 		16BDEDFBE061FF53ED64D520 /* PriceService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 13BA8115A370850B07FF2F86 /* PriceService.swift */; };
 		B1A2C3D4E5F6000000000001 /* BalanceCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1A2C3D4E5F6000000000002 /* BalanceCache.swift */; };
@@ -165,6 +166,7 @@
 		85DE3C5A10CCE0DB2B96E51A /* AddressFormatter.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AddressFormatter.swift; sourceTree = "<group>"; };
 		B7C300001111AAA0 /* Bech32.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Bech32.swift; sourceTree = "<group>"; };
 		B7C300002222AAA0 /* BtcSigner.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = BtcSigner.swift; sourceTree = "<group>"; };
+		B7C300003333AAA0 /* EvmSigner.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = EvmSigner.swift; sourceTree = "<group>"; };
 		A8303C767CD13576FA6B6246 /* NodeErrorMapper.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = NodeErrorMapper.swift; sourceTree = "<group>"; };
 		13BA8115A370850B07FF2F86 /* PriceService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PriceService.swift; sourceTree = "<group>"; };
 		B1A2C3D4E5F6000000000002 /* BalanceCache.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = BalanceCache.swift; sourceTree = "<group>"; };
@@ -480,6 +482,7 @@
 				85DE3C5A10CCE0DB2B96E51A /* AddressFormatter.swift */,
 				B7C300001111AAA0 /* Bech32.swift */,
 				B7C300002222AAA0 /* BtcSigner.swift */,
+				B7C300003333AAA0 /* EvmSigner.swift */,
 				A8303C767CD13576FA6B6246 /* NodeErrorMapper.swift */,
 				13BA8115A370850B07FF2F86 /* PriceService.swift */,
 				B1A2C3D4E5F6000000000002 /* BalanceCache.swift */,
@@ -703,6 +706,7 @@
 				9DCA2DF7062E2DFB22E30351 /* AddressFormatter.swift in Sources */,
 				B7C300001111AAA1 /* Bech32.swift in Sources */,
 				B7C300002222AAA1 /* BtcSigner.swift in Sources */,
+				B7C300003333AAA1 /* EvmSigner.swift in Sources */,
 				90803886A22680E3AD03A524 /* NodeErrorMapper.swift in Sources */,
 				16BDEDFBE061FF53ED64D520 /* PriceService.swift in Sources */,
 				B1A2C3D4E5F6000000000001 /* BalanceCache.swift in Sources */,
