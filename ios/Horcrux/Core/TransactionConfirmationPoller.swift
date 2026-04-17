@@ -62,9 +62,7 @@ actor TransactionConfirmationPoller {
             case .solana:
                 return try await checkSolConfirmation(txHash: txHash, service: service, rpcURL: config.solanaRPC)
             case .tron:
-                // TRON signing not yet wired — no pending tx hashes should
-                // reach this branch, so "not yet" keeps the UI from spinning.
-                return false
+                return try await checkTronConfirmation(txID: txHash, apiURL: config.tronAPI)
             default:
                 return false
             }
@@ -97,5 +95,12 @@ actor TransactionConfirmationPoller {
 
     private func checkSolConfirmation(txHash: String, service: BlockchainService, rpcURL: String) async throws -> Bool {
         return try await service.solSigConfirmed(signature: txHash, rpcURL: rpcURL)
+    }
+
+    private func checkTronConfirmation(txID: String, apiURL: String) async throws -> Bool {
+        // TRON tx IDs are unprefixed 64-char hex. TronGrid's
+        // /wallet/gettransactionbyid returns `{}` while pending.
+        let service = BlockchainService()
+        return try await service.tronTxConfirmed(txID: txID, apiURL: apiURL)
     }
 }

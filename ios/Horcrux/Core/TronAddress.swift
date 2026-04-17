@@ -90,4 +90,88 @@ enum TronAddress {
         }
         return result
     }
+
+    /// Base58Check decode — reverse of the encoder above. Returns the
+    /// payload (including network prefix) with the trailing 4-byte
+    /// checksum stripped, or nil on any structural / checksum failure.
+    static func base58CheckDecode(_ s: String) -> [UInt8]? {
+        guard !s.isEmpty else { return nil }
+        // Count leading '1's (each represents a zero byte).
+        var zeros = 0
+        for c in s {
+            if c == "1" { zeros += 1 } else { break }
+        }
+
+        // Alphabet → index map
+        var alphabet: [Character: Int] = [:]
+        for (i, c) in base58Alphabet.enumerated() { alphabet[c] = i }
+
+        // Base-58 → base-256 via long multiplication.
+        var bytes: [UInt8] = [0]
+        for c in s {
+            guard let val = alphabet[c] else { return nil }
+            var carry = val
+            for i in 0..<bytes.count {
+                carry += Int(bytes[i]) * 58
+                bytes[i] = UInt8(carry & 0xff)
+                carry >>= 8
+            }
+            while carry > 0 {
+                bytes.append(UInt8(carry & 0xff))
+                carry >>= 8
+            }
+        }
+        bytes.reverse()
+
+        // Restore leading zeros lost by the reversal.
+        var result = Array<UInt8>(repeating: 0, count: zeros)
+        // Skip the extra leading zero we started the accumulator with, if present.
+        var idx = 0
+        while idx < bytes.count && bytes[idx] == 0 && idx < (bytes.count - 1) { idx += 1 }
+        // Unless that zero was *meaningful* (i.e. already reflected in `zeros`),
+        // keep only the non-leading bytes.
+        if zeros == 0 { result.append(contentsOf: bytes[idx...]) }
+        else { result.append(contentsOf: bytes[idx...]) }
+
+        guard result.count >= 4 else { return nil }
+        let payload = Array(result.prefix(result.count - 4))
+        let given = Array(result.suffix(4))
+        let first = SHA256.hash(data: Data(payload))
+        let second = SHA256.hash(data: Data(first))
+        let expected = Array(Data(second).prefix(4))
+        guard given == expected else { return nil }
+        return payload
+    }
+}
+
+/// Namespaced view the BlockchainService calls into for address ABI encoding.
+enum Base58Check {
+    static func decode(_ s: String) -> [UInt8]? { TronAddress.base58CheckDecode(s) }
+}
+
+/// Convert a non-negative decimal string (any length) to a 64-char
+/// lowercase hex string suitable for ABI uint256 encoding. Returns
+/// nil on invalid input.
+func decimalStringToABIUint256Hex(_ s: String) -> String? {
+    let trimmed = s.trimmingCharacters(in: .whitespaces)
+    guard !trimmed.isEmpty, trimmed.allSatisfy({ $0.isNumber }) else { return nil }
+    // Convert decimal → big-endian byte array via long division.
+    var digits = trimmed.compactMap { $0.wholeNumberValue }
+    var bytes: [UInt8] = []
+    while !digits.isEmpty {
+        var carry = 0
+        var next: [Int] = []
+        for d in digits {
+            let cur = carry * 10 + d
+            let q = cur / 256
+            carry = cur % 256
+            if !next.isEmpty || q != 0 { next.append(q) }
+        }
+        bytes.append(UInt8(carry))
+        digits = next
+    }
+    bytes.reverse()
+    guard bytes.count <= 32 else { return nil }
+    let pad = Array<UInt8>(repeating: 0, count: 32 - bytes.count)
+    return (pad + bytes).map { String(format: "%02x", $0) }.joined()
 }

@@ -347,6 +347,203 @@ actor BlockchainService {
         return decoded.balance ?? 0
     }
 
+    /// TRON unsigned transaction handed back by TronGrid's
+    /// `/wallet/createtransaction` (native TRX) and
+    /// `/wallet/triggersmartcontract` (TRC-20) endpoints.
+    struct TronUnsignedTx {
+        let txID: String           // 32-byte hash in hex — this is what we sign.
+        let rawDataHex: String     // protobuf-serialised raw_data; opaque to us.
+        let rawDataJSON: [String: Any] // decoded raw_data object; needed for broadcast.
+    }
+
+    /// Ask TronGrid to build an unsigned native TRX transfer and return the
+    /// 32-byte txID (sha256 of raw_data) that the MPC round will sign.
+    ///
+    /// Using the remote builder lets us avoid shipping a protobuf runtime in
+    /// the app. The returned `raw_data_hex` is treated as opaque bytes — we
+    /// never decode it, only hand it back on broadcast.
+    func tronCreateTransaction(
+        from: String, to: String, amountSun: UInt64, apiURL: String
+    ) async throws -> TronUnsignedTx {
+        guard let url = URL(string: "\(apiURL)/wallet/createtransaction") else {
+            throw BlockchainError.invalidURL(apiURL)
+        }
+        let body: [String: Any] = [
+            "owner_address": from,
+            "to_address": to,
+            "amount": amountSun,
+            "visible": true,
+        ]
+        var req = URLRequest(url: url)
+        req.httpMethod = "POST"
+        req.httpBody = try JSONSerialization.data(withJSONObject: body)
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        let (data, response) = try await session.data(for: req)
+        try validateHTTP(response)
+        return try decodeTronUnsigned(data: data)
+    }
+
+    /// Build an unsigned TRC-20 `transfer(address,uint256)` call via
+    /// `/wallet/triggersmartcontract`. Used for USDT-TRC20 and any other
+    /// standard TRC-20 token.
+    ///
+    /// `to` is the recipient base58 address, `contract` is the token
+    /// contract's base58 address (e.g. `TR7NHqjeK...` for USDT).
+    func tronTriggerTRC20Transfer(
+        from: String, contract: String, to: String, amountRaw: String,
+        feeLimitSun: UInt64 = 40_000_000, apiURL: String
+    ) async throws -> TronUnsignedTx {
+        guard let url = URL(string: "\(apiURL)/wallet/triggersmartcontract") else {
+            throw BlockchainError.invalidURL(apiURL)
+        }
+        // ABI-encode transfer(address,uint256):
+        //   32 bytes: recipient address left-padded
+        //   32 bytes: amount left-padded
+        let toHex20 = try tronBase58AddressToHex20(to)
+        let addrPadded = String(repeating: "0", count: 24) + toHex20
+        guard let amtPadded = decimalStringToABIUint256Hex(amountRaw) else {
+            throw BlockchainError.invalidResponse
+        }
+        let parameter = addrPadded + amtPadded
+
+        let body: [String: Any] = [
+            "owner_address": from,
+            "contract_address": contract,
+            "function_selector": "transfer(address,uint256)",
+            "parameter": parameter,
+            "fee_limit": feeLimitSun,
+            "call_value": 0,
+            "visible": true,
+        ]
+        var req = URLRequest(url: url)
+        req.httpMethod = "POST"
+        req.httpBody = try JSONSerialization.data(withJSONObject: body)
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        let (data, response) = try await session.data(for: req)
+        try validateHTTP(response)
+        // triggersmartcontract nests the tx under "transaction"; createtransaction
+        // returns it at the top level. Handle both.
+        if let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
+           let inner = json["transaction"] as? [String: Any] {
+            let innerData = try JSONSerialization.data(withJSONObject: inner)
+            return try decodeTronUnsigned(data: innerData)
+        }
+        return try decodeTronUnsigned(data: data)
+    }
+
+    /// Broadcast a signed TRON transaction. `signatureHex` is the 65-byte
+    /// (r||s||v) hex string produced by the MPC round, where v is the
+    /// secp256k1 recovery id (0 or 1 — TRON does NOT add 27).
+    func tronBroadcast(
+        rawDataHex: String, rawDataJSON: [String: Any],
+        signatureHex: String, apiURL: String
+    ) async throws -> String {
+        guard let url = URL(string: "\(apiURL)/wallet/broadcasttransaction") else {
+            throw BlockchainError.invalidURL(apiURL)
+        }
+        // Need txID as well (the hash we signed) so TronGrid can verify.
+        // The caller passes it via rawDataJSON → we also re-send raw_data_hex.
+        var body: [String: Any] = [
+            "raw_data": rawDataJSON,
+            "raw_data_hex": rawDataHex,
+            "signature": [signatureHex],
+            "visible": true,
+        ]
+        // Some deployments require txID explicitly on broadcast.
+        if let txID = rawDataJSON["txID"] as? String { body["txID"] = txID }
+
+        var req = URLRequest(url: url)
+        req.httpMethod = "POST"
+        req.httpBody = try JSONSerialization.data(withJSONObject: body)
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        let (data, response) = try await session.data(for: req)
+        try validateHTTP(response)
+
+        guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            throw BlockchainError.invalidResponse
+        }
+        if let ok = json["result"] as? Bool, ok {
+            // TronGrid returns the submitted txID on success; fall back to
+            // our local copy if the field is missing in some deployments.
+            if let tx = json["txid"] as? String { return tx }
+            if let tx = rawDataJSON["txID"] as? String { return tx }
+            return ""
+        }
+        let code = (json["code"] as? String) ?? "UNKNOWN"
+        let msgHex = (json["message"] as? String) ?? ""
+        let msg = hexToUtf8(msgHex) ?? msgHex
+        throw BlockchainError.invalidResponse
+    }
+
+    /// Poll `/wallet/gettransactionbyid` — returns true once the tx has
+    /// landed in a block.
+    func tronTxConfirmed(txID: String, apiURL: String) async throws -> Bool {
+        guard let url = URL(string: "\(apiURL)/wallet/gettransactionbyid") else {
+            return false
+        }
+        let body: [String: Any] = ["value": txID, "visible": true]
+        var req = URLRequest(url: url)
+        req.httpMethod = "POST"
+        req.httpBody = try JSONSerialization.data(withJSONObject: body)
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        let (data, _) = try await session.data(for: req)
+        guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            return false
+        }
+        // A mined tx carries `ret: [{contractRet: "SUCCESS"|"REVERT"|...}]`.
+        // A pending / unknown tx returns `{}`.
+        return (json["ret"] as? [[String: Any]])?.isEmpty == false
+    }
+
+    // MARK: - TRON helpers
+
+    private func decodeTronUnsigned(data: Data) throws -> TronUnsignedTx {
+        guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            throw BlockchainError.invalidResponse
+        }
+        if let err = json["Error"] as? String {
+            throw BlockchainError.invalidResponse
+        }
+        guard let txID = json["txID"] as? String,
+              let rawDataHex = json["raw_data_hex"] as? String,
+              let rawDataAny = json["raw_data"] as? [String: Any]
+        else {
+            throw BlockchainError.invalidResponse
+        }
+        // Keep txID inside rawDataJSON for the broadcast call; harmless duplicate.
+        var withTxID = rawDataAny
+        withTxID["txID"] = txID
+        return TronUnsignedTx(txID: txID, rawDataHex: rawDataHex, rawDataJSON: withTxID)
+    }
+
+    /// Convert a base58-check TRON address (e.g. "TR7NHqjeK...") to its
+    /// 20-byte hex form, stripping the 0x41 network prefix. Used for ABI
+    /// encoding of TRC-20 calls.
+    private func tronBase58AddressToHex20(_ address: String) throws -> String {
+        guard let hex41 = Base58Check.decode(address) else {
+            throw BlockchainError.invalidResponse
+        }
+        guard hex41.count == 21, hex41[0] == 0x41 else {
+            throw BlockchainError.invalidResponse
+        }
+        return hex41.dropFirst().map { String(format: "%02x", $0) }.joined()
+    }
+
+    private func hexToUtf8(_ hex: String) -> String? {
+        var bytes: [UInt8] = []
+        var s = hex
+        if s.hasPrefix("0x") { s.removeFirst(2) }
+        guard s.count % 2 == 0 else { return nil }
+        var idx = s.startIndex
+        while idx < s.endIndex {
+            let next = s.index(idx, offsetBy: 2)
+            guard let b = UInt8(s[idx..<next], radix: 16) else { return nil }
+            bytes.append(b)
+            idx = next
+        }
+        return String(data: Data(bytes), encoding: .utf8)
+    }
+
     /// Fetch a recent blockhash for transaction construction.
     func solRecentBlockhash(rpcURL: String) async throws -> String {
         struct BlockhashResult: Decodable {

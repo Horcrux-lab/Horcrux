@@ -135,6 +135,11 @@ final class SigningViewModel: ObservableObject {
     /// MPC-produced ed25519 signature after signing completes.
     private var pendingSolMessage: Data?
 
+    /// TRON unsigned-tx context: we send `txID` (32-byte hash) to the MPC
+    /// round, then replay `rawDataHex` + `rawDataJSON` to TronGrid on
+    /// broadcast along with the produced signature.
+    private var pendingTronTx: BlockchainService.TronUnsignedTx?
+
     /// ENS primary name (forward-verified) for the current `recipientAddress`,
     /// when it's a valid EVM address on Ethereum mainnet. Populated asynchronously
     /// after the user types or pastes the address. `nil` when no primary name is
@@ -295,7 +300,17 @@ final class SigningViewModel: ObservableObject {
                             estimatedFee = "≈ \(feeDisplay.estimatedFee)"
                             isEstimatingGas = false
                         }
-                    case .litecoin, .tron:
+                    case .tron:
+                        // Rough conservative defaults; real fee depends on
+                        // bandwidth/energy credits held by the account. Native
+                        // TRX transfer with no bandwidth costs ~0.28 TRX;
+                        // TRC-20 transfer typically 13-27 TRX.
+                        let feeTRX = self.selectedToken == nil ? "≈ 0.3 TRX" : "≈ 14 TRX"
+                        await MainActor.run {
+                            estimatedFee = feeTRX
+                            isEstimatingGas = false
+                        }
+                    case .litecoin:
                         // Signing not wired yet; show a hint so the user knows the
                         // preview is informational only.
                         await MainActor.run {
@@ -493,6 +508,11 @@ final class SigningViewModel: ObservableObject {
                             txHash = finalEvmHex
                         } else if let finalSolB64 = finalizeSolanaSignedTx(signature: result.signature) {
                             txHash = finalSolB64
+                        } else if let finalTronTxID = finalizeTronSignedTx(
+                            signature: result.signature,
+                            recoveryId: result.recoveryId
+                        ) {
+                            txHash = finalTronTxID
                         } else {
                             txHash = "0x" + result.signature.map { String(format: "%02x", $0) }.joined()
                         }
@@ -652,6 +672,13 @@ final class SigningViewModel: ObservableObject {
             return Data(txData.utf8)
 
         case .tron:
+            // Real TRON signing — ask TronGrid to build the unsigned tx
+            // (TRX transfer or TRC-20 `transfer(address,uint256)`), stash
+            // the raw_data so we can replay it on broadcast, and return the
+            // 32-byte txID as the hash the MPC round will sign.
+            if let built = try? await buildTronSignHash() {
+                return built
+            }
             let txData = "\(amount) TRX → \(recipientAddress)"
             return horcruxKeccak256(data: Data(txData.utf8))
 
@@ -835,6 +862,72 @@ final class SigningViewModel: ObservableObject {
         return signed.base64EncodedString()
     }
 
+    /// Ask TronGrid to build the unsigned TRON transaction (native TRX or
+    /// TRC-20 `transfer`), stash the raw_data fields so broadcast can replay
+    /// them, and return the 32-byte `txID` (sha256 of raw_data) as the hash
+    /// the MPC round will sign.
+    private func buildTronSignHash() async throws -> Data {
+        guard let blockchainService, let networkConfig else {
+            throw SigningError.notInitialized
+        }
+        let apiURL = networkConfig.tronAPI
+        let built: BlockchainService.TronUnsignedTx
+        if let token = selectedToken {
+            // TRC-20 transfer — token.id is the base58 contract address.
+            let amountRaw = Self.amountToRawUnits(amount, decimals: Int(token.decimals))
+            built = try await blockchainService.tronTriggerTRC20Transfer(
+                from: wallet.address,
+                contract: token.id,
+                to: recipientAddress,
+                amountRaw: amountRaw,
+                apiURL: apiURL
+            )
+        } else {
+            // Native TRX, denominated in `sun` (1 TRX = 1e6 sun).
+            let amountRaw = Self.amountToRawUnits(amount, decimals: 6)
+            let sun = UInt64(amountRaw) ?? 0
+            built = try await blockchainService.tronCreateTransaction(
+                from: wallet.address,
+                to: recipientAddress,
+                amountSun: sun,
+                apiURL: apiURL
+            )
+        }
+        self.pendingTronTx = built
+        guard let hash = Self.hexToData(built.txID) else {
+            throw SigningError.notInitialized
+        }
+        return hash
+    }
+
+    /// Attach the MPC signature (r || s || v) to the stashed unsigned
+    /// TRON tx so `broadcastTransaction` has everything it needs.
+    /// Returns a hex string of the pending txID, or nil for non-TRON
+    /// chains / missing state. The returned "signed hex" is just the
+    /// txID because broadcast actually takes the raw_data_hex +
+    /// signature separately — we persist them via `pendingTronTx`.
+    private func finalizeTronSignedTx(signature: Data, recoveryId: UInt8?) -> String? {
+        guard wallet.chain == .tron,
+              let tron = pendingTronTx,
+              signature.count == 64 else {
+            return nil
+        }
+        // TRON signature is 65 bytes: r || s || v, where v is the raw
+        // recovery id (0 or 1) — NOT bumped by 27 like EVM.
+        let r = signature.prefix(32)
+        let s = signature.suffix(32)
+        let v: UInt8 = (recoveryId ?? 0) & 1
+        var sig = Data()
+        sig.append(r); sig.append(s); sig.append(v)
+        // Stash the sig alongside the raw_data so broadcastTransaction
+        // can replay everything.
+        self.pendingTronSignature = sig.map { String(format: "%02x", $0) }.joined()
+        // Return the txID so the UI / TransactionStore have a stable
+        // reference before broadcast lands.
+        return tron.txID
+    }
+    private var pendingTronSignature: String?
+
     /// Splice the MPC (r,s) + recovery_id into the stashed EIP-1559 envelope
     /// to produce a broadcast-ready signed tx hex. Returns nil for chains
     /// other than EVM, or if the stashed state is missing (e.g. fallback
@@ -928,13 +1021,34 @@ final class SigningViewModel: ObservableObject {
                             }
                         }
                     case .tron:
-                        await MainActor.run {
-                            broadcastStatus = "Broadcast for \(wallet.chain.rawValue) is not supported yet."
-                            isBroadcasting = false
-                            Haptics.error()
-                            if let id = currentRecordId {
-                                transactionStore?.updateStatus(id: id, status: .failed)
+                        guard let tron = self.pendingTronTx,
+                              let sig = self.pendingTronSignature else {
+                            await MainActor.run {
+                                broadcastStatus = "广播失败：TRON 签名状态缺失"
+                                isBroadcasting = false
+                                Haptics.error()
+                                if let id = currentRecordId {
+                                    transactionStore?.updateStatus(id: id, status: .failed)
+                                }
                             }
+                            return
+                        }
+                        let result = try await blockchainService.tronBroadcast(
+                            rawDataHex: tron.rawDataHex,
+                            rawDataJSON: tron.rawDataJSON,
+                            signatureHex: sig,
+                            apiURL: networkConfig.tronAPI
+                        )
+                        let finalTxID = result.isEmpty ? tron.txID : result
+                        await MainActor.run {
+                            broadcastStatus = "Broadcast OK: \(finalTxID.prefix(20))…"
+                            isBroadcasting = false
+                            Haptics.success()
+                            if let id = currentRecordId {
+                                transactionStore?.updateStatus(id: id, status: .broadcast, txHash: finalTxID)
+                            }
+                            self.pendingTronTx = nil
+                            self.pendingTronSignature = nil
                         }
                     default:
                         await MainActor.run {

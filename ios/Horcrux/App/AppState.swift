@@ -613,7 +613,7 @@ enum Chain: String, Codable, CaseIterable, Identifiable {
         switch self {
         case .bitcoin, .solana: return true
         case .litecoin: return true
-        case .tron: return false
+        case .tron: return true
         default: return false
         }
     }
