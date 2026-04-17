@@ -58,23 +58,63 @@ final class NetworkConfig: ObservableObject, @unchecked Sendable {
         }
     }
 
+    /// Alchemy API key for EVM. Stored in Keychain (never UserDefaults).
+    /// When `ethereumRPC` contains the `{KEY}` placeholder, this value is
+    /// substituted in at RPC-call time.
+    @Published var alchemyAPIKey: String {
+        didSet {
+            saveKeychain(alchemyAPIKey, forKey: Keys.alchemyKey)
+            invalidateBalances()
+        }
+    }
+
+    /// Helius API key for Solana. Same substitution pattern as `alchemyAPIKey`.
+    @Published var heliusAPIKey: String {
+        didSet {
+            saveKeychain(heliusAPIKey, forKey: Keys.heliusKey)
+            invalidateBalances()
+        }
+    }
+
     private init() {
         let ud = UserDefaults.standard
         self.ethereumRPC = ud.string(forKey: Keys.ethereumRPC) ?? Defaults.ethereumRPC
         self.bitcoinAPI = ud.string(forKey: Keys.bitcoinAPI) ?? Defaults.bitcoinAPI
         self.solanaRPC = ud.string(forKey: Keys.solanaRPC) ?? Defaults.solanaRPC
         let storedChainId = ud.integer(forKey: Keys.evmChainId)
+        if storedChainId == 0 && ud.object(forKey: Keys.evmChainId) != nil {
+            NSLog("[NetworkConfig] Stored EVM chainId was 0 (invalid) — falling back to mainnet (1)")
+        }
         self.evmChainId = UInt64(storedChainId == 0 ? 1 : storedChainId)
         self.btcTestnet = ud.bool(forKey: Keys.btcTestnet)
         self.solDevnet = ud.bool(forKey: Keys.solDevnet)
+        self.alchemyAPIKey = Self.loadKeychainString(key: Keys.alchemyKey)
+        self.heliusAPIKey = Self.loadKeychainString(key: Keys.heliusKey)
     }
 
     func rpcURL(for chain: Chain) -> String {
+        let raw: String
         switch chain {
-        case .ethereum: return ethereumRPC
-        case .bitcoin: return bitcoinAPI
-        case .solana: return solanaRPC
+        case .ethereum: raw = ethereumRPC
+        case .bitcoin: raw = bitcoinAPI
+        case .solana: raw = solanaRPC
         }
+        return substituteAPIKey(in: raw, chain: chain)
+    }
+
+    /// Replace `{KEY}` placeholder in a URL template with the per-chain
+    /// Keychain-stored API key. Returns the raw URL unchanged if no
+    /// placeholder is present or the relevant key is empty.
+    func substituteAPIKey(in url: String, chain: Chain) -> String {
+        guard url.contains("{KEY}") else { return url }
+        let key: String
+        switch chain {
+        case .ethereum: key = alchemyAPIKey
+        case .solana: key = heliusAPIKey
+        case .bitcoin: key = ""  // no provider template for BTC
+        }
+        guard !key.isEmpty else { return url }
+        return url.replacingOccurrences(of: "{KEY}", with: key)
     }
 
     func resetToDefaults() {
@@ -95,6 +135,31 @@ final class NetworkConfig: ObservableObject, @unchecked Sendable {
         UserDefaults.standard.set(value, forKey: key)
     }
 
+    // Persist API keys to Keychain rather than UserDefaults. Empty string
+    // means "no key set" — we delete the item instead of storing an empty
+    // blob, so the Keychain never holds placeholder rows.
+    private func saveKeychain(_ value: String, forKey key: String) {
+        do {
+            if value.isEmpty {
+                try KeychainManager.shared.delete(key: key)
+            } else if let data = value.data(using: .utf8) {
+                try KeychainManager.shared.store(key: key, data: data)
+            }
+        } catch {
+            NSLog("[NetworkConfig] Keychain write failed for \(key): \(error)")
+        }
+    }
+
+    private static func loadKeychainString(key: String) -> String {
+        do {
+            guard let data = try KeychainManager.shared.retrieve(key: key) else { return "" }
+            return String(data: data, encoding: .utf8) ?? ""
+        } catch {
+            NSLog("[NetworkConfig] Keychain read failed for \(key): \(error)")
+            return ""
+        }
+    }
+
     private func invalidateBalances() {
         Task { @MainActor in
             BalanceCache.shared.invalidateAll()
@@ -104,14 +169,20 @@ final class NetworkConfig: ObservableObject, @unchecked Sendable {
     // MARK: - Auto-swap helpers
 
     /// Swap `ethereumRPC` to the new chain's default when the previous value was
-    /// a recognized default for *any* known chain. User-customized URLs are
-    /// preserved untouched (the UI surfaces a mismatch warning separately).
+    /// a recognized default (public or Alchemy template) for *any* known chain.
+    /// User-customized URLs are preserved untouched.
     private func autoSwapEthereumRPCIfDefault(previousChainId: UInt64) {
         guard previousChainId != evmChainId else { return }
-        let known = Set(EVMNetwork.allCases.map(\.defaultRPC))
-        guard known.contains(ethereumRPC) else { return }
-        if let network = EVMNetwork(rawValue: evmChainId) {
-            ethereumRPC = network.defaultRPC
+        let publicDefaults = Set(EVMNetwork.allCases.map(\.defaultRPC))
+        let alchemyTemplates = Set(EVMNetwork.allCases.compactMap { RPCProviderTemplate.alchemy(evm: $0) })
+
+        guard let newNet = EVMNetwork(rawValue: evmChainId) else { return }
+
+        if publicDefaults.contains(ethereumRPC) {
+            ethereumRPC = newNet.defaultRPC
+        } else if alchemyTemplates.contains(ethereumRPC),
+                  let newTmpl = RPCProviderTemplate.alchemy(evm: newNet) {
+            ethereumRPC = newTmpl
         }
     }
 
@@ -297,12 +368,108 @@ private extension NetworkConfig {
         static let evmChainId = "com.horcrux.rpc.evmChainId"
         static let btcTestnet = "com.horcrux.rpc.btcTestnet"
         static let solDevnet = "com.horcrux.rpc.solDevnet"
+        static let alchemyKey = "com.horcrux.rpc.alchemyAPIKey"
+        static let heliusKey = "com.horcrux.rpc.heliusAPIKey"
     }
 
     enum Defaults {
         static let ethereumRPC = EVMNetwork.mainnet.defaultRPC
         static let bitcoinAPI = BitcoinNetwork.mainnet.defaultAPI
         static let solanaRPC = SolanaNetwork.mainnet.defaultRPC
+    }
+}
+
+// MARK: - Provider templates (for API-key users)
+
+/// URL templates with `{KEY}` placeholder for popular paid providers.
+/// The key itself lives in Keychain via `NetworkConfig.alchemyAPIKey` /
+/// `heliusAPIKey` and is substituted in at RPC-call time.
+enum RPCProviderTemplate {
+    /// Alchemy EVM template for the given chain. `{KEY}` is substituted at RPC time.
+    static func alchemy(evm: EVMNetwork) -> String? {
+        switch evm {
+        case .mainnet: return "https://eth-mainnet.g.alchemy.com/v2/{KEY}"
+        case .sepolia: return "https://eth-sepolia.g.alchemy.com/v2/{KEY}"
+        case .polygon: return "https://polygon-mainnet.g.alchemy.com/v2/{KEY}"
+        case .arbitrumOne: return "https://arb-mainnet.g.alchemy.com/v2/{KEY}"
+        case .base: return "https://base-mainnet.g.alchemy.com/v2/{KEY}"
+        }
+    }
+
+    static func helius(mainnet: Bool) -> String {
+        mainnet
+            ? "https://mainnet.helius-rpc.com/?api-key={KEY}"
+            : "https://devnet.helius-rpc.com/?api-key={KEY}"
+    }
+}
+
+// MARK: - Fallback RPC endpoints
+
+/// Public fallback endpoints tried in order when the primary fails with a
+/// transport-level error. Keeps read-path available even when llamarpc or
+/// mainnet-beta goes down.
+enum RPCFallbacks {
+    static func endpoints(for chain: Chain, config: NetworkConfig) -> [String] {
+        switch chain {
+        case .ethereum:
+            guard let net = EVMNetwork(rawValue: config.evmChainId) else { return [] }
+            switch net {
+            case .mainnet:
+                return [
+                    "https://eth.llamarpc.com",
+                    "https://ethereum.publicnode.com",
+                    "https://rpc.ankr.com/eth"
+                ]
+            case .sepolia:
+                return [
+                    "https://eth-sepolia.public.blastapi.io",
+                    "https://ethereum-sepolia.publicnode.com"
+                ]
+            case .polygon:
+                return [
+                    "https://polygon-rpc.com",
+                    "https://polygon.llamarpc.com",
+                    "https://polygon.publicnode.com"
+                ]
+            case .arbitrumOne:
+                return [
+                    "https://arb1.arbitrum.io/rpc",
+                    "https://arbitrum.llamarpc.com",
+                    "https://arbitrum.publicnode.com"
+                ]
+            case .base:
+                return [
+                    "https://mainnet.base.org",
+                    "https://base.llamarpc.com",
+                    "https://base.publicnode.com"
+                ]
+            }
+        case .bitcoin:
+            return config.btcTestnet
+                ? ["https://blockstream.info/testnet/api", "https://mempool.space/testnet/api"]
+                : ["https://blockstream.info/api", "https://mempool.space/api"]
+        case .solana:
+            return config.solDevnet
+                ? ["https://api.devnet.solana.com"]
+                : [
+                    "https://api.mainnet-beta.solana.com",
+                    "https://solana.publicnode.com"
+                ]
+        }
+    }
+
+    /// Build the actual ordered attempt list starting from the user's
+    /// configured URL, then any public fallbacks (deduplicated).
+    static func orderedAttempts(for chain: Chain, config: NetworkConfig) -> [String] {
+        let primary = config.rpcURL(for: chain)
+        let fallbacks = endpoints(for: chain, config: config)
+        var seen = Set<String>()
+        var out: [String] = []
+        for url in [primary] + fallbacks where !seen.contains(url) {
+            seen.insert(url)
+            out.append(url)
+        }
+        return out
     }
 }
 

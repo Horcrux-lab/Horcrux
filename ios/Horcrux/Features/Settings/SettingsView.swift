@@ -682,6 +682,24 @@ struct BlockchainNodeSettingsView: View {
                     }
                 }
 
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Alchemy API key (optional, stored in Keychain)")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    SecureField("Paste your key", text: $config.alchemyAPIKey)
+                        .font(.system(.body, design: .monospaced))
+                        .autocorrectionDisabled()
+                        .textInputAutocapitalization(.never)
+                    if !config.alchemyAPIKey.isEmpty,
+                       let net = EVMNetwork(rawValue: config.evmChainId),
+                       let tmpl = RPCProviderTemplate.alchemy(evm: net) {
+                        Button("Use Alchemy for \(net.displayName)") {
+                            config.ethereumRPC = tmpl
+                        }
+                        .font(.caption)
+                    }
+                }
+
                 NodeStatusRow(chain: .ethereum)
             }
 
@@ -717,6 +735,22 @@ struct BlockchainNodeSettingsView: View {
 
                 Toggle(L10n.NodeSettings.devnet, isOn: $config.solDevnet)
                     .accessibilityHint(L10n.NodeSettings.devnetHint)
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Helius API key (optional, stored in Keychain)")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    SecureField("Paste your key", text: $config.heliusAPIKey)
+                        .font(.system(.body, design: .monospaced))
+                        .autocorrectionDisabled()
+                        .textInputAutocapitalization(.never)
+                    if !config.heliusAPIKey.isEmpty {
+                        Button("Use Helius") {
+                            config.solanaRPC = RPCProviderTemplate.helius(mainnet: !config.solDevnet)
+                        }
+                        .font(.caption)
+                    }
+                }
 
                 NodeStatusRow(chain: .solana)
             }
@@ -833,16 +867,16 @@ struct NodeStatusRow: View {
             do {
                 switch chain {
                 case .ethereum:
-                    _ = try await service.ethBlockNumber(rpcURL: config.ethereumRPC)
+                    _ = try await service.ethBlockNumber(rpcURL: config.rpcURL(for: .ethereum))
                 case .bitcoin:
-                    let urlString = "\(config.bitcoinAPI)/blocks/tip/hash"
+                    let urlString = "\(config.rpcURL(for: .bitcoin))/blocks/tip/hash"
                     guard let url = URL(string: urlString) else { throw BlockchainError.invalidURL(urlString) }
                     let (_, response) = try await PinnedURLSession.shared.session.data(from: url)
                     guard let http = response as? HTTPURLResponse, (200...299).contains(http.statusCode) else {
                         throw BlockchainError.httpError(statusCode: (response as? HTTPURLResponse)?.statusCode ?? 0)
                     }
                 case .solana:
-                    _ = try await service.solHealth(rpcURL: config.solanaRPC)
+                    _ = try await service.solHealth(rpcURL: config.rpcURL(for: .solana))
                 }
                 await MainActor.run {
                     status = .connected

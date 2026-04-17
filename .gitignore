@@ -8,3 +8,4 @@
 ios/Horcrux/Core/Frameworks/*.a
 ios/build/
 ios/DerivedData/
+ios/build-sim2/

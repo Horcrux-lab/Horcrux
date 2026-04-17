@@ -360,17 +360,31 @@ actor BlockchainService {
     // MARK: - Generic balance fetch
 
     func balance(for wallet: Wallet, config: NetworkConfig) async throws -> String {
-        switch wallet.chain {
-        case .ethereum:
-            let wei = try await ethBalance(address: wallet.address, rpcURL: config.ethereumRPC)
-            return formatEthBalance(wei: wei)
-        case .bitcoin:
-            let sats = try await btcBalance(address: wallet.address, apiURL: config.bitcoinAPI)
-            return formatBtcBalance(satoshis: sats)
-        case .solana:
-            let lamports = try await solBalance(address: wallet.address, rpcURL: config.solanaRPC)
-            return formatSolBalance(lamports: lamports)
+        let attempts = RPCFallbacks.orderedAttempts(for: wallet.chain, config: config)
+        var lastError: Error = BlockchainError.invalidURL("no endpoints")
+        for (idx, url) in attempts.enumerated() {
+            do {
+                switch wallet.chain {
+                case .ethereum:
+                    let wei = try await ethBalance(address: wallet.address, rpcURL: url)
+                    if idx > 0 { SecureLog.info("RPC fallback \(idx) succeeded for ETH balance") }
+                    return formatEthBalance(wei: wei)
+                case .bitcoin:
+                    let sats = try await btcBalance(address: wallet.address, apiURL: url)
+                    if idx > 0 { SecureLog.info("RPC fallback \(idx) succeeded for BTC balance") }
+                    return formatBtcBalance(satoshis: sats)
+                case .solana:
+                    let lamports = try await solBalance(address: wallet.address, rpcURL: url)
+                    if idx > 0 { SecureLog.info("RPC fallback \(idx) succeeded for SOL balance") }
+                    return formatSolBalance(lamports: lamports)
+                }
+            } catch {
+                lastError = error
+                SecureLog.info("RPC attempt \(idx) failed for \(wallet.chain): \(error.localizedDescription)")
+                continue
+            }
         }
+        throw lastError
     }
 
     // MARK: - Token Balances
