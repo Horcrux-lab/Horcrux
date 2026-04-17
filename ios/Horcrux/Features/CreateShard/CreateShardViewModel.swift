@@ -138,11 +138,14 @@ final class CreateShardViewModel: ObservableObject {
         roomListenerTask?.cancel()
         roomListenerTask = Task { @MainActor [weak self] in
             guard let self, let peerManager = self.peerManager else { return }
-            for await (peer, data) in peerManager.incomingMpcMessages {
+            NSLog("[DKG] roomListenerTask started")
+            for await (peer, data) in peerManager.mpcMessageStream() {
                 if Task.isCancelled { break }
+                NSLog("[DKG] roomListener got \(data.count)B from \(peer.name) ch=\(peer.channel)")
 
                 if let pres = try? JSONDecoder().decode(RoomPresenceDTO.self, from: data),
                    pres.magic == RoomPresenceDTO.magic {
+                    NSLog("[DKG]   → RoomPresence from \(pres.deviceName) role=\(pres.role)")
                     if pres.deviceName != UIDevice.current.name {
                         self.roomPresence[pres.deviceName] = pres
                     }

@@ -27,9 +27,29 @@ final class PeerManager: ObservableObject {
     /// Our Noise static keypair (persisted identity)
     private(set) var noiseKeypair: FfiNoiseKeypair?
 
-    /// Incoming decrypted MPC messages (eagerly initialized to avoid race)
-    private var mpcMessageContinuation: AsyncStream<(Peer, Data)>.Continuation?
-    let incomingMpcMessages: AsyncStream<(Peer, Data)>
+    /// Multi-subscribe fan-out: every caller of `mpcMessageStream()` gets
+    /// its own `AsyncStream` backed by a dedicated continuation. We keep
+    /// the whole set here so `handleIncomingMessage` can broadcast each
+    /// decoded payload to every live subscriber. `AsyncStream` is
+    /// single-consumer by design, so the previous shared stream silently
+    /// starved the second subscriber.
+    private var mpcMessageContinuations: [UUID: AsyncStream<(Peer, Data)>.Continuation] = [:]
+
+    /// Returns a fresh, independent stream of incoming MPC bytes. Each
+    /// call wires up its own continuation, so multiple tasks (DKG
+    /// listener + runDKGRounds + signing) can iterate concurrently
+    /// without cannibalising each other's messages.
+    func mpcMessageStream() -> AsyncStream<(Peer, Data)> {
+        AsyncStream { cont in
+            let id = UUID()
+            self.mpcMessageContinuations[id] = cont
+            cont.onTermination = { [weak self] _ in
+                Task { @MainActor in
+                    self?.mpcMessageContinuations.removeValue(forKey: id)
+                }
+            }
+        }
+    }
 
     private var cancellables = Set<AnyCancellable>()
     private let keychain = KeychainManager.shared
@@ -37,9 +57,6 @@ final class PeerManager: ObservableObject {
     private static let noiseKeypairSEKey = "noise_static_keypair_se"
 
     init() {
-        let (stream, continuation) = AsyncStream<(Peer, Data)>.makeStream()
-        self.incomingMpcMessages = stream
-        self.mpcMessageContinuation = continuation
         noiseKeypair = Self.loadOrGenerateNoiseKeypair(keychain: keychain)
         setupTransportObservers()
     }
@@ -236,6 +253,15 @@ final class PeerManager: ObservableObject {
         }
     }
 
+    /// Fan out `(peer, data)` to every live subscriber of
+    /// `mpcMessageStream()`. Single point of emit so both the noise
+    /// path and the raw-transport path go through the same fan-out.
+    private func yieldMpc(_ peer: Peer, _ data: Data) {
+        for cont in mpcMessageContinuations.values {
+            cont.yield((peer, data))
+        }
+    }
+
     private func handleIncomingMessage(_ message: TransportMessage) {
         let peerId = message.from.id
 
@@ -248,7 +274,7 @@ final class PeerManager: ObservableObject {
                 do {
                     let decryptedPadded = try noise.open(envelope: envelope)
                     if let decrypted = MessagePadding.unpad(decryptedPadded) {
-                        mpcMessageContinuation?.yield((message.from, decrypted))
+                        yieldMpc(message.from, decrypted)
                     }
                 } catch {
                     SecureLog.error("Failed to decrypt message from peer \(peerId): \(error.localizedDescription)")
@@ -258,8 +284,8 @@ final class PeerManager: ObservableObject {
             }
         } else if message.from.channel == "relay" || message.from.channel == "wifi-lan" {
             // Local transport path: raw MPC data, no noise encryption
-            NSLog("[PM] handleIncoming: \(message.from.channel) path → yielding \(message.data.count)B to mpcStream")
-            mpcMessageContinuation?.yield((message.from, message.data))
+            NSLog("[PM] handleIncoming: \(message.from.channel) path → yielding \(message.data.count)B to \(mpcMessageContinuations.count) subscriber(s)")
+            yieldMpc(message.from, message.data)
         } else {
             NSLog("[PM] handleIncoming: unknown peer \(peerId.prefix(8)), trying handshake")
             // Unknown peer without noise channel — try handshake

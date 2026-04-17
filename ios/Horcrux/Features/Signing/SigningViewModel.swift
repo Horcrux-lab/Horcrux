@@ -337,7 +337,7 @@ final class SigningViewModel: ObservableObject {
             }
 
             // Process incoming messages
-            for await (peer, data) in peerManager.incomingMpcMessages {
+            for await (peer, data) in peerManager.mpcMessageStream() {
                 // Real per-peer state: first inbound bytes from a peer flips them to .signing.
                 if peerStates[peer.id] != .done {
                     peerStates[peer.id] = .signing
