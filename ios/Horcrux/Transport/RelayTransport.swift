@@ -1,4 +1,25 @@
 import Foundation
+#if canImport(UIKit)
+import UIKit
+#endif
+
+/// Human-readable name for this device used in peer discovery control messages.
+/// Priority: user-set nickname in Settings → UIDevice.current.name → model.
+private var localDeviceName: String {
+    if let nick = UserDefaults.standard.string(forKey: "deviceNickname"),
+       !nick.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+        return nick
+    }
+    #if canImport(UIKit)
+    let d = UIDevice.current
+    if !d.name.isEmpty, d.name != d.model {
+        return "\(d.name) (\(d.model))"
+    }
+    return d.model
+    #else
+    return "iOS Device"
+    #endif
+}
 
 /// WebSocket transport to the horcrux-relay server for remote DKG and signing.
 /// All messages are E2E encrypted via Noise Protocol before sending.
@@ -119,7 +140,7 @@ final class RelayTransport: NSObject, TransportChannel, ObservableObject {
 
     /// Send a control message (announce / announce_ack) for peer discovery.
     private func sendControl(type: String) async throws {
-        let control = ControlPayload(type: type, deviceId: deviceId)
+        let control = ControlPayload(type: type, deviceId: deviceId, deviceName: localDeviceName)
         let payloadData = try JSONEncoder().encode(control)
         let msg = RelayMessage(
             from: deviceId,
@@ -160,7 +181,10 @@ final class RelayTransport: NSObject, TransportChannel, ObservableObject {
         // Check if this is a control message (announce / announce_ack)
         if let control = try? JSONDecoder().decode(ControlPayload.self, from: payloadData),
            (control.type == "announce" || control.type == "announce_ack") {
-            let peer = Peer(id: control.deviceId, name: "Peer \(control.deviceId.prefix(6))", channel: channelId)
+            let displayName = control.deviceName?.isEmpty == false
+                ? control.deviceName!
+                : "Peer \(control.deviceId.prefix(6))"
+            let peer = Peer(id: control.deviceId, name: displayName, channel: channelId)
             if !discoveredPeers.contains(peer) {
                 discoveredPeers.append(peer)
                 delegate?.channel(self, didDiscover: peer)
@@ -173,7 +197,9 @@ final class RelayTransport: NSObject, TransportChannel, ObservableObject {
             return
         }
 
-        // Regular data message — forward to MPC layer
+        // Regular data message — forward to MPC layer.
+        // If we haven't discovered this peer yet, create a stub with a generic name;
+        // a later announce_ack will re-discover it with the real device name.
         let peer = Peer(id: msg.from, name: "Peer \(msg.from.prefix(6))", channel: channelId)
         if !discoveredPeers.contains(peer) {
             discoveredPeers.append(peer)
@@ -223,7 +249,9 @@ private struct RelayMessage: Codable {
 }
 
 /// App-level control payload for peer discovery over the relay.
+/// `deviceName` was added in protocol v2; optional so older clients still parse.
 private struct ControlPayload: Codable {
     let type: String
     let deviceId: String
+    let deviceName: String?
 }

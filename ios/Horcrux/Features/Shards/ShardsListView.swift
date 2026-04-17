@@ -177,6 +177,7 @@ struct ShardDetailView: View {
     @ObservedObject var viewModel: ShardsViewModel
     @State private var showBackupSheet = false
     @State private var showDeleteAlert = false
+    @State private var showDeleteConfirm = false
 
     var body: some View {
         ScrollView {
@@ -269,13 +270,16 @@ struct ShardDetailView: View {
         .sheet(isPresented: $showBackupSheet) {
             ShardBackupView(wallet: wallet, viewModel: viewModel)
         }
+        .sheet(isPresented: $showDeleteConfirm) {
+            DeleteShardConfirmView(wallet: wallet, viewModel: viewModel)
+        }
         .alert(L10n.Shards.deleteShardConfirm, isPresented: $showDeleteAlert) {
-            Button(L10n.Common.delete, role: .destructive) {
-                viewModel.deleteShard(wallet: wallet)
+            Button("继续（需要 PIN）", role: .destructive) {
+                showDeleteConfirm = true
             }
             Button(L10n.Common.cancel, role: .cancel) {}
         } message: {
-            Text(L10n.Shards.deleteShardMessage)
+            Text("删除此分片后，本设备将无法参与该钱包签名。如果总分片数已达阈值下限，钱包将永久无法使用。\n\n请确认其他设备仍持有该钱包的分片。")
         }
     }
 
@@ -754,5 +758,104 @@ struct ShardImportView: View {
         }
 
         isImporting = false
+    }
+}
+
+// MARK: - Delete Shard Confirmation (PIN-gated)
+
+/// PIN-gated delete flow for key shards.
+/// Requires the user to re-enter PIN and explicitly acknowledge the risk before
+/// the shard is removed. This is the last line of defense against accidental or
+/// adversarial removal on an unlocked device.
+struct DeleteShardConfirmView: View {
+    let wallet: Wallet
+    @ObservedObject var viewModel: ShardsViewModel
+    @EnvironmentObject private var appState: AppState
+    @Environment(\.dismiss) private var dismiss
+
+    @State private var pin: String = ""
+    @State private var acknowledgedLoss: Bool = false
+    @State private var acknowledgedBackup: Bool = false
+    @State private var errorMessage: String?
+
+    private var canDelete: Bool {
+        pin.count >= 4 && acknowledgedLoss && acknowledgedBackup
+    }
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Label("不可逆操作", systemImage: "exclamationmark.triangle.fill")
+                            .foregroundStyle(HorcruxTheme.dangerRed)
+                            .font(.headline)
+                        Text("即将删除「\(wallet.name)」在本设备上的分片（第 \(Int(wallet.partyIndex)) 份，共 \(Int(wallet.totalParties)) 份）。")
+                            .font(.subheadline)
+                        Text("删除后本机无法参与签名。若其他设备上的分片不足 \(Int(wallet.threshold)) 份，钱包将永久不可用。")
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                    }
+                    .padding(.vertical, 4)
+                }
+
+                Section("请确认以下两项") {
+                    Toggle(isOn: $acknowledgedBackup) {
+                        Text("我已备份本分片 / 或确认无需保留")
+                            .font(.footnote)
+                    }
+                    Toggle(isOn: $acknowledgedLoss) {
+                        Text("我已确认其他设备上的分片数量足够 (\(Int(wallet.threshold)) 份签名阈值)")
+                            .font(.footnote)
+                    }
+                }
+
+                Section("输入 PIN 以执行删除") {
+                    SecureField(L10n.Common.pin, text: $pin)
+                        .keyboardType(.numberPad)
+                        .font(.title3.monospacedDigit())
+                        .multilineTextAlignment(.center)
+                }
+
+                if let errorMessage {
+                    Section {
+                        Label(errorMessage, systemImage: "xmark.octagon.fill")
+                            .foregroundStyle(.red)
+                            .font(.footnote)
+                    }
+                }
+
+                Section {
+                    Button(role: .destructive) {
+                        handleDelete()
+                    } label: {
+                        HStack {
+                            Spacer()
+                            Text("永久删除此分片")
+                                .font(.headline)
+                            Spacer()
+                        }
+                    }
+                    .disabled(!canDelete)
+                }
+            }
+            .navigationTitle("删除分片")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button(L10n.Common.cancel) { dismiss() }
+                }
+            }
+        }
+    }
+
+    private func handleDelete() {
+        guard appState.verifyPin(pin) else {
+            errorMessage = "PIN 错误，请重新输入"
+            pin = ""
+            return
+        }
+        viewModel.deleteShard(wallet: wallet)
+        dismiss()
     }
 }

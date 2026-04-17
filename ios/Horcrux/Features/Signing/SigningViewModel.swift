@@ -43,6 +43,19 @@ final class SigningViewModel: ObservableObject {
     @Published var currentRound: Int = 0
     @Published var totalRounds: Int = 4 // CGGMP21 signing = 4, FROST = 2
 
+    /// Real-time per-peer signing state, keyed by `Peer.id`.
+    /// Populated as MPC messages arrive from each peer during signing.
+    enum PeerSigningState { case waiting, signing, done, failed }
+    @Published var peerStates: [String: PeerSigningState] = [:]
+    /// Round that each peer is currently on (from the last message we received from them).
+    @Published var peerRounds: [String: Int] = [:]
+    /// Timestamp signing started — drives the elapsed-time indicator.
+    @Published var signingStartedAt: Date?
+
+    // Balance snapshot for the preview card ("余额: X → Y").
+    @Published var preTxBalance: String?
+    @Published var preTxBalanceUSD: Double?
+
     // Result
     @Published var txHash: String?
     @Published var errorMessage: String = ""
@@ -74,6 +87,18 @@ final class SigningViewModel: ObservableObject {
     var shortRecipient: String {
         guard recipientAddress.count > 12 else { return recipientAddress }
         return "\(recipientAddress.prefix(6))…\(recipientAddress.suffix(4))"
+    }
+
+    /// Full recipient address, chunked into 4-char groups (ETH uses EIP-55 checksum).
+    /// Displayed on the signing preview so users can fully verify the destination.
+    var displayRecipient: String {
+        let canonical = AddressFormatter.canonical(recipientAddress, chain: wallet.chain)
+        return AddressFormatter.chunked(canonical)
+    }
+
+    var recipientExplorerURL: URL? {
+        let canonical = AddressFormatter.canonical(recipientAddress, chain: wallet.chain)
+        return AddressFormatter.explorerURL(address: canonical, chain: wallet.chain)
     }
 
     init(wallet: Wallet) {
@@ -115,6 +140,21 @@ final class SigningViewModel: ObservableObject {
         guard let amountDecimal = Decimal(string: amount), amountDecimal > 0 else {
             errorMessage = "Invalid amount"
             return
+        }
+
+        // Snapshot current balance for the preview card. Best-effort; silent failure.
+        Task { [weak self] in
+            guard let self else { return }
+            if let raw = try? await self.blockchainService?.balance(for: self.wallet, config: networkConfig) {
+                // Returns e.g. "1.234 ETH" — keep the full string; views parse it.
+                self.preTxBalance = raw
+                let parts = raw.split(separator: " ")
+                if let value = parts.first.flatMap({ Double(String($0).replacingOccurrences(of: ",", with: "")) }) {
+                    self.preTxBalanceUSD = PriceService.shared.fiatString(amount: value, symbol: self.wallet.chain.symbol).flatMap { _ in
+                        PriceService.shared.usdPrice(symbol: self.wallet.chain.symbol).map { $0 * value }
+                    }
+                }
+            }
         }
 
         isEstimatingGas = true
@@ -196,6 +236,13 @@ final class SigningViewModel: ObservableObject {
 
         step = .signing
         sessionId = UUID().uuidString
+        signingStartedAt = Date()
+        // Initialize each joined peer as "waiting" — flips to "signing" on first message,
+        // and to "done" when the ceremony completes.
+        var initialStates: [String: PeerSigningState] = [:]
+        for peer in joinedSigners { initialStates[peer.id] = .waiting }
+        peerStates = initialStates
+        peerRounds = [:]
 
         signingTask = Task {
             do {
@@ -279,7 +326,11 @@ final class SigningViewModel: ObservableObject {
             }
 
             // Process incoming messages
-            for await (_, data) in peerManager.incomingMpcMessages {
+            for await (peer, data) in peerManager.incomingMpcMessages {
+                // Real per-peer state: first inbound bytes from a peer flips them to .signing.
+                if peerStates[peer.id] != .done {
+                    peerStates[peer.id] = .signing
+                }
                 let decodedDTO: MpcMessageDTO?
                 do {
                     decodedDTO = try JSONDecoder().decode(MpcMessageDTO.self, from: data)
@@ -302,6 +353,7 @@ final class SigningViewModel: ObservableObject {
 
                     currentRound = Int(msg.round)
                     signingProgress = Double(currentRound) / Double(totalRounds + 1)
+                    peerRounds[peer.id] = Int(msg.round)
                     updateSigningStatusMessage()
 
                     for response in responses {
@@ -334,7 +386,11 @@ final class SigningViewModel: ObservableObject {
                         await transactionStore?.add(record)
 
                         signingProgress = 1.0
+                        // Mark every participant as done — we only reach this branch
+                        // once the final combined signature is produced.
+                        for key in peerStates.keys { peerStates[key] = .done }
                         bridge.removeSession(sessionId: sessionId!)
+                        Haptics.success()
                         step = .complete
                         return
                     }
@@ -342,6 +398,10 @@ final class SigningViewModel: ObservableObject {
             }
         } catch {
             errorMessage = error.localizedDescription
+            // Any peer still mid-protocol is flipped to .failed so the UI can reflect it.
+            for key in peerStates.keys where peerStates[key] != .done {
+                peerStates[key] = .failed
+            }
             step = .error
         }
     }
@@ -435,6 +495,7 @@ final class SigningViewModel: ObservableObject {
                     await MainActor.run {
                         broadcastStatus = "Broadcast OK: \(result.prefix(20))…"
                         isBroadcasting = false
+                        Haptics.success()
                         if let id = currentRecordId {
                             transactionStore?.updateStatus(id: id, status: .broadcast, txHash: result)
                         }
@@ -447,6 +508,7 @@ final class SigningViewModel: ObservableObject {
                     await MainActor.run {
                         broadcastStatus = "Broadcast OK: \(result.prefix(20))…"
                         isBroadcasting = false
+                        Haptics.success()
                         if let id = currentRecordId {
                             transactionStore?.updateStatus(id: id, status: .broadcast, txHash: result)
                         }
@@ -459,6 +521,7 @@ final class SigningViewModel: ObservableObject {
                     await MainActor.run {
                         broadcastStatus = "Broadcast OK: \(result.prefix(20))…"
                         isBroadcasting = false
+                        Haptics.success()
                         if let id = currentRecordId {
                             transactionStore?.updateStatus(id: id, status: .broadcast, txHash: result)
                         }
@@ -466,8 +529,10 @@ final class SigningViewModel: ObservableObject {
                 }
             } catch {
                 await MainActor.run {
-                    broadcastStatus = "Broadcast failed: \(error.localizedDescription)"
+                    let mapped = NodeErrorMapper.map(error)
+                    broadcastStatus = "广播失败：\(mapped.message)"
                     isBroadcasting = false
+                    Haptics.error()
                     if let id = currentRecordId {
                         transactionStore?.updateStatus(id: id, status: .failed)
                     }

@@ -6,3 +6,5 @@
 
 # iOS build artifacts
 ios/Horcrux/Core/Frameworks/*.a
+ios/build/
+ios/DerivedData/

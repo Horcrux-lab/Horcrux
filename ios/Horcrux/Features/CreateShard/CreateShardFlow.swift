@@ -47,6 +47,8 @@ struct ConfigureView: View {
     @State private var showAdvanced = false
     @State private var showExplainer = false
     @State private var showQRScanner = false
+    @State private var showNofNConfirm = false
+    @State private var acknowledgedNofN = false
 
     var body: some View {
         Form {
@@ -112,8 +114,12 @@ struct ConfigureView: View {
 
             Section {
                 Button {
-                    viewModel.step = .discover
-                    viewModel.startDiscovery()
+                    if viewModel.threshold == viewModel.totalParties && viewModel.totalParties > 1 {
+                        showNofNConfirm = true
+                    } else {
+                        viewModel.step = .discover
+                        viewModel.startDiscovery()
+                    }
                 } label: {
                     Text(L10n.CreateShard.nextFindPeers)
                         .frame(maxWidth: .infinity)
@@ -124,6 +130,24 @@ struct ConfigureView: View {
                 .accessibilityHint(L10n.CreateShard.findPeersHint)
                 .accessibilityIdentifier("configure_nextButton")
             }
+        }
+        .alert("⚠️ 无冗余配置", isPresented: $showNofNConfirm) {
+            Button("我理解风险，继续", role: .destructive) {
+                viewModel.step = .discover
+                viewModel.startDiscovery()
+            }
+            Button("改回 2-of-3（推荐）", role: .cancel) {
+                viewModel.totalParties = 3
+                viewModel.threshold = 2
+            }
+        } message: {
+            Text("""
+            你选择了 \(viewModel.threshold)-of-\(viewModel.totalParties)：所有设备都必须参与签名。
+
+            ⚠️ 任何一台设备丢失、损坏或无法访问 → 钱包永久无法使用，资产无法取出。
+
+            强烈推荐 2-of-3（3 台生成，任意 2 台签名），在安全和容灾之间取得平衡。
+            """)
         }
         .sheet(isPresented: $showExplainer) {
             MPCExplainerSheet()
@@ -163,11 +187,18 @@ struct ConfigureView: View {
             }
         } else if viewModel.totalParties == viewModel.threshold {
             Label {
-                Text("警告：\(viewModel.threshold)-of-\(viewModel.totalParties) 无冗余，任一设备丢失将永久失去钱包。")
-                    .font(.caption)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("🚨 \(viewModel.threshold)-of-\(viewModel.totalParties)：无冗余")
+                        .font(.caption.bold())
+                    Text("任一设备丢失 = 钱包永久不可用。确认继续前会再次提醒。")
+                        .font(.caption2)
+                }
             } icon: {
-                Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.orange)
+                Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(HorcruxTheme.dangerRed)
             }
+            .padding(.vertical, 4)
+            .padding(.horizontal, 8)
+            .background(HorcruxTheme.dangerRed.opacity(0.15), in: RoundedRectangle(cornerRadius: 8))
         }
     }
 
@@ -587,6 +618,9 @@ struct DKGCompleteView: View {
     @State private var pin = ""
     @State private var showPinPrompt = false
     @State private var pinError: String?
+    @State private var showBackupGate = false
+    @State private var showSkipBackupWarn = false
+    @State private var acknowledgedBackup = false
     @ScaledMetric(relativeTo: .largeTitle) private var successIconSize: CGFloat = 72
 
     var body: some View {
@@ -621,19 +655,19 @@ struct DKGCompleteView: View {
                     .foregroundStyle(.secondary)
             }
 
-            // Backup nudge (item 6)
+            // Backup nudge (mandatory gate after save)
             VStack(alignment: .leading, spacing: 8) {
                 Label {
-                    Text("下一步：立即备份分片").font(.subheadline.bold())
+                    Text("强烈建议：立即备份分片").font(.subheadline.bold())
                 } icon: {
-                    Image(systemName: "icloud.and.arrow.up").foregroundStyle(.blue)
+                    Image(systemName: "exclamationmark.shield.fill").foregroundStyle(.orange)
                 }
-                Text("保存分片后，前往「分片」页导出到 iCloud Drive 或加密文件，丢失设备时可从备份恢复。")
+                Text("保存后会要求你备份。未备份丢失设备时可能永久失去资金。")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
             .padding(12)
-            .background(RoundedRectangle(cornerRadius: 12).fill(Color.blue.opacity(0.1)))
+            .background(RoundedRectangle(cornerRadius: 12).fill(Color.orange.opacity(0.1)))
             .padding(.horizontal)
 
             Spacer()
@@ -661,7 +695,8 @@ struct DKGCompleteView: View {
                 }
                 viewModel.saveWallet(to: appState, pin: pin)
                 pin = ""
-                dismiss()
+                // Gate dismissal on backup acknowledgement
+                showBackupGate = true
             }
             Button(L10n.Common.cancel, role: .cancel) { pin = "" }
         } message: {
@@ -670,6 +705,97 @@ struct DKGCompleteView: View {
             } else {
                 Text(L10n.DKG.pinNeededEncrypt)
             }
+        }
+        .sheet(isPresented: $showBackupGate) {
+            BackupGateSheet(
+                acknowledged: $acknowledgedBackup,
+                onBackupNow: {
+                    showBackupGate = false
+                    dismiss()
+                },
+                onSkip: {
+                    showSkipBackupWarn = true
+                }
+            )
+            .interactiveDismissDisabled(true)
+        }
+        .alert("⚠️ 未备份就退出？", isPresented: $showSkipBackupWarn) {
+            Button("我承担风险，稍后备份", role: .destructive) {
+                showBackupGate = false
+                dismiss()
+            }
+            Button("返回备份", role: .cancel) { }
+        } message: {
+            Text("如果你丢失或损坏这台设备，没有备份将无法恢复这份分片，可能导致钱包永久锁死。")
+        }
+    }
+}
+
+/// Mandatory post-save backup gate. User must either:
+/// - Acknowledge they've made an off-device backup (then proceed), OR
+/// - Explicitly skip with a destructive confirmation.
+private struct BackupGateSheet: View {
+    @Binding var acknowledged: Bool
+    let onBackupNow: () -> Void
+    let onSkip: () -> Void
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 20) {
+                    Label {
+                        Text("最后一步：备份分片").font(.title2.bold())
+                    } icon: {
+                        Image(systemName: "icloud.and.arrow.up.fill")
+                            .foregroundStyle(.blue)
+                    }
+
+                    Text("MPC 钱包的关键是——只要有 t 份分片就能恢复。这台设备上的分片如果只有一份且未备份，一旦设备损坏、丢失或被擦除，钱包将无法使用。")
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+
+                    VStack(alignment: .leading, spacing: 10) {
+                        bullet("把分片导出到 iCloud Drive / 加密文件")
+                        bullet("或让另一台信任设备加入、共同持有分片")
+                        bullet("记下钱包名和恢复说明，存到不同位置")
+                    }
+                    .font(.callout)
+
+                    Toggle(isOn: $acknowledged) {
+                        Text("我已经做了备份，并能在新设备上恢复。")
+                            .font(.callout)
+                    }
+                    .tint(.blue)
+                    .padding(12)
+                    .background(RoundedRectangle(cornerRadius: 10).fill(Color.gray.opacity(0.12)))
+
+                    Button(action: onBackupNow) {
+                        Label("我已做好备份，完成", systemImage: "checkmark.circle")
+                            .frame(maxWidth: .infinity)
+                            .font(.headline)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .disabled(!acknowledged)
+
+                    Button(role: .destructive, action: onSkip) {
+                        Text("稍后备份（不推荐）")
+                            .frame(maxWidth: .infinity)
+                            .font(.callout)
+                    }
+                    .buttonStyle(.bordered)
+                }
+                .padding()
+            }
+            .navigationTitle("备份分片")
+            .navigationBarTitleDisplayMode(.inline)
+        }
+    }
+
+    private func bullet(_ text: String) -> some View {
+        HStack(alignment: .top, spacing: 8) {
+            Image(systemName: "checkmark.circle")
+                .foregroundStyle(.blue)
+            Text(text)
         }
     }
 }

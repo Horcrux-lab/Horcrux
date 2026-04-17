@@ -99,6 +99,9 @@ struct WalletHomeView: View {
     private var walletList: some View {
         ScrollView {
             LazyVStack(spacing: 12) {
+                // Portfolio summary (IA: root → chain → asset)
+                PortfolioSummaryCard(wallets: appState.walletStore.wallets)
+
                 // Pending broadcasts
                 if !appState.pendingBroadcastQueue.pending.isEmpty {
                     VStack(alignment: .leading, spacing: 8) {
@@ -117,16 +120,36 @@ struct WalletHomeView: View {
                     .padding(.bottom, 8)
                 }
 
-                // Wallets
-                ForEach(appState.walletStore.wallets) { wallet in
-                    NavigationLink {
-                        WalletDetailView(wallet: wallet)
-                    } label: {
-                        WalletRow(wallet: wallet)
+                // Wallets grouped by MPC root (same groupPublicKey → one wallet spanning multiple chains)
+                ForEach(walletGroups, id: \.rootID) { group in
+                    VStack(alignment: .leading, spacing: 8) {
+                        if walletGroups.count > 1 || group.wallets.count > 1 {
+                            HStack(spacing: 6) {
+                                Image(systemName: "key.horizontal")
+                                    .font(.caption)
+                                    .foregroundStyle(HorcruxTheme.accentPurple)
+                                Text(group.label)
+                                    .font(.caption.weight(.semibold))
+                                    .foregroundStyle(HorcruxTheme.subtleText)
+                                Spacer()
+                                Text(L10n.Shards.thresholdValue(Int(group.wallets.first?.threshold ?? 0), Int(group.wallets.first?.totalParties ?? 0)))
+                                    .font(.caption2)
+                                    .foregroundStyle(HorcruxTheme.subtleText)
+                            }
+                            .padding(.horizontal, 6)
+                        }
+
+                        ForEach(group.wallets) { wallet in
+                            NavigationLink {
+                                WalletDetailView(wallet: wallet)
+                            } label: {
+                                WalletRow(wallet: wallet)
+                            }
+                            .accessibilityLabel("\(wallet.name), \(wallet.chain.rawValue) wallet")
+                            .accessibilityHint(L10n.WalletHome.viewDetailsHint)
+                            .accessibilityIdentifier("walletHome_walletRow_\(wallet.id)")
+                        }
                     }
-                    .accessibilityLabel("\(wallet.name), \(wallet.chain.rawValue) wallet")
-                    .accessibilityHint(L10n.WalletHome.viewDetailsHint)
-                    .accessibilityIdentifier("walletHome_walletRow_\(wallet.id)")
                 }
             }
             .padding(.horizontal, 16)
@@ -140,6 +163,32 @@ struct WalletHomeView: View {
                     .accessibilityLabel(L10n.WalletHome.editWalletList)
             }
         }
+    }
+
+    /// Group wallets by groupPublicKey. Wallets sharing the same public key
+    /// come from the same DKG ceremony and can be thought of as one root
+    /// identity that spans multiple chains.
+    private var walletGroups: [WalletGroup] {
+        let wallets = appState.walletStore.wallets
+        let buckets = Dictionary(grouping: wallets, by: { $0.groupPublicKey })
+        return buckets
+            .map { (key, list) -> WalletGroup in
+                let first = list.first!
+                // Strip "- Chain" suffix if present to derive a root label
+                let rootLabel = first.name.split(separator: " ").dropLast().joined(separator: " ").trimmingCharacters(in: .whitespaces)
+                return WalletGroup(
+                    rootID: key.base64EncodedString(),
+                    label: rootLabel.isEmpty ? first.name : rootLabel,
+                    wallets: list.sorted { $0.chain.rawValue < $1.chain.rawValue }
+                )
+            }
+            .sorted { $0.label < $1.label }
+    }
+
+    private struct WalletGroup {
+        let rootID: String
+        let label: String
+        let wallets: [Wallet]
     }
 
     private func retryBroadcast(_ tx: PendingBroadcastQueue.PendingTransaction) async {
@@ -171,6 +220,7 @@ struct PendingBroadcastRow: View {
     let onRetry: () -> Void
     let onDiscard: () -> Void
     @State private var isRetrying = false
+    @State private var showRBFInfo = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -207,15 +257,34 @@ struct PendingBroadcastRow: View {
                     .foregroundStyle(HorcruxTheme.dangerRed)
                     .lineLimit(1)
             }
-            HStack {
+            HStack(spacing: 10) {
                 Text(L10n.Pending.attempts(transaction.attempts))
                     .font(.caption2)
                     .foregroundStyle(HorcruxTheme.subtleText)
                 Spacer()
+                // Speed-up / cancel buttons for stuck ETH transactions (RBF explainer)
+                if transaction.chain == .ethereum {
+                    Button {
+                        showRBFInfo = true
+                    } label: {
+                        Label("加速", systemImage: "hare.fill")
+                    }
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(HorcruxTheme.accentCyan)
+                }
                 Button(L10n.Pending.discard, role: .destructive) { onDiscard() }
                     .font(.caption2)
                     .foregroundStyle(HorcruxTheme.dangerRed)
             }
+        }
+        .sheet(isPresented: $showRBFInfo) {
+            RBFInfoSheet(
+                onCancel: {
+                    onDiscard()
+                    showRBFInfo = false
+                }
+            )
+            .presentationDetents([.medium])
         }
     }
 
@@ -225,9 +294,69 @@ struct PendingBroadcastRow: View {
     }
 }
 
+/// Explains the RBF (Replace-By-Fee) concept for users whose ETH broadcasts are stuck,
+/// and offers the one path we can safely take today: cancel the stuck tx, then re-sign
+/// a new one with higher gas via the normal signing flow.
+struct RBFInfoSheet: View {
+    @Environment(\.dismiss) private var dismiss
+    let onCancel: () -> Void
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 16) {
+                    Label {
+                        Text("加速被卡住的交易").font(.headline)
+                    } icon: {
+                        Image(systemName: "hare.fill").foregroundStyle(.cyan)
+                    }
+                    Text("这笔交易的矿工费可能偏低，导致节点一直不收录。在以太坊上，你可以通过“替换费用（RBF）”用同一个 nonce 发一笔更高矿工费的交易覆盖它。")
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("目前可用的操作：").font(.subheadline.weight(.semibold))
+                        bullet("丢弃当前待广播交易")
+                        bullet("回到钱包重新发起签名，手动提高矿工费（gas price）至少 +10%")
+                        bullet("下一版本会自动构建 RBF 替换交易，无需手动重签")
+                    }
+                    .font(.callout)
+
+                    Button(role: .destructive, action: onCancel) {
+                        Label("丢弃此交易并重新发起", systemImage: "trash")
+                            .frame(maxWidth: .infinity)
+                            .font(.headline)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .tint(.red)
+                }
+                .padding()
+            }
+            .navigationTitle("加速（RBF）")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("关闭") { dismiss() }
+                }
+            }
+        }
+    }
+
+    private func bullet(_ text: String) -> some View {
+        HStack(alignment: .top, spacing: 8) {
+            Image(systemName: "chevron.right")
+                .font(.caption2.weight(.bold))
+                .foregroundStyle(.cyan)
+                .padding(.top, 4)
+            Text(text)
+        }
+    }
+}
+
 struct WalletRow: View {
     let wallet: Wallet
     @EnvironmentObject private var appState: AppState
+    @StateObject private var priceService = PriceService.shared
     @State private var balance: String?
     @State private var isLoading = false
 
@@ -258,6 +387,11 @@ struct WalletRow: View {
                         .font(.subheadline.bold().monospacedDigit())
                         .foregroundStyle(.white)
                         .accessibilityLabel("Balance: \(balance)")
+                    if let fiat = fiatEstimate(from: balance) {
+                        Text(fiat)
+                            .font(.caption2.monospacedDigit())
+                            .foregroundStyle(HorcruxTheme.subtleText)
+                    }
                 } else {
                     Text(wallet.chain.symbol)
                         .font(.subheadline.bold())
@@ -271,7 +405,10 @@ struct WalletRow: View {
         .padding(.vertical, 12)
         .glassCard()
         .accessibilityElement(children: .combine)
-        .task { await fetchBalance() }
+        .task {
+            await fetchBalance()
+            priceService.refreshIfNeeded()
+        }
     }
 
     private func fetchBalance() async {
@@ -282,6 +419,16 @@ struct WalletRow: View {
         } catch {
             balance = wallet.chain.symbol
         }
+    }
+
+    /// Attempts to extract the numeric portion of a balance string like "1.234 ETH"
+    /// and convert it to a USD estimate via PriceService.
+    private func fiatEstimate(from balance: String) -> String? {
+        let parts = balance.split(separator: " ", maxSplits: 1).map(String.init)
+        guard parts.count == 2, let amount = Double(parts[0].replacingOccurrences(of: ",", with: "")) else {
+            return nil
+        }
+        return priceService.fiatString(amount: amount, symbol: parts[1])
     }
 
     private func shortAddress(_ address: String) -> String {
@@ -549,5 +696,78 @@ struct WalletDetailView: View {
         isLoadingTokens = true
         defer { isLoadingTokens = false }
         tokenBalances = await appState.blockchainService.tokenBalances(for: wallet, config: appState.networkConfig)
+    }
+}
+
+// MARK: - Portfolio Summary
+
+/// Top-of-home hero card that shows the total fiat value across all wallets.
+/// Kicks PriceService to refresh and combines fiat sums using the current quotes.
+struct PortfolioSummaryCard: View {
+    let wallets: [Wallet]
+    @EnvironmentObject private var appState: AppState
+    @StateObject private var priceService = PriceService.shared
+    @State private var nativeBalances: [String: Double] = [:] // walletId → numeric native amount
+    @State private var isLoading = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                Image(systemName: "chart.pie.fill")
+                    .foregroundStyle(HorcruxTheme.accentPurple)
+                Text("总资产")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.white)
+                Spacer()
+                if isLoading {
+                    ProgressView().scaleEffect(0.7).tint(HorcruxTheme.accentPurple)
+                }
+            }
+            Text(totalFiatString)
+                .font(.system(size: 32, weight: .bold, design: .rounded).monospacedDigit())
+                .foregroundStyle(.white)
+                .contentTransition(.numericText())
+            Text("跨 \(wallets.count) 个钱包 · 实时 USD 报价（来源：CoinGecko）")
+                .font(.caption2)
+                .foregroundStyle(HorcruxTheme.subtleText)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(16)
+        .glassCard()
+        .task {
+            await refreshAll()
+        }
+    }
+
+    private var totalFiatString: String {
+        let total = wallets.reduce(0.0) { acc, w in
+            let amount = nativeBalances[w.id] ?? 0
+            return acc + amount * (priceService.usdPrice(symbol: w.chain.symbol) ?? 0)
+        }
+        let fmt = NumberFormatter()
+        fmt.numberStyle = .currency
+        fmt.currencyCode = "USD"
+        fmt.maximumFractionDigits = 2
+        return fmt.string(from: NSNumber(value: total)) ?? "$—"
+    }
+
+    private func refreshAll() async {
+        priceService.refreshIfNeeded()
+        isLoading = true
+        defer { isLoading = false }
+        await withTaskGroup(of: (String, Double?).self) { group in
+            for wallet in wallets {
+                group.addTask {
+                    let raw = try? await appState.blockchainService.balance(for: wallet, config: appState.networkConfig)
+                    let numeric = raw.flatMap { s -> Double? in
+                        Double(s.split(separator: " ").first.map(String.init) ?? "")
+                    }
+                    return (wallet.id, numeric)
+                }
+            }
+            for await (id, val) in group {
+                if let val { nativeBalances[id] = val }
+            }
+        }
     }
 }

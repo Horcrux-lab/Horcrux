@@ -5,6 +5,7 @@ struct SettingsView: View {
     @EnvironmentObject private var appState: AppState
     @AppStorage("biometricEnabled") private var biometricEnabled = true
     @AppStorage(RelayConfig.useCustomKey) private var useCustomRelay = false
+    @AppStorage("deviceNickname") private var deviceNickname = ""
     @State private var relayURL = RelayConfig.effectiveURL
     @State private var showChangePin = false
     @State private var showWipeConfirmation = false
@@ -164,10 +165,85 @@ struct SettingsView: View {
                         .glassCard()
                     }
 
+                    // Address Book
+                    VStack(alignment: .leading, spacing: 10) {
+                        VaultSectionHeader("联系人", icon: "person.2")
+                            .padding(.horizontal, 4)
+
+                        NavigationLink {
+                            AddressBookView()
+                        } label: {
+                            HStack {
+                                VaultSettingsRow(icon: "person.2.circle", iconColor: HorcruxTheme.accentBlue, title: "地址簿")
+                                Spacer()
+                                Image(systemName: "chevron.right")
+                                    .font(.caption)
+                                    .foregroundStyle(HorcruxTheme.subtleText)
+                            }
+                        }
+                        .glassCard()
+                        .accessibilityIdentifier("settings_addressBookLink")
+                    }
+
+                    // Replace device / Share refresh
+                    VStack(alignment: .leading, spacing: 10) {
+                        VaultSectionHeader("设备管理", icon: "iphone.gen3")
+                            .padding(.horizontal, 4)
+
+                        NavigationLink {
+                            ReplaceDeviceInfoView()
+                        } label: {
+                            HStack {
+                                VaultSettingsRow(
+                                    icon: "arrow.triangle.2.circlepath.circle",
+                                    iconColor: HorcruxTheme.accentCyan,
+                                    title: "替换设备 / 刷新分片",
+                                    subtitle: "更换丢失或损坏的设备"
+                                )
+                                Spacer()
+                                Image(systemName: "chevron.right")
+                                    .font(.caption)
+                                    .foregroundStyle(HorcruxTheme.subtleText)
+                            }
+                        }
+                        .glassCard()
+                        .accessibilityIdentifier("settings_replaceDeviceLink")
+                    }
+
                     // Communication
                     VStack(alignment: .leading, spacing: 10) {
                         VaultSectionHeader(L10n.Settings.communication, icon: "wave.3.right")
                             .padding(.horizontal, 4)
+
+                        VStack(spacing: 8) {
+                            // Device nickname — shown to peers during DKG / signing
+                            VStack(alignment: .leading, spacing: 6) {
+                                HStack(spacing: 8) {
+                                    Image(systemName: "iphone")
+                                        .foregroundStyle(HorcruxTheme.accentPurple)
+                                    Text("设备昵称")
+                                        .font(.subheadline.weight(.medium))
+                                        .foregroundStyle(.white)
+                                    Spacer()
+                                }
+                                TextField(UIDevice.current.name, text: $deviceNickname)
+                                    .font(.system(.caption, design: .default))
+                                    .autocorrectionDisabled()
+                                    .padding(12)
+                                    .background(
+                                        RoundedRectangle(cornerRadius: 10)
+                                            .fill(Color.white.opacity(0.06))
+                                            .overlay(RoundedRectangle(cornerRadius: 10).stroke(Color.white.opacity(0.1), lineWidth: 1))
+                                    )
+                                    .foregroundStyle(.white)
+                                    .tint(HorcruxTheme.accentPurple)
+                                    .accessibilityIdentifier("settings_deviceNicknameField")
+                                Text("配对和签名时，其他设备会看到这个名字。")
+                                    .font(.caption2)
+                                    .foregroundStyle(HorcruxTheme.subtleText)
+                            }
+                        }
+                        .glassCard()
 
                         NavigationLink {
                             TransportSettingsView()
@@ -780,5 +856,70 @@ struct LicenseRow: View {
             Text(description).font(.caption).foregroundStyle(.secondary)
         }
         .padding(.vertical, 2)
+    }
+}
+
+// MARK: - Replace Device / Share Refresh
+
+/// Explains the replace-device migration path. True CGGMP21 share refresh (rotate
+/// secret shares while keeping the same public key) requires dedicated Rust FFI
+/// that is not yet exposed; until then, the recommended workflow is:
+/// 1. Create a fresh wallet with a new device in place of the lost one
+/// 2. Transfer funds from the old wallet to the new one
+///
+/// Surfaced here so users understand the recovery story before they need it.
+struct ReplaceDeviceInfoView: View {
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 20) {
+                Label {
+                    Text("替换设备 / 刷新分片").font(.title2.bold())
+                } icon: {
+                    Image(systemName: "arrow.triangle.2.circlepath.circle.fill")
+                        .foregroundStyle(HorcruxTheme.accentCyan)
+                }
+
+                Text("如果你丢失、更换或出售了一台参与钱包的设备，建议尽快完成以下操作，防止旧分片被滥用。")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+
+                VStack(alignment: .leading, spacing: 12) {
+                    stepRow(index: 1, title: "在新设备上安装 Horcrux", body: "保持同一钱包名，准备好参与新的 DKG。")
+                    stepRow(index: 2, title: "用剩余信任设备重新发起 DKG", body: "选择和旧钱包相同的门限和链，创建新钱包。")
+                    stepRow(index: 3, title: "把资产从旧钱包转到新钱包", body: "用旧钱包还可以凑齐 t 份的剩余信任设备完成一次签名。")
+                    stepRow(index: 4, title: "删除旧钱包的分片", body: "在「分片」页进入旧钱包，点击删除，输入 PIN 确认。")
+                }
+
+                VStack(alignment: .leading, spacing: 8) {
+                    Label {
+                        Text("即将推出").font(.subheadline.weight(.semibold))
+                    } icon: {
+                        Image(systemName: "sparkles").foregroundStyle(.yellow)
+                    }
+                    Text("真正的“分片刷新”（保持公钥/地址不变，仅轮换底层密钥份额）将在 Rust 底层暴露 CGGMP21 refresh 原语后支持，届时无需转账迁移。")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                .padding(12)
+                .background(RoundedRectangle(cornerRadius: 12).fill(Color.yellow.opacity(0.1)))
+            }
+            .padding()
+        }
+        .navigationTitle("替换设备")
+        .navigationBarTitleDisplayMode(.inline)
+    }
+
+    private func stepRow(index: Int, title: String, body: String) -> some View {
+        HStack(alignment: .top, spacing: 12) {
+            Text("\(index)")
+                .font(.headline.bold().monospacedDigit())
+                .foregroundStyle(.white)
+                .frame(width: 28, height: 28)
+                .background(Circle().fill(HorcruxTheme.accentCyan))
+            VStack(alignment: .leading, spacing: 4) {
+                Text(title).font(.subheadline.weight(.semibold))
+                Text(body).font(.caption).foregroundStyle(.secondary)
+            }
+        }
     }
 }

@@ -38,6 +38,7 @@ struct ContentView: View {
             Text("This device may be compromised:\n\n• \(jailbreakReasons.joined(separator: "\n• "))\n\n\(L10n.App.deviceCompromised)")
         }
         .dynamicTypeSize(...DynamicTypeSize.accessibility2)
+        .copyToastOverlay()
         .task {
             #if targetEnvironment(simulator)
             // Simulator always triggers jailbreak detection — skip
@@ -489,6 +490,7 @@ struct LockScreenView: View {
         }
         if appState.verifyPin(pin) {
             errorMessage = nil
+            Haptics.success()
             appState.isUnlocked = true
         } else {
             let remaining = AppState.maxFailedAttempts - appState.failedAttempts
@@ -498,6 +500,7 @@ struct LockScreenView: View {
                 errorMessage = L10n.LockScreen.dataWiped
             }
             pin = ""
+            Haptics.error()
             triggerShake()
         }
     }

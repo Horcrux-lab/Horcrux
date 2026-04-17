@@ -8,6 +8,13 @@
 
 /* Begin PBXBuildFile section */
 		014D5C923A2D94DF2712451A /* AddressValidator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 71C26970D9D9C110CD5AFF06 /* AddressValidator.swift */; };
+		9DCA2DF7062E2DFB22E30351 /* AddressFormatter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 85DE3C5A10CCE0DB2B96E51A /* AddressFormatter.swift */; };
+		90803886A22680E3AD03A524 /* NodeErrorMapper.swift in Sources */ = {isa = PBXBuildFile; fileRef = A8303C767CD13576FA6B6246 /* NodeErrorMapper.swift */; };
+		16BDEDFBE061FF53ED64D520 /* PriceService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 13BA8115A370850B07FF2F86 /* PriceService.swift */; };
+		D37A9AF8A4624B971FFAE188 /* AddressBook.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8C97796FFFAABDFCD418E7D7 /* AddressBook.swift */; };
+		D460D2E954132338FD6F7901 /* ENSResolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = 99F429C0ADA329B2E7CD4AC4 /* ENSResolver.swift */; };
+		FBAECAADBB1F5AD0828F0FEE /* Haptics.swift in Sources */ = {isa = PBXBuildFile; fileRef = A9E22485814B645E0AE85424 /* Haptics.swift */; };
+		238403E234A05B718E1877B5 /* CopyFeedback.swift in Sources */ = {isa = PBXBuildFile; fileRef = 416143CC9CEBC002AB85278E /* CopyFeedback.swift */; };
 		06556B994EE86463923812D0 /* TransportProtocol.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3935002B5AD730445E22C6BD /* TransportProtocol.swift */; };
 		07F1DBBA780D85A37E6222E4 /* TransactionStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3CDB13C07B9797F06F91A090 /* TransactionStoreTests.swift */; };
 		15A5B160337F5ACA4625D4C0 /* WiFiLANTransport.swift in Sources */ = {isa = PBXBuildFile; fileRef = B557F92FAAF7C0F38B2CC6C6 /* WiFiLANTransport.swift */; };
@@ -67,6 +74,7 @@
 		C8A8F24F09DFC73A58128348 /* DeepLinkRouterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 706E6F4EE34FF701DC20BB7B /* DeepLinkRouterTests.swift */; };
 		CAA62095ADB8219F055DB007 /* PeerManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6B60143CF0CBC4C79AB085D6 /* PeerManager.swift */; };
 		CB59CE6C90D457018B221099 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 46F96EED87A21ED0BBE9B1B0 /* SettingsView.swift */; };
+		763E14B79CE17C11290CBAB9 /* AddressBookView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C38D9F404F05092ED681EBC9 /* AddressBookView.swift */; };
 		D4E3C555F9B2C377BA01735A /* RelayTransport.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE490D34FEE7816E42DB8691 /* RelayTransport.swift */; };
 		D642BB163B604CB2BA09AC1F /* RelayConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = CD515007E92C4671B0DE7D1C /* RelayConfig.swift */; };
 		95AC056474094B7E9452FA24 /* RoomCode.swift in Sources */ = {isa = PBXBuildFile; fileRef = 629A4A4C487C4082AE348163 /* RoomCode.swift */; };
@@ -128,6 +136,7 @@
 		3FF408B4D713C13918899FEE /* CreateShardViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CreateShardViewModel.swift; sourceTree = "<group>"; };
 		422C50490783824C211D1A4E /* WiFiDirectTransport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WiFiDirectTransport.swift; sourceTree = "<group>"; };
 		46F96EED87A21ED0BBE9B1B0 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
+		C38D9F404F05092ED681EBC9 /* AddressBookView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AddressBookView.swift; sourceTree = "<group>"; };
 		49A262F731DB964A68E24B04 /* SigningView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SigningView.swift; sourceTree = "<group>"; };
 		4B6E4D6FF4E1E291334F81AD /* MessagePadding.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = MessagePadding.swift; sourceTree = "<group>"; };
 		4B97A4C60C8B4D040DBB1906 /* SigningViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SigningViewModel.swift; sourceTree = "<group>"; };
@@ -142,6 +151,13 @@
 		706E6F4EE34FF701DC20BB7B /* DeepLinkRouterTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HorcruxTests/DeepLinkRouterTests.swift; sourceTree = SOURCE_ROOT; };
 		719404EF19B45101797D6FB1 /* TransactionStore.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TransactionStore.swift; sourceTree = "<group>"; };
 		71C26970D9D9C110CD5AFF06 /* AddressValidator.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AddressValidator.swift; sourceTree = "<group>"; };
+		85DE3C5A10CCE0DB2B96E51A /* AddressFormatter.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AddressFormatter.swift; sourceTree = "<group>"; };
+		A8303C767CD13576FA6B6246 /* NodeErrorMapper.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = NodeErrorMapper.swift; sourceTree = "<group>"; };
+		13BA8115A370850B07FF2F86 /* PriceService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PriceService.swift; sourceTree = "<group>"; };
+		8C97796FFFAABDFCD418E7D7 /* AddressBook.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AddressBook.swift; sourceTree = "<group>"; };
+		99F429C0ADA329B2E7CD4AC4 /* ENSResolver.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ENSResolver.swift; sourceTree = "<group>"; };
+		A9E22485814B645E0AE85424 /* Haptics.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Haptics.swift; sourceTree = "<group>"; };
+		416143CC9CEBC002AB85278E /* CopyFeedback.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CopyFeedback.swift; sourceTree = "<group>"; };
 		78F9508910EF69F531BC2DAC /* SecureLog.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SecureLog.swift; sourceTree = "<group>"; };
 		7A849C84C85BCB4D83640A5B /* QRTransport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QRTransport.swift; sourceTree = "<group>"; };
 		7B49C305B459B2D3E91C9718 /* TokenModels.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TokenModels.swift; sourceTree = "<group>"; };
@@ -304,6 +320,7 @@
 			isa = PBXGroup;
 			children = (
 				46F96EED87A21ED0BBE9B1B0 /* SettingsView.swift */,
+				C38D9F404F05092ED681EBC9 /* AddressBookView.swift */,
 			);
 			path = Settings;
 			sourceTree = "<group>";
@@ -441,6 +458,13 @@
 				EEA7138940618627E018772D /* Generated */,
 				85CA60ED6C18A20962BDD93C /* HorcruxBridge.swift */,
 				71C26970D9D9C110CD5AFF06 /* AddressValidator.swift */,
+				85DE3C5A10CCE0DB2B96E51A /* AddressFormatter.swift */,
+				A8303C767CD13576FA6B6246 /* NodeErrorMapper.swift */,
+				13BA8115A370850B07FF2F86 /* PriceService.swift */,
+				8C97796FFFAABDFCD418E7D7 /* AddressBook.swift */,
+				99F429C0ADA329B2E7CD4AC4 /* ENSResolver.swift */,
+				A9E22485814B645E0AE85424 /* Haptics.swift */,
+				416143CC9CEBC002AB85278E /* CopyFeedback.swift */,
 				6389EDF3E0B047116DB4FB65 /* BlockchainService.swift */,
 				B3B42A4B665C2E8E13CB2E1D /* CeremonyStateManager.swift */,
 				D7E2EEBB63D88CA1BC34132E /* DeepLinkRouter.swift */,
@@ -640,6 +664,7 @@
 				D642BB163B604CB2BA09AC1F /* RelayConfig.swift in Sources */,
 				95AC056474094B7E9452FA24 /* RoomCode.swift in Sources */,
 				CB59CE6C90D457018B221099 /* SettingsView.swift in Sources */,
+				763E14B79CE17C11290CBAB9 /* AddressBookView.swift in Sources */,
 				1929C70C2E419C8D2D7A499C /* ShardsListView.swift in Sources */,
 				4B7B6F204D8AFDEB4EACE5EB /* ShardsViewModel.swift in Sources */,
 				88380DABC0637076A7B84583 /* SigningView.swift in Sources */,
@@ -651,6 +676,13 @@
 				4473C32496DD313F260D2116 /* horcrux_core.swift in Sources */,
 				2B2F3D2AFF9D3A8F5307419F /* CurrencyFormatter.swift in Sources */,
 				014D5C923A2D94DF2712451A /* AddressValidator.swift in Sources */,
+				9DCA2DF7062E2DFB22E30351 /* AddressFormatter.swift in Sources */,
+				90803886A22680E3AD03A524 /* NodeErrorMapper.swift in Sources */,
+				16BDEDFBE061FF53ED64D520 /* PriceService.swift in Sources */,
+				D37A9AF8A4624B971FFAE188 /* AddressBook.swift in Sources */,
+				D460D2E954132338FD6F7901 /* ENSResolver.swift in Sources */,
+				FBAECAADBB1F5AD0828F0FEE /* Haptics.swift in Sources */,
+				238403E234A05B718E1877B5 /* CopyFeedback.swift in Sources */,
 				4E1AEB9E3CEDA2CD627F3488 /* BlockchainService.swift in Sources */,
 				39A1D2DBFA6831A2A883D1B6 /* CeremonyStateManager.swift in Sources */,
 				988FC2EAF527D3776E2EFDDF /* DeepLinkRouter.swift in Sources */,

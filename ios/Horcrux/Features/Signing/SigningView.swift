@@ -48,9 +48,14 @@ struct SigningView: View {
 struct ComposeTransactionView: View {
     @ObservedObject var viewModel: SigningViewModel
     @State private var showQRScanner = false
+    @State private var showAddressBook = false
+    @State private var ensStatus: String?
+    @StateObject private var priceService = PriceService.shared
 
     private var addressError: String? {
         guard !viewModel.recipientAddress.isEmpty else { return nil }
+        // Skip validation while ENS resolution is pending/used
+        if viewModel.recipientAddress.hasSuffix(".eth") { return nil }
         return AddressValidator.errorMessage(for: viewModel.recipientAddress, chain: viewModel.wallet.chain)
     }
 
@@ -65,6 +70,36 @@ struct ComposeTransactionView: View {
                         .accessibilityLabel(L10n.Signing.recipientAddress)
                         .accessibilityHint(L10n.Signing.recipientHint)
                         .accessibilityIdentifier("compose_recipientField")
+                        .onChange(of: viewModel.recipientAddress) { _, newVal in
+                            if newVal.hasSuffix(".eth"), viewModel.wallet.chain == .ethereum {
+                                resolveENS(newVal)
+                            } else {
+                                ensStatus = nil
+                            }
+                        }
+
+                    if viewModel.wallet.chain != .bitcoin {
+                        Button {
+                            showAddressBook = true
+                        } label: {
+                            Image(systemName: "person.crop.circle")
+                                .font(.title2)
+                                .foregroundStyle(.blue)
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("从地址簿选择")
+                        .accessibilityIdentifier("compose_addressBookButton")
+                    } else {
+                        Button {
+                            showAddressBook = true
+                        } label: {
+                            Image(systemName: "person.crop.circle")
+                                .font(.title2)
+                                .foregroundStyle(.blue)
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("从地址簿选择")
+                    }
 
                     Button {
                         showQRScanner = true
@@ -77,6 +112,15 @@ struct ComposeTransactionView: View {
                     .accessibilityLabel(L10n.Signing.scanQR)
                     .accessibilityHint(L10n.Signing.scanQRHint)
                     .accessibilityIdentifier("compose_scanQRButton")
+                }
+
+                if let ensStatus {
+                    HStack(spacing: 6) {
+                        Image(systemName: "at.circle")
+                            .foregroundStyle(.blue)
+                        Text(ensStatus)
+                            .font(.caption)
+                    }
                 }
 
                 if let addressError {
@@ -164,6 +208,31 @@ struct ComposeTransactionView: View {
         .sheet(isPresented: $showQRScanner) {
             QRScannerSheet { scannedAddress in
                 viewModel.recipientAddress = scannedAddress
+            }
+        }
+        .sheet(isPresented: $showAddressBook) {
+            AddressBookPicker(chain: viewModel.wallet.chain) { entry in
+                viewModel.recipientAddress = entry.address
+            }
+        }
+        .onAppear {
+            priceService.refreshIfNeeded()
+        }
+    }
+
+    /// Minimal ENS resolution via public RPC. Queries the ENS registry
+    /// resolver for the name and shows the result in an inline hint.
+    private func resolveENS(_ name: String) {
+        ensStatus = "解析 \(name) …"
+        Task {
+            let resolved = await ENSResolver.resolve(name)
+            await MainActor.run {
+                if let addr = resolved {
+                    ensStatus = "→ \(addr.prefix(10))…\(addr.suffix(6))"
+                    viewModel.recipientAddress = addr
+                } else {
+                    ensStatus = "ENS 解析失败，请手动粘贴地址。"
+                }
             }
         }
     }
@@ -254,8 +323,8 @@ struct SigningProgressView: View {
     @ObservedObject var viewModel: SigningViewModel
 
     var body: some View {
-        VStack(spacing: 32) {
-            Spacer()
+        VStack(spacing: 24) {
+            Spacer(minLength: 8)
 
             ProgressRing(progress: viewModel.signingProgress)
                 .frame(width: 120, height: 120)
@@ -270,20 +339,182 @@ struct SigningProgressView: View {
                     .foregroundStyle(.secondary)
             }
 
-            Text(L10n.Signing.roundOf(viewModel.currentRound, viewModel.totalRounds))
-                .font(.caption)
-                .foregroundStyle(.tertiary)
-                .accessibilityLabel(L10n.Signing.signingRound(viewModel.currentRound, viewModel.totalRounds))
+            HStack(spacing: 8) {
+                Text(L10n.Signing.roundOf(viewModel.currentRound, viewModel.totalRounds))
+                    .font(.caption)
+                    .foregroundStyle(.tertiary)
+                    .accessibilityLabel(L10n.Signing.signingRound(viewModel.currentRound, viewModel.totalRounds))
+                if viewModel.signingStartedAt != nil {
+                    Text("·").foregroundStyle(.tertiary)
+                    SigningElapsedLabel(startedAt: viewModel.signingStartedAt ?? Date())
+                }
+            }
+
+            // Elapsed hint — MPC ceremonies can feel "stuck" because there's no
+            // traditional progress bar during the cross-device round-trips. These
+            // thresholds tell the user whether "still waiting" is normal or not.
+            if let started = viewModel.signingStartedAt {
+                SigningElapsedHint(startedAt: started)
+            }
+
+            // Co-signer status list
+            VStack(alignment: .leading, spacing: 8) {
+                HStack {
+                    Image(systemName: "person.2.fill")
+                        .foregroundStyle(HorcruxTheme.accentPurple)
+                    Text("共同签名方")
+                        .font(.subheadline.weight(.semibold))
+                    Spacer()
+                    Text("\(viewModel.joinedSigners.count + 1) / \(viewModel.wallet.threshold)")
+                        .font(.caption.monospacedDigit())
+                        .foregroundStyle(.secondary)
+                }
+
+                // Self — always "signing" while ceremony runs, "done" once complete.
+                CosignerStatusRow(
+                    name: "本机（你）",
+                    status: viewModel.signingProgress >= 1.0 ? .done : .signing,
+                    round: viewModel.currentRound,
+                    totalRounds: viewModel.totalRounds,
+                    isSelf: true
+                )
+
+                // Remote signers — state driven by real MPC message arrivals.
+                ForEach(viewModel.joinedSigners) { peer in
+                    CosignerStatusRow(
+                        name: peer.name,
+                        status: viewModel.peerStates[peer.id].flatMap(mapState) ?? .waiting,
+                        round: viewModel.peerRounds[peer.id] ?? 0,
+                        totalRounds: viewModel.totalRounds,
+                        isSelf: false
+                    )
+                }
+            }
+            .padding(14)
+            .background(
+                RoundedRectangle(cornerRadius: 12)
+                    .fill(Color.white.opacity(0.04))
+                    .overlay(RoundedRectangle(cornerRadius: 12).stroke(Color.white.opacity(0.08), lineWidth: 1))
+            )
+            .padding(.horizontal)
 
             Spacer()
 
             Button(L10n.Signing.cancelSigning, role: .destructive) {
+                Haptics.warning()
                 viewModel.cancelSigning()
             }
             .font(.caption)
             .padding(.bottom)
         }
         .padding()
+    }
+
+    private func mapState(_ s: SigningViewModel.PeerSigningState) -> CosignerStatusRow.Status {
+        switch s {
+        case .waiting: return .waiting
+        case .signing: return .signing
+        case .done: return .done
+        case .failed: return .failed
+        }
+    }
+}
+
+/// Renders a live "mm:ss" elapsed counter from a start date.
+private struct SigningElapsedLabel: View {
+    let startedAt: Date
+
+    var body: some View {
+        TimelineView(.periodic(from: startedAt, by: 1.0)) { ctx in
+            let secs = max(0, Int(ctx.date.timeIntervalSince(startedAt)))
+            Text(formatted(secs))
+                .font(.caption.monospacedDigit())
+                .foregroundStyle(.tertiary)
+        }
+    }
+
+    private func formatted(_ secs: Int) -> String {
+        String(format: "%02d:%02d", secs / 60, secs % 60)
+    }
+}
+
+/// Shows contextual guidance after signing has been running for a while.
+private struct SigningElapsedHint: View {
+    let startedAt: Date
+
+    var body: some View {
+        TimelineView(.periodic(from: startedAt, by: 1.0)) { ctx in
+            let secs = Int(ctx.date.timeIntervalSince(startedAt))
+            if secs >= 60 {
+                hint(
+                    icon: "exclamationmark.triangle.fill",
+                    tint: .orange,
+                    text: "签名用时偏长。可尝试取消后重新发起，或检查共同签名方的网络。"
+                )
+            } else if secs >= 30 {
+                hint(
+                    icon: "hourglass",
+                    tint: HorcruxTheme.accentBlue,
+                    text: "正在等待共同签名方完成本轮计算……"
+                )
+            }
+        }
+    }
+
+    private func hint(icon: String, tint: Color, text: String) -> some View {
+        HStack(alignment: .top, spacing: 8) {
+            Image(systemName: icon).foregroundStyle(tint)
+            Text(text)
+                .font(.caption)
+                .foregroundStyle(.white.opacity(0.85))
+            Spacer()
+        }
+        .padding(10)
+        .background(RoundedRectangle(cornerRadius: 8).fill(tint.opacity(0.12)))
+        .padding(.horizontal)
+    }
+}
+
+private struct CosignerStatusRow: View {
+    let name: String
+    enum Status { case waiting, signing, done, failed }
+    let status: Status
+    let round: Int
+    let totalRounds: Int
+    let isSelf: Bool
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Image(systemName: isSelf ? "iphone" : "laptopcomputer")
+                .foregroundStyle(HorcruxTheme.accentPurple)
+                .frame(width: 20)
+            Text(name)
+                .font(.caption)
+                .foregroundStyle(.white)
+                .lineLimit(1)
+                .truncationMode(.middle)
+            Spacer()
+            if status == .signing, round > 0 {
+                Text("R\(round)/\(totalRounds)")
+                    .font(.caption2.monospacedDigit())
+                    .foregroundStyle(.secondary)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 2)
+                    .background(Capsule().fill(HorcruxTheme.accentPurple.opacity(0.15)))
+            }
+            switch status {
+            case .waiting:
+                Text("等待中")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            case .signing:
+                ProgressView().scaleEffect(0.7)
+            case .done:
+                Image(systemName: "checkmark.circle.fill").foregroundStyle(.green)
+            case .failed:
+                Image(systemName: "xmark.circle.fill").foregroundStyle(.red)
+            }
+        }
     }
 }
 
@@ -430,11 +661,10 @@ struct TransactionPreviewCard: View {
     private var plainSummary: String {
         let symbol = viewModel.transferSymbol
         let amount = viewModel.amount.isEmpty ? "0" : viewModel.amount
-        let recipient = viewModel.shortRecipient
         if isTokenTransfer {
-            return "你将把 \(amount) \(symbol) 从本钱包发送到 \(recipient)（调用合约 transfer 方法，不会改变其他资产）。"
+            return "你将把 \(amount) \(symbol) 从本钱包发送到下面的收款地址（调用合约 transfer 方法，不会改变其他资产）。请仔细核对地址每一段。"
         } else {
-            return "你将把 \(amount) \(symbol) 从本钱包发送到 \(recipient)。"
+            return "你将把 \(amount) \(symbol) 从本钱包发送到下面的收款地址。请仔细核对地址每一段。"
         }
     }
 
@@ -465,7 +695,64 @@ struct TransactionPreviewCard: View {
             previewRow(label: "操作", value: isTokenTransfer ? "ERC-20 转账" : "原生代币转账")
             previewRow(label: "资产", value: viewModel.transferSymbol)
             previewRow(label: "金额", value: "\(viewModel.amount) \(viewModel.transferSymbol)")
-            previewRow(label: "收款", value: viewModel.shortRecipient, monospaced: true)
+
+            // Balance impact — shows "current → after" for native-coin transfers.
+            // Skipped for ERC-20: the native balance isn't what's moving, so the
+            // comparison would mislead. Fiat value included when a USD quote is cached.
+            if !isTokenTransfer, let before = viewModel.preTxBalance {
+                balanceImpactRow(before: before)
+            }
+
+            // Gas-percentage warning — flag when network fee eats a meaningful share
+            // of the send amount. Keep native-only to avoid confusing comparisons
+            // between ERC-20 amounts and ETH gas.
+            if !isTokenTransfer, let pct = gasPercent(), pct >= 0.05 {
+                HStack(alignment: .top, spacing: 8) {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .foregroundStyle(.orange)
+                    Text(String(format: "网络费占转账金额 %.1f%%，建议确认后再签名。", pct * 100))
+                        .font(.caption)
+                        .foregroundStyle(.orange)
+                }
+            }
+
+            // Full recipient — chunked, monospaced, copyable, with explorer link.
+            // Intentionally verbose: truncation has caused address-phishing losses.
+            VStack(alignment: .leading, spacing: 6) {
+                HStack {
+                    Text("收款地址（请逐段核对）")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Spacer()
+                    Button {
+                        CopyFeedback.copy(
+                            AddressFormatter.canonical(viewModel.recipientAddress, chain: viewModel.wallet.chain),
+                            label: "地址已复制"
+                        )
+                    } label: {
+                        Image(systemName: "doc.on.doc")
+                            .font(.caption)
+                            .foregroundStyle(HorcruxTheme.accentBlue)
+                    }
+                    .accessibilityLabel("复制收款地址")
+                    if let url = viewModel.recipientExplorerURL {
+                        Link(destination: url) {
+                            Image(systemName: "arrow.up.right.square")
+                                .font(.caption)
+                                .foregroundStyle(HorcruxTheme.accentBlue)
+                        }
+                        .accessibilityLabel("在区块浏览器中查看")
+                    }
+                }
+                Text(viewModel.displayRecipient)
+                    .font(.system(.caption, design: .monospaced))
+                    .foregroundStyle(.white)
+                    .textSelection(.enabled)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(8)
+                    .background(RoundedRectangle(cornerRadius: 6).fill(Color.white.opacity(0.04)))
+            }
+
             if isTokenTransfer, let token = viewModel.selectedToken {
                 previewRow(label: "合约", value: shorten(token.id), monospaced: true)
             }
@@ -512,5 +799,67 @@ struct TransactionPreviewCard: View {
     private func shorten(_ s: String) -> String {
         guard s.count > 12 else { return s }
         return "\(s.prefix(6))…\(s.suffix(4))"
+    }
+
+    /// Extracts the numeric component from `balance()` strings like "1.234 ETH".
+    private func parseBalance(_ s: String) -> Double? {
+        let cleaned = s.replacingOccurrences(of: ",", with: "")
+        let first = cleaned.split(separator: " ").first.map(String.init) ?? cleaned
+        return Double(first)
+    }
+
+    /// Extracts numeric fee from `estimatedFee` string ("0.0003 ETH" or "~0.0003 ETH").
+    private func parseFee(_ s: String) -> Double? {
+        let trimmed = s.replacingOccurrences(of: "~", with: "")
+            .trimmingCharacters(in: .whitespaces)
+        return parseBalance(trimmed)
+    }
+
+    /// Gas fee as a fraction of transfer amount (native-coin only).
+    private func gasPercent() -> Double? {
+        guard let amt = Double(viewModel.amount), amt > 0 else { return nil }
+        guard let fee = parseFee(viewModel.estimatedFee), fee > 0 else { return nil }
+        return fee / amt
+    }
+
+    @ViewBuilder
+    private func balanceImpactRow(before: String) -> some View {
+        let beforeVal = parseBalance(before) ?? 0
+        let amt = Double(viewModel.amount) ?? 0
+        let fee = parseFee(viewModel.estimatedFee) ?? 0
+        let after = max(0, beforeVal - amt - fee)
+        let symbol = viewModel.wallet.chain.symbol
+        let priceService = PriceService.shared
+        let beforeUSD = priceService.fiatString(amount: beforeVal, symbol: symbol)
+        let afterUSD = priceService.fiatString(amount: after, symbol: symbol)
+
+        VStack(alignment: .leading, spacing: 4) {
+            HStack {
+                Text("余额变化")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Spacer()
+                HStack(spacing: 6) {
+                    Text(String(format: "%.6f %@", beforeVal, symbol))
+                        .font(.caption.monospacedDigit())
+                        .foregroundStyle(.white.opacity(0.7))
+                        .strikethrough(true)
+                    Image(systemName: "arrow.right")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                    Text(String(format: "%.6f %@", after, symbol))
+                        .font(.caption.monospacedDigit().weight(.semibold))
+                        .foregroundStyle(.white)
+                }
+            }
+            if let beforeUSD, let afterUSD {
+                HStack {
+                    Spacer()
+                    Text("\(beforeUSD) → \(afterUSD)")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
+            }
+        }
     }
 }
