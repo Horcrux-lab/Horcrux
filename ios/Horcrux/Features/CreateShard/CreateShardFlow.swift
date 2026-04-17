@@ -52,6 +52,23 @@ struct ConfigureView: View {
 
     var body: some View {
         Form {
+            // Role selector — Create (I'm the initiator, I choose params)
+            // vs Join (I'll adopt whatever the initiator picked).
+            Section {
+                Picker("角色", selection: $viewModel.role) {
+                    Text("创建新钱包").tag(CreateShardViewModel.Role.create)
+                    Text("加入他人创建").tag(CreateShardViewModel.Role.join)
+                }
+                .pickerStyle(.segmented)
+                .accessibilityIdentifier("configure_rolePicker")
+            } footer: {
+                Text(viewModel.role == .create
+                     ? "由你决定门限、参与方数量与链类型，其他设备自动采纳。"
+                     : "参数由发起人决定。你只需输入相同的房间码，钱包创建后同样持有一份分片。")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
+
             // Value-prop header (item 2: convey MPC core value)
             Section {
                 VStack(alignment: .leading, spacing: 8) {
@@ -68,9 +85,15 @@ struct ConfigureView: View {
                         }
                         .accessibilityLabel("什么是门限签名")
                     }
-                    Text("无需助记词。密钥分成 \(viewModel.totalParties) 片分发到不同设备，任意 \(viewModel.threshold) 片即可签名 —— 丢失任一设备仍可恢复。")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                    if viewModel.role == .create {
+                        Text("无需助记词。密钥分成 \(viewModel.totalParties) 片分发到不同设备，任意 \(viewModel.threshold) 片即可签名 —— 丢失任一设备仍可恢复。")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    } else {
+                        Text("无需助记词。你将加入发起人创建的门限签名钱包，获得一份密钥分片。")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
                 }
                 .padding(.vertical, 4)
             }
@@ -82,31 +105,46 @@ struct ConfigureView: View {
                     .accessibilityIdentifier("configure_walletNameField")
             }
 
-            Section(L10n.CreateShard.blockchain) {
-                Picker(L10n.CreateShard.chain, selection: $viewModel.selectedCurve) {
-                    Text("EVM 链 + Bitcoin")
-                        .tag(FfiCurveType.secp256k1)
-                    Text("Solana")
-                        .tag(FfiCurveType.ed25519)
-                }
-                .pickerStyle(.inline)
+            if viewModel.role == .create {
+                Section(L10n.CreateShard.blockchain) {
+                    Picker(L10n.CreateShard.chain, selection: $viewModel.selectedCurve) {
+                        Text("EVM 链 + Bitcoin")
+                            .tag(FfiCurveType.secp256k1)
+                        Text("Solana")
+                            .tag(FfiCurveType.ed25519)
+                    }
+                    .pickerStyle(.inline)
 
-                Text(viewModel.selectedCurve == .secp256k1
-                     ? "将生成：ETH · BTC 地址（共享同一密钥分片）"
-                     : "将生成：SOL 地址")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-
-            // Advanced settings (item 1: reduce cognitive load)
-            Section {
-                DisclosureGroup("高级设置", isExpanded: $showAdvanced) {
-                    advancedThresholdStepper
-                    advancedTransportToggles
+                    Text(viewModel.selectedCurve == .secp256k1
+                         ? "将生成：ETH · BTC 地址（共享同一密钥分片）"
+                         : "将生成：SOL 地址")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                 }
-            } footer: {
-                if !showAdvanced {
-                    Text("默认：2-of-3 · 通过中继服务器发现设备 · 房间码已自动生成")
+
+                // Advanced settings (item 1: reduce cognitive load)
+                Section {
+                    DisclosureGroup("高级设置", isExpanded: $showAdvanced) {
+                        advancedThresholdStepper
+                        advancedTransportToggles
+                    }
+                } footer: {
+                    if !showAdvanced {
+                        Text("默认：2-of-3 · 通过中继服务器发现设备 · 房间码已自动生成")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+            } else {
+                // Joiner: only expose transports + room code so they can
+                // connect to the creator. m/n/curve will arrive via
+                // first-wins negotiation.
+                Section {
+                    DisclosureGroup("连接方式", isExpanded: $showAdvanced) {
+                        advancedTransportToggles
+                    }
+                } footer: {
+                    Text("输入与发起人一致的房间码即可加入。")
                         .font(.caption2)
                         .foregroundStyle(.secondary)
                 }
@@ -114,14 +152,18 @@ struct ConfigureView: View {
 
             Section {
                 Button {
-                    if viewModel.threshold == viewModel.totalParties && viewModel.totalParties > 1 {
+                    if viewModel.role == .create
+                        && viewModel.threshold == viewModel.totalParties
+                        && viewModel.totalParties > 1 {
                         showNofNConfirm = true
                     } else {
                         viewModel.step = .discover
                         viewModel.startDiscovery()
                     }
                 } label: {
-                    Text(L10n.CreateShard.nextFindPeers)
+                    Text(viewModel.role == .create
+                         ? L10n.CreateShard.nextFindPeers
+                         : "下一步：连接发起人")
                         .frame(maxWidth: .infinity)
                         .font(.headline)
                 }
@@ -422,8 +464,34 @@ struct PeerDiscoveryView: View {
     @State private var timerTask: Task<Void, Never>?
 
     private var progress: Double {
+        // Joiner doesn't know the target n — show a simple "at least 1"
+        // presence indicator instead.
+        if viewModel.role == .join {
+            return viewModel.foundPeers.isEmpty ? 0.0 : 1.0
+        }
         let needed = max(viewModel.totalParties - 1, 1)
         return min(Double(viewModel.foundPeers.count) / Double(needed), 1.0)
+    }
+
+    /// Creator requires n-1 peers; joiner just requires 1 (the creator).
+    private var hasEnoughPeers: Bool {
+        if viewModel.role == .join {
+            return viewModel.foundPeers.count >= 1
+        }
+        return viewModel.foundPeers.count >= viewModel.totalParties - 1
+    }
+
+    private var startButtonLabel: String {
+        viewModel.role == .create
+            ? L10n.Discovery.startKeyGeneration
+            : "加入（发起人将决定参数）"
+    }
+
+    private var hint: String {
+        if viewModel.role == .join {
+            return "请确保所有参与设备都已出现在列表中再点击加入。参数（门限/参与方/链）以发起人为准。"
+        }
+        return "提示：另一台设备需在同一房间码下开启创建流程"
     }
 
     var body: some View {
@@ -448,9 +516,13 @@ struct PeerDiscoveryView: View {
                 .foregroundStyle(.secondary)
 
             HStack(spacing: 8) {
-                Image(systemName: "person.crop.circle.badge.checkmark")
-                    .foregroundStyle(HorcruxTheme.accentCyan)
-                Text("My ID: \(viewModel.localPeerId)")
+                Image(systemName: viewModel.role == .create
+                      ? "crown.fill"
+                      : "person.crop.circle.badge.checkmark")
+                    .foregroundStyle(viewModel.role == .create ? .orange : HorcruxTheme.accentCyan)
+                Text(viewModel.role == .create
+                     ? "发起人 · My ID: \(viewModel.localPeerId)"
+                     : "加入者 · My ID: \(viewModel.localPeerId)")
                     .font(.system(.caption, design: .monospaced))
                     .foregroundStyle(HorcruxTheme.accentCyan)
             }
@@ -458,9 +530,14 @@ struct PeerDiscoveryView: View {
             .padding(.vertical, 8)
             .background(HorcruxTheme.accentCyan.opacity(0.1), in: Capsule())
 
-            Text(L10n.Discovery.peersFound(viewModel.foundPeers.count, viewModel.totalParties - 1))
-                .font(.headline)
-                .accessibilityLabel(L10n.Discovery.peersFoundAccessibility(viewModel.foundPeers.count, viewModel.totalParties - 1))
+            if viewModel.role == .create {
+                Text(L10n.Discovery.peersFound(viewModel.foundPeers.count, viewModel.totalParties - 1))
+                    .font(.headline)
+                    .accessibilityLabel(L10n.Discovery.peersFoundAccessibility(viewModel.foundPeers.count, viewModel.totalParties - 1))
+            } else {
+                Text("已发现设备：\(viewModel.foundPeers.count)")
+                    .font(.headline)
+            }
 
             List(viewModel.foundPeers) { peer in
                 HStack {
@@ -479,12 +556,12 @@ struct PeerDiscoveryView: View {
                 }
             }
 
-            if viewModel.foundPeers.count >= viewModel.totalParties - 1 {
+            if hasEnoughPeers {
                 Button {
                     timerTask?.cancel()
                     viewModel.startDKG()
                 } label: {
-                    Text(L10n.Discovery.startKeyGeneration)
+                    Text(startButtonLabel)
                         .frame(maxWidth: .infinity)
                         .font(.headline)
                 }
@@ -492,8 +569,16 @@ struct PeerDiscoveryView: View {
                 .padding(.horizontal)
                 .accessibilityHint(L10n.Discovery.startKeyGenHint)
                 .accessibilityIdentifier("discover_startDKGButton")
+
+                if viewModel.role == .join {
+                    Text(hint)
+                        .font(.caption2)
+                        .foregroundStyle(.tertiary)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal)
+                }
             } else {
-                Text("提示：另一台设备需在同一房间码下开启创建流程")
+                Text(hint)
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)

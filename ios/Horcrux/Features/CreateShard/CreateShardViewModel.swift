@@ -12,8 +12,18 @@ final class CreateShardViewModel: ObservableObject {
         case configure, discover, dkg, complete, error
     }
 
+    /// Whether this device is the session creator (chooses m/n/curve)
+    /// or a joiner (adopts the creator's config via first-wins
+    /// negotiation).
+    enum Role: String, CaseIterable, Identifiable {
+        case create
+        case join
+        var id: String { rawValue }
+    }
+
     // Configuration
     @Published var step: Step = .configure
+    @Published var role: Role = .create
     @Published var walletName: String = ""
     @Published var selectedCurve: FfiCurveType = .secp256k1
     @Published var threshold: Int = 2
@@ -220,7 +230,8 @@ final class CreateShardViewModel: ObservableObject {
             totalParties: totalParties,
             curve: selectedCurve,
             partyIndex: partyIndex,
-            deviceName: UIDevice.current.name
+            deviceName: UIDevice.current.name,
+            role: role
         )
         let helloData = try JSONEncoder().encode(myHello)
         let mySummary = myHello.summary
@@ -289,11 +300,15 @@ final class CreateShardViewModel: ObservableObject {
             throw DKGError.configTimeout
         }
 
-        // Pick the authoritative hello: lowest partyIndex among {me, peers}.
-        // Ties broken by deviceName ascending.
+        // Pick the authoritative hello. Preference order:
+        //   1. role == create (the initiator always wins)
+        //   2. lowest partyIndex
+        //   3. deviceName ascending (deterministic tiebreak)
+        // If multiple devices claim `create`, rule 2+3 resolve the tie.
         var all: [ConfigHelloDTO] = Array(heard.values)
         all.append(myHello)
         let authoritative = all.min { a, b in
+            if a.isCreator != b.isCreator { return a.isCreator }
             if a.partyIndex != b.partyIndex { return a.partyIndex < b.partyIndex }
             return a.deviceName < b.deviceName
         }!
@@ -598,10 +613,10 @@ private enum DKGError: LocalizedError {
     }
 }
 
-/// Pre-DKG handshake: every party broadcasts its (t,n,curve) so
-/// mismatches abort cleanly instead of hanging for the full 2-minute
-/// keygen timeout. Tagged with a magic string so the main MPC message
-/// decoder can ignore it.
+/// Pre-DKG handshake: every party broadcasts its (t,n,curve) plus its
+/// role (`create` vs `join`). A creator's hello always outranks any
+/// joiner hello, so followers reliably adopt the initiator's config
+/// regardless of how device IDs sort.
 struct ConfigHelloDTO: Codable {
     static let magic = "HCFG-v1"
     let magic: String
@@ -610,14 +625,25 @@ struct ConfigHelloDTO: Codable {
     let curve: String
     let partyIndex: UInt16
     let deviceName: String
+    /// "create" or "join". Optional so older builds (which didn't send
+    /// this field) still decode cleanly and are treated as joiners.
+    let role: String?
 
-    init(threshold: Int, totalParties: Int, curve: FfiCurveType, partyIndex: Int, deviceName: String) {
+    init(
+        threshold: Int,
+        totalParties: Int,
+        curve: FfiCurveType,
+        partyIndex: Int,
+        deviceName: String,
+        role: CreateShardViewModel.Role
+    ) {
         self.magic = Self.magic
         self.threshold = UInt16(threshold)
         self.totalParties = UInt16(totalParties)
         self.curve = Self.curveString(curve)
         self.partyIndex = UInt16(partyIndex)
         self.deviceName = deviceName
+        self.role = role.rawValue
     }
 
     static func curveString(_ c: FfiCurveType) -> String {
@@ -626,6 +652,8 @@ struct ConfigHelloDTO: Codable {
         case .ed25519: return "ed25519"
         }
     }
+
+    var isCreator: Bool { role == "create" }
 
     var summary: String { "\(threshold)/\(totalParties) \(curve)" }
 }
