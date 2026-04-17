@@ -46,36 +46,6 @@ final class PinHashTests: XCTestCase {
         XCTAssertNotEqual(hash1, hash2)
     }
 
-    func testPinKeyMaterialRequiresStoredPin() {
-        // pinKeyMaterial requires a PIN salt stored in Keychain.
-        // Without a stored PIN, it should throw keychainUnavailable.
-        XCTAssertThrowsError(try AppState.pinKeyMaterial("1234")) { error in
-            if case AppError.keychainUnavailable = error {
-                // Expected
-            } else {
-                // May also succeed if a PIN was stored by a previous test run
-            }
-        }
-    }
-
-    func testPinKeyMaterialWithStoredPin() throws {
-        // Store a PIN hash first, then derive key material.
-        // Keychain may be unavailable on simulator (-34018 errSecMissingEntitlement).
-        let pinHash = AppState.hashPin("1234")
-        do {
-            try KeychainManager.shared.store(key: "com.horcrux.pin_hash", data: pinHash)
-        } catch {
-            throw XCTSkip("Keychain unavailable on this simulator run: \(error)")
-        }
-
-        defer {
-            try? KeychainManager.shared.delete(key: "com.horcrux.pin_hash")
-        }
-
-        let material = try AppState.pinKeyMaterial("1234")
-        XCTAssertEqual(material.count, 32, "Key material should be 32 bytes")
-    }
-
     func testEmptyPinHashesSuccessfully() {
         let result = AppState.hashPin("")
         XCTAssertEqual(result.count, 48)
