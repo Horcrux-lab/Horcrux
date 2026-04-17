@@ -383,6 +383,53 @@ actor BlockchainService {
         return try decodeTronUnsigned(data: data)
     }
 
+    /// Estimate TRC-20 transfer energy + bandwidth via
+    /// `/wallet/triggerconstantcontract`. Does NOT broadcast. Returns
+    /// conservative fee in SUN: `energy_used × 420` (energy unit price as of
+    /// 2024 Niles upgrade) plus `345 × 1000` for bandwidth (~345 bytes at
+    /// 1000 SUN/byte when the account has no free bandwidth). Real cost is
+    /// lower for accounts with staked/frozen resources, but this matches
+    /// the on-chain `fee_limit` ceiling the signer needs to commit to.
+    func tronEstimateTRC20Fee(
+        from: String, contract: String, to: String, amountRaw: String, apiURL: String
+    ) async throws -> (feeSun: UInt64, energy: UInt64) {
+        guard let url = URL(string: "\(apiURL)/wallet/triggerconstantcontract") else {
+            throw BlockchainError.invalidURL(apiURL)
+        }
+        let toHex20 = try tronBase58AddressToHex20(to)
+        let addrPadded = String(repeating: "0", count: 24) + toHex20
+        guard let amtPadded = decimalStringToABIUint256Hex(amountRaw) else {
+            throw BlockchainError.invalidResponse
+        }
+        let parameter = addrPadded + amtPadded
+        let body: [String: Any] = [
+            "owner_address": from,
+            "contract_address": contract,
+            "function_selector": "transfer(address,uint256)",
+            "parameter": parameter,
+            "visible": true,
+        ]
+        var req = URLRequest(url: url)
+        req.httpMethod = "POST"
+        req.httpBody = try JSONSerialization.data(withJSONObject: body)
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        let (data, response) = try await session.data(for: req)
+        try validateHTTP(response)
+        guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            throw BlockchainError.invalidResponse
+        }
+        let energyUsed: UInt64 = {
+            if let n = json["energy_used"] as? NSNumber { return n.uint64Value }
+            if let s = json["energy_used"] as? String, let v = UInt64(s) { return v }
+            return 0
+        }()
+        // 420 SUN per energy unit (post-Niles), 1000 SUN per bandwidth byte.
+        // ~345 bytes is typical for a TRC-20 transfer raw tx.
+        let energySun = energyUsed * 420
+        let bandwidthSun: UInt64 = 345 * 1_000
+        return (feeSun: energySun + bandwidthSun, energy: energyUsed)
+    }
+
     /// Build an unsigned TRC-20 `transfer(address,uint256)` call via
     /// `/wallet/triggersmartcontract`. Used for USDT-TRC20 and any other
     /// standard TRC-20 token.

@@ -328,21 +328,55 @@ final class SigningViewModel: ObservableObject {
                             isEstimatingGas = false
                         }
                     case .tron:
-                        // Rough conservative defaults; real fee depends on
-                        // bandwidth/energy credits held by the account. Native
-                        // TRX transfer with no bandwidth costs ~0.28 TRX;
-                        // TRC-20 transfer typically 13-27 TRX.
-                        let feeTRX = self.selectedToken == nil ? "≈ 0.3 TRX" : "≈ 14 TRX"
+                        // Native TRX transfer: ~345 byte bandwidth ≈ 0.345 TRX
+                        // when the account has no free bandwidth.
+                        // TRC-20: query /wallet/triggerconstantcontract for
+                        // real energy_used, multiply by 420 SUN/unit, add
+                        // ~345 B × 1000 SUN/B for bandwidth. Falls back to a
+                        // conservative 14 TRX ceiling if the call fails.
+                        let feeTRX: String
+                        if let token = self.selectedToken {
+                            let api = networkConfig.tronAPI
+                            let rawAmount = Self.amountToRawUnits(amount, decimals: Int(token.decimals))
+                            do {
+                                let result = try await blockchainService.tronEstimateTRC20Fee(
+                                    from: wallet.address,
+                                    contract: token.id,
+                                    to: recipientAddress,
+                                    amountRaw: rawAmount,
+                                    apiURL: api
+                                )
+                                let trx = Double(result.feeSun) / 1_000_000.0
+                                feeTRX = String(format: "≈ %.2f TRX (%llu 能量)", trx, result.energy)
+                            } catch {
+                                feeTRX = "≈ 14 TRX"
+                            }
+                        } else {
+                            feeTRX = "≈ 0.3 TRX"
+                        }
                         await MainActor.run {
                             estimatedFee = feeTRX
                             isEstimatingGas = false
                         }
                     case .litecoin:
-                        // Signing not wired yet; show a hint so the user knows the
-                        // preview is informational only.
-                        await MainActor.run {
-                            estimatedFee = L10n.Signing.unableToEstimate
-                            isEstimatingGas = false
+                        // litecoinspace.org exposes the same Esplora + fees API
+                        // as mempool.space, so we can reuse btcFeeEstimateDisplay.
+                        do {
+                            let feeDisplay = try await blockchainService.btcFeeEstimateDisplay(
+                                inputCount: 1, outputCount: 2,
+                                apiURL: networkConfig.litecoinAPI
+                            )
+                            // Replace BTC units in the display with LTC.
+                            let ltcFee = feeDisplay.estimatedFee.replacingOccurrences(of: "BTC", with: "LTC")
+                            await MainActor.run {
+                                estimatedFee = "≈ \(ltcFee)"
+                                isEstimatingGas = false
+                            }
+                        } catch {
+                            await MainActor.run {
+                                estimatedFee = L10n.Signing.unableToEstimate
+                                isEstimatingGas = false
+                            }
                         }
                     default:
                         await MainActor.run {
