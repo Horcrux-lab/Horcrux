@@ -108,6 +108,13 @@ enum TokenList {
               symbol: "USDC", name: "USD Coin", decimals: 6, iconURL: nil),
     ]
 
+    static let tron: [Token] = [
+        // USDT-TRC20 — by far the dominant stablecoin on TRON, with tens of
+        // billions in circulation. Contract owned by Tether.
+        Token(id: "TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t", chain: .tron,
+              symbol: "USDT", name: "Tether USD", decimals: 6, iconURL: nil),
+    ]
+
     static func tokens(for chain: Chain) -> [Token] {
         switch chain {
         case .ethereum: return ethereum
@@ -119,7 +126,7 @@ enum TokenList {
         case .scroll: return scroll
         case .bitcoin, .litecoin: return []   // UTXO chains have no native token standard
         case .solana: return solana
-        case .tron: return []   // TRC-20 balance read path not wired yet; USDT-TRC20 lands with signing support.
+        case .tron: return tron
         }
     }
 }

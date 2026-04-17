@@ -552,6 +552,45 @@ actor BlockchainService {
         }
     }
 
+    /// Fetch TRC-20 token balances for a TRON address via TronGrid's
+    /// `/v1/accounts/{address}` endpoint. Response includes a `trc20` array
+    /// of single-key dicts `{contractAddress: balanceRawString}`.
+    ///
+    /// Using this convenience endpoint avoids having to base58-decode the
+    /// owner address into ABI-encoded hex, which the lower-level
+    /// `/wallet/triggerconstantcontract` `balanceOf` call would require.
+    func trc20Balances(tokens: [Token], ownerAddress: String, apiURL: String) async -> [TokenBalance] {
+        guard !tokens.isEmpty else { return [] }
+        let endpoint = "\(apiURL)/v1/accounts/\(ownerAddress)"
+        guard let url = URL(string: endpoint) else { return [] }
+        do {
+            let (data, response) = try await session.data(from: url)
+            try validateHTTP(response)
+            struct Response: Decodable {
+                struct Datum: Decodable {
+                    // Each element is a single-key {contract: balanceString} dict.
+                    let trc20: [[String: String]]?
+                }
+                let data: [Datum]?
+            }
+            let decoded = try JSONDecoder().decode(Response.self, from: data)
+            // Flatten the list of single-key dicts into one lookup.
+            var balances: [String: String] = [:]
+            for datum in decoded.data ?? [] {
+                for entry in datum.trc20 ?? [] {
+                    for (contract, raw) in entry { balances[contract] = raw }
+                }
+            }
+            return tokens.compactMap { token in
+                guard let raw = balances[token.id], raw != "0" else { return nil }
+                return TokenBalance(token: token, balance: raw)
+            }.sorted { $0.token.symbol < $1.token.symbol }
+        } catch {
+            SecureLog.error("TRC-20 token balance fetch failed: \(error.localizedDescription)")
+            return []
+        }
+    }
+
     /// Fetch all token balances for a wallet.
     func tokenBalances(for wallet: Wallet, config: NetworkConfig) async -> [TokenBalance] {
         let tokens = TokenList.tokens(for: wallet.chain)
@@ -566,8 +605,10 @@ actor BlockchainService {
         switch wallet.chain {
         case .solana:
             return await splTokenBalances(tokens: tokens, ownerAddress: wallet.address, rpcURL: config.solanaRPC)
-        case .bitcoin, .litecoin, .tron:
-            // UTXO chains and TRC20 not wired yet.
+        case .tron:
+            return await trc20Balances(tokens: tokens, ownerAddress: wallet.address, apiURL: config.tronAPI)
+        case .bitcoin, .litecoin:
+            // UTXO chains have no token standard.
             return []
         default:
             return []
