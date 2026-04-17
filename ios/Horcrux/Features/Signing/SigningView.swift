@@ -427,6 +427,17 @@ struct TransactionPreviewCard: View {
         return w
     }
 
+    private var plainSummary: String {
+        let symbol = viewModel.transferSymbol
+        let amount = viewModel.amount.isEmpty ? "0" : viewModel.amount
+        let recipient = viewModel.shortRecipient
+        if isTokenTransfer {
+            return "你将把 \(amount) \(symbol) 从本钱包发送到 \(recipient)（调用合约 transfer 方法，不会改变其他资产）。"
+        } else {
+            return "你将把 \(amount) \(symbol) 从本钱包发送到 \(recipient)。"
+        }
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             HStack {
@@ -440,6 +451,14 @@ struct TransactionPreviewCard: View {
                     .font(.caption2)
                     .foregroundStyle(.secondary)
             }
+
+            // Plain-Chinese summary (item 10)
+            Text(plainSummary)
+                .font(.footnote)
+                .foregroundStyle(.white.opacity(0.9))
+                .padding(10)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(RoundedRectangle(cornerRadius: 8).fill(HorcruxTheme.accentBlue.opacity(0.15)))
 
             Divider().background(Color.white.opacity(0.08))
 

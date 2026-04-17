@@ -42,9 +42,34 @@ struct CreateShardFlow: View {
 
 struct ConfigureView: View {
     @ObservedObject var viewModel: CreateShardViewModel
+    @State private var showAdvanced = false
+    @State private var showExplainer = false
 
     var body: some View {
         Form {
+            // Value-prop header (item 2: convey MPC core value)
+            Section {
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack {
+                        Image(systemName: "shield.lefthalf.filled")
+                            .foregroundStyle(.green)
+                        Text("门限签名钱包")
+                            .font(.headline)
+                        Spacer()
+                        Button {
+                            showExplainer = true
+                        } label: {
+                            Image(systemName: "info.circle")
+                        }
+                        .accessibilityLabel("什么是门限签名")
+                    }
+                    Text("无需助记词。密钥分成 \(viewModel.totalParties) 片分发到不同设备，任意 \(viewModel.threshold) 片即可签名 —— 丢失任一设备仍可恢复。")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                .padding(.vertical, 4)
+            }
+
             Section(L10n.CreateShard.walletName) {
                 TextField(L10n.CreateShard.walletNamePlaceholder, text: $viewModel.walletName)
                     .accessibilityLabel(L10n.CreateShard.walletNameAccessibility)
@@ -54,114 +79,31 @@ struct ConfigureView: View {
 
             Section(L10n.CreateShard.blockchain) {
                 Picker(L10n.CreateShard.chain, selection: $viewModel.selectedCurve) {
-                    Text("Ethereum + Bitcoin (secp256k1)")
+                    Text("EVM 链 + Bitcoin")
                         .tag(FfiCurveType.secp256k1)
-                    Text("Solana (Ed25519)")
+                    Text("Solana")
                         .tag(FfiCurveType.ed25519)
                 }
                 .pickerStyle(.inline)
 
-                Text("同一曲线的链共享同一个密钥分片，自动派生所有地址")
+                Text(viewModel.selectedCurve == .secp256k1
+                     ? "将生成：ETH · BTC 地址（共享同一密钥分片）"
+                     : "将生成：SOL 地址")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
 
-            Section(L10n.CreateShard.threshold) {
-                Stepper(L10n.CreateShard.totalParties(viewModel.totalParties),
-                        value: $viewModel.totalParties, in: 2...10)
-                    .accessibilityLabel(L10n.CreateShard.totalParties(viewModel.totalParties))
-                    .accessibilityHint(L10n.CreateShard.totalPartiesHint())
-                Stepper(L10n.CreateShard.signingThreshold(viewModel.threshold),
-                        value: $viewModel.threshold, in: 2...viewModel.totalParties)
-                    .accessibilityLabel(L10n.CreateShard.signingThreshold(viewModel.threshold))
-                    .accessibilityHint(L10n.CreateShard.signingThresholdHint())
-
-                Text(L10n.CreateShard.requiresDevices(viewModel.threshold, viewModel.totalParties))
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-
-                if viewModel.totalParties == 3 && viewModel.threshold == 2 {
-                    Label {
-                        Text("推荐配置：3 台设备生成分片，任意 2 台即可签名。第三台作为备份，设备丢失时仍可恢复钱包。")
-                            .font(.caption)
-                    } icon: {
-                        Image(systemName: "checkmark.shield.fill")
-                            .foregroundStyle(.green)
-                    }
-                    .padding(.top, 4)
-                } else if viewModel.totalParties == viewModel.threshold {
-                    Label {
-                        Text("警告：\(viewModel.threshold)-of-\(viewModel.totalParties) 配置没有冗余，任一设备丢失将永久无法动用钱包。建议至少多加一台备份设备。")
-                            .font(.caption)
-                    } icon: {
-                        Image(systemName: "exclamationmark.triangle.fill")
-                            .foregroundStyle(.orange)
-                    }
-                    .padding(.top, 4)
+            // Advanced settings (item 1: reduce cognitive load)
+            Section {
+                DisclosureGroup("高级设置", isExpanded: $showAdvanced) {
+                    advancedThresholdStepper
+                    advancedTransportToggles
                 }
-            }
-
-            Section(L10n.CreateShard.communication) {
-                ForEach(TransportType.allCases) { transport in
-                    Toggle(isOn: Binding(
-                        get: { viewModel.selectedTransports.contains(transport) },
-                        set: { enabled in
-                            if enabled {
-                                viewModel.selectedTransports.insert(transport)
-                            } else {
-                                viewModel.selectedTransports.remove(transport)
-                            }
-                        }
-                    )) {
-                        Label(transport.rawValue, systemImage: transport.iconName)
-                    }
-                }
-
-                if viewModel.selectedTransports.contains(.relay) {
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("房间码（3 个单词）")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-
-                        HStack {
-                            TextField("apple-tiger-moon", text: $viewModel.roomCode)
-                                .font(.system(.body, design: .monospaced))
-                                .autocorrectionDisabled()
-                                .textInputAutocapitalization(.never)
-                                .accessibilityIdentifier("configure_roomCodeField")
-                                .onChange(of: viewModel.roomCode) { _, newValue in
-                                    let normalized = RoomCode.normalize(newValue)
-                                    if normalized != newValue {
-                                        viewModel.roomCode = normalized
-                                    }
-                                }
-                            Button {
-                                viewModel.roomCode = RoomCode.generate()
-                            } label: {
-                                Image(systemName: "arrow.triangle.2.circlepath")
-                            }
-                            .buttonStyle(.bordered)
-                            .accessibilityLabel("生成新房间码")
-
-                            Button {
-                                SecureClipboard.copy(viewModel.roomCode)
-                            } label: {
-                                Image(systemName: "doc.on.doc")
-                            }
-                            .buttonStyle(.bordered)
-                            .accessibilityLabel("复制房间码")
-                        }
-
-                        if !viewModel.roomCode.isEmpty && !RoomCode.isValid(viewModel.roomCode) {
-                            Text("房间码应为 3 个用连字符分隔的单词")
-                                .font(.caption2)
-                                .foregroundStyle(.orange)
-                        } else {
-                            Text("把这三个单词读给对方，便于电话/语音传递")
-                                .font(.caption2)
-                                .foregroundStyle(.secondary)
-                        }
-                    }
+            } footer: {
+                if !showAdvanced {
+                    Text("默认：2-of-3 · 通过中继服务器发现设备 · 房间码已自动生成")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
                 }
             }
 
@@ -180,6 +122,163 @@ struct ConfigureView: View {
                 .accessibilityIdentifier("configure_nextButton")
             }
         }
+        .sheet(isPresented: $showExplainer) {
+            MPCExplainerSheet()
+                .presentationDetents([.medium, .large])
+        }
+    }
+
+    @ViewBuilder
+    private var advancedThresholdStepper: some View {
+        Stepper(L10n.CreateShard.totalParties(viewModel.totalParties),
+                value: $viewModel.totalParties, in: 2...10)
+        Stepper(L10n.CreateShard.signingThreshold(viewModel.threshold),
+                value: $viewModel.threshold, in: 2...viewModel.totalParties)
+
+        Text(L10n.CreateShard.requiresDevices(viewModel.threshold, viewModel.totalParties))
+            .font(.caption)
+            .foregroundStyle(.secondary)
+
+        if viewModel.totalParties == 3 && viewModel.threshold == 2 {
+            Label {
+                Text("推荐：3 台生成，任意 2 台即可签名。")
+                    .font(.caption)
+            } icon: {
+                Image(systemName: "checkmark.shield.fill").foregroundStyle(.green)
+            }
+        } else if viewModel.totalParties == viewModel.threshold {
+            Label {
+                Text("警告：\(viewModel.threshold)-of-\(viewModel.totalParties) 无冗余，任一设备丢失将永久失去钱包。")
+                    .font(.caption)
+            } icon: {
+                Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.orange)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var advancedTransportToggles: some View {
+        ForEach(TransportType.allCases) { transport in
+            Toggle(isOn: Binding(
+                get: { viewModel.selectedTransports.contains(transport) },
+                set: { enabled in
+                    if enabled {
+                        viewModel.selectedTransports.insert(transport)
+                    } else {
+                        viewModel.selectedTransports.remove(transport)
+                    }
+                }
+            )) {
+                Label(transport.rawValue, systemImage: transport.iconName)
+            }
+        }
+
+        if viewModel.selectedTransports.contains(.relay) {
+            VStack(alignment: .leading, spacing: 8) {
+                Text("房间码（3 个单词）")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+
+                HStack {
+                    TextField("apple-tiger-moon", text: $viewModel.roomCode)
+                        .font(.system(.body, design: .monospaced))
+                        .autocorrectionDisabled()
+                        .textInputAutocapitalization(.never)
+                        .accessibilityIdentifier("configure_roomCodeField")
+                        .onChange(of: viewModel.roomCode) { _, newValue in
+                            let normalized = RoomCode.normalize(newValue)
+                            if normalized != newValue {
+                                viewModel.roomCode = normalized
+                            }
+                        }
+                    Button {
+                        viewModel.roomCode = RoomCode.generate()
+                    } label: {
+                        Image(systemName: "arrow.triangle.2.circlepath")
+                    }
+                    .buttonStyle(.bordered)
+                    .accessibilityLabel("生成新房间码")
+
+                    Button {
+                        SecureClipboard.copy(viewModel.roomCode)
+                    } label: {
+                        Image(systemName: "doc.on.doc")
+                    }
+                    .buttonStyle(.bordered)
+                    .accessibilityLabel("复制房间码")
+                }
+
+                if !viewModel.roomCode.isEmpty && !RoomCode.isValid(viewModel.roomCode) {
+                    Text("房间码应为 3 个用连字符分隔的单词")
+                        .font(.caption2)
+                        .foregroundStyle(.orange)
+                } else {
+                    Text("把这三个单词读给对方，便于电话/语音传递")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
+            }
+        }
+    }
+}
+
+/// Explainer sheet — surfaces the "why" of MPC threshold signing.
+private struct MPCExplainerSheet: View {
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 20) {
+                    explainerRow(
+                        icon: "xmark.seal.fill",
+                        color: .red,
+                        title: "无助记词",
+                        body: "传统钱包依赖 12/24 个助记词，写在纸上一旦泄露 = 钱包丢失。Horcrux 不生成助记词，无法被拍照、偷看或钓鱼。"
+                    )
+                    explainerRow(
+                        icon: "rectangle.split.3x1.fill",
+                        color: .blue,
+                        title: "密钥分片",
+                        body: "DKG（分布式密钥生成）算法让每台设备只持有部分密钥。任何单台设备被攻破都不会泄露完整私钥。"
+                    )
+                    explainerRow(
+                        icon: "checkmark.shield.fill",
+                        color: .green,
+                        title: "丢设备也能恢复",
+                        body: "2-of-3 配置下，任何 2 台设备即可签名。丢失 1 台，用剩下 2 台签发交易，把资产转到新钱包。"
+                    )
+                    explainerRow(
+                        icon: "link.circle.fill",
+                        color: .purple,
+                        title: "一次 DKG，多链共享",
+                        body: "secp256k1 曲线一次生成即可同时用于 ETH 与 BTC 地址，无需重复创建。"
+                    )
+                }
+                .padding()
+            }
+            .navigationTitle("什么是门限签名？")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("完成") { dismiss() }
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func explainerRow(icon: String, color: Color, title: String, body: String) -> some View {
+        HStack(alignment: .top, spacing: 12) {
+            Image(systemName: icon)
+                .font(.title2)
+                .foregroundStyle(color)
+                .frame(width: 32)
+            VStack(alignment: .leading, spacing: 4) {
+                Text(title).font(.headline)
+                Text(body).font(.subheadline).foregroundStyle(.secondary)
+            }
+        }
     }
 }
 
@@ -188,19 +287,33 @@ struct ConfigureView: View {
 struct PeerDiscoveryView: View {
     @EnvironmentObject private var appState: AppState
     @ObservedObject var viewModel: CreateShardViewModel
-    @State private var timeRemaining = 90
+    private let totalTimeout = 60
+    @State private var timeRemaining = 60
     @State private var timerTask: Task<Void, Never>?
+
+    private var progress: Double {
+        1.0 - Double(timeRemaining) / Double(totalTimeout)
+    }
 
     var body: some View {
         VStack(spacing: 20) {
-            ProgressView()
-                .scaleEffect(1.5)
-                .padding()
+            ZStack {
+                ProgressRing(progress: progress)
+                    .frame(width: 120, height: 120)
+                VStack(spacing: 2) {
+                    Text("\(timeRemaining)")
+                        .font(.title.monospacedDigit().bold())
+                        .foregroundStyle(timeRemaining < 15 ? Color.red : Color.primary)
+                    Text("秒")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .padding()
 
             Text(L10n.Discovery.lookingForDevices)
                 .foregroundStyle(.secondary)
 
-            // Show local peer identity
             HStack(spacing: 8) {
                 Image(systemName: "person.crop.circle.badge.checkmark")
                     .foregroundStyle(HorcruxTheme.accentCyan)
@@ -215,10 +328,6 @@ struct PeerDiscoveryView: View {
             Text(L10n.Discovery.peersFound(viewModel.foundPeers.count, viewModel.totalParties - 1))
                 .font(.headline)
                 .accessibilityLabel(L10n.Discovery.peersFoundAccessibility(viewModel.foundPeers.count, viewModel.totalParties - 1))
-
-            Text(L10n.Discovery.timeoutIn(timeRemaining))
-                .font(.caption)
-                .foregroundStyle(timeRemaining < 15 ? Color.red : Color.gray)
 
             List(viewModel.foundPeers) { peer in
                 HStack {
@@ -250,6 +359,12 @@ struct PeerDiscoveryView: View {
                 .padding(.horizontal)
                 .accessibilityHint(L10n.Discovery.startKeyGenHint)
                 .accessibilityIdentifier("discover_startDKGButton")
+            } else {
+                Text("提示：另一台设备需在同一房间码下开启创建流程")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal)
             }
 
             Button(L10n.Common.cancel, role: .cancel) {
@@ -258,6 +373,7 @@ struct PeerDiscoveryView: View {
         }
         .padding()
         .onAppear {
+            timeRemaining = totalTimeout
             timerTask = Task {
                 while timeRemaining > 0 && !Task.isCancelled {
                     try? await Task.sleep(nanoseconds: 1_000_000_000)
@@ -279,9 +395,15 @@ struct PeerDiscoveryView: View {
 
 struct DKGProgressView: View {
     @ObservedObject var viewModel: CreateShardViewModel
+    @State private var elapsedSeconds = 0
+    @State private var elapsedTask: Task<Void, Never>?
+
+    private var estimatedTotal: Int {
+        viewModel.selectedCurve == .ed25519 ? 15 : 45
+    }
 
     var body: some View {
-        VStack(spacing: 32) {
+        VStack(spacing: 24) {
             Spacer()
 
             ProgressRing(progress: viewModel.dkgProgress)
@@ -303,6 +425,31 @@ struct DKGProgressView: View {
                 .foregroundStyle(.tertiary)
                 .accessibilityLabel(L10n.DKG.keyGenRound(viewModel.currentRound, viewModel.totalRounds))
 
+            // Elapsed timer (item 12: no feedback during 40s keygen)
+            HStack(spacing: 16) {
+                VStack {
+                    Text("\(elapsedSeconds)s")
+                        .font(.headline.monospacedDigit())
+                    Text("已用时").font(.caption2).foregroundStyle(.secondary)
+                }
+                Divider().frame(height: 30)
+                VStack {
+                    Text("~\(max(estimatedTotal - elapsedSeconds, 0))s")
+                        .font(.headline.monospacedDigit())
+                        .foregroundStyle(.secondary)
+                    Text("预计剩余").font(.caption2).foregroundStyle(.secondary)
+                }
+            }
+
+            if viewModel.selectedCurve == .secp256k1 &&
+               viewModel.currentRound >= 3 && viewModel.currentRound <= 5 {
+                Label("第 3-5 步计算 Paillier 同态密钥，为整个流程最耗时阶段", systemImage: "lightbulb.fill")
+                    .font(.caption)
+                    .foregroundStyle(.yellow)
+                    .padding(.horizontal)
+                    .multilineTextAlignment(.center)
+            }
+
             Spacer()
 
             Text(L10n.DKG.keepDevicesNearby)
@@ -316,6 +463,16 @@ struct DKGProgressView: View {
             .padding(.bottom)
         }
         .padding()
+        .onAppear {
+            elapsedSeconds = 0
+            elapsedTask = Task {
+                while !Task.isCancelled {
+                    try? await Task.sleep(nanoseconds: 1_000_000_000)
+                    elapsedSeconds += 1
+                }
+            }
+        }
+        .onDisappear { elapsedTask?.cancel() }
     }
 }
 
@@ -361,6 +518,21 @@ struct DKGCompleteView: View {
                 Text(L10n.DKG.thresholdOf(viewModel.threshold, viewModel.totalParties))
                     .foregroundStyle(.secondary)
             }
+
+            // Backup nudge (item 6)
+            VStack(alignment: .leading, spacing: 8) {
+                Label {
+                    Text("下一步：立即备份分片").font(.subheadline.bold())
+                } icon: {
+                    Image(systemName: "icloud.and.arrow.up").foregroundStyle(.blue)
+                }
+                Text("保存分片后，前往「分片」页导出到 iCloud Drive 或加密文件，丢失设备时可从备份恢复。")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            .padding(12)
+            .background(RoundedRectangle(cornerRadius: 12).fill(Color.blue.opacity(0.1)))
+            .padding(.horizontal)
 
             Spacer()
 

@@ -437,6 +437,11 @@ struct ChangePinView: View {
                     .keyboardType(.numberPad)
                     .accessibilityLabel(L10n.ChangePin.newPin)
                     .accessibilityIdentifier("changePin_newField")
+
+                if !newPin.isEmpty {
+                    PinStrengthIndicator(pin: newPin)
+                }
+
                 SecureField(L10n.ChangePin.confirmNewPin, text: $confirmPin)
                     .keyboardType(.numberPad)
                     .accessibilityLabel(L10n.ChangePin.confirmNewPin)
@@ -478,6 +483,67 @@ struct ChangePinView: View {
             dismiss()
         } catch {
             errorMessage = L10n.ChangePin.saveFailed
+        }
+    }
+}
+
+/// Visual strength meter for numeric PINs.
+private struct PinStrengthIndicator: View {
+    let pin: String
+
+    private var score: Int {
+        var s = 0
+        if pin.count >= 4 { s += 1 }
+        if pin.count >= 6 { s += 1 }
+        if pin.count >= 8 { s += 1 }
+        // Penalise all-same or sequential digits
+        let chars = Array(pin)
+        if chars.count >= 2 {
+            let allSame = chars.allSatisfy { $0 == chars.first }
+            var isSequential = true
+            for i in 1..<chars.count {
+                if let a = chars[i-1].wholeNumberValue,
+                   let b = chars[i].wholeNumberValue,
+                   b - a == 1 { continue }
+                isSequential = false
+                break
+            }
+            if allSame || isSequential { s = max(s - 1, 0) }
+        }
+        // Bonus for mixed digits
+        if Set(chars).count >= 4 { s += 1 }
+        return min(s, 4)
+    }
+
+    private var label: String {
+        switch score {
+        case 0...1: return "弱"
+        case 2: return "中等"
+        case 3: return "强"
+        default: return "很强"
+        }
+    }
+
+    private var color: Color {
+        switch score {
+        case 0...1: return .red
+        case 2: return .orange
+        case 3: return .yellow
+        default: return .green
+        }
+    }
+
+    var body: some View {
+        HStack(spacing: 6) {
+            ForEach(0..<4) { i in
+                RoundedRectangle(cornerRadius: 2)
+                    .fill(i < score ? color : Color.secondary.opacity(0.2))
+                    .frame(height: 4)
+            }
+            Text(label)
+                .font(.caption2)
+                .foregroundStyle(color)
+                .frame(width: 40, alignment: .trailing)
         }
     }
 }

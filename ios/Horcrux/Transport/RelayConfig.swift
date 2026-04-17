@@ -28,12 +28,13 @@ enum RelayConfig {
            let url = String(data: data, encoding: .utf8), !url.isEmpty {
             return url
         }
-        #if DEBUG
-        // In debug builds on simulator, prefer local dev relay if reachable.
-        return localDevelopmentURL
-        #else
+        // Prefer official relay in all builds. Developers can override from
+        // Settings → Relay Server, or set HORCRUX_RELAY_URL in the scheme env.
+        if let override = ProcessInfo.processInfo.environment["HORCRUX_RELAY_URL"],
+           !override.isEmpty {
+            return override
+        }
         return officialURL
-        #endif
     }
 
     /// Saves a custom relay URL (and enables custom mode).
