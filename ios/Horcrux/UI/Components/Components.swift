@@ -63,15 +63,25 @@ struct ChainIcon: View {
     }
 
     var body: some View {
-        Image(systemName: chain.iconName)
-            .font(.system(size: scaledSize * 0.45, weight: .semibold))
-            .frame(width: scaledSize, height: scaledSize)
-            .background(
-                Circle()
-                    .fill(chain.color.opacity(0.15))
-                    .overlay(Circle().stroke(chain.color.opacity(0.3), lineWidth: 0.5))
-            )
-            .foregroundStyle(chain.color)
+        Group {
+            if UIImage(named: chain.assetName) != nil {
+                Image(chain.assetName)
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: scaledSize * 0.72, height: scaledSize * 0.72)
+                    .clipShape(Circle())
+            } else {
+                Image(systemName: chain.iconName)
+                    .font(.system(size: scaledSize * 0.45, weight: .semibold))
+                    .foregroundStyle(chain.color)
+            }
+        }
+        .frame(width: scaledSize, height: scaledSize)
+        .background(
+            Circle()
+                .fill(chain.color.opacity(0.15))
+                .overlay(Circle().stroke(chain.color.opacity(0.3), lineWidth: 0.5))
+        )
     }
 }
 

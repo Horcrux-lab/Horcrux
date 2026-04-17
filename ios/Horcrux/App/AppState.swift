@@ -566,6 +566,25 @@ enum Chain: String, Codable, CaseIterable, Identifiable {
         }
     }
 
+    /// Asset catalog name for the chain's brand logo (PNG bundled in
+    /// `Assets.xcassets/ChainIcons`). Falls back to `iconName` (SF Symbol)
+    /// if the asset is missing at runtime.
+    var assetName: String {
+        switch self {
+        case .ethereum: return "ChainIcons/ethereum"
+        case .bnb: return "ChainIcons/bnb"
+        case .avalanche: return "ChainIcons/avalanche"
+        case .optimism: return "ChainIcons/optimism"
+        case .zksync: return "ChainIcons/zksync"
+        case .linea: return "ChainIcons/linea"
+        case .scroll: return "ChainIcons/scroll"
+        case .bitcoin: return "ChainIcons/bitcoin"
+        case .litecoin: return "ChainIcons/litecoin"
+        case .solana: return "ChainIcons/solana"
+        case .tron: return "ChainIcons/tron"
+        }
+    }
+
     var color: Color {
         switch self {
         case .ethereum: return .blue
