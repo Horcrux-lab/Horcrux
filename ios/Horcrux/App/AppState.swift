@@ -384,10 +384,13 @@ final class AppState: ObservableObject {
 
     private var lastActiveTime: Date = .now
 
-    /// Called when app enters background — clear sensitive in-memory data and track time.
+    /// Called when app enters background — track time, but keep the SWK
+    /// in memory for brief suspensions (switch to Messages to paste a room
+    /// code, etc.). SWK is only cleared when auto-lock actually triggers on
+    /// foreground, keeping the save-shard flow interaction-free for users
+    /// who momentarily leave the app mid-ceremony.
     func onEnterBackground() {
         lastActiveTime = .now
-        clearCachedShardKey()
         NotificationCenter.default.post(name: .appDidEnterBackground, object: nil)
     }
 
