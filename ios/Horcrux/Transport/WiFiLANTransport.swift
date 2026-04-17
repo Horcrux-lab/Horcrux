@@ -42,6 +42,8 @@ final class WiFiLANTransport: NSObject, TransportChannel, ObservableObject {
         teardown()
         discoveredPeers.removeAll()
         peerEndpoints.removeAll()
+        discoveryStartedAt = Date()
+        firstPeerLoggedAt = nil
         NSLog("[WiFi-LAN] Starting discovery (listener + browser)")
         startListener()
         startBrowsing()
@@ -74,16 +76,48 @@ final class WiFiLANTransport: NSObject, TransportChannel, ObservableObject {
         let connection = NWConnection(to: endpoint, using: params)
         connections[peer.id] = connection
 
+        let connectStart = Date()
+
         return try await withCheckedThrowingContinuation { continuation in
+            var didResume = false
+            let resume: (Result<Void, Error>) -> Void = { result in
+                guard !didResume else { return }
+                didResume = true
+                switch result {
+                case .success: continuation.resume()
+                case .failure(let err): continuation.resume(throwing: err)
+                }
+            }
+
+            // Fail fast if the connection can't make progress within 15s
+            // (e.g. path unsatisfied, no route). Without this, a `.waiting`
+            // connection would leak the continuation forever and the caller
+            // Task would hang silently.
+            let timeout = DispatchWorkItem {
+                NSLog("[WiFi-LAN] Connect timeout after 15s for \(peer.name)")
+                connection.cancel()
+                resume(.failure(TransportError.connectionFailed("connect timeout")))
+            }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 15, execute: timeout)
+
             connection.stateUpdateHandler = { [weak self] state in
                 switch state {
                 case .ready:
+                    let elapsed = Date().timeIntervalSince(connectStart)
+                    NSLog("[WiFi-LAN] Connected to \(peer.name) in \(String(format: "%.2f", elapsed))s")
+                    timeout.cancel()
                     self?.isConnected = true
                     self?.delegate?.channel(self!, didConnect: peer)
                     self?.receiveLoop(connection: connection, peer: peer)
-                    continuation.resume()
+                    resume(.success(()))
+                case .waiting(let err):
+                    NSLog("[WiFi-LAN] Connect waiting for \(peer.name): \(err)")
                 case .failed(let error):
-                    continuation.resume(throwing: TransportError.connectionFailed(error.localizedDescription))
+                    timeout.cancel()
+                    resume(.failure(TransportError.connectionFailed(error.localizedDescription)))
+                case .cancelled:
+                    timeout.cancel()
+                    resume(.failure(TransportError.connectionFailed("cancelled")))
                 default:
                     break
                 }
@@ -128,6 +162,8 @@ final class WiFiLANTransport: NSObject, TransportChannel, ObservableObject {
     // MARK: - Private
 
     private var peerEndpoints: [String: NWEndpoint] = [:]
+    private var discoveryStartedAt: Date?
+    private var firstPeerLoggedAt: Date?
 
     private func startListener() {
         do {
@@ -211,6 +247,11 @@ final class WiFiLANTransport: NSObject, TransportChannel, ObservableObject {
                 let peer = Peer(id: peerId, name: name, channel: self.channelId)
 
                 if !self.discoveredPeers.contains(peer) {
+                    if self.firstPeerLoggedAt == nil, let start = self.discoveryStartedAt {
+                        let elapsed = Date().timeIntervalSince(start)
+                        NSLog("[WiFi-LAN] First peer after \(String(format: "%.2f", elapsed))s of browsing: \(name)")
+                        self.firstPeerLoggedAt = Date()
+                    }
                     self.peerEndpoints[peerId] = result.endpoint
                     self.discoveredPeers.append(peer)
                     self.delegate?.channel(self, didDiscover: peer)
