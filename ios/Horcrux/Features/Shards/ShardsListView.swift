@@ -21,6 +21,7 @@ struct ShardAccount: Identifiable {
                 let sorted = list.sorted { $0.chain.rawValue < $1.chain.rawValue }
                 let first = sorted.first!
                 let displayName = first.name
+                    .replacingOccurrences(of: " (\(first.chain.rawValue))", with: "")
                     .replacingOccurrences(of: " (\(first.chain.symbol))", with: "")
                 return ShardAccount(
                     id: key,

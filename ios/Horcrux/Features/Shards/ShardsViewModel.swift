@@ -108,6 +108,7 @@ final class ShardsViewModel: ObservableObject {
             }
 
             let accountName = anchor.name
+                .replacingOccurrences(of: " (\(anchor.chain.rawValue))", with: "")
                 .replacingOccurrences(of: " (\(anchor.chain.symbol))", with: "")
 
             let backup = AccountBackup(
