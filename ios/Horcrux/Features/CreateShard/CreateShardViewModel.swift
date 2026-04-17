@@ -17,7 +17,7 @@ final class CreateShardViewModel: ObservableObject {
     @Published var walletName: String = ""
     @Published var selectedCurve: FfiCurveType = .secp256k1
     @Published var threshold: Int = 2
-    @Published var totalParties: Int = 2
+    @Published var totalParties: Int = 3
     @Published var partyIndex: Int = 1
     @Published var selectedTransports: Set<TransportType> = [.relay]
     @Published var roomCode: String = ""

@@ -79,6 +79,26 @@ struct ConfigureView: View {
                 Text(L10n.CreateShard.requiresDevices(viewModel.threshold, viewModel.totalParties))
                     .font(.caption)
                     .foregroundStyle(.secondary)
+
+                if viewModel.totalParties == 3 && viewModel.threshold == 2 {
+                    Label {
+                        Text("推荐配置：3 台设备生成分片，任意 2 台即可签名。第三台作为备份，设备丢失时仍可恢复钱包。")
+                            .font(.caption)
+                    } icon: {
+                        Image(systemName: "checkmark.shield.fill")
+                            .foregroundStyle(.green)
+                    }
+                    .padding(.top, 4)
+                } else if viewModel.totalParties == viewModel.threshold {
+                    Label {
+                        Text("警告：\(viewModel.threshold)-of-\(viewModel.totalParties) 配置没有冗余，任一设备丢失将永久无法动用钱包。建议至少多加一台备份设备。")
+                            .font(.caption)
+                    } icon: {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .foregroundStyle(.orange)
+                    }
+                    .padding(.top, 4)
+                }
             }
 
             Section(L10n.CreateShard.communication) {
