@@ -100,6 +100,12 @@ enum AddressFormatter {
     }
 
     static func txExplorerURL(txHash: String, chain: Chain) -> URL? {
+        // Only build an explorer URL when the stored txHash actually looks
+        // like a final on-chain hash — in our flow we temporarily stash the
+        // full signed payload (long RLP hex, long base64, etc.) in the same
+        // field until broadcast succeeds, and linking that to an explorer
+        // produces a dead link.
+        guard looksLikeFinalTxHash(txHash, chain: chain) else { return nil }
         switch chain {
         case .ethereum:
             return URL(string: "https://etherscan.io/tx/\(txHash)")
@@ -123,6 +129,31 @@ enum AddressFormatter {
             return URL(string: "https://solscan.io/tx/\(txHash)")
         case .tron:
             return URL(string: "https://tronscan.org/#/transaction/\(txHash)")
+        }
+    }
+
+    /// Heuristic: does the string look like a real on-chain tx hash vs a
+    /// pre-broadcast signed payload we've stashed in the same field?
+    private static func looksLikeFinalTxHash(_ s: String, chain: Chain) -> Bool {
+        if chain.isEVM {
+            // 0x + 64 hex chars
+            guard s.hasPrefix("0x") else { return false }
+            let hex = s.dropFirst(2)
+            return hex.count == 64 && hex.allSatisfy { $0.isHexDigit }
+        }
+        switch chain {
+        case .bitcoin, .litecoin:
+            return s.count == 64 && s.allSatisfy { $0.isHexDigit }
+        case .solana:
+            // Signature is 64 bytes → 87-88 chars base58 in practice.
+            // Our pre-broadcast stash is base64 (contains + / =) and much longer.
+            if s.count > 100 { return false }
+            let base58 = Set("123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz")
+            return s.allSatisfy { base58.contains($0) }
+        case .tron:
+            return s.count == 64 && s.allSatisfy { $0.isHexDigit }
+        default:
+            return true
         }
     }
 }
