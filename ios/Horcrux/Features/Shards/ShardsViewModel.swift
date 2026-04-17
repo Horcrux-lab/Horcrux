@@ -24,9 +24,16 @@ final class ShardsViewModel: ObservableObject {
     // MARK: - Backup (account-level)
 
     /// Export every wallet belonging to the account identified by
-    /// `accountId` into a single portable v3 backup file. The shard
-    /// plaintext is only present once — chain wallets are just derived
-    /// views of the same MPC key share.
+    /// `accountId` into a single portable v4 backup file. The shard
+    /// plaintext is wrapped by `PortableBackupCrypto` using the user's
+    /// PIN as a password, so the file is safe to store off-device
+    /// (iCloud Drive, email, etc).
+    ///
+    /// The PIN serves two roles here: it unlocks the SWK that decrypts
+    /// the device-resident ciphertext, and it acts as the portable
+    /// backup password. The caller must always collect a fresh PIN
+    /// even when the SWK is cached, because the portable envelope has
+    /// to bind to a password the user can reproduce on any device.
     func backupAccount(accountId: String, pin: String) {
         guard let appState else { return }
         exportData = nil
@@ -35,6 +42,14 @@ final class ShardsViewModel: ObservableObject {
         let siblings = appState.walletStore.wallets.filter { $0.accountId == accountId }
         guard let anchor = siblings.first else {
             error = "Account not found"
+            return
+        }
+        guard !pin.isEmpty else {
+            error = "请输入 PIN 作为备份密码"
+            return
+        }
+        guard appState.verifyPin(pin) else {
+            error = "PIN 错误"
             return
         }
 
@@ -53,6 +68,11 @@ final class ShardsViewModel: ObservableObject {
                 pin: swk
             )
 
+            // Wrap the plaintext shard in a password-protected envelope.
+            // This is what actually goes to disk / iCloud — never the raw
+            // shard bytes.
+            let envelope = try PortableBackupCrypto.encrypt(plaintext: plaintext, password: pin)
+
             let walletEntries = siblings.map { w in
                 AccountBackup.WalletEntry(
                     id: w.id,
@@ -67,13 +87,13 @@ final class ShardsViewModel: ObservableObject {
                 .replacingOccurrences(of: " (\(anchor.chain.symbol))", with: "")
 
             let backup = AccountBackup(
-                version: 3,
+                version: 4,
                 accountId: accountId,
                 accountName: accountName,
                 partyIndex: anchor.partyIndex,
                 threshold: anchor.threshold,
                 totalParties: anchor.totalParties,
-                encryptedShard: plaintext,
+                encryptedShard: envelope,
                 groupPublicKey: anchor.groupPublicKey,
                 wallets: walletEntries,
                 exportedAt: Date()
@@ -85,7 +105,7 @@ final class ShardsViewModel: ObservableObject {
 
             let data = try encoder.encode(backup)
             exportData = data
-            backupStatus = "Account exported — \(siblings.count) chain\(siblings.count > 1 ? "s" : "") · \(data.count) bytes"
+            backupStatus = "Account exported — \(siblings.count) chain\(siblings.count > 1 ? "s" : "") · \(data.count) bytes (PIN-encrypted)"
             SecureLog.info("Account backup created for \(accountId.prefix(8))")
         } catch {
             self.error = error.localizedDescription
@@ -114,17 +134,34 @@ final class ShardsViewModel: ObservableObject {
     }
 
     private func importAccount(backup: AccountBackup, pin: String, appState: AppState) throws {
-        guard backup.version >= 3 else {
+        guard backup.version >= 3 && backup.version <= 4 else {
             throw ShardImportError.unsupportedVersion(backup.version)
         }
         if appState.walletStore.wallets.contains(where: { $0.accountId == backup.accountId }) {
             throw ShardImportError.duplicateWallet(backup.accountName)
         }
 
+        // v4 wraps the shard in a portable PIN-derived envelope; v3 files
+        // predated that and shipped the plaintext shard directly. In both
+        // cases we end up with the plaintext shard here.
+        let shardPlaintext: Data
+        if backup.version >= 4 {
+            do {
+                shardPlaintext = try PortableBackupCrypto.decrypt(
+                    envelope: backup.encryptedShard,
+                    password: pin
+                )
+            } catch PortableBackupCrypto.Error.decryptFailed {
+                throw ShardImportError.invalidPin
+            }
+        } else {
+            shardPlaintext = backup.encryptedShard
+        }
+
         let deviceKey = try appState.deviceKey
         let swk = try resolveShardKey(pin: pin, appState: appState)
         let encrypted = try appState.bridge.encryptShard(
-            plaintext: backup.encryptedShard,
+            plaintext: shardPlaintext,
             deviceKey: deviceKey,
             pin: swk
         )

@@ -365,11 +365,14 @@ struct AccountBackupView: View {
                 .foregroundStyle(.secondary)
         }
 
-        if needsPin {
-            Section(L10n.ShardBackup.devicePin) {
-                SecureField(L10n.ShardBackup.enterPin, text: $pin)
-                    .keyboardType(.numberPad)
-            }
+        Section {
+            SecureField(L10n.ShardBackup.enterPin, text: $pin)
+                .keyboardType(.numberPad)
+        } header: {
+            Text("备份密码（= 设备 PIN）")
+        } footer: {
+            Text("导出文件使用该 PIN 加密。恢复到其它设备时需要输入同一个 PIN 才能解密。")
+                .font(.caption)
         }
 
         Section {
@@ -386,7 +389,7 @@ struct AccountBackupView: View {
                 }
             }
             .buttonStyle(.borderedProminent)
-            .disabled(needsPin && pin.count < 6)
+            .disabled(pin.count < 6)
         }
     }
 
@@ -553,14 +556,14 @@ struct AccountImportView: View {
             }
         }
 
-        if needsPin {
-            Section(L10n.ShardBackup.devicePin) {
-                SecureField(L10n.ShardImport.enterDevicePin, text: $pin)
-                    .keyboardType(.numberPad)
-                Text(L10n.ShardImport.reEncryptNote)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
+        Section {
+            SecureField(L10n.ShardImport.enterDevicePin, text: $pin)
+                .keyboardType(.numberPad)
+            Text("输入备份时使用的 PIN 以解密文件；此 PIN 将同时作为本设备的 PIN。")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        } header: {
+            Text(L10n.ShardBackup.devicePin)
         }
 
         Section {
@@ -572,7 +575,7 @@ struct AccountImportView: View {
                 }
             }
             .buttonStyle(.borderedProminent)
-            .disabled((needsPin && pin.count < 6) || isImporting)
+            .disabled(pin.count < 6 || isImporting)
         }
 
         Section {
