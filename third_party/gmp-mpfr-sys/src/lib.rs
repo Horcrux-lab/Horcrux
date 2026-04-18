@@ -377,14 +377,12 @@ pub mod mpc;
 #[cfg(feature = "mpfr")]
 pub mod mpfr;
 
-#[cfg(doc)]
-pub mod C;
-
-// The C.rs module only serves to inline html docs for rustdoc; its
-// `include_str!` calls require the `doc-c/` directory which is stripped
-// from this vendored copy to keep the tree small. Gating on `cfg(doc)`
-// lets plain `cargo test` / `cargo build` succeed while still exposing
-// the module when docs are generated.
+// The upstream gmp-mpfr-sys ships a `C` module (src/C.rs) that inlines
+// the GMP / MPFR HTML manuals via `include_str!`. We strip the `doc-c/`
+// directory (and the module) from this vendored copy to keep the tree
+// small and — more importantly — to stop cargo's fingerprint from
+// marking the crate dirty on every iOS build because of 49 missing
+// `include_str!` targets.
 
 #[cfg(test)]
 mod tests {

@@ -649,7 +649,57 @@ enum L10n {
         static let coreDependencies = NSLocalizedString("licenses.coreDependencies", comment: "")
     }
 
-    // MARK: - Cold Signing
+    // MARK: - Node errors, shard health, cold signing
+
+    enum NodeErr {
+        static let nonceStale = NSLocalizedString("nodeErr.nonceStale", comment: "")
+        static let replacementUnderpriced = NSLocalizedString("nodeErr.replacementUnderpriced", comment: "")
+        static let underpriced = NSLocalizedString("nodeErr.underpriced", comment: "")
+        static let insufficientFunds = NSLocalizedString("nodeErr.insufficientFunds", comment: "")
+        static let alreadyKnown = NSLocalizedString("nodeErr.alreadyKnown", comment: "")
+        static let gasTooLow = NSLocalizedString("nodeErr.gasTooLow", comment: "")
+        static let btcMinRelay = NSLocalizedString("nodeErr.btcMinRelay", comment: "")
+        static let btcInputSpent = NSLocalizedString("nodeErr.btcInputSpent", comment: "")
+        static let btcAbnormalFee = NSLocalizedString("nodeErr.btcAbnormalFee", comment: "")
+        static let solBlockhash = NSLocalizedString("nodeErr.solBlockhash", comment: "")
+        static let solRent = NSLocalizedString("nodeErr.solRent", comment: "")
+        static let timeout = NSLocalizedString("nodeErr.timeout", comment: "")
+        static let cannotConnect = NSLocalizedString("nodeErr.cannotConnect", comment: "")
+        static let rateLimited = NSLocalizedString("nodeErr.rateLimited", comment: "")
+        static let unauthorized = NSLocalizedString("nodeErr.unauthorized", comment: "")
+
+        static func broadcastFailed(_ tail: String) -> String {
+            String(format: NSLocalizedString("nodeErr.broadcastFailedPrefix", comment: ""), tail)
+        }
+    }
+
+    enum ShardHealth {
+        static let title = NSLocalizedString("shardHealth.title", comment: "")
+        static let noWalletsTitle = NSLocalizedString("shardHealth.noWalletsTitle", comment: "")
+        static let noWalletsSubtitle = NSLocalizedString("shardHealth.noWalletsSubtitle", comment: "")
+        static let checking = NSLocalizedString("shardHealth.checking", comment: "")
+        static let recheck = NSLocalizedString("shardHealth.recheck", comment: "")
+        static let statusNotChecked = NSLocalizedString("shardHealth.statusNotChecked", comment: "")
+        static let statusAbnormal = NSLocalizedString("shardHealth.statusAbnormal", comment: "")
+        static let statusAllOK = NSLocalizedString("shardHealth.statusAllOK", comment: "")
+        static let tapToStart = NSLocalizedString("shardHealth.tapToStart", comment: "")
+        static let someUnreadable = NSLocalizedString("shardHealth.someUnreadable", comment: "")
+        static let allReadable = NSLocalizedString("shardHealth.allReadable", comment: "")
+        static let resMissing = NSLocalizedString("shardHealth.resMissing", comment: "")
+        static let resEmpty = NSLocalizedString("shardHealth.resEmpty", comment: "")
+
+        static func lastCheck(_ formatted: String) -> String {
+            String(format: NSLocalizedString("shardHealth.lastCheck", comment: ""), formatted)
+        }
+
+        static func resOK(_ bytes: Int) -> String {
+            String(format: NSLocalizedString("shardHealth.resOK", comment: ""), bytes)
+        }
+
+        static func resUnreadable(_ err: String) -> String {
+            String(format: NSLocalizedString("shardHealth.resUnreadable", comment: ""), err)
+        }
+    }
 
     enum ColdSign {
         static let title = NSLocalizedString("coldSign.title", comment: "")

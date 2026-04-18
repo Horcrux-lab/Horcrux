@@ -493,3 +493,39 @@
 
 /* Signing (dev.41 extras) */
 "signing.biometricReason" = "Authenticate to sign the transaction";
+
+/* Node Error Mapper (dev.42 i18n batch) */
+"nodeErr.nonceStale" = "Transaction nonce is stale. Please refresh and re-sign.";
+"nodeErr.replacementUnderpriced" = "Replacement fee is not high enough; must be raised at least 10%.";
+"nodeErr.underpriced" = "Fee is too low; the node rejected the transaction. Raise gas price and retry.";
+"nodeErr.insufficientFunds" = "Insufficient balance to cover amount and fee.";
+"nodeErr.alreadyKnown" = "Transaction is already queued; no need to rebroadcast.";
+"nodeErr.gasTooLow" = "Gas limit is too low. Please use the suggested value and retry.";
+"nodeErr.btcMinRelay" = "Fee is below the node's minimum relay rate.";
+"nodeErr.btcInputSpent" = "The transaction's inputs have already been spent (possibly via RBF).";
+"nodeErr.btcAbnormalFee" = "Fee looks abnormal. Please check fee settings.";
+"nodeErr.solBlockhash" = "Blockhash has expired. The transaction needs to be re-built.";
+"nodeErr.solRent" = "Account balance is not enough for rent. Please deposit first.";
+"nodeErr.timeout" = "Node timed out. Check your network or try again later.";
+"nodeErr.cannotConnect" = "Unable to connect to the node. Check network or switch RPC.";
+"nodeErr.rateLimited" = "RPC requests are too frequent. Please wait or switch nodes.";
+"nodeErr.unauthorized" = "RPC node refused access (auth failure or invalid key).";
+"nodeErr.broadcastFailedPrefix" = "Broadcast failed: %@";
+
+/* Shard Health (dev.42 i18n batch) */
+"shardHealth.title" = "Shard Health Check";
+"shardHealth.noWalletsTitle" = "No wallets yet";
+"shardHealth.noWalletsSubtitle" = "Create a wallet first; then you can verify shards here.";
+"shardHealth.checking" = "Checking…";
+"shardHealth.recheck" = "Re-check";
+"shardHealth.lastCheck" = "Last check: %@";
+"shardHealth.statusNotChecked" = "Not checked";
+"shardHealth.statusAbnormal" = "Abnormalities found";
+"shardHealth.statusAllOK" = "All good";
+"shardHealth.tapToStart" = "Tap the button below to start a check.";
+"shardHealth.someUnreadable" = "At least one shard cannot be read. Export healthy shards from the backup page now, or re-DKG on another device.";
+"shardHealth.allReadable" = "All shards can be read normally.";
+"shardHealth.resOK" = "Healthy · %d bytes";
+"shardHealth.resMissing" = "Shard missing (not found in Keychain)";
+"shardHealth.resEmpty" = "Shard is empty (write may have failed)";
+"shardHealth.resUnreadable" = "Unreadable: %@";

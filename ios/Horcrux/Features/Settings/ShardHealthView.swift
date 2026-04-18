@@ -20,8 +20,8 @@ struct ShardHealthView: View {
                     if results.isEmpty && !isChecking {
                         VaultEmptyState(
                             icon: "checkmark.shield",
-                            title: "还没有钱包",
-                            subtitle: "创建钱包后可以在这里自检分片是否完好。",
+                            title: L10n.ShardHealth.noWalletsTitle,
+                            subtitle: L10n.ShardHealth.noWalletsSubtitle,
                             iconSize: 48
                         )
                         .frame(maxWidth: .infinity)
@@ -41,7 +41,7 @@ struct ShardHealthView: View {
                             } else {
                                 Image(systemName: "arrow.clockwise")
                             }
-                            Text(isChecking ? "检查中…" : "重新检查")
+                            Text(isChecking ? L10n.ShardHealth.checking : L10n.ShardHealth.recheck)
                         }
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 12)
@@ -54,7 +54,7 @@ struct ShardHealthView: View {
                 .padding(.vertical, 12)
             }
         }
-        .navigationTitle("分片健康自检")
+        .navigationTitle(L10n.ShardHealth.title)
         .navigationBarTitleDisplayMode(.inline)
         .toolbarColorScheme(.dark, for: .navigationBar)
         .onAppear { if results.isEmpty { runCheck() } }
@@ -72,7 +72,7 @@ struct ShardHealthView: View {
                 }
             }
             if let lastCheck {
-                Text("上次检查：\(lastCheck.formatted(date: .numeric, time: .shortened))")
+                Text(L10n.ShardHealth.lastCheck(lastCheck.formatted(date: .numeric, time: .shortened)))
                     .font(.caption2)
                     .foregroundStyle(HorcruxTheme.subtleText)
             }
@@ -134,16 +134,16 @@ struct ShardHealthView: View {
     }
 
     private var overallTitle: String {
-        if results.isEmpty { return "尚未检查" }
-        return overallBad ? "发现异常" : "一切正常"
+        if results.isEmpty { return L10n.ShardHealth.statusNotChecked }
+        return overallBad ? L10n.ShardHealth.statusAbnormal : L10n.ShardHealth.statusAllOK
     }
 
     private var overallSubtitle: String {
-        if results.isEmpty { return "点击下方按钮开始自检。" }
+        if results.isEmpty { return L10n.ShardHealth.tapToStart }
         if overallBad {
-            return "至少一个分片无法读取。请立即前往备份页面导出健康分片，或在另一台设备上补签重建。"
+            return L10n.ShardHealth.someUnreadable
         }
-        return "所有分片都可以正常读取。"
+        return L10n.ShardHealth.allReadable
     }
 
     private func statusIcon(_ s: WalletStore.ShardHealth) -> String {
@@ -165,10 +165,10 @@ struct ShardHealthView: View {
 
     private func statusText(_ s: WalletStore.ShardHealth) -> String {
         switch s {
-        case .ok(let n): return "完好 · \(n) 字节"
-        case .missing: return "分片缺失（Keychain 中找不到）"
-        case .empty: return "分片为空（可能写入失败）"
-        case .unreadable(let err): return "无法读取：\(err)"
+        case .ok(let n): return L10n.ShardHealth.resOK(n)
+        case .missing: return L10n.ShardHealth.resMissing
+        case .empty: return L10n.ShardHealth.resEmpty
+        case .unreadable(let err): return L10n.ShardHealth.resUnreadable(err)
         }
     }
 }

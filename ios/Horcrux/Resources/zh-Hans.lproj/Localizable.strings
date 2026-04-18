@@ -493,3 +493,39 @@
 
 /* Signing (dev.41 extras) */
 "signing.biometricReason" = "验证身份以完成签名";
+
+/* Node Error Mapper (dev.42 i18n batch) */
+"nodeErr.nonceStale" = "交易序号（nonce）已过期，请刷新后重新签名。";
+"nodeErr.replacementUnderpriced" = "替换原交易的矿工费不够高，需要至少提升 10%。";
+"nodeErr.underpriced" = "矿工费偏低，节点拒绝收录。请提高 gas 价格后重试。";
+"nodeErr.insufficientFunds" = "余额不足以支付金额与矿工费。";
+"nodeErr.alreadyKnown" = "交易已经在打包队列里，无需重复广播。";
+"nodeErr.gasTooLow" = "gas 上限设置过低，请使用建议值重试。";
+"nodeErr.btcMinRelay" = "矿工费低于节点最低中继费率。";
+"nodeErr.btcInputSpent" = "交易的输入已被其他交易花掉（可能是 RBF 替换）。";
+"nodeErr.btcAbnormalFee" = "矿工费异常，请检查手续费设置。";
+"nodeErr.solBlockhash" = "blockhash 已过期，需要重新构造交易。";
+"nodeErr.solRent" = "账户余额不足以支付 rent，请先充值。";
+"nodeErr.timeout" = "节点响应超时，请检查网络或稍后重试。";
+"nodeErr.cannotConnect" = "无法连接节点，请检查网络或切换 RPC。";
+"nodeErr.rateLimited" = "RPC 请求过于频繁，请稍候再试或更换节点。";
+"nodeErr.unauthorized" = "RPC 节点拒绝访问（鉴权失败或 key 无效）。";
+"nodeErr.broadcastFailedPrefix" = "广播失败：%@";
+
+/* Shard Health (dev.42 i18n batch) */
+"shardHealth.title" = "分片健康自检";
+"shardHealth.noWalletsTitle" = "还没有钱包";
+"shardHealth.noWalletsSubtitle" = "创建钱包后可以在这里自检分片是否完好。";
+"shardHealth.checking" = "检查中…";
+"shardHealth.recheck" = "重新检查";
+"shardHealth.lastCheck" = "上次检查：%@";
+"shardHealth.statusNotChecked" = "尚未检查";
+"shardHealth.statusAbnormal" = "发现异常";
+"shardHealth.statusAllOK" = "一切正常";
+"shardHealth.tapToStart" = "点击下方按钮开始自检。";
+"shardHealth.someUnreadable" = "至少一个分片无法读取。请立即前往备份页面导出健康分片，或在另一台设备上补签重建。";
+"shardHealth.allReadable" = "所有分片都可以正常读取。";
+"shardHealth.resOK" = "完好 · %d 字节";
+"shardHealth.resMissing" = "分片缺失（Keychain 中找不到）";
+"shardHealth.resEmpty" = "分片为空（可能写入失败）";
+"shardHealth.resUnreadable" = "无法读取：%@";

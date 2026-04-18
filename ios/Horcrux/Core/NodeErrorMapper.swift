@@ -35,75 +35,75 @@ enum NodeErrorMapper {
 
         // MARK: - Ethereum
         if s.contains("nonce too low") || s.contains("invalid nonce") || s.contains("nonce has already been used") {
-            return .init(message: "交易序号（nonce）已过期，请刷新后重新签名。",
+            return .init(message: L10n.NodeErr.nonceStale,
                          action: .refreshNonce, diagnostic: raw.tail())
         }
         if s.contains("replacement transaction underpriced") || s.contains("replacement underpriced") {
-            return .init(message: "替换原交易的矿工费不够高，需要至少提升 10%。",
+            return .init(message: L10n.NodeErr.replacementUnderpriced,
                          action: .raiseFee, diagnostic: raw.tail())
         }
         if s.contains("transaction underpriced") || s.contains("fee too low") || s.contains("gas price too low") {
-            return .init(message: "矿工费偏低，节点拒绝收录。请提高 gas 价格后重试。",
+            return .init(message: L10n.NodeErr.underpriced,
                          action: .raiseFee, diagnostic: raw.tail())
         }
         if s.contains("insufficient funds") || s.contains("insufficient balance") {
-            return .init(message: "余额不足以支付金额与矿工费。",
+            return .init(message: L10n.NodeErr.insufficientFunds,
                          action: .fundAccount, diagnostic: raw.tail())
         }
         if s.contains("already known") || s.contains("known transaction") {
-            return .init(message: "交易已经在打包队列里，无需重复广播。",
+            return .init(message: L10n.NodeErr.alreadyKnown,
                          action: .waitForConfirm, diagnostic: raw.tail())
         }
         if s.contains("intrinsic gas too low") || s.contains("gas limit") && s.contains("too low") {
-            return .init(message: "gas 上限设置过低，请使用建议值重试。",
+            return .init(message: L10n.NodeErr.gasTooLow,
                          action: .raiseFee, diagnostic: raw.tail())
         }
 
         // MARK: - Bitcoin
         if s.contains("min relay fee not met") || s.contains("mempool min fee") {
-            return .init(message: "矿工费低于节点最低中继费率。",
+            return .init(message: L10n.NodeErr.btcMinRelay,
                          action: .raiseFee, diagnostic: raw.tail())
         }
         if s.contains("txn-mempool-conflict") || s.contains("bad-txns-inputs-missingorspent") {
-            return .init(message: "交易的输入已被其他交易花掉（可能是 RBF 替换）。",
+            return .init(message: L10n.NodeErr.btcInputSpent,
                          action: .refreshNonce, diagnostic: raw.tail())
         }
         if s.contains("absurdly-high-fee") || s.contains("bad-txns-in-belowout") {
-            return .init(message: "矿工费异常，请检查手续费设置。",
+            return .init(message: L10n.NodeErr.btcAbnormalFee,
                          action: .raiseFee, diagnostic: raw.tail())
         }
 
         // MARK: - Solana
         if s.contains("blockhash not found") || s.contains("block height exceeded") {
-            return .init(message: "blockhash 已过期，需要重新构造交易。",
+            return .init(message: L10n.NodeErr.solBlockhash,
                          action: .refreshNonce, diagnostic: raw.tail())
         }
         if s.contains("insufficient funds for rent") {
-            return .init(message: "账户余额不足以支付 rent，请先充值。",
+            return .init(message: L10n.NodeErr.solRent,
                          action: .fundAccount, diagnostic: raw.tail())
         }
 
         // MARK: - Transport / network
         if s.contains("timed out") || s.contains("timeout") || s.contains("request timed out") {
-            return .init(message: "节点响应超时，请检查网络或稍后重试。",
+            return .init(message: L10n.NodeErr.timeout,
                          action: .retry, diagnostic: raw.tail())
         }
         if s.contains("cannot find host") || s.contains("not connect") || s.contains("offline") ||
             s.contains("network connection was lost") {
-            return .init(message: "无法连接节点，请检查网络或切换 RPC。",
+            return .init(message: L10n.NodeErr.cannotConnect,
                          action: .checkNetwork, diagnostic: raw.tail())
         }
         if s.contains("429") || s.contains("too many requests") || s.contains("rate limit") {
-            return .init(message: "RPC 请求过于频繁，请稍候再试或更换节点。",
+            return .init(message: L10n.NodeErr.rateLimited,
                          action: .retry, diagnostic: raw.tail())
         }
         if s.contains("401") || s.contains("403") || s.contains("unauthorized") {
-            return .init(message: "RPC 节点拒绝访问（鉴权失败或 key 无效）。",
+            return .init(message: L10n.NodeErr.unauthorized,
                          action: .checkNetwork, diagnostic: raw.tail())
         }
 
         // Fallback
-        return .init(message: "广播失败：\(raw.prefix(80))",
+        return .init(message: L10n.NodeErr.broadcastFailed(String(raw.prefix(80))),
                      action: .retry, diagnostic: raw.count > 80 ? String(raw.suffix(80)) : nil)
     }
 }
