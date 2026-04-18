@@ -405,6 +405,48 @@ enum L10n {
         static func broadcastingTo(_ chain: String) -> String {
             String(format: NSLocalizedString("signing.broadcastingTo", comment: ""), chain)
         }
+
+        // dev.43 signing-flow batch
+        static let pickFromAddressBook = NSLocalizedString("sign.pickFromAddressBook", comment: "")
+        static let asset = NSLocalizedString("sign.asset", comment: "")
+        static let feePriority = NSLocalizedString("sign.feePriority", comment: "")
+        static let customGasPlaceholder = NSLocalizedString("sign.customGasPlaceholder", comment: "")
+        static let customFeeRateLabel = NSLocalizedString("sign.customFeeRateLabel", comment: "")
+        static let customFeeRatePlaceholder = NSLocalizedString("sign.customFeeRatePlaceholder", comment: "")
+        static let coSigners = NSLocalizedString("sign.coSigners", comment: "")
+        static let selfLabel = NSLocalizedString("sign.selfLabel", comment: "")
+        static let slowHint = NSLocalizedString("sign.slowHint", comment: "")
+        static let waitingCoSigner = NSLocalizedString("sign.waitingCoSigner", comment: "")
+        static let waiting = NSLocalizedString("sign.waiting", comment: "")
+        static let bioReason = NSLocalizedString("sign.bioReason", comment: "")
+        static let nativeTransfer = NSLocalizedString("sign.nativeTransfer", comment: "")
+        static let warnZeroAmount = NSLocalizedString("sign.warnZeroAmount", comment: "")
+        static let warnSelfTransfer = NSLocalizedString("sign.warnSelfTransfer", comment: "")
+        static let preview = NSLocalizedString("sign.preview", comment: "")
+        static let offlineDecoded = NSLocalizedString("sign.offlineDecoded", comment: "")
+        static let rowOperation = NSLocalizedString("sign.rowOperation", comment: "")
+        static let rowAsset = NSLocalizedString("sign.rowAsset", comment: "")
+        static let rowAmount = NSLocalizedString("sign.rowAmount", comment: "")
+        static let rowContract = NSLocalizedString("sign.rowContract", comment: "")
+        static let rowNetworkFee = NSLocalizedString("sign.rowNetworkFee", comment: "")
+        static let recipientSegments = NSLocalizedString("sign.recipientSegments", comment: "")
+        static let addressCopied = NSLocalizedString("sign.addressCopied", comment: "")
+        static let a11yCopyRecipient = NSLocalizedString("sign.a11yCopyRecipient", comment: "")
+        static let a11yExplorer = NSLocalizedString("sign.a11yExplorer", comment: "")
+        static let balanceChange = NSLocalizedString("sign.balanceChange", comment: "")
+
+        static func ensResolving(_ name: String) -> String {
+            String(format: NSLocalizedString("sign.ensResolving", comment: ""), name)
+        }
+        static func tokenTransferDescContract(_ amount: String, _ symbol: String) -> String {
+            String(format: NSLocalizedString("sign.tokenTransferDescContract", comment: ""), amount, symbol)
+        }
+        static func tokenTransferDesc(_ amount: String, _ symbol: String) -> String {
+            String(format: NSLocalizedString("sign.tokenTransferDesc", comment: ""), amount, symbol)
+        }
+        static func feeWarnPct(_ pct: Double) -> String {
+            String(format: NSLocalizedString("sign.feeWarnPct", comment: ""), pct)
+        }
     }
 
     // MARK: - QR Scanner

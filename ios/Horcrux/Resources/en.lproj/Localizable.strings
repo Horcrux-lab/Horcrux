@@ -529,3 +529,36 @@
 "shardHealth.resMissing" = "Shard missing (not found in Keychain)";
 "shardHealth.resEmpty" = "Shard is empty (write may have failed)";
 "shardHealth.resUnreadable" = "Unreadable: %@";
+
+/* Signing flow (dev.43 i18n batch) */
+"sign.pickFromAddressBook" = "Pick from address book";
+"sign.asset" = "Asset";
+"sign.feePriority" = "Fee priority";
+"sign.customGasPlaceholder" = "e.g. 25";
+"sign.customFeeRateLabel" = "Fee rate (sat/vB)";
+"sign.customFeeRatePlaceholder" = "e.g. 5";
+"sign.ensResolving" = "Resolving %@ …";
+"sign.coSigners" = "Co-signers";
+"sign.selfLabel" = "This device (you)";
+"sign.slowHint" = "Signing is taking a while. You can cancel and retry, or check the co-signer's network.";
+"sign.waitingCoSigner" = "Waiting for co-signer to finish this round…";
+"sign.waiting" = "Waiting";
+"sign.bioReason" = "Confirm to broadcast transaction";
+"sign.nativeTransfer" = "Native token transfer";
+"sign.warnZeroAmount" = "Amount is 0; this transaction will not move any assets";
+"sign.warnSelfTransfer" = "Recipient is your own address";
+"sign.tokenTransferDescContract" = "You are sending %1$@ %2$@ from this wallet to the address below (calls the contract's transfer method, no other assets move). Double-check every segment of the address.";
+"sign.tokenTransferDesc" = "You are sending %1$@ %2$@ from this wallet to the address below. Double-check every segment of the address.";
+"sign.preview" = "Transaction preview";
+"sign.offlineDecoded" = "Offline decoded";
+"sign.rowOperation" = "Operation";
+"sign.rowAsset" = "Asset";
+"sign.rowAmount" = "Amount";
+"sign.rowContract" = "Contract";
+"sign.rowNetworkFee" = "Network fee";
+"sign.feeWarnPct" = "Network fee is %.1f%% of the transfer amount; please confirm before signing.";
+"sign.recipientSegments" = "Recipient address (verify each segment)";
+"sign.addressCopied" = "Address copied";
+"sign.a11yCopyRecipient" = "Copy recipient address";
+"sign.a11yExplorer" = "Open in block explorer";
+"sign.balanceChange" = "Balance change";

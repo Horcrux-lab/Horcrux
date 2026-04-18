@@ -102,7 +102,7 @@ struct ComposeTransactionView: View {
                                 .foregroundStyle(.blue)
                         }
                         .buttonStyle(.plain)
-                        .accessibilityLabel("从地址簿选择")
+                        .accessibilityLabel(L10n.Signing.pickFromAddressBook)
                         .accessibilityIdentifier("compose_addressBookButton")
                     } else {
                         Button {
@@ -113,7 +113,7 @@ struct ComposeTransactionView: View {
                                 .foregroundStyle(.blue)
                         }
                         .buttonStyle(.plain)
-                        .accessibilityLabel("从地址簿选择")
+                        .accessibilityLabel(L10n.Signing.pickFromAddressBook)
                     }
 
                     Button {
@@ -158,7 +158,7 @@ struct ComposeTransactionView: View {
 
             Section(L10n.Signing.amount) {
                 if !viewModel.availableTokens.isEmpty {
-                    Picker("资产", selection: Binding(
+                    Picker(L10n.Signing.asset, selection: Binding(
                         get: { viewModel.selectedToken?.id ?? "__native__" },
                         set: { newId in
                             if newId == "__native__" {
@@ -197,7 +197,7 @@ struct ComposeTransactionView: View {
 
             if viewModel.wallet.chain.isEVM {
                 Section(L10n.Signing.gas) {
-                    Picker("费用优先级", selection: $viewModel.feeTier) {
+                    Picker(L10n.Signing.feePriority, selection: $viewModel.feeTier) {
                         ForEach(SigningViewModel.FeeTier.allCases) { tier in
                             Text(tier.label).tag(tier)
                         }
@@ -209,7 +209,7 @@ struct ComposeTransactionView: View {
                         HStack {
                             Text("Gas 价 (gwei)")
                             Spacer()
-                            TextField("例: 25", text: $viewModel.customGasPriceGwei)
+                            TextField(L10n.Signing.customGasPlaceholder, text: $viewModel.customGasPriceGwei)
                                 .keyboardType(.decimalPad)
                                 .multilineTextAlignment(.trailing)
                                 .frame(minWidth: 80)
@@ -233,7 +233,7 @@ struct ComposeTransactionView: View {
                 Section(L10n.Signing.fee) {
                     if viewModel.wallet.chain != .solana {
                         // Solana has no user-tunable feerate for native transfers.
-                        Picker("费用优先级", selection: $viewModel.feeTier) {
+                        Picker(L10n.Signing.feePriority, selection: $viewModel.feeTier) {
                             ForEach(SigningViewModel.FeeTier.allCases) { tier in
                                 Text(tier.label).tag(tier)
                             }
@@ -243,9 +243,9 @@ struct ComposeTransactionView: View {
 
                         if viewModel.feeTier == .custom {
                             HStack {
-                                Text("费率 (sat/vB)")
+                                Text(L10n.Signing.customFeeRateLabel)
                                 Spacer()
-                                TextField("例: 5", text: $viewModel.customGasPriceGwei)
+                                TextField(L10n.Signing.customFeeRatePlaceholder, text: $viewModel.customGasPriceGwei)
                                     .keyboardType(.numberPad)
                                     .multilineTextAlignment(.trailing)
                                     .frame(minWidth: 80)
@@ -299,7 +299,7 @@ struct ComposeTransactionView: View {
     /// Minimal ENS resolution via public RPC. Queries the ENS registry
     /// resolver for the name and shows the result in an inline hint.
     private func resolveENS(_ name: String) {
-        ensStatus = "解析 \(name) …"
+        ensStatus = L10n.Signing.ensResolving(name)
         Task {
             let resolved = await ENSResolver.resolve(name)
             await MainActor.run {
@@ -451,7 +451,7 @@ struct SigningProgressView: View {
                 HStack {
                     Image(systemName: "person.2.fill")
                         .foregroundStyle(HorcruxTheme.accentPurple)
-                    Text("共同签名方")
+                    Text(L10n.Signing.coSigners)
                         .font(.subheadline.weight(.semibold))
                     Spacer()
                     Text("\(viewModel.joinedSigners.count + 1) / \(viewModel.wallet.threshold)")
@@ -461,7 +461,7 @@ struct SigningProgressView: View {
 
                 // Self — always "signing" while ceremony runs, "done" once complete.
                 CosignerStatusRow(
-                    name: "本机（你）",
+                    name: L10n.Signing.selfLabel,
                     status: viewModel.signingProgress >= 1.0 ? .done : .signing,
                     round: viewModel.currentRound,
                     totalRounds: viewModel.totalRounds,
@@ -538,13 +538,13 @@ private struct SigningElapsedHint: View {
                 hint(
                     icon: "exclamationmark.triangle.fill",
                     tint: .orange,
-                    text: "签名用时偏长。可尝试取消后重新发起，或检查共同签名方的网络。"
+                    text: L10n.Signing.slowHint
                 )
             } else if secs >= 30 {
                 hint(
                     icon: "hourglass",
                     tint: HorcruxTheme.accentBlue,
-                    text: "正在等待共同签名方完成本轮计算……"
+                    text: L10n.Signing.waitingCoSigner
                 )
             }
         }
@@ -593,7 +593,7 @@ private struct CosignerStatusRow: View {
             }
             switch status {
             case .waiting:
-                Text("等待中")
+                Text(L10n.Signing.waiting)
                     .font(.caption2)
                     .foregroundStyle(.secondary)
             case .signing:
@@ -657,7 +657,7 @@ struct SigningCompleteView: View {
                             let biometricGate = UserDefaults.standard.bool(forKey: "biometricSigningGate")
                             if biometricGate && BiometricAuth.shared.availableType != .none {
                                 let ok = await BiometricAuth.shared.authenticate(
-                                    reason: "确认广播交易"
+                                    reason: L10n.Signing.bioReason
                                 )
                                 if !ok {
                                     viewModel.broadcastStatus = "❌ 生物识别失败"
@@ -747,7 +747,7 @@ struct TransactionPreviewCard: View {
 
     /// Per-chain / per-standard label shown in the preview card.
     private var operationLabel: String {
-        if !isTokenTransfer { return "原生代币转账" }
+        if !isTokenTransfer { return L10n.Signing.nativeTransfer }
         switch viewModel.wallet.chain {
         case .tron: return "TRC-20 代币转账"
         case .solana: return "SPL 代币转账"
@@ -758,10 +758,10 @@ struct TransactionPreviewCard: View {
     private var warnings: [String] {
         var w: [String] = []
         if let amount = Decimal(string: viewModel.amount) {
-            if amount == 0 { w.append("金额为 0，交易不会转移任何资产") }
+            if amount == 0 { w.append(L10n.Signing.warnZeroAmount) }
         }
         if viewModel.recipientAddress.lowercased() == viewModel.wallet.address.lowercased() {
-            w.append("收款地址是你自己")
+            w.append(L10n.Signing.warnSelfTransfer)
         }
         if isTokenTransfer && viewModel.wallet.chain == .ethereum {
             // Already a known token from our curated list = safe. If the list later
@@ -774,9 +774,9 @@ struct TransactionPreviewCard: View {
         let symbol = viewModel.transferSymbol
         let amount = viewModel.amount.isEmpty ? "0" : viewModel.amount
         if isTokenTransfer {
-            return "你将把 \(amount) \(symbol) 从本钱包发送到下面的收款地址（调用合约 transfer 方法，不会改变其他资产）。请仔细核对地址每一段。"
+            return L10n.Signing.tokenTransferDescContract("\(amount)", symbol)
         } else {
-            return "你将把 \(amount) \(symbol) 从本钱包发送到下面的收款地址。请仔细核对地址每一段。"
+            return L10n.Signing.tokenTransferDesc("\(amount)", symbol)
         }
     }
 
@@ -785,11 +785,11 @@ struct TransactionPreviewCard: View {
             HStack {
                 Image(systemName: "doc.text.magnifyingglass")
                     .foregroundStyle(HorcruxTheme.accentBlue)
-                Text("交易预览")
+                Text(L10n.Signing.preview)
                     .font(.subheadline.bold())
                     .foregroundStyle(.white)
                 Spacer()
-                Text("离线解码")
+                Text(L10n.Signing.offlineDecoded)
                     .font(.caption2)
                     .foregroundStyle(.secondary)
             }
@@ -804,9 +804,9 @@ struct TransactionPreviewCard: View {
 
             Divider().background(Color.white.opacity(0.08))
 
-            previewRow(label: "操作", value: operationLabel)
-            previewRow(label: "资产", value: viewModel.transferSymbol)
-            previewRow(label: "金额", value: "\(viewModel.amount) \(viewModel.transferSymbol)")
+            previewRow(label: L10n.Signing.rowOperation, value: operationLabel)
+            previewRow(label: L10n.Signing.rowAsset, value: viewModel.transferSymbol)
+            previewRow(label: L10n.Signing.rowAmount, value: "\(viewModel.amount) \(viewModel.transferSymbol)")
 
             // Balance impact — shows "current → after" for native-coin transfers.
             // Skipped for ERC-20: the native balance isn't what's moving, so the
@@ -822,7 +822,7 @@ struct TransactionPreviewCard: View {
                 HStack(alignment: .top, spacing: 8) {
                     Image(systemName: "exclamationmark.triangle.fill")
                         .foregroundStyle(.orange)
-                    Text(String(format: "网络费占转账金额 %.1f%%，建议确认后再签名。", pct * 100))
+                    Text(L10n.Signing.feeWarnPct(pct * 100))
                         .font(.caption)
                         .foregroundStyle(.orange)
                 }
@@ -832,28 +832,28 @@ struct TransactionPreviewCard: View {
             // Intentionally verbose: truncation has caused address-phishing losses.
             VStack(alignment: .leading, spacing: 6) {
                 HStack {
-                    Text("收款地址（请逐段核对）")
+                    Text(L10n.Signing.recipientSegments)
                         .font(.caption)
                         .foregroundStyle(.secondary)
                     Spacer()
                     Button {
                         CopyFeedback.copy(
                             AddressFormatter.canonical(viewModel.recipientAddress, chain: viewModel.wallet.chain),
-                            label: "地址已复制"
+                            label: L10n.Signing.addressCopied
                         )
                     } label: {
                         Image(systemName: "doc.on.doc")
                             .font(.caption)
                             .foregroundStyle(HorcruxTheme.accentBlue)
                     }
-                    .accessibilityLabel("复制收款地址")
+                    .accessibilityLabel(L10n.Signing.a11yCopyRecipient)
                     if let url = viewModel.recipientExplorerURL {
                         Link(destination: url) {
                             Image(systemName: "arrow.up.right.square")
                                 .font(.caption)
                                 .foregroundStyle(HorcruxTheme.accentBlue)
                         }
-                        .accessibilityLabel("在区块浏览器中查看")
+                        .accessibilityLabel(L10n.Signing.a11yExplorer)
                     }
                 }
                 Text(viewModel.displayRecipient)
@@ -866,9 +866,9 @@ struct TransactionPreviewCard: View {
             }
 
             if isTokenTransfer, let token = viewModel.selectedToken {
-                previewRow(label: "合约", value: shorten(token.id), monospaced: true)
+                previewRow(label: L10n.Signing.rowContract, value: shorten(token.id), monospaced: true)
             }
-            previewRow(label: "网络费", value: viewModel.estimatedFee)
+            previewRow(label: L10n.Signing.rowNetworkFee, value: viewModel.estimatedFee)
 
             if !warnings.isEmpty {
                 Divider().background(Color.white.opacity(0.08))
@@ -947,7 +947,7 @@ struct TransactionPreviewCard: View {
 
         VStack(alignment: .leading, spacing: 4) {
             HStack {
-                Text("余额变化")
+                Text(L10n.Signing.balanceChange)
                     .font(.caption)
                     .foregroundStyle(.secondary)
                 Spacer()

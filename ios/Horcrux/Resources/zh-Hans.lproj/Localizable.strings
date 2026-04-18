@@ -529,3 +529,36 @@
 "shardHealth.resMissing" = "分片缺失（Keychain 中找不到）";
 "shardHealth.resEmpty" = "分片为空（可能写入失败）";
 "shardHealth.resUnreadable" = "无法读取：%@";
+
+/* Signing flow (dev.43 i18n batch) */
+"sign.pickFromAddressBook" = "从地址簿选择";
+"sign.asset" = "资产";
+"sign.feePriority" = "费用优先级";
+"sign.customGasPlaceholder" = "例: 25";
+"sign.customFeeRateLabel" = "费率 (sat/vB)";
+"sign.customFeeRatePlaceholder" = "例: 5";
+"sign.ensResolving" = "解析 %@ …";
+"sign.coSigners" = "共同签名方";
+"sign.selfLabel" = "本机（你）";
+"sign.slowHint" = "签名用时偏长。可尝试取消后重新发起，或检查共同签名方的网络。";
+"sign.waitingCoSigner" = "正在等待共同签名方完成本轮计算……";
+"sign.waiting" = "等待中";
+"sign.bioReason" = "确认广播交易";
+"sign.nativeTransfer" = "原生代币转账";
+"sign.warnZeroAmount" = "金额为 0，交易不会转移任何资产";
+"sign.warnSelfTransfer" = "收款地址是你自己";
+"sign.tokenTransferDescContract" = "你将把 %1$@ %2$@ 从本钱包发送到下面的收款地址（调用合约 transfer 方法，不会改变其他资产）。请仔细核对地址每一段。";
+"sign.tokenTransferDesc" = "你将把 %1$@ %2$@ 从本钱包发送到下面的收款地址。请仔细核对地址每一段。";
+"sign.preview" = "交易预览";
+"sign.offlineDecoded" = "离线解码";
+"sign.rowOperation" = "操作";
+"sign.rowAsset" = "资产";
+"sign.rowAmount" = "金额";
+"sign.rowContract" = "合约";
+"sign.rowNetworkFee" = "网络费";
+"sign.feeWarnPct" = "网络费占转账金额 %.1f%%，建议确认后再签名。";
+"sign.recipientSegments" = "收款地址（请逐段核对）";
+"sign.addressCopied" = "地址已复制";
+"sign.a11yCopyRecipient" = "复制收款地址";
+"sign.a11yExplorer" = "在区块浏览器中查看";
+"sign.balanceChange" = "余额变化";
