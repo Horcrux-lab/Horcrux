@@ -838,3 +838,19 @@
 "receiveX.optional" = "Optional";
 
 "customTokensX.solanaMintPlaceholder" = "mint address";
+
+// dev.49 — App Intents / Siri Shortcuts
+"intents.showAddr.title" = "Show wallet address";
+"intents.showAddr.desc" = "Read the wallet address for a given chain and copy it to the clipboard, for receiving assets. Read-only — never touches the shards.";
+"intents.showAddr.summaryPrefix" = "Get my";
+"intents.showAddr.summarySuffix" = "address";
+"intents.showAddr.dialog" = "Copied %1$@ address %2$@ to the clipboard.";
+"intents.openReceive.title" = "Open receive QR";
+"intents.openReceive.desc" = "Open the receive screen for a given chain in Horcrux and show the QR code.";
+"intents.openReceive.summaryPrefix" = "Open";
+"intents.openReceive.summarySuffix" = "receive QR";
+"intents.category.wallet" = "Wallet";
+"intents.param.chain" = "Chain";
+"intents.error.walletNotFound" = "No wallet found on this chain.";
+"intents.short.copyAddr" = "Copy address";
+"intents.short.receive" = "Receive QR";

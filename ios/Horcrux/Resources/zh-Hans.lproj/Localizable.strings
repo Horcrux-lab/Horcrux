@@ -838,3 +838,19 @@
 "receiveX.optional" = "可选";
 
 "customTokensX.solanaMintPlaceholder" = "mint 地址";
+
+// dev.49 — App Intents / Siri Shortcuts
+"intents.showAddr.title" = "显示钱包地址";
+"intents.showAddr.desc" = "读取指定链的钱包地址并复制到剪贴板，用于接收资产。只读操作，不触及分片。";
+"intents.showAddr.summaryPrefix" = "获取我的";
+"intents.showAddr.summarySuffix" = "地址";
+"intents.showAddr.dialog" = "已复制 %1$@ 地址 %2$@ 到剪贴板。";
+"intents.openReceive.title" = "打开收款二维码";
+"intents.openReceive.desc" = "在 Horcrux 中打开指定链钱包的收款页面并显示二维码。";
+"intents.openReceive.summaryPrefix" = "打开";
+"intents.openReceive.summarySuffix" = "收款二维码";
+"intents.category.wallet" = "钱包";
+"intents.param.chain" = "链";
+"intents.error.walletNotFound" = "找不到该链上的钱包。";
+"intents.short.copyAddr" = "复制地址";
+"intents.short.receive" = "收款二维码";

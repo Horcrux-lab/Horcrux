@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.0-dev.49] - 2026-04-18
+
+### Changed
+
+- **iOS**: `HorcruxAppIntents` Siri Shortcuts 本地化 —— `ShowWalletAddressIntent` / `OpenReceiveIntent` 的 `title` / `description` / `categoryName` / `@Parameter(title:)` / `shortTitle` 全改为 `LocalizedStringResource("intents.*", defaultValue:)` 模式；错误对话框 `needsValueError(IntentDialog(LocalizedStringResource…))`；`perform()` 里拼接的 dialog 改走 `NSLocalizedString + String(format:)`（带 `%1$@ %2$@` 占位）。Shortcuts 短语同时保留中英 4 条（中文 2 + 英文 2），Siri 可用任一语言触发。Summary 保持 Chinese literal（AppIntents DSL 约束）。新增 zh + en 14 条键（`intents.showAddr.*` / `intents.openReceive.*` / `intents.category.wallet` / `intents.param.chain` / `intents.error.walletNotFound` / `intents.short.*`）。
+
 ## [0.3.0-dev.48] - 2026-04-18
 
 ### Changed

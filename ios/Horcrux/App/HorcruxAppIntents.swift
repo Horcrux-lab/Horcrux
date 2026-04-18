@@ -10,7 +10,7 @@ import Foundation
 /// require the full app open for biometric + ceremony flow.
 ///
 /// Users can expose these via Settings → Siri & Shortcuts, or invoke
-/// by voice: "Hey Siri, 打开 Horcrux 钱包".
+/// by voice: "Hey Siri, open Horcrux wallet" / "嘿 Siri, 打开 Horcrux 钱包".
 
 // MARK: - Minimal wallet record for intent reads
 
@@ -69,13 +69,13 @@ struct ChainQuery: EntityQuery {
 // MARK: - Show wallet address intent
 
 struct ShowWalletAddressIntent: AppIntent {
-    static var title: LocalizedStringResource = "显示钱包地址"
+    static var title: LocalizedStringResource = LocalizedStringResource("intents.showAddr.title", defaultValue: "显示钱包地址")
     static var description = IntentDescription(
-        "读取指定链的钱包地址并复制到剪贴板，用于接收资产。只读操作，不触及分片。",
-        categoryName: "钱包"
+        LocalizedStringResource("intents.showAddr.desc", defaultValue: "读取指定链的钱包地址并复制到剪贴板，用于接收资产。只读操作，不触及分片。"),
+        categoryName: LocalizedStringResource("intents.category.wallet", defaultValue: "钱包")
     )
 
-    @Parameter(title: "链")
+    @Parameter(title: LocalizedStringResource("intents.param.chain", defaultValue: "链"))
     var chain: WalletChainEntity
 
     static var parameterSummary: some ParameterSummary {
@@ -87,15 +87,19 @@ struct ShowWalletAddressIntent: AppIntent {
             !($0.isHidden ?? false) && $0.chain == chain.id
         })
         guard let wallet = match else {
-            throw $chain.needsValueError("找不到该链上的钱包。")
+            throw $chain.needsValueError(IntentDialog(LocalizedStringResource("intents.error.walletNotFound", defaultValue: "找不到该链上的钱包。")))
         }
         await MainActor.run {
             SecureClipboard.copy(wallet.address)
         }
         let short = shortAddress(wallet.address)
+        let dialog = String(
+            format: NSLocalizedString("intents.showAddr.dialog", comment: ""),
+            wallet.chain, short
+        )
         return .result(
             value: wallet.address,
-            dialog: IntentDialog("已复制 \(wallet.chain) 地址 \(short) 到剪贴板。")
+            dialog: IntentDialog(stringLiteral: dialog)
         )
     }
 
@@ -108,14 +112,14 @@ struct ShowWalletAddressIntent: AppIntent {
 // MARK: - Open receive screen intent
 
 struct OpenReceiveIntent: AppIntent {
-    static var title: LocalizedStringResource = "打开收款二维码"
+    static var title: LocalizedStringResource = LocalizedStringResource("intents.openReceive.title", defaultValue: "打开收款二维码")
     static var description = IntentDescription(
-        "在 Horcrux 中打开指定链钱包的收款页面并显示二维码。",
-        categoryName: "钱包"
+        LocalizedStringResource("intents.openReceive.desc", defaultValue: "在 Horcrux 中打开指定链钱包的收款页面并显示二维码。"),
+        categoryName: LocalizedStringResource("intents.category.wallet", defaultValue: "钱包")
     )
     static var openAppWhenRun: Bool = true
 
-    @Parameter(title: "链")
+    @Parameter(title: LocalizedStringResource("intents.param.chain", defaultValue: "链"))
     var chain: WalletChainEntity
 
     static var parameterSummary: some ParameterSummary {
@@ -127,7 +131,7 @@ struct OpenReceiveIntent: AppIntent {
             !($0.isHidden ?? false) && $0.chain == chain.id
         })
         guard let wallet = match else {
-            throw $chain.needsValueError("找不到该链上的钱包。")
+            throw $chain.needsValueError(IntentDialog(LocalizedStringResource("intents.error.walletNotFound", defaultValue: "找不到该链上的钱包。")))
         }
         await MainActor.run {
             // DeepLinkRouter drives the UI once the app opens.
@@ -145,18 +149,22 @@ struct HorcruxShortcuts: AppShortcutsProvider {
             intent: ShowWalletAddressIntent(),
             phrases: [
                 "用 \(.applicationName) 复制地址",
-                "在 \(.applicationName) 里复制钱包地址"
+                "在 \(.applicationName) 里复制钱包地址",
+                "Copy address with \(.applicationName)",
+                "Copy my wallet address in \(.applicationName)"
             ],
-            shortTitle: "复制地址",
+            shortTitle: LocalizedStringResource("intents.short.copyAddr", defaultValue: "复制地址"),
             systemImageName: "doc.on.doc"
         )
         AppShortcut(
             intent: OpenReceiveIntent(),
             phrases: [
                 "用 \(.applicationName) 显示收款码",
-                "打开 \(.applicationName) 收款"
+                "打开 \(.applicationName) 收款",
+                "Show receive QR in \(.applicationName)",
+                "Open \(.applicationName) to receive"
             ],
-            shortTitle: "收款二维码",
+            shortTitle: LocalizedStringResource("intents.short.receive", defaultValue: "收款二维码"),
             systemImageName: "qrcode"
         )
     }
