@@ -99,71 +99,71 @@ struct OnboardingView: View {
     }
 
     var body: some View {
-        ZStack {
-            HorcruxTheme.backgroundGradient.ignoresSafeArea()
+        VStack(spacing: 0) {
+            Spacer()
 
-            // Subtle radial glow at top
-            VStack {
-                Circle()
-                    .fill(
-                        RadialGradient(
-                            colors: [HorcruxTheme.accentPurple.opacity(0.15), .clear],
-                            center: .center,
-                            startRadius: 20,
-                            endRadius: 250
-                        )
-                    )
-                    .frame(width: 500, height: 500)
-                    .offset(y: -150)
-                Spacer()
+            switch step {
+            case .welcome:
+                welcomeContent
+            case .valueProp1:
+                valuePropPage(
+                    icon: "shield.lefthalf.filled",
+                    title: L10n.OnboardingCards.card1Title,
+                    subtitle: L10n.OnboardingCards.card1Subtitle
+                )
+            case .valueProp2:
+                valuePropPage(
+                    icon: "iphone.and.arrow.forward",
+                    title: L10n.OnboardingCards.card2Title,
+                    subtitle: L10n.OnboardingCards.card2Subtitle
+                )
+            case .valueProp3:
+                valuePropPage(
+                    icon: "arrow.triangle.2.circlepath.circle.fill",
+                    title: L10n.OnboardingCards.card3Title,
+                    subtitle: L10n.OnboardingCards.card3Subtitle
+                )
+            case .createPin:
+                createPinContent
+            case .confirmPin:
+                confirmPinContent
             }
-            .ignoresSafeArea()
 
-            VStack(spacing: 0) {
-                Spacer()
+            Spacer()
 
-                switch step {
-                case .welcome:
-                    welcomeContent
-                case .valueProp1:
-                    valuePropPage(
-                        icon: "shield.lefthalf.filled",
-                        title: L10n.OnboardingCards.card1Title,
-                        subtitle: L10n.OnboardingCards.card1Subtitle
-                    )
-                case .valueProp2:
-                    valuePropPage(
-                        icon: "iphone.and.arrow.forward",
-                        title: L10n.OnboardingCards.card2Title,
-                        subtitle: L10n.OnboardingCards.card2Subtitle
-                    )
-                case .valueProp3:
-                    valuePropPage(
-                        icon: "arrow.triangle.2.circlepath.circle.fill",
-                        title: L10n.OnboardingCards.card3Title,
-                        subtitle: L10n.OnboardingCards.card3Subtitle
-                    )
-                case .createPin:
-                    createPinContent
-                case .confirmPin:
-                    confirmPinContent
+            // Step indicator
+            HStack(spacing: 8) {
+                ForEach(0..<6) { i in
+                    Capsule()
+                        .fill(stepIndex >= i ? HorcruxTheme.accentPurple : Color.white.opacity(0.15))
+                        .frame(width: stepIndex == i ? 24 : 8, height: 8)
+                        .animation(.spring(response: 0.4), value: step)
                 }
-
-                Spacer()
-
-                // Step indicator
-                HStack(spacing: 8) {
-                    ForEach(0..<6) { i in
-                        Capsule()
-                            .fill(stepIndex >= i ? HorcruxTheme.accentPurple : Color.white.opacity(0.15))
-                            .frame(width: stepIndex == i ? 24 : 8, height: 8)
-                            .animation(.spring(response: 0.4), value: step)
-                    }
-                }
-                .padding(.bottom, 32)
             }
-            .padding(.horizontal, 32)
+            .padding(.bottom, 32)
         }
+        .padding(.horizontal, 32)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(HorcruxTheme.backgroundGradient.ignoresSafeArea())
+        .background(alignment: .top) {
+            // Subtle radial glow at top. Placed in `.background` so its
+            // intrinsic 500pt width does not widen the layout and push
+            // siblings (button bars, body text) past the screen edges.
+            Circle()
+                .fill(
+                    RadialGradient(
+                        colors: [HorcruxTheme.accentPurple.opacity(0.15), .clear],
+                        center: .center,
+                        startRadius: 20,
+                        endRadius: 250
+                    )
+                )
+                .frame(width: 500, height: 500)
+                .offset(y: -150)
+                .allowsHitTesting(false)
+        }
+        .clipped()
+        .ignoresSafeArea(edges: .top)
         .onAppear {
             withAnimation(.easeOut(duration: 0.8)) { animateIn = true }
         }
@@ -193,13 +193,16 @@ struct OnboardingView: View {
                     .font(.system(size: 28, weight: .bold, design: .rounded))
                     .foregroundStyle(.white)
                     .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
 
                 Text(subtitle)
                     .font(.subheadline)
                     .multilineTextAlignment(.center)
                     .foregroundStyle(HorcruxTheme.subtleText)
                     .lineSpacing(4)
+                    .fixedSize(horizontal: false, vertical: true)
             }
+            .frame(maxWidth: .infinity)
 
             Button(L10n.OnboardingCards.continueBtn) {
                 withAnimation(.spring(response: 0.5)) {
@@ -213,6 +216,7 @@ struct OnboardingView: View {
             }
             .buttonStyle(GradientButtonStyle())
         }
+        .frame(maxWidth: .infinity)
     }
 
     // MARK: - Welcome
