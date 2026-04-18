@@ -429,3 +429,39 @@
 /* Licenses */
 "licenses.title" = "Licenses";
 "licenses.coreDependencies" = "Core Dependencies";
+
+/* Common (batch dev.40) */
+"common.save" = "Save";
+"common.close" = "Close";
+"common.hide" = "Hide";
+"common.unhide" = "Unhide";
+"common.rename" = "Rename";
+
+/* Settings sections (batch dev.40) */
+"settings.section.contacts" = "Contacts";
+"settings.section.tokens" = "Tokens";
+"settings.section.diagnostics" = "Diagnostics";
+"settings.section.language" = "Language";
+"settings.section.deviceMgmt" = "Device Management";
+"settings.section.advanced" = "Advanced (Planned)";
+"settings.addressBook" = "Address Book";
+"settings.customTokens" = "Custom Tokens";
+"settings.shardHealth" = "Shard Health Check";
+"settings.biometricSign" = "Biometric Before Signing";
+"settings.biometricSignHint" = "Require Face ID / Touch ID before broadcasting transactions";
+"settings.officialRelay" = "Official Relay";
+"settings.customRelay" = "Custom";
+"settings.replaceDevice" = "Replace Device / Refresh Shards";
+"settings.replaceDeviceSubtitle" = "Replace a lost or damaged device";
+"settings.hardwareWallet" = "Hardware Wallet Support";
+"settings.comingSoon" = "Coming Soon";
+"settings.language" = "Language";
+"settings.languageFollowSystem" = "Follow System";
+
+/* Wallet actions (batch dev.40) */
+"wallet.restoreFromBackup" = "Restore from Backup";
+"wallet.speedUp" = "Speed Up";
+"wallet.deleteWallet" = "Delete Wallet";
+"wallet.renameTitle" = "Rename Wallet";
+"wallet.walletNamePlaceholder" = "Wallet Name";
+"wallet.hiddenCount" = "Hidden (%d)";

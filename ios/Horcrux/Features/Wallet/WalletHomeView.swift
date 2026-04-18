@@ -100,7 +100,7 @@ struct WalletHomeView: View {
                 Button {
                     showRestoreSheet = true
                 } label: {
-                    Label("从备份恢复", systemImage: "square.and.arrow.down")
+                    Label(L10n.WalletHome.restoreFromBackup, systemImage: "square.and.arrow.down")
                         .font(.subheadline.weight(.medium))
                         .foregroundStyle(HorcruxTheme.accentPurple)
                         .frame(maxWidth: .infinity)
@@ -172,7 +172,7 @@ struct WalletHomeView: View {
                                 Button {
                                     walletStore.setHidden(id: wallet.id, hidden: true)
                                 } label: {
-                                    Label("隐藏", systemImage: "eye.slash")
+                                    Label(L10n.Common.hide, systemImage: "eye.slash")
                                 }
                             }
                         }
@@ -225,7 +225,7 @@ struct WalletHomeView: View {
                     Image(systemName: "eye.slash")
                         .font(.caption)
                         .foregroundStyle(HorcruxTheme.subtleText)
-                    Text("已隐藏 (\(hiddenWallets.count))")
+                    Text(L10n.WalletHome.hiddenCount(hiddenWallets.count))
                         .font(.caption.weight(.semibold))
                         .foregroundStyle(HorcruxTheme.subtleText)
                     Spacer()
@@ -250,7 +250,7 @@ struct WalletHomeView: View {
                         Button {
                             walletStore.setHidden(id: wallet.id, hidden: false)
                         } label: {
-                            Label("取消隐藏", systemImage: "eye")
+                            Label(L10n.Common.unhide, systemImage: "eye")
                         }
                     }
                 }
@@ -350,7 +350,7 @@ struct PendingBroadcastRow: View {
                     Button {
                         showRBFInfo = true
                     } label: {
-                        Label("加速", systemImage: "hare.fill")
+                        Label(L10n.WalletHome.speedUp, systemImage: "hare.fill")
                     }
                     .font(.caption2.weight(.semibold))
                     .foregroundStyle(HorcruxTheme.accentCyan)
@@ -781,12 +781,12 @@ struct WalletDetailView: View {
                         renameText = wallet.name
                         showRenameSheet = true
                     } label: {
-                        Label("重命名", systemImage: "pencil")
+                        Label(L10n.Common.rename, systemImage: "pencil")
                     }
                     Button(role: .destructive) {
                         showDeleteConfirm = true
                     } label: {
-                        Label("删除钱包", systemImage: "trash")
+                        Label(L10n.WalletHome.deleteWallet, systemImage: "trash")
                     }
                 } label: {
                     Image(systemName: "ellipsis.circle")
@@ -796,19 +796,19 @@ struct WalletDetailView: View {
         }
         .sheet(isPresented: $showSigning) { SigningView(wallet: wallet) }
         .sheet(isPresented: $showReceive) { ReceiveView(wallet: wallet) }
-        .alert("重命名钱包", isPresented: $showRenameSheet) {
-            TextField("钱包名称", text: $renameText)
+        .alert(L10n.WalletHome.renameTitle, isPresented: $showRenameSheet) {
+            TextField(L10n.WalletHome.walletNamePlaceholder, text: $renameText)
                 .autocorrectionDisabled()
-            Button("取消", role: .cancel) {}
-            Button("保存") {
+            Button(L10n.Common.cancel, role: .cancel) {}
+            Button(L10n.Common.save) {
                 let trimmed = renameText.trimmingCharacters(in: .whitespaces)
                 guard !trimmed.isEmpty else { return }
                 appState.walletStore.rename(id: wallet.id, newName: trimmed)
             }
         }
-        .alert("删除钱包", isPresented: $showDeleteConfirm) {
-            Button("取消", role: .cancel) {}
-            Button("删除", role: .destructive) {
+        .alert(L10n.WalletHome.deleteWallet, isPresented: $showDeleteConfirm) {
+            Button(L10n.Common.cancel, role: .cancel) {}
+            Button(L10n.Common.delete, role: .destructive) {
                 // Remove the wallet record + its tx history. Shard shares
                 // are preserved (they may be tied to other chains).
                 appState.transactionStore.removeAll(for: wallet.id)

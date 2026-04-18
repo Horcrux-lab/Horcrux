@@ -19,6 +19,11 @@ enum L10n {
         static let next = NSLocalizedString("common.next", comment: "")
         static let pin = NSLocalizedString("common.pin", comment: "")
         static let test = NSLocalizedString("common.test", comment: "")
+        static let save = NSLocalizedString("common.save", comment: "")
+        static let close = NSLocalizedString("common.close", comment: "")
+        static let hide = NSLocalizedString("common.hide", comment: "")
+        static let unhide = NSLocalizedString("common.unhide", comment: "")
+        static let rename = NSLocalizedString("common.rename", comment: "")
     }
 
     // MARK: - App
@@ -96,6 +101,16 @@ enum L10n {
         static let editWalletList = NSLocalizedString("walletHome.editWalletList", comment: "")
         static let pendingBroadcasts = NSLocalizedString("walletHome.pendingBroadcasts", comment: "")
         static let loadingBalance = NSLocalizedString("walletHome.loadingBalance", comment: "")
+
+        // dev.40 i18n batch
+        static let restoreFromBackup = NSLocalizedString("wallet.restoreFromBackup", comment: "")
+        static let speedUp = NSLocalizedString("wallet.speedUp", comment: "")
+        static let deleteWallet = NSLocalizedString("wallet.deleteWallet", comment: "")
+        static let renameTitle = NSLocalizedString("wallet.renameTitle", comment: "")
+        static let walletNamePlaceholder = NSLocalizedString("wallet.walletNamePlaceholder", comment: "")
+        static func hiddenCount(_ n: Int) -> String {
+            String(format: NSLocalizedString("wallet.hiddenCount", comment: ""), n)
+        }
 
         static func nodeUnreachable(_ chains: String) -> String {
             String(format: NSLocalizedString("walletHome.nodeUnreachable", comment: ""), chains)
@@ -513,6 +528,28 @@ enum L10n {
         static let relayServerURL = NSLocalizedString("settings.relayServerURL", comment: "")
         static let relayURLHint = NSLocalizedString("settings.relayURLHint", comment: "")
         static let communication = NSLocalizedString("settings.communication", comment: "")
+
+        // dev.40 i18n batch
+        static let sectionContacts = NSLocalizedString("settings.section.contacts", comment: "")
+        static let sectionTokens = NSLocalizedString("settings.section.tokens", comment: "")
+        static let sectionDiagnostics = NSLocalizedString("settings.section.diagnostics", comment: "")
+        static let sectionLanguage = NSLocalizedString("settings.section.language", comment: "")
+        static let sectionDeviceMgmt = NSLocalizedString("settings.section.deviceMgmt", comment: "")
+        static let sectionAdvanced = NSLocalizedString("settings.section.advanced", comment: "")
+        static let addressBook = NSLocalizedString("settings.addressBook", comment: "")
+        static let customTokens = NSLocalizedString("settings.customTokens", comment: "")
+        static let shardHealth = NSLocalizedString("settings.shardHealth", comment: "")
+        static let biometricSign = NSLocalizedString("settings.biometricSign", comment: "")
+        static let biometricSignHint = NSLocalizedString("settings.biometricSignHint", comment: "")
+        static let officialRelay = NSLocalizedString("settings.officialRelay", comment: "")
+        static let customRelay = NSLocalizedString("settings.customRelay", comment: "")
+        static let replaceDevice = NSLocalizedString("settings.replaceDevice", comment: "")
+        static let replaceDeviceSubtitle = NSLocalizedString("settings.replaceDeviceSubtitle", comment: "")
+        static let hardwareWallet = NSLocalizedString("settings.hardwareWallet", comment: "")
+        static let comingSoon = NSLocalizedString("settings.comingSoon", comment: "")
+        static let language = NSLocalizedString("settings.language", comment: "")
+        static let languageFollowSystem = NSLocalizedString("settings.languageFollowSystem", comment: "")
+
         static let transportPreferences = NSLocalizedString("settings.transportPreferences", comment: "")
         static let transportHint = NSLocalizedString("settings.transportHint", comment: "")
         static let about = NSLocalizedString("settings.about", comment: "")

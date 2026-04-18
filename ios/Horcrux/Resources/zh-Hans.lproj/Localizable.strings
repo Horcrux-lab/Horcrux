@@ -429,3 +429,39 @@
 /* Licenses */
 "licenses.title" = "许可";
 "licenses.coreDependencies" = "核心依赖";
+
+/* Common (batch dev.40) */
+"common.save" = "保存";
+"common.close" = "关闭";
+"common.hide" = "隐藏";
+"common.unhide" = "取消隐藏";
+"common.rename" = "重命名";
+
+/* Settings sections (batch dev.40) */
+"settings.section.contacts" = "联系人";
+"settings.section.tokens" = "代币";
+"settings.section.diagnostics" = "诊断";
+"settings.section.language" = "语言";
+"settings.section.deviceMgmt" = "设备管理";
+"settings.section.advanced" = "高级功能（规划中）";
+"settings.addressBook" = "地址簿";
+"settings.customTokens" = "自定义代币";
+"settings.shardHealth" = "分片健康自检";
+"settings.biometricSign" = "签名前生物识别";
+"settings.biometricSignHint" = "广播交易前要求 Face ID / Touch ID";
+"settings.officialRelay" = "官方 Relay";
+"settings.customRelay" = "自定义";
+"settings.replaceDevice" = "替换设备 / 刷新分片";
+"settings.replaceDeviceSubtitle" = "更换丢失或损坏的设备";
+"settings.hardwareWallet" = "硬件钱包支持";
+"settings.comingSoon" = "即将推出";
+"settings.language" = "语言";
+"settings.languageFollowSystem" = "跟随系统";
+
+/* Wallet actions (batch dev.40) */
+"wallet.restoreFromBackup" = "从备份恢复";
+"wallet.speedUp" = "加速";
+"wallet.deleteWallet" = "删除钱包";
+"wallet.renameTitle" = "重命名钱包";
+"wallet.walletNamePlaceholder" = "钱包名称";
+"wallet.hiddenCount" = "已隐藏 (%d)";

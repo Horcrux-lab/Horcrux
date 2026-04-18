@@ -37,14 +37,14 @@ struct SettingsView: View {
                             .accessibilityIdentifier("settings_biometricToggle")
 
                             HStack {
-                                VaultSettingsRow(icon: "hand.raised.fingers.spread", iconColor: HorcruxTheme.accentBlue, title: "签名前生物识别")
+                                VaultSettingsRow(icon: "hand.raised.fingers.spread", iconColor: HorcruxTheme.accentBlue, title: L10n.Settings.biometricSign)
                                 Spacer()
                                 Toggle("", isOn: $biometricSigningGate)
                                     .labelsHidden()
                                     .tint(HorcruxTheme.accentBlue)
                             }
                             .glassCard()
-                            .accessibilityHint("广播交易前要求 Face ID / Touch ID")
+                            .accessibilityHint(L10n.Settings.biometricSignHint)
                             .accessibilityIdentifier("settings_biometricSigningGateToggle")
 
                             Button { showChangePin = true } label: {
@@ -110,8 +110,8 @@ struct SettingsView: View {
                         VStack(spacing: 8) {
                             // Official / Custom picker
                             Picker("", selection: $useCustomRelay) {
-                                Text("官方 Relay").tag(false)
-                                Text("自定义").tag(true)
+                                Text(L10n.Settings.officialRelay).tag(false)
+                                Text(L10n.Settings.customRelay).tag(true)
                             }
                             .pickerStyle(.segmented)
                             .onChange(of: useCustomRelay) { _, isCustom in
@@ -179,14 +179,14 @@ struct SettingsView: View {
 
                     // Address Book
                     VStack(alignment: .leading, spacing: 10) {
-                        VaultSectionHeader("联系人", icon: "person.2")
+                        VaultSectionHeader(L10n.Settings.sectionContacts, icon: "person.2")
                             .padding(.horizontal, 4)
 
                         NavigationLink {
                             AddressBookView()
                         } label: {
                             HStack {
-                                VaultSettingsRow(icon: "person.2.circle", iconColor: HorcruxTheme.accentBlue, title: "地址簿")
+                                VaultSettingsRow(icon: "person.2.circle", iconColor: HorcruxTheme.accentBlue, title: L10n.Settings.addressBook)
                                 Spacer()
                                 Image(systemName: "chevron.right")
                                     .font(.caption)
@@ -199,14 +199,14 @@ struct SettingsView: View {
 
                     // Custom tokens
                     VStack(alignment: .leading, spacing: 10) {
-                        VaultSectionHeader("代币", icon: "circle.grid.2x2")
+                        VaultSectionHeader(L10n.Settings.sectionTokens, icon: "circle.grid.2x2")
                             .padding(.horizontal, 4)
 
                         NavigationLink {
                             CustomTokensView()
                         } label: {
                             HStack {
-                                VaultSettingsRow(icon: "plus.circle", iconColor: HorcruxTheme.accentPurple, title: "自定义代币")
+                                VaultSettingsRow(icon: "plus.circle", iconColor: HorcruxTheme.accentPurple, title: L10n.Settings.customTokens)
                                 Spacer()
                                 Image(systemName: "chevron.right")
                                     .font(.caption)
@@ -219,14 +219,14 @@ struct SettingsView: View {
 
                     // Shard health self-check
                     VStack(alignment: .leading, spacing: 10) {
-                        VaultSectionHeader("诊断", icon: "stethoscope")
+                        VaultSectionHeader(L10n.Settings.sectionDiagnostics, icon: "stethoscope")
                             .padding(.horizontal, 4)
 
                         NavigationLink {
                             ShardHealthView()
                         } label: {
                             HStack {
-                                VaultSettingsRow(icon: "checkmark.shield", iconColor: HorcruxTheme.successGreen, title: "分片健康自检")
+                                VaultSettingsRow(icon: "checkmark.shield", iconColor: HorcruxTheme.successGreen, title: L10n.Settings.shardHealth)
                                 Spacer()
                                 Image(systemName: "chevron.right")
                                     .font(.caption)
@@ -237,9 +237,34 @@ struct SettingsView: View {
                         .accessibilityIdentifier("settings_shardHealthLink")
                     }
 
+                    // Language
+                    VStack(alignment: .leading, spacing: 10) {
+                        VaultSectionHeader("语言 / Language", icon: "globe")
+                            .padding(.horizontal, 4)
+
+                        NavigationLink {
+                            LanguageSettingsView()
+                        } label: {
+                            HStack {
+                                VaultSettingsRow(
+                                    icon: "character.bubble",
+                                    iconColor: HorcruxTheme.accentPurple,
+                                    title: "语言 / Language",
+                                    subtitle: languageSummary
+                                )
+                                Spacer()
+                                Image(systemName: "chevron.right")
+                                    .font(.caption)
+                                    .foregroundStyle(HorcruxTheme.subtleText)
+                            }
+                        }
+                        .glassCard()
+                        .accessibilityIdentifier("settings_languageLink")
+                    }
+
                     // Replace device / Share refresh
                     VStack(alignment: .leading, spacing: 10) {
-                        VaultSectionHeader("设备管理", icon: "iphone.gen3")
+                        VaultSectionHeader(L10n.Settings.sectionDeviceMgmt, icon: "iphone.gen3")
                             .padding(.horizontal, 4)
 
                         NavigationLink {
@@ -249,8 +274,8 @@ struct SettingsView: View {
                                 VaultSettingsRow(
                                     icon: "arrow.triangle.2.circlepath.circle",
                                     iconColor: HorcruxTheme.accentCyan,
-                                    title: "替换设备 / 刷新分片",
-                                    subtitle: "更换丢失或损坏的设备"
+                                    title: L10n.Settings.replaceDevice,
+                                    subtitle: L10n.Settings.replaceDeviceSubtitle
                                 )
                                 Spacer()
                                 Image(systemName: "chevron.right")
@@ -315,7 +340,7 @@ struct SettingsView: View {
 
                     // Advanced / Planned features (P3.3 stub)
                     VStack(alignment: .leading, spacing: 10) {
-                        VaultSectionHeader("高级功能（规划中）", icon: "sparkles")
+                        VaultSectionHeader(L10n.Settings.sectionAdvanced, icon: "sparkles")
                             .padding(.horizontal, 4)
 
                         VStack(spacing: 0) {
@@ -326,11 +351,11 @@ struct SettingsView: View {
                                     VaultSettingsRow(
                                         icon: "externaldrive.connected.to.line.below",
                                         iconColor: HorcruxTheme.accentCyan,
-                                        title: "硬件钱包支持",
+                                        title: L10n.Settings.hardwareWallet,
                                         subtitle: "Ledger / Trezor 作为一个分片（计划中）"
                                     )
                                     Spacer()
-                                    Text("即将推出")
+                                    Text(L10n.Settings.comingSoon)
                                         .font(.caption2.weight(.medium))
                                         .foregroundStyle(HorcruxTheme.accentCyan)
                                         .padding(.horizontal, 8)
@@ -477,6 +502,16 @@ struct SettingsView: View {
         parts.append(config.btcTestnet ? "BTC Testnet" : "BTC Mainnet")
         parts.append(config.solDevnet ? "SOL Devnet" : "SOL Mainnet")
         return parts.joined(separator: " · ")
+    }
+
+    private var languageSummary: String {
+        guard let arr = UserDefaults.standard.array(forKey: "AppleLanguages") as? [String],
+              let first = arr.first else {
+            return L10n.Settings.languageFollowSystem
+        }
+        if first.hasPrefix("zh") { return "简体中文" }
+        if first.hasPrefix("en") { return "English" }
+        return first
     }
 
     static func validateRelayURL(_ urlString: String) -> String? {
