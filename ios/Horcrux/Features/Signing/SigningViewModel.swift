@@ -78,7 +78,10 @@ final class SigningViewModel: ObservableObject {
 
     /// Available tokens for the current wallet chain. Native coin is represented as `nil`.
     var availableTokens: [Token] {
-        TokenList.tokens(for: wallet.chain)
+        if let customTokenStore {
+            return customTokenStore.effectiveTokens(for: wallet.chain)
+        }
+        return TokenList.tokens(for: wallet.chain)
     }
 
     /// Decimals of the asset currently being transferred (18 for ETH, 8 for BTC, 9 for SOL, token-specific for ERC-20/SPL).
@@ -126,6 +129,7 @@ final class SigningViewModel: ObservableObject {
     private var peerManager: PeerManager?
     private var walletStore: WalletStore?
     private var transactionStore: TransactionStore?
+    private var customTokenStore: CustomTokenStore?
     private var deviceKey: Data?
     private var networkConfig: NetworkConfig?
     private var blockchainService: BlockchainService?
@@ -232,6 +236,7 @@ final class SigningViewModel: ObservableObject {
         self.peerManager = appState.peerManager
         self.walletStore = appState.walletStore
         self.transactionStore = appState.transactionStore
+        self.customTokenStore = appState.customTokenStore
         do {
             self.deviceKey = try appState.deviceKey
         } catch {

@@ -637,7 +637,20 @@ struct SigningCompleteView: View {
                         .multilineTextAlignment(.center)
                 } else {
                     Button {
-                        viewModel.broadcastTransaction()
+                        Task {
+                            // Optional biometric gate — toggle in Settings.
+                            let biometricGate = UserDefaults.standard.bool(forKey: "biometricSigningGate")
+                            if biometricGate && BiometricAuth.shared.availableType != .none {
+                                let ok = await BiometricAuth.shared.authenticate(
+                                    reason: "确认广播交易"
+                                )
+                                if !ok {
+                                    viewModel.broadcastStatus = "❌ 生物识别失败"
+                                    return
+                                }
+                            }
+                            viewModel.broadcastTransaction()
+                        }
                     } label: {
                         Label(L10n.Signing.broadcastToNetwork, systemImage: "antenna.radiowaves.left.and.right")
                             .frame(maxWidth: .infinity)

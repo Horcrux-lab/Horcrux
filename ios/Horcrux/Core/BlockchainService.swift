@@ -779,6 +779,74 @@ actor BlockchainService {
         return hexToDecimal(hex)
     }
 
+    /// ERC-20 metadata lookup helper (name / symbol / decimals).
+    /// Used by the "Add custom token" form autofill.
+    struct ERC20Metadata { let symbol: String; let name: String; let decimals: UInt8 }
+    func erc20Metadata(contract: String, rpcURL: String) async throws -> ERC20Metadata {
+        func call(selector: String) async throws -> String {
+            let body: [String: Any] = [
+                "jsonrpc": "2.0", "id": 1,
+                "method": "eth_call",
+                "params": [["to": contract, "data": selector], "latest"]
+            ]
+            let jsonBody = try JSONSerialization.data(withJSONObject: body)
+            guard let url = URL(string: rpcURL) else { throw BlockchainError.invalidURL(rpcURL) }
+            var request = URLRequest(url: url)
+            request.httpMethod = "POST"
+            request.httpBody = jsonBody
+            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+            let (data, response) = try await session.data(for: request)
+            try validateHTTP(response)
+            struct R: Decodable { let result: String? }
+            return (try JSONDecoder().decode(R.self, from: data)).result ?? "0x"
+        }
+        // ABI string return layout: 32-byte offset | 32-byte length | data.
+        func decodeAbiString(_ hex: String) -> String {
+            var h = hex
+            if h.hasPrefix("0x") { h = String(h.dropFirst(2)) }
+            guard h.count >= 128 else {
+                // Fallback: bytes32 short strings.
+                return bytes32ToString(h)
+            }
+            let lenHex = String(h.dropFirst(64).prefix(64))
+            guard let len = UInt64(lenHex, radix: 16), len > 0 else { return bytes32ToString(h) }
+            let payload = h.dropFirst(128).prefix(Int(len) * 2)
+            return hexToUTF8(String(payload))
+        }
+        func bytes32ToString(_ h: String) -> String {
+            // Trim trailing zeros, decode ascii.
+            var bytes = [UInt8]()
+            var i = h.startIndex
+            while i < h.endIndex {
+                let next = h.index(i, offsetBy: 2, limitedBy: h.endIndex) ?? h.endIndex
+                if let b = UInt8(h[i..<next], radix: 16), b != 0 { bytes.append(b) }
+                i = next
+            }
+            return String(bytes: bytes, encoding: .utf8) ?? ""
+        }
+        func hexToUTF8(_ h: String) -> String {
+            var bytes = [UInt8]()
+            var i = h.startIndex
+            while i < h.endIndex {
+                let next = h.index(i, offsetBy: 2, limitedBy: h.endIndex) ?? h.endIndex
+                if let b = UInt8(h[i..<next], radix: 16) { bytes.append(b) }
+                i = next
+            }
+            return String(bytes: bytes, encoding: .utf8) ?? ""
+        }
+        // symbol() = 0x95d89b41, name() = 0x06fdde03, decimals() = 0x313ce567.
+        async let sym = call(selector: "0x95d89b41")
+        async let nm = call(selector: "0x06fdde03")
+        async let dec = call(selector: "0x313ce567")
+        let (symHex, nameHex, decHex) = try await (sym, nm, dec)
+        let decimalsInt = UInt64(decHex.hasPrefix("0x") ? String(decHex.dropFirst(2)) : decHex, radix: 16) ?? 18
+        return ERC20Metadata(
+            symbol: decodeAbiString(symHex).trimmingCharacters(in: .whitespacesAndNewlines),
+            name: decodeAbiString(nameHex).trimmingCharacters(in: .whitespacesAndNewlines),
+            decimals: UInt8(min(decimalsInt, 36))
+        )
+    }
+
     /// Fetch multiple ERC-20 token balances.
     func erc20Balances(tokens: [Token], ownerAddress: String, rpcURL: String) async -> [TokenBalance] {
         await withTaskGroup(of: TokenBalance?.self) { group in
@@ -909,9 +977,14 @@ actor BlockchainService {
         }
     }
 
-    /// Fetch all token balances for a wallet.
-    func tokenBalances(for wallet: Wallet, config: NetworkConfig) async -> [TokenBalance] {
-        let tokens = TokenList.tokens(for: wallet.chain)
+    /// Fetch all token balances for a wallet. Pass `extraTokens` to include
+    /// user-added custom tokens in addition to the built-in `TokenList`.
+    func tokenBalances(for wallet: Wallet, config: NetworkConfig, extraTokens: [Token] = []) async -> [TokenBalance] {
+        var tokens = TokenList.tokens(for: wallet.chain)
+        let known = Set(tokens.map { $0.id.lowercased() })
+        for t in extraTokens where t.chain == wallet.chain && !known.contains(t.id.lowercased()) {
+            tokens.append(t)
+        }
         guard !tokens.isEmpty else { return [] }
 
         if wallet.chain.isEVM {
@@ -1243,7 +1316,61 @@ actor BlockchainService {
         return out
     }
 
-    /// Fetch recent Solana transactions for an address. Uses
+    /// Fetch recent ERC-20 token transfers for an address via Etherscan V2.
+    /// Returns tuples of (delta, symbol, decimals, contract) analogous to
+    /// `tronRecentTrc20Txs`.
+    func etherscanRecentTokenTxs(address: String, chainId: UInt64, apiKey: String) async throws
+        -> [(ExternalTx, String, Int, String)]
+    {
+        let safe = try Self.sanitizedAddress(address)
+        var comps = URLComponents(string: "https://api.etherscan.io/v2/api")!
+        var items = [
+            URLQueryItem(name: "chainid", value: "\(chainId)"),
+            URLQueryItem(name: "module", value: "account"),
+            URLQueryItem(name: "action", value: "tokentx"),
+            URLQueryItem(name: "address", value: safe),
+            URLQueryItem(name: "page", value: "1"),
+            URLQueryItem(name: "offset", value: "25"),
+            URLQueryItem(name: "sort", value: "desc"),
+        ]
+        if !apiKey.isEmpty {
+            items.append(URLQueryItem(name: "apikey", value: apiKey))
+        }
+        comps.queryItems = items
+        guard let url = comps.url else { throw BlockchainError.invalidURL(comps.string ?? "") }
+        let (data, response) = try await session.data(from: url)
+        try validateHTTP(response)
+        guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let result = json["result"] as? [[String: Any]] else { return [] }
+        var out: [(ExternalTx, String, Int, String)] = []
+        let safeLower = safe.lowercased()
+        for row in result {
+            guard let hash = row["hash"] as? String,
+                  let from = row["from"] as? String,
+                  let to = row["to"] as? String,
+                  let valueStr = row["value"] as? String,
+                  let value = Decimal(string: valueStr),
+                  let symbol = row["tokenSymbol"] as? String,
+                  let contract = row["contractAddress"] as? String
+            else { continue }
+            let decStr = row["tokenDecimal"] as? String ?? "18"
+            let decimals = Int(decStr) ?? 18
+            let tsStr = row["timeStamp"] as? String ?? "0"
+            let ts = TimeInterval(tsStr) ?? 0
+            let isSend = from.lowercased() == safeLower
+            let ext = ExternalTx(
+                txHash: hash,
+                blockTime: ts > 0 ? Date(timeIntervalSince1970: ts) : nil,
+                from: from,
+                to: to,
+                deltaSmallest: isSend ? -value : value,
+                feeSmallest: 0,
+                confirmed: true
+            )
+            out.append((ext, symbol, decimals, contract))
+        }
+        return out
+    }
     /// `getSignaturesForAddress` to list signatures then one
     /// `getTransaction` per signature to compute the pre/post lamport
     /// delta for the target account.

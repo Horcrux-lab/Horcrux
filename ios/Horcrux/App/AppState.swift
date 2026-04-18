@@ -36,6 +36,9 @@ final class AppState: ObservableObject {
     /// Local transaction history
     let transactionStore = TransactionStore()
 
+    /// User-added ERC-20 / SPL tokens beyond the built-in catalog.
+    let customTokenStore = CustomTokenStore()
+
     /// MPC ceremony state for reconnection
     let ceremonyState = CeremonyStateManager()
 

@@ -4,6 +4,7 @@ import SwiftUI
 struct SettingsView: View {
     @EnvironmentObject private var appState: AppState
     @AppStorage("biometricEnabled") private var biometricEnabled = true
+    @AppStorage("biometricSigningGate") private var biometricSigningGate = false
     @AppStorage(RelayConfig.useCustomKey) private var useCustomRelay = false
     @AppStorage("deviceNickname") private var deviceNickname = ""
     @State private var relayURL = RelayConfig.effectiveURL
@@ -34,6 +35,17 @@ struct SettingsView: View {
                             .glassCard()
                             .accessibilityHint(L10n.Settings.biometricHint)
                             .accessibilityIdentifier("settings_biometricToggle")
+
+                            HStack {
+                                VaultSettingsRow(icon: "hand.raised.fingers.spread", iconColor: HorcruxTheme.accentBlue, title: "签名前生物识别")
+                                Spacer()
+                                Toggle("", isOn: $biometricSigningGate)
+                                    .labelsHidden()
+                                    .tint(HorcruxTheme.accentBlue)
+                            }
+                            .glassCard()
+                            .accessibilityHint("广播交易前要求 Face ID / Touch ID")
+                            .accessibilityIdentifier("settings_biometricSigningGateToggle")
 
                             Button { showChangePin = true } label: {
                                 HStack {
@@ -183,6 +195,26 @@ struct SettingsView: View {
                         }
                         .glassCard()
                         .accessibilityIdentifier("settings_addressBookLink")
+                    }
+
+                    // Custom tokens
+                    VStack(alignment: .leading, spacing: 10) {
+                        VaultSectionHeader("代币", icon: "circle.grid.2x2")
+                            .padding(.horizontal, 4)
+
+                        NavigationLink {
+                            CustomTokensView()
+                        } label: {
+                            HStack {
+                                VaultSettingsRow(icon: "plus.circle", iconColor: HorcruxTheme.accentPurple, title: "自定义代币")
+                                Spacer()
+                                Image(systemName: "chevron.right")
+                                    .font(.caption)
+                                    .foregroundStyle(HorcruxTheme.subtleText)
+                            }
+                        }
+                        .glassCard()
+                        .accessibilityIdentifier("settings_customTokensLink")
                     }
 
                     // Replace device / Share refresh

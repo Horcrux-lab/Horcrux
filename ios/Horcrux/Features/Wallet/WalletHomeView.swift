@@ -659,8 +659,8 @@ struct WalletDetailView: View {
                     .accessibilityIdentifier("walletDetail_receiveButton")
                 }
 
-                // Tokens (only for chains that have a token list)
-                if !TokenList.tokens(for: wallet.chain).isEmpty {
+                // Tokens (only for chains that have a token list or user-added customs)
+                if !appState.customTokenStore.effectiveTokens(for: wallet.chain).isEmpty {
                     VStack(alignment: .leading, spacing: 10) {
                         VaultSectionHeader(L10n.WalletDetail.tokens, icon: "circle.grid.2x2")
                             .padding(.horizontal, 4)
@@ -853,7 +853,11 @@ struct WalletDetailView: View {
         guard wallet.chain != .bitcoin else { return }
         isLoadingTokens = true
         defer { isLoadingTokens = false }
-        tokenBalances = await appState.blockchainService.tokenBalances(for: wallet, config: appState.networkConfig)
+        tokenBalances = await appState.blockchainService.tokenBalances(
+            for: wallet,
+            config: appState.networkConfig,
+            extraTokens: appState.customTokenStore.tokens
+        )
         // Seed each token into BalanceCache so the Max button in the
         // signing compose form can honour cached balances without
         // re-fetching them from the RPC.

@@ -42,6 +42,23 @@ final class TransactionHistorySyncer {
                     inserted += 1
                 }
             }
+            // EVM: also pull ERC-20 token transfers via Etherscan V2.
+            if wallet.chain.isEVM {
+                let erc20 = (try? await service.etherscanRecentTokenTxs(
+                    address: wallet.address,
+                    chainId: config.evmChainId,
+                    apiKey: config.etherscanAPIKey
+                )) ?? []
+                for (ext, symbol, decimals, _) in erc20 where !existing.contains("\(ext.txHash):\(symbol)") {
+                    // Use `hash:symbol` composite to dedupe so a native tx
+                    // and its paired token transfer don't collide.
+                    let rec = makeTokenRecord(ext, wallet: wallet, symbol: symbol, decimals: decimals)
+                    // Skip if a record with same composite id already exists.
+                    if store.records.contains(where: { $0.id == rec.id }) { continue }
+                    store.add(rec)
+                    inserted += 1
+                }
+            }
         } catch {
             SecureLog.warning("history sync failed for \(wallet.chain): \(error.localizedDescription)")
         }
