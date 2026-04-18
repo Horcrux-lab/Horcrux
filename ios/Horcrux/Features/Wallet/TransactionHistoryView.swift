@@ -17,10 +17,10 @@ struct TransactionHistoryView: View {
         var id: Self { self }
         var label: String {
             switch self {
-            case .all: return "全部"
-            case .pending: return "待确认"
-            case .confirmed: return "已确认"
-            case .failed: return "失败"
+            case .all: return L10n.TxHistory.filterAll
+            case .pending: return L10n.TxHistory.filterPending
+            case .confirmed: return L10n.TxHistory.filterConfirmed
+            case .failed: return L10n.TxHistory.filterFailed
             }
         }
     }
@@ -50,7 +50,7 @@ struct TransactionHistoryView: View {
             HorcruxTheme.backgroundGradient.ignoresSafeArea()
 
             VStack(spacing: 0) {
-                Picker("状态", selection: $statusFilter) {
+                Picker(L10n.TxHistory.statusPickerLabel, selection: $statusFilter) {
                     ForEach(StatusFilter.allCases) { f in
                         Text(f.label).tag(f)
                     }
@@ -68,7 +68,7 @@ struct TransactionHistoryView: View {
                 }
             }
         }
-        .searchable(text: $searchText, placement: .navigationBarDrawer(displayMode: .automatic), prompt: "地址 / 哈希 / 金额")
+        .searchable(text: $searchText, placement: .navigationBarDrawer(displayMode: .automatic), prompt: Text(L10n.TxHistory.searchPrompt))
         .navigationTitle(L10n.TxHistory.title)
         .navigationBarTitleDisplayMode(.inline)
         .toolbarColorScheme(.dark, for: .navigationBar)
@@ -78,13 +78,13 @@ struct TransactionHistoryView: View {
                     Button {
                         Task { await sync() }
                     } label: {
-                        Label("刷新", systemImage: "arrow.clockwise")
+                        Label(L10n.TxHistory.refresh, systemImage: "arrow.clockwise")
                     }
                     Button {
                         exportDoc = CSVDocument(csv: buildCSV())
                         showExporter = true
                     } label: {
-                        Label("导出 CSV", systemImage: "square.and.arrow.up")
+                        Label(L10n.TxHistory.exportCSV, systemImage: "square.and.arrow.up")
                     }
                     .disabled(transactions.isEmpty)
                 } label: {
@@ -129,9 +129,9 @@ struct TransactionHistoryView: View {
         let inserted = await syncer.sync(wallet: wallet)
         isSyncing = false
         if inserted > 0 {
-            syncResult = "已同步 \(inserted) 条新记录"
+            syncResult = L10n.TxHistory.syncedNew(inserted)
         } else {
-            syncResult = "已是最新"
+            syncResult = L10n.TxHistory.syncUpToDate
         }
         try? await Task.sleep(nanoseconds: 1_800_000_000)
         withAnimation { syncResult = nil }
@@ -405,7 +405,7 @@ struct TransactionDetailView: View {
                             Button {
                                 showRBFSigner = true
                             } label: {
-                                Label("加速交易（RBF）", systemImage: "hare.fill")
+                                Label(L10n.TxHistory.speedUpRBF, systemImage: "hare.fill")
                                     .font(.subheadline.weight(.semibold))
                                     .frame(maxWidth: .infinity)
                                     .padding(.vertical, 12)
@@ -413,7 +413,7 @@ struct TransactionDetailView: View {
                             .buttonStyle(.borderedProminent)
                             .tint(HorcruxTheme.accentCyan)
 
-                            Text("用更高矿工费重新广播同一笔交易，加速确认。只对仍在内存池中的未确认交易有效。")
+                            Text(L10n.TxHistory.speedUpRBFBody)
                                 .font(.caption)
                                 .foregroundStyle(HorcruxTheme.subtleText)
                                 .padding(.horizontal, 4)

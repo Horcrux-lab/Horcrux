@@ -239,7 +239,7 @@ struct SettingsView: View {
 
                     // Language
                     VStack(alignment: .leading, spacing: 10) {
-                        VaultSectionHeader("语言 / Language", icon: "globe")
+                        VaultSectionHeader(L10n.SettingsResidual.languageSection, icon: "globe")
                             .padding(.horizontal, 4)
 
                         NavigationLink {
@@ -249,7 +249,7 @@ struct SettingsView: View {
                                 VaultSettingsRow(
                                     icon: "character.bubble",
                                     iconColor: HorcruxTheme.accentPurple,
-                                    title: "语言 / Language",
+                                    title: L10n.SettingsResidual.languageRowTitle,
                                     subtitle: languageSummary
                                 )
                                 Spacer()
@@ -298,7 +298,7 @@ struct SettingsView: View {
                                 HStack(spacing: 8) {
                                     Image(systemName: "iphone")
                                         .foregroundStyle(HorcruxTheme.accentPurple)
-                                    Text("设备昵称")
+                                    Text(L10n.SettingsResidual.deviceNickname)
                                         .font(.subheadline.weight(.medium))
                                         .foregroundStyle(.white)
                                     Spacer()
@@ -315,7 +315,7 @@ struct SettingsView: View {
                                     .foregroundStyle(.white)
                                     .tint(HorcruxTheme.accentPurple)
                                     .accessibilityIdentifier("settings_deviceNicknameField")
-                                Text("配对和签名时，其他设备会看到这个名字。")
+                                Text(L10n.SettingsResidual.deviceNicknameHint)
                                     .font(.caption2)
                                     .foregroundStyle(HorcruxTheme.subtleText)
                             }
@@ -352,7 +352,7 @@ struct SettingsView: View {
                                         icon: "externaldrive.connected.to.line.below",
                                         iconColor: HorcruxTheme.accentCyan,
                                         title: L10n.Settings.hardwareWallet,
-                                        subtitle: "Ledger / Trezor 作为一个分片（计划中）"
+                                        subtitle: L10n.SettingsResidual.hwWalletSubtitle
                                     )
                                     Spacer()
                                     Text(L10n.Settings.comingSoon)
@@ -465,10 +465,10 @@ struct SettingsView: View {
             } message: {
                 Text(L10n.Settings.wipeMessage)
             }
-            .alert("硬件钱包支持", isPresented: $showHardwareWalletInfo) {
+            .alert(L10n.SettingsResidual.hwWalletTitle, isPresented: $showHardwareWalletInfo) {
                 Button("OK", role: .cancel) {}
             } message: {
-                Text("未来版本将支持把 Ledger / Trezor 作为 MPC 中的一个分片。这样即使两台手机都丢失，你仍可通过硬件钱包恢复资产。\n\n当前版本请使用 2-of-3 配置并把第三个分片保存到 iCloud Drive 作为备份方案。")
+                Text(L10n.SettingsResidual.hwWalletBody)
             }
             .onAppear {
                 relayURL = RelayConfig.effectiveURL
@@ -509,7 +509,7 @@ struct SettingsView: View {
               let first = arr.first else {
             return L10n.Settings.languageFollowSystem
         }
-        if first.hasPrefix("zh") { return "简体中文" }
+        if first.hasPrefix("zh") { return L10n.SettingsResidual.langZh }
         if first.hasPrefix("en") { return "English" }
         return first
     }
@@ -689,10 +689,10 @@ private struct PinStrengthIndicator: View {
 
     private var label: String {
         switch score {
-        case 0...1: return "弱"
-        case 2: return "中等"
-        case 3: return "强"
-        default: return "很强"
+        case 0...1: return L10n.SettingsResidual.pinWeak
+        case 2: return L10n.SettingsResidual.pinMedium
+        case 3: return L10n.SettingsResidual.pinStrong
+        default: return L10n.SettingsResidual.pinVeryStrong
         }
     }
 
@@ -1097,30 +1097,30 @@ struct ReplaceDeviceInfoView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
                 Label {
-                    Text("替换设备 / 刷新分片").font(.title2.bold())
+                    Text(L10n.SettingsResidual.replaceTitle).font(.title2.bold())
                 } icon: {
                     Image(systemName: "arrow.triangle.2.circlepath.circle.fill")
                         .foregroundStyle(HorcruxTheme.accentCyan)
                 }
 
-                Text("如果你丢失、更换或出售了一台参与钱包的设备，建议尽快完成以下操作，防止旧分片被滥用。")
+                Text(L10n.SettingsResidual.replaceIntro)
                     .font(.callout)
                     .foregroundStyle(.secondary)
 
                 VStack(alignment: .leading, spacing: 12) {
-                    stepRow(index: 1, title: "在新设备上安装 Horcrux", body: "保持同一钱包名，准备好参与新的 DKG。")
-                    stepRow(index: 2, title: "用剩余信任设备重新发起 DKG", body: "选择和旧钱包相同的门限和链，创建新钱包。")
-                    stepRow(index: 3, title: "把资产从旧钱包转到新钱包", body: "用旧钱包还可以凑齐 t 份的剩余信任设备完成一次签名。")
-                    stepRow(index: 4, title: "删除旧钱包的分片", body: "在「分片」页进入旧钱包，点击删除，输入 PIN 确认。")
+                    stepRow(index: 1, title: L10n.SettingsResidual.step1Title, body: L10n.SettingsResidual.step1Body)
+                    stepRow(index: 2, title: L10n.SettingsResidual.step2Title, body: L10n.SettingsResidual.step2Body)
+                    stepRow(index: 3, title: L10n.SettingsResidual.step3Title, body: L10n.SettingsResidual.step3Body)
+                    stepRow(index: 4, title: L10n.SettingsResidual.step4Title, body: L10n.SettingsResidual.step4Body)
                 }
 
                 VStack(alignment: .leading, spacing: 8) {
                     Label {
-                        Text("即将推出").font(.subheadline.weight(.semibold))
+                        Text(L10n.SettingsResidual.comingSoon).font(.subheadline.weight(.semibold))
                     } icon: {
                         Image(systemName: "sparkles").foregroundStyle(.yellow)
                     }
-                    Text("真正的“分片刷新”（保持公钥/地址不变，仅轮换底层密钥份额）将在 Rust 底层暴露 CGGMP21 refresh 原语后支持，届时无需转账迁移。")
+                    Text(L10n.SettingsResidual.refreshShardsComingSoon)
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -1129,7 +1129,7 @@ struct ReplaceDeviceInfoView: View {
             }
             .padding()
         }
-        .navigationTitle("替换设备")
+        .navigationTitle(L10n.SettingsResidual.replaceNavTitle)
         .navigationBarTitleDisplayMode(.inline)
     }
 

@@ -389,24 +389,24 @@ struct RBFInfoSheet: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
                     Label {
-                        Text("加速被卡住的交易").font(.headline)
+                        Text(L10n.RBFSheet.title).font(.headline)
                     } icon: {
                         Image(systemName: "hare.fill").foregroundStyle(.cyan)
                     }
-                    Text("这笔交易的矿工费可能偏低，导致节点一直不收录。在以太坊上，你可以通过“替换费用（RBF）”用同一个 nonce 发一笔更高矿工费的交易覆盖它。")
+                    Text(L10n.RBFSheet.explain)
                         .font(.callout)
                         .foregroundStyle(.secondary)
 
                     VStack(alignment: .leading, spacing: 8) {
-                        Text("目前可用的操作：").font(.subheadline.weight(.semibold))
-                        bullet("丢弃当前待广播交易")
-                        bullet("回到钱包重新发起签名，手动提高矿工费（gas price）至少 +10%")
-                        bullet("下一版本会自动构建 RBF 替换交易，无需手动重签")
+                        Text(L10n.RBFSheet.availableOps).font(.subheadline.weight(.semibold))
+                        bullet(L10n.RBFSheet.op1)
+                        bullet(L10n.RBFSheet.op2)
+                        bullet(L10n.RBFSheet.op3)
                     }
                     .font(.callout)
 
                     Button(role: .destructive, action: onCancel) {
-                        Label("丢弃此交易并重新发起", systemImage: "trash")
+                        Label(L10n.RBFSheet.discardAndResign, systemImage: "trash")
                             .frame(maxWidth: .infinity)
                             .font(.headline)
                     }
@@ -415,11 +415,11 @@ struct RBFInfoSheet: View {
                 }
                 .padding()
             }
-            .navigationTitle("加速（RBF）")
+            .navigationTitle(L10n.RBFSheet.navTitle)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("关闭") { dismiss() }
+                    Button(L10n.RBFSheet.close) { dismiss() }
                 }
             }
         }
@@ -816,7 +816,7 @@ struct WalletDetailView: View {
                 dismiss()
             }
         } message: {
-            Text("这会从本设备移除钱包和它的交易历史。其他持分设备不受影响；链上资产不会被删除。")
+            Text(L10n.WalletEmpty.removeFromDevice)
         }
         .task {
             await fetchBalance()
@@ -863,11 +863,11 @@ struct WalletDetailView: View {
                 Image(systemName: "sparkles")
                     .font(.title3)
                     .foregroundStyle(HorcruxTheme.accentCyan)
-                Text("开始使用这个钱包")
+                Text(L10n.WalletEmpty.startUsing)
                     .font(.headline)
                     .foregroundStyle(.white)
             }
-            Text("此地址目前没有资产。分享上方地址或用\"接收\"按钮生成 QR，让发送方把 \(wallet.chain.symbol) 打到这里。")
+            Text(L10n.WalletEmpty.recvHint(wallet.chain.symbol))
                 .font(.caption)
                 .foregroundStyle(HorcruxTheme.subtleText)
                 .fixedSize(horizontal: false, vertical: true)
@@ -878,7 +878,7 @@ struct WalletDetailView: View {
                     copiedAddress = true
                     DispatchQueue.main.asyncAfter(deadline: .now() + UXTiming.clipboardFeedback) { copiedAddress = false }
                 } label: {
-                    Label(copiedAddress ? "已复制" : "复制地址", systemImage: copiedAddress ? "checkmark" : "doc.on.doc")
+                    Label(copiedAddress ? L10n.WalletEmpty.copied : L10n.WalletEmpty.copyAddress, systemImage: copiedAddress ? "checkmark" : "doc.on.doc")
                         .font(.caption.weight(.semibold))
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 10)
@@ -889,7 +889,7 @@ struct WalletDetailView: View {
                 Button {
                     showReceive = true
                 } label: {
-                    Label("显示 QR", systemImage: "qrcode")
+                    Label(L10n.WalletEmpty.showQR, systemImage: "qrcode")
                         .font(.caption.weight(.semibold))
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 10)
@@ -904,7 +904,7 @@ struct WalletDetailView: View {
                 } label: {
                     HStack {
                         Image(systemName: "plus.circle")
-                        Text("在此链上添加自定义代币")
+                        Text(L10n.WalletEmpty.addCustomToken)
                         Spacer()
                         Image(systemName: "chevron.right").font(.caption2)
                     }
@@ -974,7 +974,7 @@ struct PortfolioSummaryCard: View {
             HStack {
                 Image(systemName: "chart.pie.fill")
                     .foregroundStyle(HorcruxTheme.accentPurple)
-                Text("总资产")
+                Text(L10n.WalletEmpty.totalAssets)
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(.white)
                 Spacer()
@@ -1015,9 +1015,9 @@ struct PortfolioSummaryCard: View {
         let accountCount = Set(wallets.map { $0.accountId }).count
         let chainCount = Set(wallets.map { $0.chain }).count
         if accountCount <= 1 {
-            return "\(chainCount) 条链 · 实时 USD 报价（来源：CoinGecko）"
+            return L10n.WalletEmpty.summaryOneAccount(chainCount)
         }
-        return "跨 \(accountCount) 个账户 · \(chainCount) 条链 · 实时 USD 报价（来源：CoinGecko）"
+        return L10n.WalletEmpty.summaryMultiAccount(accountCount, chainCount)
     }
 
     private var totalFiatString: String {

@@ -732,3 +732,64 @@
 "customTokens.addTokenTitle" = "Add token";
 "customTokens.errEvmOnly" = "Auto-query only supports EVM chains";
 "customTokens.queryFailed" = "Query failed: %@";
+
+// dev.47 — TxHistory + WalletHome + Settings residual
+"txHistory.filterAll" = "All";
+"txHistory.filterPending" = "Pending";
+"txHistory.filterConfirmed" = "Confirmed";
+"txHistory.filterFailed" = "Failed";
+"txHistory.statusPickerLabel" = "Status";
+"txHistory.searchPrompt" = "Address / hash / amount";
+"txHistory.refresh" = "Refresh";
+"txHistory.exportCSV" = "Export CSV";
+"txHistory.syncedNew" = "Synced %d new record(s)";
+"txHistory.syncUpToDate" = "Up to date";
+"txHistory.speedUpRBF" = "Speed up (RBF)";
+"txHistory.speedUpRBFBody" = "Re-broadcast the same transaction with a higher fee to accelerate confirmation. Only works while the tx is still in the mempool.";
+
+"rbfSheet.title" = "Speed up a stuck transaction";
+"rbfSheet.explain" = "This transaction's fee may be too low for nodes to include it. On Ethereum you can use Replace-By-Fee (RBF) to override it with a higher-fee tx using the same nonce.";
+"rbfSheet.availableOps" = "Current options:";
+"rbfSheet.op1" = "Discard the pending transaction";
+"rbfSheet.op2" = "Return to the wallet and resign with at least +10% gas price";
+"rbfSheet.op3" = "The next release will build RBF replacements automatically so you don't have to resign manually";
+"rbfSheet.discardAndResign" = "Discard this tx and resign";
+"rbfSheet.navTitle" = "Speed up (RBF)";
+"rbfSheet.close" = "Close";
+
+"walletEmpty.startUsing" = "Start using this wallet";
+"walletEmpty.recvHint" = "This address currently holds no assets. Share the address above or tap \"Receive\" to generate a QR for a sender to send %@ here.";
+"walletEmpty.copied" = "Copied";
+"walletEmpty.copyAddress" = "Copy address";
+"walletEmpty.showQR" = "Show QR";
+"walletEmpty.addCustomToken" = "Add a custom token on this chain";
+"walletEmpty.totalAssets" = "Total assets";
+"walletEmpty.summaryOneAccount" = "%d chain(s) · Live USD quotes (source: CoinGecko)";
+"walletEmpty.summaryMultiAccount" = "Across %1$d account(s) · %2$d chain(s) · Live USD quotes (source: CoinGecko)";
+"walletEmpty.removeFromDevice" = "This removes the wallet and its transaction history from this device. Other shard holders are unaffected; on-chain assets are not deleted.";
+
+"settingsR.languageSection" = "Language";
+"settingsR.languageRowTitle" = "Language";
+"settingsR.deviceNickname" = "Device nickname";
+"settingsR.deviceNicknameHint" = "Other devices see this name during pairing and signing.";
+"settingsR.hwWalletTitle" = "Hardware wallet support";
+"settingsR.hwWalletBody" = "A future release will allow a Ledger / Trezor to act as one of the MPC shards — so even if both phones are lost, you can recover via the hardware wallet.\n\nFor now, use a 2-of-3 setup and back up the third shard to iCloud Drive.";
+"settingsR.langZh" = "Simplified Chinese";
+"settingsR.pinWeak" = "Weak";
+"settingsR.pinMedium" = "Medium";
+"settingsR.pinStrong" = "Strong";
+"settingsR.pinVeryStrong" = "Very strong";
+"settingsR.replaceTitle" = "Replace device / refresh shards";
+"settingsR.replaceIntro" = "If a device participating in this wallet was lost, replaced, or sold, complete the steps below soon to prevent the old shard from being abused.";
+"settingsR.step1Title" = "Install Horcrux on the new device";
+"settingsR.step1Body" = "Keep the same wallet name and get ready to join a new DKG.";
+"settingsR.step2Title" = "Re-run DKG with the remaining trusted devices";
+"settingsR.step2Body" = "Choose the same threshold and chains as the old wallet and create a new one.";
+"settingsR.step3Title" = "Move assets from the old wallet to the new one";
+"settingsR.step3Body" = "You can still sign once with the t-of-n remaining trusted devices.";
+"settingsR.step4Title" = "Delete the old wallet's shard";
+"settingsR.step4Body" = "Go to the Shards page, open the old wallet, tap Delete and confirm with your PIN.";
+"settingsR.comingSoon" = "Coming soon";
+"settingsR.refreshShardsComingSoon" = "True \"shard refresh\" (same public key / address, only rotate underlying key shares) will arrive once the Rust layer exposes the CGGMP21 refresh primitive — no asset migration required.";
+"settingsR.replaceNavTitle" = "Replace device";
+"settingsR.hwWalletSubtitle" = "Ledger / Trezor as a shard (planned)";

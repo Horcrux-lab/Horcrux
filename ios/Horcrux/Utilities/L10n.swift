@@ -207,8 +207,23 @@ enum L10n {
         static let noTransactionsSubtitle = NSLocalizedString("txHistory.noTransactionsSubtitle", comment: "")
         static let confirming = NSLocalizedString("txHistory.confirming", comment: "")
 
+        static let filterAll = NSLocalizedString("txHistory.filterAll", comment: "")
+        static let filterPending = NSLocalizedString("txHistory.filterPending", comment: "")
+        static let filterConfirmed = NSLocalizedString("txHistory.filterConfirmed", comment: "")
+        static let filterFailed = NSLocalizedString("txHistory.filterFailed", comment: "")
+        static let statusPickerLabel = NSLocalizedString("txHistory.statusPickerLabel", comment: "")
+        static let searchPrompt = NSLocalizedString("txHistory.searchPrompt", comment: "")
+        static let refresh = NSLocalizedString("txHistory.refresh", comment: "")
+        static let exportCSV = NSLocalizedString("txHistory.exportCSV", comment: "")
+        static let syncUpToDate = NSLocalizedString("txHistory.syncUpToDate", comment: "")
+        static let speedUpRBF = NSLocalizedString("txHistory.speedUpRBF", comment: "")
+        static let speedUpRBFBody = NSLocalizedString("txHistory.speedUpRBFBody", comment: "")
+
         static func sendSymbol(_ symbol: String) -> String {
             String(format: NSLocalizedString("txHistory.sendSymbol", comment: ""), symbol)
+        }
+        static func syncedNew(_ n: Int) -> String {
+            String(format: NSLocalizedString("txHistory.syncedNew", comment: ""), n)
         }
     }
 
@@ -1017,6 +1032,70 @@ enum L10n {
         static func sigLength(_ n: Int) -> String {
             String(format: NSLocalizedString("coldSign.sigLength", comment: ""), n)
         }
+    }
+}
+
+// MARK: - dev.47 (TxHistory + WalletHome residual + Settings residual)
+
+extension L10n {
+    enum RBFSheet {
+        static let title = NSLocalizedString("rbfSheet.title", comment: "")
+        static let explain = NSLocalizedString("rbfSheet.explain", comment: "")
+        static let availableOps = NSLocalizedString("rbfSheet.availableOps", comment: "")
+        static let op1 = NSLocalizedString("rbfSheet.op1", comment: "")
+        static let op2 = NSLocalizedString("rbfSheet.op2", comment: "")
+        static let op3 = NSLocalizedString("rbfSheet.op3", comment: "")
+        static let discardAndResign = NSLocalizedString("rbfSheet.discardAndResign", comment: "")
+        static let navTitle = NSLocalizedString("rbfSheet.navTitle", comment: "")
+        static let close = NSLocalizedString("rbfSheet.close", comment: "")
+    }
+
+    enum WalletEmpty {
+        static let startUsing = NSLocalizedString("walletEmpty.startUsing", comment: "")
+        static let copied = NSLocalizedString("walletEmpty.copied", comment: "")
+        static let copyAddress = NSLocalizedString("walletEmpty.copyAddress", comment: "")
+        static let showQR = NSLocalizedString("walletEmpty.showQR", comment: "")
+        static let addCustomToken = NSLocalizedString("walletEmpty.addCustomToken", comment: "")
+        static let totalAssets = NSLocalizedString("walletEmpty.totalAssets", comment: "")
+        static let removeFromDevice = NSLocalizedString("walletEmpty.removeFromDevice", comment: "")
+
+        static func recvHint(_ symbol: String) -> String {
+            String(format: NSLocalizedString("walletEmpty.recvHint", comment: ""), symbol)
+        }
+        static func summaryOneAccount(_ chains: Int) -> String {
+            String(format: NSLocalizedString("walletEmpty.summaryOneAccount", comment: ""), chains)
+        }
+        static func summaryMultiAccount(_ accts: Int, _ chains: Int) -> String {
+            String(format: NSLocalizedString("walletEmpty.summaryMultiAccount", comment: ""), accts, chains)
+        }
+    }
+
+    enum SettingsResidual {
+        static let languageSection = NSLocalizedString("settingsR.languageSection", comment: "")
+        static let languageRowTitle = NSLocalizedString("settingsR.languageRowTitle", comment: "")
+        static let deviceNickname = NSLocalizedString("settingsR.deviceNickname", comment: "")
+        static let deviceNicknameHint = NSLocalizedString("settingsR.deviceNicknameHint", comment: "")
+        static let hwWalletTitle = NSLocalizedString("settingsR.hwWalletTitle", comment: "")
+        static let hwWalletBody = NSLocalizedString("settingsR.hwWalletBody", comment: "")
+        static let hwWalletSubtitle = NSLocalizedString("settingsR.hwWalletSubtitle", comment: "")
+        static let langZh = NSLocalizedString("settingsR.langZh", comment: "")
+        static let pinWeak = NSLocalizedString("settingsR.pinWeak", comment: "")
+        static let pinMedium = NSLocalizedString("settingsR.pinMedium", comment: "")
+        static let pinStrong = NSLocalizedString("settingsR.pinStrong", comment: "")
+        static let pinVeryStrong = NSLocalizedString("settingsR.pinVeryStrong", comment: "")
+        static let replaceTitle = NSLocalizedString("settingsR.replaceTitle", comment: "")
+        static let replaceIntro = NSLocalizedString("settingsR.replaceIntro", comment: "")
+        static let step1Title = NSLocalizedString("settingsR.step1Title", comment: "")
+        static let step1Body = NSLocalizedString("settingsR.step1Body", comment: "")
+        static let step2Title = NSLocalizedString("settingsR.step2Title", comment: "")
+        static let step2Body = NSLocalizedString("settingsR.step2Body", comment: "")
+        static let step3Title = NSLocalizedString("settingsR.step3Title", comment: "")
+        static let step3Body = NSLocalizedString("settingsR.step3Body", comment: "")
+        static let step4Title = NSLocalizedString("settingsR.step4Title", comment: "")
+        static let step4Body = NSLocalizedString("settingsR.step4Body", comment: "")
+        static let comingSoon = NSLocalizedString("settingsR.comingSoon", comment: "")
+        static let refreshShardsComingSoon = NSLocalizedString("settingsR.refreshShardsComingSoon", comment: "")
+        static let replaceNavTitle = NSLocalizedString("settingsR.replaceNavTitle", comment: "")
     }
 }
 
