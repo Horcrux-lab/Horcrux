@@ -648,6 +648,37 @@ enum L10n {
         static let title = NSLocalizedString("licenses.title", comment: "")
         static let coreDependencies = NSLocalizedString("licenses.coreDependencies", comment: "")
     }
+
+    // MARK: - Cold Signing
+
+    enum ColdSign {
+        static let title = NSLocalizedString("coldSign.title", comment: "")
+        static let offlineMode = NSLocalizedString("coldSign.offlineMode", comment: "")
+        static let intro = NSLocalizedString("coldSign.intro", comment: "")
+        static let stepPrep = NSLocalizedString("coldSign.step.prep", comment: "")
+        static let step1of4 = NSLocalizedString("coldSign.step.1of4", comment: "")
+        static let step2of4 = NSLocalizedString("coldSign.step.2of4", comment: "")
+        static let step3of4 = NSLocalizedString("coldSign.step.3of4", comment: "")
+        static let step4of4 = NSLocalizedString("coldSign.step.4of4", comment: "")
+        static let stepComplete = NSLocalizedString("coldSign.step.complete", comment: "")
+        static let stepFailed = NSLocalizedString("coldSign.step.failed", comment: "")
+        static let initializing = NSLocalizedString("coldSign.initializing", comment: "")
+        static let generatingQR = NSLocalizedString("coldSign.generatingQR", comment: "")
+        static let guideInvite = NSLocalizedString("coldSign.guide.invite", comment: "")
+        static let guideRound2 = NSLocalizedString("coldSign.guide.round2", comment: "")
+        static let scanPeer = NSLocalizedString("coldSign.scanPeer", comment: "")
+        static let promptRound1 = NSLocalizedString("coldSign.prompt.round1", comment: "")
+        static let promptRound2 = NSLocalizedString("coldSign.prompt.round2", comment: "")
+        static let signSuccess = NSLocalizedString("coldSign.signSuccess", comment: "")
+        static let copyHex = NSLocalizedString("coldSign.copyHex", comment: "")
+        static let sendBack = NSLocalizedString("coldSign.sendBack", comment: "")
+        static let unknownError = NSLocalizedString("coldSign.unknownError", comment: "")
+        static let readyToScan = NSLocalizedString("coldSign.readyToScan", comment: "")
+
+        static func sigLength(_ n: Int) -> String {
+            String(format: NSLocalizedString("coldSign.sigLength", comment: ""), n)
+        }
+    }
 }
 
 // swiftlint:enable type_body_length file_length

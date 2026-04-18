@@ -37,11 +37,11 @@ struct ColdSigningView: View {
                 footerActions
             }
             .padding()
-            .navigationTitle("冷签名（实验）")
+            .navigationTitle(L10n.ColdSign.title)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("关闭") { dismiss() }
+                    Button(L10n.Common.close) { dismiss() }
                 }
             }
             .sheet(isPresented: $showingScanner) {
@@ -72,14 +72,14 @@ struct ColdSigningView: View {
             HStack {
                 Image(systemName: "antenna.radiowaves.left.and.right.slash")
                     .foregroundStyle(.orange)
-                Text("离线模式")
+                Text(L10n.ColdSign.offlineMode)
                     .font(.headline)
                 Spacer()
                 Text(stepLabel)
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
-            Text("在两台设备间轮流扫描二维码完成签名，全程不依赖中继。")
+            Text(L10n.ColdSign.intro)
                 .font(.footnote)
                 .foregroundStyle(.secondary)
         }
@@ -87,13 +87,13 @@ struct ColdSigningView: View {
 
     private var stepLabel: String {
         switch coordinator.phase {
-        case .idle: return "准备中"
-        case .showingInvite: return "第 1/4 步"
-        case .awaitingRound1: return "第 2/4 步"
-        case .showingRound2: return "第 3/4 步"
-        case .awaitingRound2: return "第 4/4 步"
-        case .complete: return "完成"
-        case .failed: return "错误"
+        case .idle: return L10n.ColdSign.stepPrep
+        case .showingInvite: return L10n.ColdSign.step1of4
+        case .awaitingRound1: return L10n.ColdSign.step2of4
+        case .showingRound2: return L10n.ColdSign.step3of4
+        case .awaitingRound2: return L10n.ColdSign.step4of4
+        case .complete: return L10n.ColdSign.stepComplete
+        case .failed: return L10n.ColdSign.stepFailed
         }
     }
 
@@ -109,7 +109,7 @@ struct ColdSigningView: View {
         case .failed:
             errorView
         case .idle:
-            ProgressView("初始化…")
+            ProgressView(L10n.ColdSign.initializing)
         }
     }
 
@@ -126,7 +126,7 @@ struct ColdSigningView: View {
                     .background(.white)
                     .cornerRadius(12)
             } else {
-                Text("正在生成二维码…").foregroundStyle(.secondary)
+                Text(L10n.ColdSign.generatingQR).foregroundStyle(.secondary)
             }
             Text(qrGuidance)
                 .font(.footnote)
@@ -149,9 +149,9 @@ struct ColdSigningView: View {
     private var qrGuidance: String {
         switch coordinator.phase {
         case .showingInvite:
-            return "让另一台 Horcrux 扫描此码，它会生成一个回传码供你扫描。"
+            return L10n.ColdSign.guideInvite
         case .showingRound2:
-            return "让另一台设备扫描此码，它会产生最终签名回传码。"
+            return L10n.ColdSign.guideRound2
         default:
             return ""
         }
@@ -167,7 +167,7 @@ struct ColdSigningView: View {
             Button {
                 showingScanner = true
             } label: {
-                Label("扫描对端二维码", systemImage: "camera.fill")
+                Label(L10n.ColdSign.scanPeer, systemImage: "camera.fill")
                     .frame(maxWidth: .infinity)
             }
             .buttonStyle(.borderedProminent)
@@ -177,8 +177,8 @@ struct ColdSigningView: View {
 
     private var scannerGuidance: String {
         switch coordinator.phase {
-        case .awaitingRound1: return "请扫描对端设备产生的第 1 轮回传码。"
-        case .awaitingRound2: return "请扫描对端设备产生的第 2 轮回传码。"
+        case .awaitingRound1: return L10n.ColdSign.promptRound1
+        case .awaitingRound2: return L10n.ColdSign.promptRound2
         default: return ""
         }
     }
@@ -188,20 +188,20 @@ struct ColdSigningView: View {
             Image(systemName: "checkmark.seal.fill")
                 .font(.system(size: 64))
                 .foregroundStyle(.green)
-            Text("签名成功")
+            Text(L10n.ColdSign.signSuccess)
                 .font(.title3.weight(.semibold))
             if let sig = coordinator.finalSignature {
-                Text("长度：\(sig.count) bytes")
+                Text(L10n.ColdSign.sigLength(sig.count))
                     .font(.caption)
                     .foregroundStyle(.secondary)
                 Button {
                     SecureClipboard.copy(sig.map { String(format: "%02x", $0) }.joined())
                 } label: {
-                    Label("复制签名（hex）", systemImage: "doc.on.doc")
+                    Label(L10n.ColdSign.copyHex, systemImage: "doc.on.doc")
                 }
                 .buttonStyle(.bordered)
             }
-            Text("将签名回传至需广播该交易的设备完成上链。")
+            Text(L10n.ColdSign.sendBack)
                 .font(.footnote)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
@@ -213,7 +213,7 @@ struct ColdSigningView: View {
             Image(systemName: "exclamationmark.triangle.fill")
                 .font(.system(size: 48))
                 .foregroundStyle(.orange)
-            Text(coordinator.errorMessage ?? "未知错误")
+            Text(coordinator.errorMessage ?? L10n.ColdSign.unknownError)
                 .multilineTextAlignment(.center)
         }
     }
@@ -222,7 +222,7 @@ struct ColdSigningView: View {
     private var footerActions: some View {
         switch coordinator.phase {
         case .showingInvite, .showingRound2:
-            Button("对方已扫完，轮到我扫码") {
+            Button(L10n.ColdSign.readyToScan) {
                 coordinator.readyToScan()
             }
             .buttonStyle(.borderedProminent)

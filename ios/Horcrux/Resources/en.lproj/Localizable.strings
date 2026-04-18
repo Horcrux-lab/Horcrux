@@ -465,3 +465,31 @@
 "wallet.renameTitle" = "Rename Wallet";
 "wallet.walletNamePlaceholder" = "Wallet Name";
 "wallet.hiddenCount" = "Hidden (%d)";
+
+/* Cold Signing (dev.41 i18n batch) */
+"coldSign.title" = "Cold Signing (Experimental)";
+"coldSign.offlineMode" = "Offline Mode";
+"coldSign.intro" = "Sign by scanning QR codes back-and-forth between two devices, with no relay involved.";
+"coldSign.step.prep" = "Preparing";
+"coldSign.step.1of4" = "Step 1/4";
+"coldSign.step.2of4" = "Step 2/4";
+"coldSign.step.3of4" = "Step 3/4";
+"coldSign.step.4of4" = "Step 4/4";
+"coldSign.step.complete" = "Complete";
+"coldSign.step.failed" = "Error";
+"coldSign.initializing" = "Initializing…";
+"coldSign.generatingQR" = "Generating QR code…";
+"coldSign.guide.invite" = "Have the other Horcrux scan this code; it will produce a return code for you to scan.";
+"coldSign.guide.round2" = "Have the other device scan this code; it will produce the final signature return code.";
+"coldSign.scanPeer" = "Scan Peer QR";
+"coldSign.prompt.round1" = "Please scan the peer device's round 1 return code.";
+"coldSign.prompt.round2" = "Please scan the peer device's round 2 return code.";
+"coldSign.signSuccess" = "Signature Complete";
+"coldSign.sigLength" = "Length: %d bytes";
+"coldSign.copyHex" = "Copy Signature (hex)";
+"coldSign.sendBack" = "Send the signature back to the device that needs to broadcast the transaction.";
+"coldSign.unknownError" = "Unknown error";
+"coldSign.readyToScan" = "Peer finished scanning, my turn";
+
+/* Signing (dev.41 extras) */
+"signing.biometricReason" = "Authenticate to sign the transaction";

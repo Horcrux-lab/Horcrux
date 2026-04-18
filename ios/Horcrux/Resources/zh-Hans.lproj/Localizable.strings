@@ -465,3 +465,31 @@
 "wallet.renameTitle" = "重命名钱包";
 "wallet.walletNamePlaceholder" = "钱包名称";
 "wallet.hiddenCount" = "已隐藏 (%d)";
+
+/* Cold Signing (dev.41 i18n batch) */
+"coldSign.title" = "冷签名（实验）";
+"coldSign.offlineMode" = "离线模式";
+"coldSign.intro" = "在两台设备间轮流扫描二维码完成签名，全程不依赖中继。";
+"coldSign.step.prep" = "准备中";
+"coldSign.step.1of4" = "第 1/4 步";
+"coldSign.step.2of4" = "第 2/4 步";
+"coldSign.step.3of4" = "第 3/4 步";
+"coldSign.step.4of4" = "第 4/4 步";
+"coldSign.step.complete" = "完成";
+"coldSign.step.failed" = "错误";
+"coldSign.initializing" = "初始化…";
+"coldSign.generatingQR" = "正在生成二维码…";
+"coldSign.guide.invite" = "让另一台 Horcrux 扫描此码，它会生成一个回传码供你扫描。";
+"coldSign.guide.round2" = "让另一台设备扫描此码，它会产生最终签名回传码。";
+"coldSign.scanPeer" = "扫描对端二维码";
+"coldSign.prompt.round1" = "请扫描对端设备产生的第 1 轮回传码。";
+"coldSign.prompt.round2" = "请扫描对端设备产生的第 2 轮回传码。";
+"coldSign.signSuccess" = "签名成功";
+"coldSign.sigLength" = "长度：%d bytes";
+"coldSign.copyHex" = "复制签名（hex）";
+"coldSign.sendBack" = "将签名回传至需广播该交易的设备完成上链。";
+"coldSign.unknownError" = "未知错误";
+"coldSign.readyToScan" = "对方已扫完，轮到我扫码";
+
+/* Signing (dev.41 extras) */
+"signing.biometricReason" = "验证身份以完成签名";
