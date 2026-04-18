@@ -5,15 +5,43 @@ import CoreImage.CIFilterBuiltins
 struct ReceiveView: View {
     let wallet: Wallet
     @State private var copiedAddress = false
+    @State private var requestedAmount = ""
     @Environment(\.dismiss) private var dismiss
+
+    /// BIP-21 / EIP-681 / Solana Pay style payload. Falls back to the plain
+    /// address when no amount is entered or the chain has no well-known
+    /// URI scheme.
+    private var qrPayload: String {
+        let amount = requestedAmount.trimmingCharacters(in: .whitespaces)
+        guard !amount.isEmpty, Decimal(string: amount) != nil else { return wallet.address }
+        switch wallet.chain {
+        case .bitcoin:
+            return "bitcoin:\(wallet.address)?amount=\(amount)"
+        case .litecoin:
+            return "litecoin:\(wallet.address)?amount=\(amount)"
+        case .solana:
+            return "solana:\(wallet.address)?amount=\(amount)"
+        case .tron:
+            // No standard URI scheme — stash amount as query for wallets that honour it.
+            return "tron:\(wallet.address)?amount=\(amount)"
+        default:
+            // EVM: EIP-681. Convert ether → wei as decimal integer.
+            guard wallet.chain.isEVM,
+                  let ether = Decimal(string: amount) else { return wallet.address }
+            let wei = ether * pow(Decimal(10), 18)
+            let weiStr = NSDecimalNumber(decimal: wei).stringValue
+            return "ethereum:\(wallet.address)?value=\(weiStr)"
+        }
+    }
 
     var body: some View {
         NavigationStack {
             ZStack {
                 HorcruxTheme.backgroundGradient.ignoresSafeArea()
 
+                ScrollView {
                 VStack(spacing: 24) {
-                    Spacer()
+                    Spacer().frame(height: 8)
 
                     ChainIcon(chain: wallet.chain, size: 48)
 
@@ -22,7 +50,7 @@ struct ReceiveView: View {
                         .foregroundStyle(.white)
 
                     // QR Code
-                    if let qrImage = generateQRCode(from: wallet.address) {
+                    if let qrImage = generateQRCode(from: qrPayload) {
                         Image(uiImage: qrImage)
                             .interpolation(.none)
                             .resizable()
@@ -47,6 +75,25 @@ struct ReceiveView: View {
                             }
                             .accessibilityLabel(L10n.Receive.qrFailed)
                     }
+
+                    // Amount request (optional)
+                    HStack {
+                        Text("请求金额")
+                            .font(.subheadline)
+                            .foregroundStyle(HorcruxTheme.subtleText)
+                        TextField("可选", text: $requestedAmount)
+                            .keyboardType(.decimalPad)
+                            .multilineTextAlignment(.trailing)
+                            .foregroundStyle(.white)
+                            .textFieldStyle(.plain)
+                            .accessibilityIdentifier("receive_amountField")
+                        Text(wallet.chain.symbol)
+                            .font(.subheadline.monospaced())
+                            .foregroundStyle(HorcruxTheme.subtleText)
+                    }
+                    .padding(.horizontal, 16).padding(.vertical, 12)
+                    .background(RoundedRectangle(cornerRadius: 12).fill(HorcruxTheme.cardSurface))
+                    .padding(.horizontal, 32)
 
                     // Address
                     Text(wallet.address)
@@ -74,8 +121,8 @@ struct ReceiveView: View {
                     .accessibilityHint(L10n.Receive.copiesHint)
                     .accessibilityIdentifier("receive_copyButton")
 
-                    // Share button
-                    ShareLink(item: wallet.address) {
+                    // Share button — shares payload (incl. requested amount) if set.
+                    ShareLink(item: qrPayload) {
                         Label(L10n.Receive.shareAddress, systemImage: "square.and.arrow.up")
                             .frame(maxWidth: .infinity)
                             .font(.headline.weight(.semibold))
@@ -91,7 +138,8 @@ struct ReceiveView: View {
                     .accessibilityHint(L10n.Receive.shareHint)
                     .accessibilityIdentifier("receive_shareButton")
 
-                    Spacer()
+                    Spacer().frame(height: 24)
+                }
                 }
             }
             .navigationTitle(L10n.Receive.title)

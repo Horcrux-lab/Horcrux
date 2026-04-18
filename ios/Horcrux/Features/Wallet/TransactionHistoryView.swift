@@ -6,23 +6,66 @@ struct TransactionHistoryView: View {
     @EnvironmentObject private var appState: AppState
     @State private var isSyncing = false
     @State private var syncResult: String?
+    @State private var searchText = ""
+    @State private var statusFilter: StatusFilter = .all
+
+    enum StatusFilter: String, CaseIterable, Identifiable {
+        case all, pending, confirmed, failed
+        var id: Self { self }
+        var label: String {
+            switch self {
+            case .all: return "全部"
+            case .pending: return "待确认"
+            case .confirmed: return "已确认"
+            case .failed: return "失败"
+            }
+        }
+    }
 
     private var transactions: [TransactionRecord] {
-        appState.transactionStore.records(for: wallet.id)
+        let base = appState.transactionStore.records(for: wallet.id)
+        let filtered = base.filter { rec in
+            switch statusFilter {
+            case .all: return true
+            case .pending: return rec.status == .signed || rec.status == .broadcast
+            case .confirmed: return rec.status == .confirmed
+            case .failed: return rec.status == .failed
+            }
+        }
+        let needle = searchText.trimmingCharacters(in: .whitespaces).lowercased()
+        guard !needle.isEmpty else { return filtered }
+        return filtered.filter {
+            $0.toAddress.lowercased().contains(needle)
+                || $0.fromAddress.lowercased().contains(needle)
+                || ($0.txHash ?? "").lowercased().contains(needle)
+                || $0.amount.lowercased().contains(needle)
+        }
     }
 
     var body: some View {
         ZStack {
             HorcruxTheme.backgroundGradient.ignoresSafeArea()
 
-            Group {
-                if transactions.isEmpty {
-                    emptyState
-                } else {
-                    transactionList
+            VStack(spacing: 0) {
+                Picker("状态", selection: $statusFilter) {
+                    ForEach(StatusFilter.allCases) { f in
+                        Text(f.label).tag(f)
+                    }
+                }
+                .pickerStyle(.segmented)
+                .padding(.horizontal, 16)
+                .padding(.top, 12)
+
+                Group {
+                    if transactions.isEmpty {
+                        emptyState
+                    } else {
+                        transactionList
+                    }
                 }
             }
         }
+        .searchable(text: $searchText, placement: .navigationBarDrawer(displayMode: .automatic), prompt: "地址 / 哈希 / 金额")
         .navigationTitle(L10n.TxHistory.title)
         .navigationBarTitleDisplayMode(.inline)
         .toolbarColorScheme(.dark, for: .navigationBar)

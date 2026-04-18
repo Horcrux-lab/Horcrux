@@ -538,6 +538,10 @@ struct WalletDetailView: View {
     @State private var copiedAddress = false
     @State private var tokenBalances: [TokenBalance] = []
     @State private var isLoadingTokens = false
+    @State private var showRenameSheet = false
+    @State private var renameText = ""
+    @State private var showDeleteConfirm = false
+    @Environment(\.dismiss) private var dismiss
 
     var body: some View {
         ScrollView {
@@ -766,8 +770,50 @@ struct WalletDetailView: View {
         .navigationTitle(wallet.name)
         .navigationBarTitleDisplayMode(.inline)
         .toolbarColorScheme(.dark, for: .navigationBar)
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Menu {
+                    Button {
+                        renameText = wallet.name
+                        showRenameSheet = true
+                    } label: {
+                        Label("重命名", systemImage: "pencil")
+                    }
+                    Button(role: .destructive) {
+                        showDeleteConfirm = true
+                    } label: {
+                        Label("删除钱包", systemImage: "trash")
+                    }
+                } label: {
+                    Image(systemName: "ellipsis.circle")
+                        .accessibilityIdentifier("walletDetail_menu")
+                }
+            }
+        }
         .sheet(isPresented: $showSigning) { SigningView(wallet: wallet) }
         .sheet(isPresented: $showReceive) { ReceiveView(wallet: wallet) }
+        .alert("重命名钱包", isPresented: $showRenameSheet) {
+            TextField("钱包名称", text: $renameText)
+                .autocorrectionDisabled()
+            Button("取消", role: .cancel) {}
+            Button("保存") {
+                let trimmed = renameText.trimmingCharacters(in: .whitespaces)
+                guard !trimmed.isEmpty else { return }
+                appState.walletStore.rename(id: wallet.id, newName: trimmed)
+            }
+        }
+        .alert("删除钱包", isPresented: $showDeleteConfirm) {
+            Button("取消", role: .cancel) {}
+            Button("删除", role: .destructive) {
+                // Remove the wallet record + its tx history. Shard shares
+                // are preserved (they may be tied to other chains).
+                appState.transactionStore.removeAll(for: wallet.id)
+                appState.walletStore.remove(id: wallet.id)
+                dismiss()
+            }
+        } message: {
+            Text("这会从本设备移除钱包和它的交易历史。其他持分设备不受影响；链上资产不会被删除。")
+        }
         .task {
             await fetchBalance()
             await fetchTokenBalances()
