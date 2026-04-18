@@ -5,7 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.3.0-dev.49] - 2026-04-18
+## [0.3.0-dev.50] - 2026-04-18
+
+### Added
+
+- **iOS**: 冷签名（air-gapped QR chain）**cosigner 状态机**落地 —— 从 dev.50 起两台设备上同时打开 `ColdSigningView` 即可完成 2-of-2 离线签名（全程飞行模式 / 无中继 / 无任何网络请求）。`ColdSigningCoordinator` 新增 `Role` 枚举（`.initiator` / `.cosigner`）与 4 个协签阶段（`awaitingInvite` / `showingCosignerRound1` / `awaitingInitiatorRound2` / `showingCosignerRound2`），`startAsCosigner(wallet:shardData:)` 先挂起等扫码，`ingestInvite` 用发起方 QR 里带的 sessionId / messageHash / 初始 round1 启动本地 FROST 会话，按 `FfiMpcMessage.round` 把引擎吐出的消息拆到 QR2（round1 回复）和 QR4（round2 shares），`cosignerIngestRound2` 消费发起方 round2 分享同时产出本侧 round2，扫完 QR3 即可在本地拿到完整签名（`getSigningResult`），cleanup 此时立即 zero 掉 shardData（下游只剩公开的签名分享）。新增 `ColdError.walletMismatch`（同一钱包 / 不同分片校验：`wallet.accountId == invite.walletId` && `chain` 一致 && `initiatorParty != wallet.partyIndex`）。`ColdSigningView` 改为先弹出「我是发起方 / 我是协签方」的 role picker（发起方 card 在 messageHash 缺失时 disabled），根据选择决定是进入 4 步发起流程还是 3 步协签流程，`stepLabel` / `content` / `qrGuidance` / `scannerGuidance` / `footerActions` 每条 switch 都覆盖新阶段；完成页在 cosigner 下显示「协签完成，等对方扫最后一张 QR」提示而不是「把签名发回」。新增 `L10n.ColdSign` cosigner 相关 14 条键 + `L10n.ColdSignErr.walletMismatch` 1 条；zh + en .strings 同步。
+
+### Fixed
+
+- **Build**: `ios/build-rust.sh` 加 toolchain 指纹守卫 —— 每次构建前把 `CLANG | target-aarch64 | target-x86_64 | iOS-SDK | iOS-Sim-SDK` 的 SHA 落到 `target/.horcrux-fp/gmp-mpfr-sys.fingerprint`；变动时自动 `cargo clean -p gmp-mpfr-sys --target …` 两个 iOS target 缓存，避免 Xcode 升级 / SDK 切换后 gmp-mpfr-sys 留下不兼容对象文件导致 rebuild 爆出 `undefined symbol ___gmpn_*` 链接错误。首次运行没有 target 目录也安全（`|| true`）。
+
+
 
 ### Changed
 

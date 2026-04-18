@@ -1032,6 +1032,21 @@ enum L10n {
         static func sigLength(_ n: Int) -> String {
             String(format: NSLocalizedString("coldSign.sigLength", comment: ""), n)
         }
+
+        // dev.50 — cosigner role
+        static let rolePrompt = NSLocalizedString("coldSign.rolePrompt", comment: "")
+        static let roleInitiator = NSLocalizedString("coldSign.roleInitiator", comment: "")
+        static let roleCosigner = NSLocalizedString("coldSign.roleCosigner", comment: "")
+        static let roleInitiatorHint = NSLocalizedString("coldSign.roleInitiatorHint", comment: "")
+        static let roleCosignerHint = NSLocalizedString("coldSign.roleCosignerHint", comment: "")
+        static let promptInvite = NSLocalizedString("coldSign.prompt.invite", comment: "")
+        static let promptInitiatorRound2 = NSLocalizedString("coldSign.prompt.initiatorRound2", comment: "")
+        static let guideCosignerRound1 = NSLocalizedString("coldSign.guide.cosignerRound1", comment: "")
+        static let guideCosignerRound2 = NSLocalizedString("coldSign.guide.cosignerRound2", comment: "")
+        static let cosignerStep1of3 = NSLocalizedString("coldSign.step.cosigner1of3", comment: "")
+        static let cosignerStep2of3 = NSLocalizedString("coldSign.step.cosigner2of3", comment: "")
+        static let cosignerStep3of3 = NSLocalizedString("coldSign.step.cosigner3of3", comment: "")
+        static let cosignerComplete = NSLocalizedString("coldSign.cosigner.complete", comment: "")
     }
 }
 
@@ -1159,6 +1174,7 @@ extension L10n {
     enum ColdSignErr {
         static let mvpOnly2of2 = NSLocalizedString("coldSignErr.mvpOnly2of2", comment: "")
         static let signatureMissing = NSLocalizedString("coldSignErr.signatureMissing", comment: "")
+        static let walletMismatch = NSLocalizedString("coldSignErr.walletMismatch", comment: "")
 
         static func qrMismatchPhase(_ phase: String) -> String {
             String(format: NSLocalizedString("coldSignErr.qrMismatchPhase", comment: ""), phase)

@@ -15,6 +15,34 @@ CLANG="$(xcrun --find clang)"
 
 echo "🔨 Building horcrux-core for iOS..."
 
+# ---- gmp-mpfr-sys cache guard ----------------------------------------------
+# gmp-mpfr-sys compiles MPFR/GMP C sources during its build.rs. Cargo's
+# fingerprint tracking doesn't always notice when CC/CFLAGS change between
+# runs (e.g. switching macOS host build ↔ iOS cross build). We detect that
+# by stashing a SHA of the CC + CFLAGS + target triples; if it's different
+# from the previous run we `cargo clean -p gmp-mpfr-sys` for the affected
+# targets before rebuilding. This removes the "rebuild cache bug" that used
+# to surface as undefined symbols or wrong-arch object files.
+FP_DIR="$PROJECT_ROOT/target/.horcrux-fp"
+mkdir -p "$FP_DIR"
+FP_FILE="$FP_DIR/gmp-mpfr-sys.fingerprint"
+CURRENT_FP=$(printf "%s" "$CLANG|arm64-apple-ios14.0|arm64-apple-ios14.0-simulator|$IOS_SDK|$IOS_SIM_SDK" | shasum | awk '{print $1}')
+PREV_FP=""
+if [[ -f "$FP_FILE" ]]; then
+    PREV_FP="$(cat "$FP_FILE")"
+fi
+if [[ "$PREV_FP" != "$CURRENT_FP" ]]; then
+    if [[ -n "$PREV_FP" ]]; then
+        echo "  ↻ toolchain fingerprint changed — purging gmp-mpfr-sys cross caches"
+        cargo clean --manifest-path "$PROJECT_ROOT/Cargo.toml" \
+            -p gmp-mpfr-sys --target aarch64-apple-ios --release 2>/dev/null || true
+        cargo clean --manifest-path "$PROJECT_ROOT/Cargo.toml" \
+            -p gmp-mpfr-sys --target aarch64-apple-ios-sim --release 2>/dev/null || true
+    fi
+    echo "$CURRENT_FP" > "$FP_FILE"
+fi
+# ---------------------------------------------------------------------------
+
 # clang_rt.builtins provides `__chkstk_darwin` and other helpers that rustc's
 # cdylib output needs at link time. Xcode's copy lives alongside clang.
 CLANG_RT_DIR="$(dirname "$CLANG")/../lib/clang/$(ls "$(dirname "$CLANG")/../lib/clang/" | sort -V | tail -1)/lib/darwin"

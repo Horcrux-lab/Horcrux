@@ -854,3 +854,19 @@
 "intents.error.walletNotFound" = "找不到该链上的钱包。";
 "intents.short.copyAddr" = "复制地址";
 "intents.short.receive" = "收款二维码";
+
+// dev.50 — Cold signing cosigner role + wallet mismatch
+"coldSignErr.walletMismatch" = "扫到的二维码属于另一个钱包或同一设备的同一分片。请确认两台设备持有同一钱包的不同分片。";
+"coldSign.rolePrompt" = "选择本设备在这次冷签名中的角色";
+"coldSign.roleInitiator" = "我是发起方";
+"coldSign.roleCosigner" = "我是协签方";
+"coldSign.roleInitiatorHint" = "本设备负责发起交易，先显示邀请二维码给另一台设备扫描。";
+"coldSign.roleCosignerHint" = "本设备在另一台设备发起交易后，通过扫描它的二维码参与签名。";
+"coldSign.prompt.invite" = "扫描发起方设备显示的「邀请」二维码（QR1）。";
+"coldSign.prompt.initiatorRound2" = "扫描发起方设备此刻显示的「第二轮」二维码（QR3）。";
+"coldSign.guide.cosignerRound1" = "把本页二维码（QR2）交给发起方扫描，然后点击「准备就绪」。";
+"coldSign.guide.cosignerRound2" = "把本页二维码（QR4）交给发起方完成最后一步。你这一侧已经拿到签名。";
+"coldSign.step.cosigner1of3" = "第 1 / 3 步";
+"coldSign.step.cosigner2of3" = "第 2 / 3 步";
+"coldSign.step.cosigner3of3" = "第 3 / 3 步";
+"coldSign.cosigner.complete" = "协签完成。发起方扫到最后一张二维码后，本次冷签名即全部结束。";
