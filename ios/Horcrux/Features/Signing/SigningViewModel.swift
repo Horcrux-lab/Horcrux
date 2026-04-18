@@ -794,7 +794,10 @@ final class SigningViewModel: ObservableObject {
         //    halfHourFee. Custom tier isn't exposed for UTXO chains yet
         //    and falls through as normal.
         let satPerVbyte: UInt64
-        if let rate = try? await blockchainService.btcFeeEstimate(apiURL: apiURL) {
+        if feeTier == .custom, let v = UInt64(customGasPriceGwei.trimmingCharacters(in: .whitespaces)), v >= 1 {
+            // User-provided sat/vB.
+            satPerVbyte = v
+        } else if let rate = try? await blockchainService.btcFeeEstimate(apiURL: apiURL) {
             let base = rate.halfHourFee
             let scaled: UInt64 = {
                 switch feeTier {

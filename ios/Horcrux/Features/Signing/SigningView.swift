@@ -219,13 +219,24 @@ struct ComposeTransactionView: View {
                     if viewModel.wallet.chain != .solana {
                         // Solana has no user-tunable feerate for native transfers.
                         Picker("费用优先级", selection: $viewModel.feeTier) {
-                            // Custom tier not wired for UTXO chains yet.
-                            ForEach(SigningViewModel.FeeTier.allCases.filter { $0 != .custom }) { tier in
+                            ForEach(SigningViewModel.FeeTier.allCases) { tier in
                                 Text(tier.label).tag(tier)
                             }
                         }
                         .pickerStyle(.segmented)
                         .accessibilityIdentifier("compose_feeTierPicker")
+
+                        if viewModel.feeTier == .custom {
+                            HStack {
+                                Text("费率 (sat/vB)")
+                                Spacer()
+                                TextField("例: 5", text: $viewModel.customGasPriceGwei)
+                                    .keyboardType(.numberPad)
+                                    .multilineTextAlignment(.trailing)
+                                    .frame(minWidth: 80)
+                                    .accessibilityIdentifier("compose_customSatVB")
+                            }
+                        }
                     }
                     if viewModel.isEstimatingGas {
                         HStack {

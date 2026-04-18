@@ -1061,15 +1061,16 @@ actor BlockchainService {
     // MARK: - Transaction history sync
 
     /// Light-weight external transaction summary used by the history syncer.
-    /// Amounts are in smallest units (sats / SUN / lamports / wei) so the
-    /// caller decides how to format.
+    /// Amounts are in smallest units (sats / SUN / lamports / wei) represented
+    /// as `Decimal` to survive the 256-bit range wei values can reach; sign
+    /// indicates direction (positive = received, negative = sent).
     struct ExternalTx {
         let txHash: String
         let blockTime: Date?
         let from: String
         let to: String
-        let /* signed; positive = received, negative = sent */ deltaSmallest: Int64
-        let feeSmallest: UInt64
+        let deltaSmallest: Decimal
+        let feeSmallest: Decimal
         let confirmed: Bool
     }
 
@@ -1127,8 +1128,8 @@ actor BlockchainService {
                 blockTime: tx.status.block_time.map { Date(timeIntervalSince1970: TimeInterval($0)) },
                 from: delta < 0 ? safe : counterparty,
                 to: delta < 0 ? counterparty : safe,
-                deltaSmallest: delta,
-                feeSmallest: tx.fee,
+                deltaSmallest: Decimal(delta),
+                feeSmallest: Decimal(tx.fee),
                 confirmed: tx.status.confirmed
             )
         }
@@ -1171,8 +1172,8 @@ actor BlockchainService {
                 blockTime: ts > 0 ? Date(timeIntervalSince1970: ts / 1000) : nil,
                 from: from,
                 to: to,
-                deltaSmallest: isSend ? -Int64(truncatingIfNeeded: amount.int64Value) : Int64(truncatingIfNeeded: amount.int64Value),
-                feeSmallest: feeRaw,
+                deltaSmallest: isSend ? Decimal(-amount.int64Value) : Decimal(amount.int64Value),
+                feeSmallest: Decimal(feeRaw),
                 confirmed: ok
             ))
         }
@@ -1217,26 +1218,24 @@ actor BlockchainService {
                   let from = row["from"] as? String,
                   let to = row["to"] as? String,
                   let valueStr = row["value"] as? String,
-                  let value = UInt64(valueStr)
+                  let value = Decimal(string: valueStr)
             else { continue }
             let gasUsedStr = row["gasUsed"] as? String ?? "0"
             let gasPriceStr = row["gasPrice"] as? String ?? "0"
-            let feeWei: UInt64 = {
-                guard let g = UInt64(gasUsedStr), let p = UInt64(gasPriceStr) else { return 0 }
-                let (result, overflow) = g.multipliedReportingOverflow(by: p)
-                return overflow ? UInt64.max : result
+            let feeWei: Decimal = {
+                guard let g = Decimal(string: gasUsedStr), let p = Decimal(string: gasPriceStr) else { return 0 }
+                return g * p
             }()
             let tsStr = row["timeStamp"] as? String ?? "0"
             let ts = TimeInterval(tsStr) ?? 0
             let isSend = from.lowercased() == safeLower
-            // isError="1" → failed; txreceipt_status="0" → failed post-byz.
             let err = (row["isError"] as? String) == "1"
             out.append(ExternalTx(
                 txHash: hash,
                 blockTime: ts > 0 ? Date(timeIntervalSince1970: ts) : nil,
                 from: from,
                 to: to,
-                deltaSmallest: isSend ? -Int64(bitPattern: value) : Int64(bitPattern: value),
+                deltaSmallest: isSend ? -value : value,
                 feeSmallest: feeWei,
                 confirmed: !err
             ))
@@ -1291,8 +1290,8 @@ actor BlockchainService {
                 blockTime: blockTime.map { Date(timeIntervalSince1970: $0) },
                 from: delta < 0 ? safe : other,
                 to: delta < 0 ? other : safe,
-                deltaSmallest: delta,
-                feeSmallest: fee,
+                deltaSmallest: Decimal(delta),
+                feeSmallest: Decimal(fee),
                 confirmed: !failed
             ))
         }
@@ -1308,6 +1307,47 @@ actor BlockchainService {
         let (data, response) = try await session.data(for: req)
         try validateHTTP(response)
         return data
+    }
+
+    /// Fetch recent TRC-20 token transfers for a TRON address via TronGrid's
+    /// /v1/accounts/{addr}/transactions/trc20 endpoint. Returns rows as
+    /// ExternalTx with the token symbol embedded in the hash prefix so the
+    /// UI syncer can show e.g. 'USDT' amounts instead of raw SUN.
+    func tronRecentTrc20Txs(address: String, apiURL: String) async throws -> [(ExternalTx, tokenSymbol: String, decimals: Int, contract: String)] {
+        let safe = try Self.sanitizedAddress(address)
+        let url = try Self.validatedURL("\(apiURL)/v1/accounts/\(safe)/transactions/trc20?limit=25&only_confirmed=true")
+        let (data, response) = try await session.data(from: url)
+        try validateHTTP(response)
+        guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let rows = json["data"] as? [[String: Any]] else {
+            return []
+        }
+        var out: [(ExternalTx, tokenSymbol: String, decimals: Int, contract: String)] = []
+        for tx in rows {
+            guard let txId = tx["transaction_id"] as? String,
+                  let from = tx["from"] as? String,
+                  let to = tx["to"] as? String,
+                  let valueStr = tx["value"] as? String,
+                  let value = Decimal(string: valueStr),
+                  let tokenInfo = tx["token_info"] as? [String: Any],
+                  let symbol = tokenInfo["symbol"] as? String,
+                  let decimals = (tokenInfo["decimals"] as? NSNumber)?.intValue,
+                  let contract = tokenInfo["address"] as? String
+            else { continue }
+            let ts = (tx["block_timestamp"] as? NSNumber)?.doubleValue ?? 0
+            let isSend = from.lowercased() == safe.lowercased()
+            let ext = ExternalTx(
+                txHash: txId,
+                blockTime: ts > 0 ? Date(timeIntervalSince1970: ts / 1000) : nil,
+                from: from,
+                to: to,
+                deltaSmallest: isSend ? -value : value,
+                feeSmallest: 0,
+                confirmed: true
+            )
+            out.append((ext, tokenSymbol: symbol, decimals: decimals, contract: contract))
+        }
+        return out
     }
 
     /// Convert a TRON hex address (41XX…) back to base58. Uses the same

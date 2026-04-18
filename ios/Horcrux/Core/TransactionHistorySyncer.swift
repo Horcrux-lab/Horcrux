@@ -33,6 +33,15 @@ final class TransactionHistorySyncer {
                 store.add(rec)
                 inserted += 1
             }
+            // TRON: also pull TRC-20 token transfers in a second pass.
+            if wallet.chain == .tron {
+                let trc20 = (try? await service.tronRecentTrc20Txs(address: wallet.address, apiURL: config.tronAPI)) ?? []
+                for (ext, symbol, decimals, _) in trc20 where !existing.contains(ext.txHash) {
+                    let rec = makeTokenRecord(ext, wallet: wallet, symbol: symbol, decimals: decimals)
+                    store.add(rec)
+                    inserted += 1
+                }
+            }
         } catch {
             SecureLog.warning("history sync failed for \(wallet.chain): \(error.localizedDescription)")
         }
@@ -64,13 +73,11 @@ final class TransactionHistorySyncer {
 
     private func makeRecord(_ ext: BlockchainService.ExternalTx, wallet: Wallet) -> TransactionRecord {
         let absAmount = abs(ext.deltaSmallest)
-        let amountStr = formatAmount(smallest: UInt64(absAmount), chain: wallet.chain)
+        let amountStr = formatAmount(smallest: absAmount, chain: wallet.chain)
         let feeStr: String? = ext.feeSmallest > 0
             ? formatAmount(smallest: ext.feeSmallest, chain: wallet.chain)
             : nil
         let status: TransactionRecord.TxStatus = ext.confirmed ? .confirmed : .broadcast
-        // Preserve the on-chain timestamp so records sort correctly. Prefix the
-        // id so we can tell external-sourced records apart from local ones.
         return TransactionRecord(
             id: "ext:\(ext.txHash)",
             walletId: wallet.id,
@@ -87,37 +94,58 @@ final class TransactionHistorySyncer {
         )
     }
 
-    private func formatAmount(smallest: UInt64, chain: Chain) -> String {
+    private func makeTokenRecord(_ ext: BlockchainService.ExternalTx, wallet: Wallet, symbol: String, decimals: Int) -> TransactionRecord {
+        let absAmount = abs(ext.deltaSmallest)
+        let d = max(0, min(decimals, 36))
+        let scale = pow(Decimal(10), d)
+        let scaled = absAmount / scale
+        let nsnum = scaled as NSDecimalNumber
+        let amountStr = String(format: "%.\(max(2, min(d, 6)))f %@", nsnum.doubleValue, symbol)
+        return TransactionRecord(
+            id: "ext:\(ext.txHash):\(symbol)",
+            walletId: wallet.id,
+            chain: wallet.chain,
+            fromAddress: ext.from,
+            toAddress: ext.to,
+            amount: amountStr,
+            fee: nil,
+            txHash: ext.txHash,
+            status: ext.confirmed ? .confirmed : .broadcast,
+            createdAt: ext.blockTime ?? Date(),
+            broadcastAt: ext.blockTime,
+            confirmedAt: ext.confirmed ? ext.blockTime : nil
+        )
+    }
+
+    private func formatAmount(smallest: Decimal, chain: Chain) -> String {
+        let nsnum = smallest as NSDecimalNumber
+        let double = nsnum.doubleValue
         switch chain {
         case .bitcoin:
-            let btc = Double(smallest) / 1e8
-            return String(format: "%.8f BTC", btc)
-                .replacingOccurrences(of: #"0+ BTC$"#, with: " BTC", options: .regularExpression)
-                .replacingOccurrences(of: #"\. BTC$"#, with: " BTC", options: .regularExpression)
+            let btc = double / 1e8
+            return trim(String(format: "%.8f", btc)) + " BTC"
         case .litecoin:
-            let ltc = Double(smallest) / 1e8
-            return String(format: "%.8f LTC", ltc)
-                .replacingOccurrences(of: #"0+ LTC$"#, with: " LTC", options: .regularExpression)
-                .replacingOccurrences(of: #"\. LTC$"#, with: " LTC", options: .regularExpression)
+            let ltc = double / 1e8
+            return trim(String(format: "%.8f", ltc)) + " LTC"
         case .tron:
-            let trx = Double(smallest) / 1_000_000
-            return String(format: "%.6f TRX", trx)
-                .replacingOccurrences(of: #"0+ TRX$"#, with: " TRX", options: .regularExpression)
-                .replacingOccurrences(of: #"\. TRX$"#, with: " TRX", options: .regularExpression)
+            let trx = double / 1_000_000
+            return trim(String(format: "%.6f", trx)) + " TRX"
         case .solana:
-            let sol = Double(smallest) / 1e9
-            return String(format: "%.9f SOL", sol)
-                .replacingOccurrences(of: #"0+ SOL$"#, with: " SOL", options: .regularExpression)
-                .replacingOccurrences(of: #"\. SOL$"#, with: " SOL", options: .regularExpression)
+            let sol = double / 1e9
+            return trim(String(format: "%.9f", sol)) + " SOL"
         default:
             if chain.isEVM {
-                // wei → ether with up to 6 decimal places of precision.
-                let ether = Double(smallest) / 1e18
-                return String(format: "%.6f %@", ether, chain.symbol)
-                    .replacingOccurrences(of: #"0+ \w+$"#, with: " \(chain.symbol)", options: .regularExpression)
-                    .replacingOccurrences(of: #"\. \w+$"#, with: " \(chain.symbol)", options: .regularExpression)
+                let ether = double / 1e18
+                return trim(String(format: "%.6f", ether)) + " " + chain.symbol
             }
-            return "\(smallest)"
+            return "\(nsnum.stringValue)"
         }
+    }
+
+    private func trim(_ s: String) -> String {
+        var t = s
+        while t.hasSuffix("0") { t.removeLast() }
+        if t.hasSuffix(".") { t.removeLast() }
+        return t
     }
 }
