@@ -69,7 +69,7 @@ struct ShardsListView: View {
                             .font(.body.weight(.semibold))
                             .foregroundStyle(HorcruxTheme.accentPurple)
                     }
-                    .accessibilityLabel("从备份恢复")
+                    .accessibilityLabel(L10n.Shards.restoreFromBackupA11y)
                 }
             }
             .sheet(isPresented: $showImportSheet) {
@@ -91,7 +91,7 @@ struct ShardsListView: View {
             Button {
                 showImportSheet = true
             } label: {
-                Label("从备份恢复账户", systemImage: "square.and.arrow.down.fill")
+                Label(L10n.Shards.restoreFromBackupButton, systemImage: "square.and.arrow.down.fill")
                     .font(.headline)
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 14)
@@ -141,7 +141,7 @@ struct ShardAccountRow: View {
                     .lineLimit(1)
 
                 HStack(spacing: 6) {
-                    Text("我的分片 #\(Int(account.partyIndex)) / \(Int(account.totalParties))")
+                    Text(L10n.Shards.myShardFraction(Int(account.partyIndex), Int(account.totalParties)))
                         .font(.caption)
                         .foregroundStyle(HorcruxTheme.subtleText)
                     Text("·")
@@ -187,11 +187,11 @@ struct ShardAccountDetailView: View {
                         .foregroundStyle(HorcruxTheme.shieldGradient)
                         .shadow(color: HorcruxTheme.accentPurple.opacity(0.4), radius: 8)
 
-                    Text("我的分片 #\(Int(account.partyIndex))")
+                    Text(L10n.Shards.myShardHash(Int(account.partyIndex)))
                         .font(.title2.bold())
                         .foregroundStyle(.white)
 
-                    Text("此账户共 \(Int(account.totalParties)) 份分片，签名需 \(Int(account.threshold)) 份")
+                    Text(L10n.Shards.accountThresholdDesc(Int(account.totalParties), Int(account.threshold)))
                         .font(.caption)
                         .foregroundStyle(HorcruxTheme.subtleText)
 
@@ -202,7 +202,7 @@ struct ShardAccountDetailView: View {
 
                 // Derived wallets
                 VStack(alignment: .leading, spacing: 10) {
-                    VaultSectionHeader("派生地址", icon: "link")
+                    VaultSectionHeader(L10n.Shards.derivedAddresses, icon: "link")
                         .padding(.horizontal, 4)
 
                     VStack(spacing: 0) {
@@ -239,7 +239,7 @@ struct ShardAccountDetailView: View {
                                 VaultSettingsRow(
                                     icon: "arrow.down.doc.fill",
                                     iconColor: HorcruxTheme.accentBlue,
-                                    title: "备份整个账户"
+                                    title: L10n.Shards.backupEntireAccount
                                 )
                                 Spacer()
                                 Image(systemName: "chevron.right")
@@ -254,7 +254,7 @@ struct ShardAccountDetailView: View {
                                 VaultSettingsRow(
                                     icon: "trash.fill",
                                     iconColor: HorcruxTheme.dangerRed,
-                                    title: "删除此账户"
+                                    title: L10n.Shards.deleteThisAccount
                                 )
                                 Spacer()
                                 Image(systemName: "chevron.right")
@@ -330,7 +330,7 @@ struct AccountBackupView: View {
                     }
                 }
             }
-            .navigationTitle("备份账户")
+            .navigationTitle(L10n.ShardBackup.sheetNavTitle)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -364,9 +364,9 @@ struct AccountBackupView: View {
     @ViewBuilder
     private var inputSection: some View {
         Section {
-            Text("将账户「\(account.name)」在本设备上的加密分片导出为一份可跨设备恢复的文件。")
+            Text(L10n.ShardBackup.exportIntro(account.name))
                 .foregroundStyle(.secondary)
-            Text("包含派生的 \(account.wallets.count) 条链地址，所有链共享同一份密钥材料。")
+            Text(L10n.ShardBackup.exportIncludesChains(account.wallets.count))
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }
@@ -376,9 +376,9 @@ struct AccountBackupView: View {
             Section {
                 Label {
                     VStack(alignment: .leading, spacing: 4) {
-                        Text("将用 iCloud 恢复密钥加密")
+                        Text(L10n.ShardBackup.rkWillEncrypt)
                             .font(.subheadline)
-                        Text("在任何登录同一 Apple ID 的设备上恢复此备份时无需输入 PIN。")
+                        Text(L10n.ShardBackup.rkWillEncryptBody)
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
@@ -399,11 +399,11 @@ struct AccountBackupView: View {
                 SecureField(L10n.ShardBackup.enterPin, text: $pin)
                     .keyboardType(.numberPad)
             } header: {
-                Text(rkReady ? "设备 PIN（解锁分片用）" : "备份密码（= 设备 PIN）")
+                Text(rkReady ? L10n.ShardBackup.pinHeaderUnlockShard : L10n.ShardBackup.pinHeaderBackupPassword)
             } footer: {
                 Text(rkReady
-                     ? "iCloud 恢复密钥负责加密备份；此处的 PIN 仅用于本机解锁分片。"
-                     : "导出文件将用该 PIN 加密。恢复到其它设备时需输入同一 PIN。")
+                     ? L10n.ShardBackup.pinFooterRkReady
+                     : L10n.ShardBackup.pinFooterExportEncrypts)
                     .font(.caption)
             }
         }
@@ -596,15 +596,15 @@ struct AccountImportView: View {
     @ViewBuilder
     private func previewSection(_ preview: BackupPreview) -> some View {
         Section(L10n.ShardImport.backupInfo) {
-            LabeledContent("账户", value: preview.name)
-            LabeledContent("链", value: preview.chainLabel)
+            LabeledContent(L10n.ShardImport.accountLabel, value: preview.name)
+            LabeledContent(L10n.ShardImport.chainLabel, value: preview.chainLabel)
             LabeledContent(L10n.ShardImport.partyIndex, value: L10n.ShardImport.partyIndexValue(Int(preview.partyIndex)))
             LabeledContent(L10n.Shards.threshold, value: L10n.Shards.thresholdValue(Int(preview.threshold.t), Int(preview.threshold.total)))
             if case .account(let b) = preview {
-                LabeledContent("派生钱包", value: "\(b.wallets.count) 条链")
-                LabeledContent("加密方式", value: b.version >= 5 ? "iCloud 恢复密钥" : "PIN")
+                LabeledContent(L10n.ShardImport.derivedWalletsLabel, value: L10n.ShardImport.chainsCount(b.wallets.count))
+                LabeledContent(L10n.ShardImport.encryptionMethod, value: b.version >= 5 ? L10n.ShardImport.encryptionICloud : L10n.ShardImport.encryptionPin)
             } else if case .legacy = preview {
-                LabeledContent(L10n.ShardImport.backupVersion, value: "旧格式 (单链)")
+                LabeledContent(L10n.ShardImport.backupVersion, value: L10n.ShardImport.legacyFormatValue)
             }
         }
 
@@ -612,7 +612,7 @@ struct AccountImportView: View {
         if usesRK {
             Section {
                 Label {
-                    Text("此备份由另一台登录同 Apple ID 的设备导出。只要 iCloud Keychain 已同步，无需输入密码即可恢复。")
+                    Text(L10n.ShardImport.rkInfoBanner)
                         .font(.caption)
                 } icon: {
                     Image(systemName: "icloud.fill").foregroundStyle(.blue)
@@ -625,8 +625,8 @@ struct AccountImportView: View {
                 SecureField(L10n.ShardImport.enterDevicePin, text: $pin)
                     .keyboardType(.numberPad)
                 Text(usesRK
-                     ? "本机解锁分片仍需 PIN。"
-                     : "输入备份时使用的 PIN 以解密文件；此 PIN 将同时作为本设备的 PIN。")
+                     ? L10n.ShardImport.pinStillNeededForLocal
+                     : L10n.ShardImport.pinEncryptsBackup)
                     .font(.caption)
                     .foregroundStyle(.secondary)
             } header: {
@@ -639,7 +639,7 @@ struct AccountImportView: View {
                 if isImporting {
                     ProgressView().frame(maxWidth: .infinity)
                 } else {
-                    Text("恢复账户").frame(maxWidth: .infinity)
+                    Text(L10n.ShardImport.restoreAccountButton).frame(maxWidth: .infinity)
                 }
             }
             .buttonStyle(.borderedProminent)
@@ -665,7 +665,7 @@ struct AccountImportView: View {
                     .foregroundStyle(.green)
                 Text(L10n.ShardImport.shardImported).font(.title2.bold())
                 if case .success(let name, let count) = viewModel.importStatus {
-                    Text("已恢复账户「\(name)」· \(count) 条链")
+                    Text(L10n.ShardImport.restoredAccount(name, count))
                         .foregroundStyle(.secondary)
                         .multilineTextAlignment(.center)
                 }
@@ -689,7 +689,7 @@ struct AccountImportView: View {
                 let data = try Data(contentsOf: url)
                 loadBackup(from: data)
             } catch {
-                importError = "读取失败: \(error.localizedDescription)"
+                importError = L10n.ShardImport.readFailed(error.localizedDescription)
             }
         case .failure(let err):
             importError = err.localizedDescription
@@ -716,7 +716,7 @@ struct AccountImportView: View {
 
     private func loadBackup(from data: Data) {
         guard let p = viewModel.previewBackup(from: data) else {
-            importError = "无法解析备份文件"
+            importError = L10n.ShardImport.failedToParseBackup
             return
         }
         importData = data
@@ -761,32 +761,32 @@ struct DeleteAccountConfirmView: View {
             Form {
                 Section {
                     VStack(alignment: .leading, spacing: 8) {
-                        Label("不可逆操作", systemImage: "exclamationmark.triangle.fill")
+                        Label(L10n.Shards.deleteIrreversible, systemImage: "exclamationmark.triangle.fill")
                             .foregroundStyle(HorcruxTheme.dangerRed)
                             .font(.headline)
-                        Text("即将删除账户「\(account.name)」在本设备上的所有数据：")
+                        Text(L10n.Shards.deleteBody(account.name))
                             .font(.subheadline)
-                        Text("· 共享分片 #\(Int(account.partyIndex)) / \(Int(account.totalParties))")
+                        Text(L10n.Shards.deleteShardLine(Int(account.partyIndex), Int(account.totalParties)))
                             .font(.footnote)
                             .foregroundStyle(.secondary)
-                        Text("· 派生的 \(account.wallets.count) 条链钱包：\(account.wallets.map(\.chain.symbol).joined(separator: " · "))")
+                        Text(L10n.Shards.deleteChainsLine(account.wallets.count, account.wallets.map(\.chain.symbol).joined(separator: " · ")))
                             .font(.footnote)
                             .foregroundStyle(.secondary)
-                        Text("删除后本机无法参与此账户的任何链签名。若其他设备持有的分片不足 \(Int(account.threshold)) 份，整个账户将永久不可用。")
+                        Text(L10n.Shards.deleteConsequence(Int(account.threshold)))
                             .font(.footnote)
                             .foregroundStyle(.secondary)
                     }
                     .padding(.vertical, 4)
                 }
 
-                Section("请确认以下两项") {
-                    Toggle("我已备份此账户分片 / 或确认无需保留", isOn: $ackBackup)
+                Section(L10n.Shards.deleteConfirmBoth) {
+                    Toggle(L10n.Shards.deleteAckBackup, isOn: $ackBackup)
                         .font(.footnote)
-                    Toggle("我已确认其他设备上的分片足够达到 \(Int(account.threshold)) 份阈值", isOn: $ackLoss)
+                    Toggle(L10n.Shards.deleteAckLoss(Int(account.threshold)), isOn: $ackLoss)
                         .font(.footnote)
                 }
 
-                Section("输入 PIN 以执行删除") {
+                Section(L10n.Shards.deleteEnterPin) {
                     SecureField(L10n.Common.pin, text: $pin)
                         .keyboardType(.numberPad)
                         .font(.title3.monospacedDigit())
@@ -807,7 +807,7 @@ struct DeleteAccountConfirmView: View {
                     } label: {
                         HStack {
                             Spacer()
-                            Text("永久删除此账户")
+                            Text(L10n.Shards.deletePermanent)
                                 .font(.headline)
                             Spacer()
                         }
@@ -815,7 +815,7 @@ struct DeleteAccountConfirmView: View {
                     .disabled(!canDelete)
                 }
             }
-            .navigationTitle("删除账户")
+            .navigationTitle(L10n.Shards.deleteTitle)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -827,7 +827,7 @@ struct DeleteAccountConfirmView: View {
 
     private func handleDelete() {
         guard appState.verifyPin(pin) else {
-            errorMessage = "PIN 错误，请重新输入"
+            errorMessage = L10n.Shards.pinWrongRetry
             pin = ""
             return
         }

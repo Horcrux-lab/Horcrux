@@ -646,3 +646,51 @@
 "backup.doneButton" = "Backup complete, finish";
 "backup.skipButton" = "Back up later (not recommended)";
 "backup.navTitle" = "Back up shard";
+
+// dev.45 — ShardsListView batch
+"shards.restoreFromBackupA11y" = "Restore from backup";
+"shards.restoreFromBackupButton" = "Restore account from backup";
+"shards.myShardFraction" = "My shard #%1$d / %2$d";
+"shards.myShardHash" = "My shard #%d";
+"shards.accountThresholdDesc" = "This account has %1$d shards; signing requires %2$d";
+"shards.derivedAddresses" = "Derived addresses";
+"shards.backupEntireAccount" = "Back up entire account";
+"shards.deleteThisAccount" = "Delete this account";
+"shards.deleteIrreversible" = "Irreversible operation";
+"shards.deleteBody" = "About to delete all data for account \"%@\" on this device:";
+"shards.deleteShardLine" = "· Shared shard #%1$d / %2$d";
+"shards.deleteChainsLine" = "· %1$d derived chain wallets: %2$@";
+"shards.deleteConsequence" = "After deletion, this device can no longer participate in signing for any chain in this account. If other devices hold fewer than %d shards, the entire account becomes permanently unusable.";
+"shards.deleteConfirmBoth" = "Please confirm both";
+"shards.deleteAckBackup" = "I've backed up this account's shard / or confirmed no need to retain";
+"shards.deleteAckLoss" = "I've confirmed other devices hold enough shards to reach the %d threshold";
+"shards.deleteEnterPin" = "Enter PIN to execute deletion";
+"shards.deletePermanent" = "Permanently delete this account";
+"shards.deleteTitle" = "Delete account";
+"shards.pinWrongRetry" = "Wrong PIN, please retry";
+
+"shardBackup.sheetNavTitle" = "Back up account";
+"shardBackup.exportIntro" = "Export the encrypted shard for account \"%@\" on this device as a file recoverable on other devices.";
+"shardBackup.exportIncludesChains" = "Includes %d derived chain addresses, all chains share the same key material.";
+"shardBackup.rkWillEncrypt" = "Will be encrypted with the iCloud recovery key";
+"shardBackup.rkWillEncryptBody" = "Recover this backup on any device signed in with the same Apple ID without entering a PIN.";
+"shardBackup.pinHeaderUnlockShard" = "Device PIN (to unlock the shard)";
+"shardBackup.pinHeaderBackupPassword" = "Backup password (= device PIN)";
+"shardBackup.pinFooterRkReady" = "The iCloud recovery key encrypts the backup; the PIN here is only used to unlock the shard locally.";
+"shardBackup.pinFooterExportEncrypts" = "The export file will be encrypted with this PIN. The same PIN must be entered when restoring on another device.";
+
+"shardImport.accountLabel" = "Account";
+"shardImport.chainLabel" = "Chain";
+"shardImport.derivedWalletsLabel" = "Derived wallets";
+"shardImport.chainsCount" = "%d chains";
+"shardImport.encryptionMethod" = "Encryption";
+"shardImport.encryptionICloud" = "iCloud recovery key";
+"shardImport.encryptionPin" = "PIN";
+"shardImport.legacyFormatValue" = "Legacy format (single chain)";
+"shardImport.rkInfoBanner" = "This backup was exported by another device signed into the same Apple ID. If iCloud Keychain is synced, no password is needed to restore.";
+"shardImport.pinStillNeededForLocal" = "PIN is still needed locally to unlock the shard.";
+"shardImport.pinEncryptsBackup" = "Enter the PIN used when backing up to decrypt the file; this PIN will also be used as the device PIN.";
+"shardImport.restoreAccountButton" = "Restore account";
+"shardImport.restoredAccount" = "Restored account \"%1$@\" · %2$d chains";
+"shardImport.readFailed" = "Read failed: %@";
+"shardImport.failedToParseBackup" = "Could not parse backup file";

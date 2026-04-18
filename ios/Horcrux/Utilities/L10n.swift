@@ -603,6 +603,45 @@ enum L10n {
         static func shardThreshold(_ t: Int, _ n: Int) -> String {
             String(format: NSLocalizedString("shards.shardThreshold", comment: ""), t, n)
         }
+
+        // dev.45 — detail + delete UI
+        static let restoreFromBackupA11y = NSLocalizedString("shards.restoreFromBackupA11y", comment: "")
+        static let restoreFromBackupButton = NSLocalizedString("shards.restoreFromBackupButton", comment: "")
+        static let derivedAddresses = NSLocalizedString("shards.derivedAddresses", comment: "")
+        static let backupEntireAccount = NSLocalizedString("shards.backupEntireAccount", comment: "")
+        static let deleteThisAccount = NSLocalizedString("shards.deleteThisAccount", comment: "")
+        static let deleteIrreversible = NSLocalizedString("shards.deleteIrreversible", comment: "")
+        static let deleteConfirmBoth = NSLocalizedString("shards.deleteConfirmBoth", comment: "")
+        static let deleteAckBackup = NSLocalizedString("shards.deleteAckBackup", comment: "")
+        static let deleteEnterPin = NSLocalizedString("shards.deleteEnterPin", comment: "")
+        static let deletePermanent = NSLocalizedString("shards.deletePermanent", comment: "")
+        static let deleteTitle = NSLocalizedString("shards.deleteTitle", comment: "")
+        static let pinWrongRetry = NSLocalizedString("shards.pinWrongRetry", comment: "")
+
+        static func myShardFraction(_ i: Int, _ n: Int) -> String {
+            String(format: NSLocalizedString("shards.myShardFraction", comment: ""), i, n)
+        }
+        static func myShardHash(_ i: Int) -> String {
+            String(format: NSLocalizedString("shards.myShardHash", comment: ""), i)
+        }
+        static func accountThresholdDesc(_ n: Int, _ t: Int) -> String {
+            String(format: NSLocalizedString("shards.accountThresholdDesc", comment: ""), n, t)
+        }
+        static func deleteBody(_ name: String) -> String {
+            String(format: NSLocalizedString("shards.deleteBody", comment: ""), name)
+        }
+        static func deleteShardLine(_ i: Int, _ n: Int) -> String {
+            String(format: NSLocalizedString("shards.deleteShardLine", comment: ""), i, n)
+        }
+        static func deleteChainsLine(_ count: Int, _ chains: String) -> String {
+            String(format: NSLocalizedString("shards.deleteChainsLine", comment: ""), count, chains)
+        }
+        static func deleteConsequence(_ threshold: Int) -> String {
+            String(format: NSLocalizedString("shards.deleteConsequence", comment: ""), threshold)
+        }
+        static func deleteAckLoss(_ threshold: Int) -> String {
+            String(format: NSLocalizedString("shards.deleteAckLoss", comment: ""), threshold)
+        }
     }
 
     // MARK: - Shard Backup
@@ -623,6 +662,22 @@ enum L10n {
 
         static func copiedAutoClears(_ seconds: Int) -> String {
             String(format: NSLocalizedString("shardBackup.copiedAutoClears", comment: ""), seconds)
+        }
+
+        // dev.45 — backup sheet UI
+        static let sheetNavTitle = NSLocalizedString("shardBackup.sheetNavTitle", comment: "")
+        static let rkWillEncrypt = NSLocalizedString("shardBackup.rkWillEncrypt", comment: "")
+        static let rkWillEncryptBody = NSLocalizedString("shardBackup.rkWillEncryptBody", comment: "")
+        static let pinHeaderUnlockShard = NSLocalizedString("shardBackup.pinHeaderUnlockShard", comment: "")
+        static let pinHeaderBackupPassword = NSLocalizedString("shardBackup.pinHeaderBackupPassword", comment: "")
+        static let pinFooterRkReady = NSLocalizedString("shardBackup.pinFooterRkReady", comment: "")
+        static let pinFooterExportEncrypts = NSLocalizedString("shardBackup.pinFooterExportEncrypts", comment: "")
+
+        static func exportIntro(_ name: String) -> String {
+            String(format: NSLocalizedString("shardBackup.exportIntro", comment: ""), name)
+        }
+        static func exportIncludesChains(_ count: Int) -> String {
+            String(format: NSLocalizedString("shardBackup.exportIncludesChains", comment: ""), count)
         }
     }
 
@@ -657,6 +712,30 @@ enum L10n {
 
         static func addedToDevice(_ name: String) -> String {
             String(format: NSLocalizedString("shardImport.addedToDevice", comment: ""), name)
+        }
+
+        // dev.45 — account import UI
+        static let accountLabel = NSLocalizedString("shardImport.accountLabel", comment: "")
+        static let chainLabel = NSLocalizedString("shardImport.chainLabel", comment: "")
+        static let derivedWalletsLabel = NSLocalizedString("shardImport.derivedWalletsLabel", comment: "")
+        static let encryptionMethod = NSLocalizedString("shardImport.encryptionMethod", comment: "")
+        static let encryptionICloud = NSLocalizedString("shardImport.encryptionICloud", comment: "")
+        static let encryptionPin = NSLocalizedString("shardImport.encryptionPin", comment: "")
+        static let legacyFormatValue = NSLocalizedString("shardImport.legacyFormatValue", comment: "")
+        static let rkInfoBanner = NSLocalizedString("shardImport.rkInfoBanner", comment: "")
+        static let pinStillNeededForLocal = NSLocalizedString("shardImport.pinStillNeededForLocal", comment: "")
+        static let pinEncryptsBackup = NSLocalizedString("shardImport.pinEncryptsBackup", comment: "")
+        static let restoreAccountButton = NSLocalizedString("shardImport.restoreAccountButton", comment: "")
+        static let failedToParseBackup = NSLocalizedString("shardImport.failedToParseBackup", comment: "")
+
+        static func chainsCount(_ count: Int) -> String {
+            String(format: NSLocalizedString("shardImport.chainsCount", comment: ""), count)
+        }
+        static func restoredAccount(_ name: String, _ count: Int) -> String {
+            String(format: NSLocalizedString("shardImport.restoredAccount", comment: ""), name, count)
+        }
+        static func readFailed(_ desc: String) -> String {
+            String(format: NSLocalizedString("shardImport.readFailed", comment: ""), desc)
         }
     }
 

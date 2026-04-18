@@ -646,3 +646,51 @@
 "backup.doneButton" = "我已做好备份，完成";
 "backup.skipButton" = "稍后备份（不推荐）";
 "backup.navTitle" = "备份分片";
+
+// dev.45 — ShardsListView batch
+"shards.restoreFromBackupA11y" = "从备份恢复";
+"shards.restoreFromBackupButton" = "从备份恢复账户";
+"shards.myShardFraction" = "我的分片 #%1$d / %2$d";
+"shards.myShardHash" = "我的分片 #%d";
+"shards.accountThresholdDesc" = "此账户共 %1$d 份分片，签名需 %2$d 份";
+"shards.derivedAddresses" = "派生地址";
+"shards.backupEntireAccount" = "备份整个账户";
+"shards.deleteThisAccount" = "删除此账户";
+"shards.deleteIrreversible" = "不可逆操作";
+"shards.deleteBody" = "即将删除账户「%@」在本设备上的所有数据：";
+"shards.deleteShardLine" = "· 共享分片 #%1$d / %2$d";
+"shards.deleteChainsLine" = "· 派生的 %1$d 条链钱包：%2$@";
+"shards.deleteConsequence" = "删除后本机无法参与此账户的任何链签名。若其他设备持有的分片不足 %d 份，整个账户将永久不可用。";
+"shards.deleteConfirmBoth" = "请确认以下两项";
+"shards.deleteAckBackup" = "我已备份此账户分片 / 或确认无需保留";
+"shards.deleteAckLoss" = "我已确认其他设备上的分片足够达到 %d 份阈值";
+"shards.deleteEnterPin" = "输入 PIN 以执行删除";
+"shards.deletePermanent" = "永久删除此账户";
+"shards.deleteTitle" = "删除账户";
+"shards.pinWrongRetry" = "PIN 错误，请重新输入";
+
+"shardBackup.sheetNavTitle" = "备份账户";
+"shardBackup.exportIntro" = "将账户「%@」在本设备上的加密分片导出为一份可跨设备恢复的文件。";
+"shardBackup.exportIncludesChains" = "包含派生的 %d 条链地址，所有链共享同一份密钥材料。";
+"shardBackup.rkWillEncrypt" = "将用 iCloud 恢复密钥加密";
+"shardBackup.rkWillEncryptBody" = "在任何登录同一 Apple ID 的设备上恢复此备份时无需输入 PIN。";
+"shardBackup.pinHeaderUnlockShard" = "设备 PIN（解锁分片用）";
+"shardBackup.pinHeaderBackupPassword" = "备份密码（= 设备 PIN）";
+"shardBackup.pinFooterRkReady" = "iCloud 恢复密钥负责加密备份；此处的 PIN 仅用于本机解锁分片。";
+"shardBackup.pinFooterExportEncrypts" = "导出文件将用该 PIN 加密。恢复到其它设备时需输入同一 PIN。";
+
+"shardImport.accountLabel" = "账户";
+"shardImport.chainLabel" = "链";
+"shardImport.derivedWalletsLabel" = "派生钱包";
+"shardImport.chainsCount" = "%d 条链";
+"shardImport.encryptionMethod" = "加密方式";
+"shardImport.encryptionICloud" = "iCloud 恢复密钥";
+"shardImport.encryptionPin" = "PIN";
+"shardImport.legacyFormatValue" = "旧格式 (单链)";
+"shardImport.rkInfoBanner" = "此备份由另一台登录同 Apple ID 的设备导出。只要 iCloud Keychain 已同步，无需输入密码即可恢复。";
+"shardImport.pinStillNeededForLocal" = "本机解锁分片仍需 PIN。";
+"shardImport.pinEncryptsBackup" = "输入备份时使用的 PIN 以解密文件；此 PIN 将同时作为本设备的 PIN。";
+"shardImport.restoreAccountButton" = "恢复账户";
+"shardImport.restoredAccount" = "已恢复账户「%1$@」· %2$d 条链";
+"shardImport.readFailed" = "读取失败: %@";
+"shardImport.failedToParseBackup" = "无法解析备份文件";
