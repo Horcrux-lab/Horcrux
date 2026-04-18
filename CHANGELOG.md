@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.0-dev.51] - 2026-04-18
+
+### Added
+
+- **iOS**: `WalletHomeView` 加 **pull-to-refresh** —— 在主页 ScrollView 上挂 `.refreshable`，下拉时通过新增的 `BalanceCache.refreshAll(wallets:service:config:force:)` 工具方法以 `force: true` 并行刷新所有可见钱包的原生余额（绕过 30s TTL）+ 触发 `PriceService.refreshIfNeeded()`。BalanceCache 的 in-flight 合并仍然生效，hero 卡片和列表行共享同一次 RPC，不会出现两次重复请求。`PortfolioSummaryCard.refreshAll()` 同步重构为调用 `BalanceCache.refreshAll(...)`，删掉了重复的 `withTaskGroup` 样板。
+
 ## [0.3.0-dev.50] - 2026-04-18
 
 ### Added

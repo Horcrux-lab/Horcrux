@@ -82,6 +82,27 @@ final class BalanceCache: ObservableObject {
         return Double(first.replacingOccurrences(of: ",", with: ""))
     }
 
+    /// Force-refresh native balances for a list of wallets in parallel.
+    /// Concurrent in-flight tasks per wallet are still coalesced inside
+    /// `balance(for:)`, so triggering this from one view while another
+    /// view is mid-fetch will reuse the same RPC. Used by the Home pull-
+    /// to-refresh and by `PortfolioSummaryCard`'s initial `.task`.
+    func refreshAll(wallets: [Wallet],
+                    service: BlockchainService,
+                    config: NetworkConfig,
+                    force: Bool = false) async {
+        await withTaskGroup(of: Void.self) { group in
+            for wallet in wallets {
+                group.addTask { @MainActor in
+                    _ = await self.balance(for: wallet,
+                                           service: service,
+                                           config: config,
+                                           force: force)
+                }
+            }
+        }
+    }
+
     /// Drop all cached entries. Useful when the network config changes.
     func invalidateAll() {
         entries.removeAll()

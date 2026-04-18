@@ -187,6 +187,18 @@ struct WalletHomeView: View {
             .padding(.top, 8)
             .padding(.bottom, 24)
         }
+        .refreshable {
+            // Pull-to-refresh: force-bypass the 30s TTL so pulling actually
+            // hits the RPC. BalanceCache still coalesces concurrent fetches
+            // per wallet, so the hero card and rows share one round trip.
+            await BalanceCache.shared.refreshAll(
+                wallets: walletStore.wallets.filter { !$0.hidden },
+                service: appState.blockchainService,
+                config: appState.networkConfig,
+                force: true
+            )
+            PriceService.shared.refreshIfNeeded()
+        }
     }
 
     /// Group wallets by accountId (derived from groupPublicKey). Each group
@@ -1061,14 +1073,10 @@ struct PortfolioSummaryCard: View {
         priceService.refreshIfNeeded()
         isLoading = true
         defer { isLoading = false }
-        await withTaskGroup(of: Void.self) { group in
-            for wallet in wallets {
-                group.addTask { @MainActor in
-                    _ = await BalanceCache.shared.balance(for: wallet,
-                                                          service: appState.blockchainService,
-                                                          config: appState.networkConfig)
-                }
-            }
-        }
+        await BalanceCache.shared.refreshAll(
+            wallets: wallets,
+            service: appState.blockchainService,
+            config: appState.networkConfig
+        )
     }
 }
