@@ -1,10 +1,15 @@
 import SwiftUI
+import UniformTypeIdentifiers
 
 /// User-facing address book management. Lists saved contacts, supports add/edit/delete.
 struct AddressBookView: View {
     @StateObject private var store = AddressBookStore.shared
     @State private var showAdd = false
     @State private var editing: AddressBookEntry?
+    @State private var showImporter = false
+    @State private var exportDoc: AddressBookDocument?
+    @State private var showExporter = false
+    @State private var importResult: String?
 
     var body: some View {
         List {
@@ -47,7 +52,24 @@ struct AddressBookView: View {
         .navigationTitle("地址簿")
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
-                Button { showAdd = true } label: { Image(systemName: "plus") }
+                Menu {
+                    Button {
+                        showAdd = true
+                    } label: { Label("新建联系人", systemImage: "person.badge.plus") }
+                    Button {
+                        if let data = store.exportJSON() {
+                            exportDoc = AddressBookDocument(data: data)
+                            showExporter = true
+                        }
+                    } label: { Label("导出", systemImage: "square.and.arrow.up") }
+                        .disabled(store.entries.isEmpty)
+                    Button {
+                        showImporter = true
+                    } label: { Label("导入", systemImage: "square.and.arrow.down") }
+                } label: {
+                    Image(systemName: "ellipsis.circle")
+                        .accessibilityIdentifier("addressBook_menu")
+                }
             }
         }
         .sheet(isPresented: $showAdd) {
@@ -56,6 +78,51 @@ struct AddressBookView: View {
         .sheet(item: $editing) { entry in
             AddressBookEditor(store: store, existing: entry)
         }
+        .fileImporter(
+            isPresented: $showImporter,
+            allowedContentTypes: [.json]
+        ) { result in
+            switch result {
+            case .success(let url):
+                // Security-scoped URL: must request access for user-picked files.
+                let gotAccess = url.startAccessingSecurityScopedResource()
+                defer { if gotAccess { url.stopAccessingSecurityScopedResource() } }
+                do {
+                    let data = try Data(contentsOf: url)
+                    let n = try store.importJSON(data)
+                    importResult = n > 0 ? "已导入 \(n) 条" : "全部已存在"
+                } catch {
+                    importResult = "导入失败：\(error.localizedDescription)"
+                }
+            case .failure(let err):
+                importResult = err.localizedDescription
+            }
+        }
+        .fileExporter(
+            isPresented: $showExporter,
+            document: exportDoc,
+            contentType: .json,
+            defaultFilename: "horcrux-addressbook"
+        ) { _ in }
+        .alert("导入结果", isPresented: .constant(importResult != nil)) {
+            Button("OK") { importResult = nil }
+        } message: {
+            Text(importResult ?? "")
+        }
+    }
+}
+
+/// Minimal FileDocument wrapper so SwiftUI's `.fileExporter` can write the
+/// JSON blob to a user-chosen location.
+struct AddressBookDocument: FileDocument {
+    static var readableContentTypes: [UTType] { [.json] }
+    var data: Data
+    init(data: Data) { self.data = data }
+    init(configuration: ReadConfiguration) throws {
+        self.data = configuration.file.regularFileContents ?? Data()
+    }
+    func fileWrapper(configuration: WriteConfiguration) throws -> FileWrapper {
+        FileWrapper(regularFileWithContents: data)
     }
 }
 

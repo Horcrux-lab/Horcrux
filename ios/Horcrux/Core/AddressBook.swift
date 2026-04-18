@@ -55,6 +55,31 @@ final class AddressBookStore: ObservableObject {
         entries.filter { $0.chain == chain }
     }
 
+    /// Export all entries to pretty-printed JSON data suitable for sharing.
+    func exportJSON() -> Data? {
+        let enc = JSONEncoder()
+        enc.outputFormatting = [.prettyPrinted, .sortedKeys]
+        return try? enc.encode(entries)
+    }
+
+    /// Import entries from JSON. Deduplicates by (chain, address lowercased)
+    /// — existing entries take precedence. Returns count imported.
+    @discardableResult
+    func importJSON(_ data: Data) throws -> Int {
+        let incoming = try JSONDecoder().decode([AddressBookEntry].self, from: data)
+        var known = Set(entries.map { "\($0.chain.rawValue)|\($0.address.lowercased())" })
+        var added = 0
+        for entry in incoming {
+            let key = "\(entry.chain.rawValue)|\(entry.address.lowercased())"
+            if known.contains(key) { continue }
+            entries.append(entry)
+            known.insert(key)
+            added += 1
+        }
+        if added > 0 { save() }
+        return added
+    }
+
     private func load() {
         guard let data = UserDefaults.standard.data(forKey: Self.storageKey) else { return }
         if let decoded = try? JSONDecoder().decode([AddressBookEntry].self, from: data) {

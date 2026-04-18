@@ -5,6 +5,47 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.0-dev.32] - 2026-04-18
+
+### Added
+
+- **iOS**: ERC-20 交易历史同步（Etherscan V2 `tokentx`，所有 EVM 链）
+- **iOS**: 自定义代币添加 / 删除 UI；支持手动填写或链上 `name()` / `symbol()` / `decimals()` 自动查询
+- **iOS**: 签名前生物识别门禁开关（可选，设置里切换）
+
+## [0.3.0-dev.31] - 2026-04-18
+
+### Added
+
+- **iOS**: 钱包重命名 / 本机删除菜单（保留分片）
+- **iOS**: 交易历史分状态分段筛选（全部 / 待确认 / 已确认 / 失败）+ 地址/哈希/金额搜索
+- **iOS**: 收款 QR 支持请求金额（BIP-21 / EIP-681 / Solana Pay）
+
+## [0.3.0-dev.30] - 2026-04-18
+
+### Added
+
+- **iOS**: BTC / LTC 自定义 sat/vB 费率
+- **iOS**: TRC-20 代币交易历史同步
+
+### Changed
+
+- **iOS**: `ExternalTx.deltaSmallest` / `feeSmallest` 由 `Int64`/`UInt64` 迁移至 `Decimal`，避免 >18 ETH 溢出
+
+## [0.3.0-dev.29] - 2026-04-18
+
+### Added
+
+- **iOS**: EVM（Etherscan V2 多链）与 Solana（getSignaturesForAddress + getTransaction）交易历史同步
+- **iOS**: Settings 新增 Etherscan API key 配置（Keychain 持久化）
+
+## [0.3.0-dev.28] - 2026-04-18
+
+### Added
+
+- **iOS**: BTC / LTC / TRON 交易历史同步（通过 keyless 公共 explorer API）
+- **iOS**: TransactionHistoryView 下拉刷新 + 手动同步按钮 + 结果提示
+
 ## [0.2.0] - 2026-04-16
 
 ### Added
