@@ -128,4 +128,50 @@ mod tests {
 
         assert!(result.is_err());
     }
+
+    #[test]
+    fn test_wrong_device_key_fails() {
+        let shard_data = b"secret-shard-data";
+        let encrypted = encrypt_shard(shard_data, b"device-key-A--------------------", b"pin").unwrap();
+        let result = decrypt_shard(&encrypted, b"device-key-B--------------------", b"pin");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_nonce_salt_unique_across_calls() {
+        // Same inputs must produce different ciphertexts (fresh random
+        // salt+nonce per call). If this ever regresses, two shards
+        // encrypted to the same device/PIN would be bit-identical.
+        let data = b"aaaa";
+        let e1 = encrypt_shard(data, b"dk".repeat(16).as_slice(), b"pin").unwrap();
+        let e2 = encrypt_shard(data, b"dk".repeat(16).as_slice(), b"pin").unwrap();
+        assert_ne!(e1.nonce, e2.nonce);
+        assert_ne!(e1.salt, e2.salt);
+        assert_ne!(e1.ciphertext, e2.ciphertext);
+    }
+
+    #[test]
+    fn test_ciphertext_tamper_rejected() {
+        let encrypted = encrypt_shard(b"sensitive", b"device-key".repeat(4).as_slice(), b"pin").unwrap();
+        let mut tampered = encrypted.clone();
+        // Flip a bit in the middle of the ciphertext.
+        let mid = tampered.ciphertext.len() / 2;
+        tampered.ciphertext[mid] ^= 0x01;
+        let result = decrypt_shard(&tampered, b"device-key".repeat(4).as_slice(), b"pin");
+        assert!(result.is_err(), "AES-GCM must reject bitflips (MAC failure)");
+    }
+
+    #[test]
+    fn test_derive_key_deterministic() {
+        let k1 = derive_key(b"dk", b"pin", b"salt").unwrap();
+        let k2 = derive_key(b"dk", b"pin", b"salt").unwrap();
+        assert_eq!(k1, k2);
+    }
+
+    #[test]
+    fn test_derive_key_diverges_on_salt() {
+        let k1 = derive_key(b"dk", b"pin", b"salt1").unwrap();
+        let k2 = derive_key(b"dk", b"pin", b"salt2").unwrap();
+        assert_ne!(k1, k2);
+    }
 }

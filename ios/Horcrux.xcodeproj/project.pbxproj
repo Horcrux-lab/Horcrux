@@ -38,6 +38,7 @@
 		A1B2C3D4E5F6A7B8C9D0E1F2 /* CustomTokenStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2C3D4E5F6A7B8C9D0E1F2A1 /* CustomTokenStore.swift */; };
 		C3D4E5F6A7B8C9D0E1F2A1B2 /* CustomTokensView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D4E5F6A7B8C9D0E1F2A1B2C3 /* CustomTokensView.swift */; };
 		E5F6A7B8C9D0E1F2A1B2C3D4 /* ShardHealthView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F6A7B8C9D0E1F2A1B2C3D4E5 /* ShardHealthView.swift */; };
+		A1B2C3D4E5F6A7B8C9D0E1F3 /* HorcruxAppIntents.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2C3D4E5F6A7B8C9D0E1F2A3 /* HorcruxAppIntents.swift */; };
 		379BE3A131F9CE4A70AA1923 /* PendingBroadcastQueueTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2F2D677F4FC0A239EA253203 /* PendingBroadcastQueueTests.swift */; };
 		37C641C45ADB6ABE3721EB1F /* TransactionConfirmationPoller.swift in Sources */ = {isa = PBXBuildFile; fileRef = 95C0DF3FB32992A358342714 /* TransactionConfirmationPoller.swift */; };
 		39A1D2DBFA6831A2A883D1B6 /* CeremonyStateManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3B42A4B665C2E8E13CB2E1D /* CeremonyStateManager.swift */; };
@@ -171,6 +172,7 @@
 		B2C3D4E5F6A7B8C9D0E1F2A1 /* CustomTokenStore.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CustomTokenStore.swift; sourceTree = "<group>"; };
 		D4E5F6A7B8C9D0E1F2A1B2C3 /* CustomTokensView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CustomTokensView.swift; sourceTree = "<group>"; };
 		F6A7B8C9D0E1F2A1B2C3D4E5 /* ShardHealthView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ShardHealthView.swift; sourceTree = "<group>"; };
+		B2C3D4E5F6A7B8C9D0E1F2A3 /* HorcruxAppIntents.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HorcruxAppIntents.swift; sourceTree = "<group>"; };
 		71C26970D9D9C110CD5AFF06 /* AddressValidator.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AddressValidator.swift; sourceTree = "<group>"; };
 		85DE3C5A10CCE0DB2B96E51A /* AddressFormatter.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AddressFormatter.swift; sourceTree = "<group>"; };
 		B7C300001111AAA0 /* Bech32.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Bech32.swift; sourceTree = "<group>"; };
@@ -272,6 +274,7 @@
 				559B2D1CE5F41320F4A9A870 /* AppState.swift */,
 				BE6DF0A887F8A0C59358C3CA /* ContentView.swift */,
 				F8D5302000BBC22EADA2A1F6 /* HorcruxApp.swift */,
+				B2C3D4E5F6A7B8C9D0E1F2A3 /* HorcruxAppIntents.swift */,
 			);
 			path = App;
 			sourceTree = "<group>";
@@ -697,6 +700,7 @@
 				4D664723A80343ECADB1A722 /* DKGTestView.swift in Sources */,
 				C6E93F671BDFB6D021F2C951 /* CreateShardViewModel.swift in Sources */,
 				4464CA3F4629F5A2DA4272C7 /* HorcruxApp.swift in Sources */,
+				A1B2C3D4E5F6A7B8C9D0E1F3 /* HorcruxAppIntents.swift in Sources */,
 				1A286F0E6C2F3FD1B7669F57 /* HorcruxBridge.swift in Sources */,
 				1FF4562440BA4836269A35B4 /* HorcruxTheme.swift in Sources */,
 				7796AADB086F4ADF8D3A1DAE /* KeychainManager.swift in Sources */,
