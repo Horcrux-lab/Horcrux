@@ -811,7 +811,7 @@
 "signingX.broadcastFailed" = "Broadcast failed: %@";
 
 "onb.card1Title" = "No seed phrase";
-"onb.card1Subtitle" = "Horcrux doesn't use a 12/24-word seed phrase. The private key is split into shards and never exists as a whole anywhere.";
+"onb.card1Subtitle" = "No seed phrase to write down. Your private key is split into shards and never exists as a whole anywhere.";
 "onb.card2Title" = "Threshold signing across devices";
 "onb.card2Subtitle" = "Any 2 devices can sign together. If one device is stolen or lost, your assets stay safe.";
 "onb.card3Title" = "Multi-chain on one shard set";

@@ -811,7 +811,7 @@
 "signingX.broadcastFailed" = "广播失败：%@";
 
 "onb.card1Title" = "无需助记词";
-"onb.card1Subtitle" = "Horcrux 不用 12/24 个助记词。私钥被切分成多个分片，从未以完整形式存在于任何地方。";
+"onb.card1Subtitle" = "不用助记词。私钥被切分为多个分片，从未以完整形式存在于任何地方。";
 "onb.card2Title" = "多设备阈值签名";
 "onb.card2Subtitle" = "任意 2 台设备即可一起签名。单台设备被窃取或丢失，你的资产仍然安全。";
 "onb.card3Title" = "多链支持，一套分片";
