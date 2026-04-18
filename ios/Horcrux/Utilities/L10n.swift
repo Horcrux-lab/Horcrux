@@ -263,6 +263,62 @@ enum L10n {
         static func requiresDevices(_ t: Int, _ n: Int) -> String {
             String(format: NSLocalizedString("createShard.requiresDevices", comment: ""), t, n)
         }
+
+        // dev.44 — flow batch
+        static let rolePicker = NSLocalizedString("createShard.rolePicker", comment: "")
+        static let roleCreate = NSLocalizedString("createShard.roleCreate", comment: "")
+        static let roleJoin = NSLocalizedString("createShard.roleJoin", comment: "")
+        static let creatorFooter = NSLocalizedString("createShard.creatorFooter", comment: "")
+        static let joinerFooter = NSLocalizedString("createShard.joinerFooter", comment: "")
+        static let mpcTitle = NSLocalizedString("createShard.mpcTitle", comment: "")
+        static let mpcExplainerA11y = NSLocalizedString("createShard.mpcExplainerA11y", comment: "")
+        static let joinerValueProp = NSLocalizedString("createShard.joinerValueProp", comment: "")
+        static let chainEvmBtc = NSLocalizedString("createShard.chainEvmBtc", comment: "")
+        static let chainSolana = NSLocalizedString("createShard.chainSolana", comment: "")
+        static let addrsEvmBtc = NSLocalizedString("createShard.addrsEvmBtc", comment: "")
+        static let addrSolana = NSLocalizedString("createShard.addrSolana", comment: "")
+        static let advancedSettings = NSLocalizedString("createShard.advancedSettings", comment: "")
+        static let advancedDefaults = NSLocalizedString("createShard.advancedDefaults", comment: "")
+        static let connectMethod = NSLocalizedString("createShard.connectMethod", comment: "")
+        static let joinerSimpleHint = NSLocalizedString("createShard.joinerSimpleHint", comment: "")
+        static let nextWaitCreator = NSLocalizedString("createShard.nextWaitCreator", comment: "")
+        static let nofnAlertTitle = NSLocalizedString("createShard.nofnAlertTitle", comment: "")
+        static let nofnContinue = NSLocalizedString("createShard.nofnContinue", comment: "")
+        static let nofnRevert = NSLocalizedString("createShard.nofnRevert", comment: "")
+        static let recommendedNof3 = NSLocalizedString("createShard.recommendedNof3", comment: "")
+        static let noRedundancyBody = NSLocalizedString("createShard.noRedundancyBody", comment: "")
+        static let relayServer = NSLocalizedString("createShard.relayServer", comment: "")
+        static let relayServerHint = NSLocalizedString("createShard.relayServerHint", comment: "")
+        static let roomCodeLabel = NSLocalizedString("createShard.roomCodeLabel", comment: "")
+        static let roomCodePlaceholder = NSLocalizedString("createShard.roomCodePlaceholder", comment: "")
+        static let regenRoomCodeA11y = NSLocalizedString("createShard.regenRoomCodeA11y", comment: "")
+        static let scanRoomA11y = NSLocalizedString("createShard.scanRoomA11y", comment: "")
+        static let copyRoomCodeA11y = NSLocalizedString("createShard.copyRoomCodeA11y", comment: "")
+        static let scanHint = NSLocalizedString("createShard.scanHint", comment: "")
+        static let roomCodeInvalid = NSLocalizedString("createShard.roomCodeInvalid", comment: "")
+        static let scanRoomTitle = NSLocalizedString("createShard.scanRoomTitle", comment: "")
+
+        // MPC explainer sheet
+        static let explainerNoMnemonicTitle = NSLocalizedString("createShard.explainerNoMnemonicTitle", comment: "")
+        static let explainerNoMnemonicBody = NSLocalizedString("createShard.explainerNoMnemonicBody", comment: "")
+        static let explainerShardsTitle = NSLocalizedString("createShard.explainerShardsTitle", comment: "")
+        static let explainerShardsBody = NSLocalizedString("createShard.explainerShardsBody", comment: "")
+        static let explainerRecoverTitle = NSLocalizedString("createShard.explainerRecoverTitle", comment: "")
+        static let explainerRecoverBody = NSLocalizedString("createShard.explainerRecoverBody", comment: "")
+        static let explainerMultiChainTitle = NSLocalizedString("createShard.explainerMultiChainTitle", comment: "")
+        static let explainerMultiChainBody = NSLocalizedString("createShard.explainerMultiChainBody", comment: "")
+        static let explainerNavTitle = NSLocalizedString("createShard.explainerNavTitle", comment: "")
+        static let explainerDone = NSLocalizedString("createShard.explainerDone", comment: "")
+
+        static func creatorValueProp(_ total: Int, _ threshold: Int) -> String {
+            String(format: NSLocalizedString("createShard.creatorValueProp", comment: ""), total, threshold)
+        }
+        static func nofnAlertBody(_ threshold: Int, _ total: Int) -> String {
+            String(format: NSLocalizedString("createShard.nofnAlertBody", comment: ""), threshold, total)
+        }
+        static func noRedundancyTitle(_ threshold: Int, _ total: Int) -> String {
+            String(format: NSLocalizedString("createShard.noRedundancyTitle", comment: ""), threshold, total)
+        }
     }
 
     // MARK: - Discovery
@@ -282,6 +338,24 @@ enum L10n {
 
         static func timeoutIn(_ seconds: Int) -> String {
             String(format: NSLocalizedString("discovery.timeoutIn", comment: ""), seconds)
+        }
+
+        // dev.44 — discovery UI strings
+        static let secondsTimeout = NSLocalizedString("discovery.secondsTimeout", comment: "")
+        static let waitingInitiator = NSLocalizedString("discovery.waitingInitiator", comment: "")
+        static let initiatorLabel = NSLocalizedString("discovery.initiatorLabel", comment: "")
+        static let joinerLabel = NSLocalizedString("discovery.joinerLabel", comment: "")
+        static let joinerHint = NSLocalizedString("discovery.joinerHint", comment: "")
+        static let joinerWaitStart = NSLocalizedString("discovery.joinerWaitStart", comment: "")
+
+        static func initiatorId(_ id: String) -> String {
+            String(format: NSLocalizedString("discovery.initiatorId", comment: ""), id)
+        }
+        static func joinerId(_ id: String) -> String {
+            String(format: NSLocalizedString("discovery.joinerId", comment: ""), id)
+        }
+        static func connectedWaiting(_ count: Int) -> String {
+            String(format: NSLocalizedString("discovery.connectedWaiting", comment: ""), count)
         }
     }
 
@@ -334,6 +408,47 @@ enum L10n {
         static func thresholdOf(_ t: Int, _ n: Int) -> String {
             String(format: NSLocalizedString("dkg.thresholdOf", comment: ""), t, n)
         }
+
+        // dev.44 — progress + save fail alerts
+        static let wrappingUp = NSLocalizedString("dkg.wrappingUp", comment: "")
+        static let elapsedLabel = NSLocalizedString("dkg.elapsedLabel", comment: "")
+        static let remainingLabel = NSLocalizedString("dkg.remainingLabel", comment: "")
+        static let unbackedExitTitle = NSLocalizedString("dkg.unbackedExitTitle", comment: "")
+        static let unbackedExitContinue = NSLocalizedString("dkg.unbackedExitContinue", comment: "")
+        static let unbackedExitReturn = NSLocalizedString("dkg.unbackedExitReturn", comment: "")
+        static let unbackedExitBody = NSLocalizedString("dkg.unbackedExitBody", comment: "")
+        static let saveFailedTitle = NSLocalizedString("dkg.saveFailedTitle", comment: "")
+        static let saveFailedOk = NSLocalizedString("dkg.saveFailedOk", comment: "")
+
+        // VM errors
+        static let errMissingKeygen = NSLocalizedString("dkg.errMissingKeygen", comment: "")
+        static let errNoAddresses = NSLocalizedString("dkg.errNoAddresses", comment: "")
+        static let errCannotUnlockVault = NSLocalizedString("dkg.errCannotUnlockVault", comment: "")
+        static let errNotInParticipants = NSLocalizedString("dkg.errNotInParticipants", comment: "")
+
+        static func errNotEnoughPeers(_ needed: Int, _ current: Int) -> String {
+            String(format: NSLocalizedString("dkg.errNotEnoughPeers", comment: ""), needed, current)
+        }
+        static func errEncryptFailed(_ desc: String) -> String {
+            String(format: NSLocalizedString("dkg.errEncryptFailed", comment: ""), desc)
+        }
+        static func errStoreFailed(_ desc: String) -> String {
+            String(format: NSLocalizedString("dkg.errStoreFailed", comment: ""), desc)
+        }
+    }
+
+    // MARK: - Backup Gate
+
+    enum Backup {
+        static let lastStep = NSLocalizedString("backup.lastStep", comment: "")
+        static let whyBody = NSLocalizedString("backup.whyBody", comment: "")
+        static let bullet1 = NSLocalizedString("backup.bullet1", comment: "")
+        static let bullet2 = NSLocalizedString("backup.bullet2", comment: "")
+        static let bullet3 = NSLocalizedString("backup.bullet3", comment: "")
+        static let ackToggle = NSLocalizedString("backup.ackToggle", comment: "")
+        static let doneButton = NSLocalizedString("backup.doneButton", comment: "")
+        static let skipButton = NSLocalizedString("backup.skipButton", comment: "")
+        static let navTitle = NSLocalizedString("backup.navTitle", comment: "")
     }
 
     // MARK: - Signing

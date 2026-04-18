@@ -257,13 +257,13 @@ final class CreateShardViewModel: ObservableObject {
         names.append(UIDevice.current.name)
         names = Array(Set(names)).sorted()
         guard names.count >= totalParties else {
-            errorMessage = "在场设备不足（需要 \(totalParties) 台，当前 \(names.count) 台）"
+            errorMessage = L10n.DKG.errNotEnoughPeers(totalParties, names.count)
             step = .error
             return
         }
         let participants = Array(names.prefix(totalParties))
         guard let myIdx = participants.firstIndex(of: UIDevice.current.name) else {
-            errorMessage = "未能在参与者列表中找到本机 — 请重试"
+            errorMessage = L10n.DKG.errNotInParticipants
             step = .error
             return
         }
@@ -582,10 +582,10 @@ final class CreateShardViewModel: ObservableObject {
 
         var errorDescription: String? {
             switch self {
-            case .missingKeygenResult: return "密钥生成结果丢失，无法保存。请重新生成分片。"
-            case .noDerivedAddresses: return "未推导出任何链上地址，无法保存钱包。"
-            case .encryptFailed(let e): return "加密分片失败：\(e.localizedDescription)"
-            case .storeFailed(let e): return "写入钥匙串失败：\(e.localizedDescription)"
+            case .missingKeygenResult: return L10n.DKG.errMissingKeygen
+            case .noDerivedAddresses: return L10n.DKG.errNoAddresses
+            case .encryptFailed(let e): return L10n.DKG.errEncryptFailed(e.localizedDescription)
+            case .storeFailed(let e): return L10n.DKG.errStoreFailed(e.localizedDescription)
             }
         }
     }
@@ -682,7 +682,7 @@ final class CreateShardViewModel: ObservableObject {
             NSLog("[Save] ❌ cachedShardKey() is nil after verifyPin — vault corrupt")
             throw SaveError.storeFailed(NSError(
                 domain: "Horcrux.Save", code: 1,
-                userInfo: [NSLocalizedDescriptionKey: "无法解开密钥保险库。请在设置中重设 PIN 后重试。"]
+                userInfo: [NSLocalizedDescriptionKey: L10n.DKG.errCannotUnlockVault]
             ))
         }
         try saveWallet(to: appState, keyMaterial: swk)

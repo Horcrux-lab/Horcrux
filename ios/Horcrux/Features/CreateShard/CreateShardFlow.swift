@@ -55,16 +55,16 @@ struct ConfigureView: View {
             // Role selector — creator (chooses m/n/curve) vs joiner
             // (adopts creator's SessionBegin broadcast automatically).
             Section {
-                Picker("角色", selection: $viewModel.role) {
-                    Text("创建新钱包").tag(CreateShardViewModel.Role.create)
-                    Text("加入他人创建").tag(CreateShardViewModel.Role.join)
+                Picker(L10n.CreateShard.rolePicker, selection: $viewModel.role) {
+                    Text(L10n.CreateShard.roleCreate).tag(CreateShardViewModel.Role.create)
+                    Text(L10n.CreateShard.roleJoin).tag(CreateShardViewModel.Role.join)
                 }
                 .pickerStyle(.segmented)
                 .accessibilityIdentifier("configure_rolePicker")
             } footer: {
                 Text(viewModel.role == .create
-                     ? "由你决定门限、参与方数量与链类型。其他设备只需输入相同的房间码即可加入。"
-                     : "只需输入与发起人一致的房间码。参数、链和开始时机都由发起人决定。")
+                     ? L10n.CreateShard.creatorFooter
+                     : L10n.CreateShard.joinerFooter)
                     .font(.caption2)
                     .foregroundStyle(.secondary)
             }
@@ -75,7 +75,7 @@ struct ConfigureView: View {
                     HStack {
                         Image(systemName: "shield.lefthalf.filled")
                             .foregroundStyle(.green)
-                        Text("门限签名钱包")
+                        Text(L10n.CreateShard.mpcTitle)
                             .font(.headline)
                         Spacer()
                         Button {
@@ -83,14 +83,14 @@ struct ConfigureView: View {
                         } label: {
                             Image(systemName: "info.circle")
                         }
-                        .accessibilityLabel("什么是门限签名")
+                        .accessibilityLabel(L10n.CreateShard.mpcExplainerA11y)
                     }
                     if viewModel.role == .create {
-                        Text("无需助记词。密钥分成 \(viewModel.totalParties) 片分发到不同设备，任意 \(viewModel.threshold) 片即可签名 —— 丢失任一设备仍可恢复。")
+                        Text(L10n.CreateShard.creatorValueProp(viewModel.totalParties, viewModel.threshold))
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     } else {
-                        Text("无需助记词。你将加入发起人创建的门限签名钱包，并在本机获得一份密钥分片。")
+                        Text(L10n.CreateShard.joinerValueProp)
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
@@ -108,29 +108,29 @@ struct ConfigureView: View {
             if viewModel.role == .create {
                 Section(L10n.CreateShard.blockchain) {
                     Picker(L10n.CreateShard.chain, selection: $viewModel.selectedCurve) {
-                        Text("EVM 链 + Bitcoin")
+                        Text(L10n.CreateShard.chainEvmBtc)
                             .tag(FfiCurveType.secp256k1)
-                        Text("Solana")
+                        Text(L10n.CreateShard.chainSolana)
                             .tag(FfiCurveType.ed25519)
                     }
                     .pickerStyle(.inline)
 
                     Text(viewModel.selectedCurve == .secp256k1
-                         ? "将生成：ETH · BTC 地址（共享同一密钥分片）"
-                         : "将生成：SOL 地址")
+                         ? L10n.CreateShard.addrsEvmBtc
+                         : L10n.CreateShard.addrSolana)
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
 
                 // Advanced settings (item 1: reduce cognitive load)
                 Section {
-                    DisclosureGroup("高级设置", isExpanded: $showAdvanced) {
+                    DisclosureGroup(L10n.CreateShard.advancedSettings, isExpanded: $showAdvanced) {
                         advancedThresholdStepper
                         advancedTransportToggles
                     }
                 } footer: {
                     if !showAdvanced {
-                        Text("默认：2-of-3 · 通过中继服务器发现设备 · 房间码已自动生成")
+                        Text(L10n.CreateShard.advancedDefaults)
                             .font(.caption2)
                             .foregroundStyle(.secondary)
                     }
@@ -139,11 +139,11 @@ struct ConfigureView: View {
                 // Joiner only exposes transports + room code; m/n and
                 // curve will be dictated by the creator's SessionBegin.
                 Section {
-                    DisclosureGroup("连接方式", isExpanded: $showAdvanced) {
+                    DisclosureGroup(L10n.CreateShard.connectMethod, isExpanded: $showAdvanced) {
                         advancedTransportToggles
                     }
                 } footer: {
-                    Text("输入与发起人一致的房间码即可。")
+                    Text(L10n.CreateShard.joinerSimpleHint)
                         .font(.caption2)
                         .foregroundStyle(.secondary)
                 }
@@ -162,7 +162,7 @@ struct ConfigureView: View {
                 } label: {
                     Text(viewModel.role == .create
                          ? L10n.CreateShard.nextFindPeers
-                         : "下一步：等待发起人")
+                         : L10n.CreateShard.nextWaitCreator)
                         .frame(maxWidth: .infinity)
                         .font(.headline)
                 }
@@ -172,23 +172,17 @@ struct ConfigureView: View {
                 .accessibilityIdentifier("configure_nextButton")
             }
         }
-        .alert("⚠️ 无冗余配置", isPresented: $showNofNConfirm) {
-            Button("我理解风险，继续", role: .destructive) {
+        .alert(L10n.CreateShard.nofnAlertTitle, isPresented: $showNofNConfirm) {
+            Button(L10n.CreateShard.nofnContinue, role: .destructive) {
                 viewModel.step = .discover
                 viewModel.startDiscovery()
             }
-            Button("改回 2-of-3（推荐）", role: .cancel) {
+            Button(L10n.CreateShard.nofnRevert, role: .cancel) {
                 viewModel.totalParties = 3
                 viewModel.threshold = 2
             }
         } message: {
-            Text("""
-            你选择了 \(viewModel.threshold)-of-\(viewModel.totalParties)：所有设备都必须参与签名。
-
-            ⚠️ 任何一台设备丢失、损坏或无法访问 → 钱包永久无法使用，资产无法取出。
-
-            强烈推荐 2-of-3（3 台生成，任意 2 台签名），在安全和容灾之间取得平衡。
-            """)
+            Text(L10n.CreateShard.nofnAlertBody(viewModel.threshold, viewModel.totalParties))
         }
         .sheet(isPresented: $showExplainer) {
             MPCExplainerSheet()
@@ -221,7 +215,7 @@ struct ConfigureView: View {
 
         if viewModel.totalParties == 3 && viewModel.threshold == 2 {
             Label {
-                Text("推荐：3 台生成，任意 2 台即可签名。")
+                Text(L10n.CreateShard.recommendedNof3)
                     .font(.caption)
             } icon: {
                 Image(systemName: "checkmark.shield.fill").foregroundStyle(.green)
@@ -229,9 +223,9 @@ struct ConfigureView: View {
         } else if viewModel.totalParties == viewModel.threshold {
             Label {
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("🚨 \(viewModel.threshold)-of-\(viewModel.totalParties)：无冗余")
+                    Text(L10n.CreateShard.noRedundancyTitle(viewModel.threshold, viewModel.totalParties))
                         .font(.caption.bold())
-                    Text("任一设备丢失 = 钱包永久不可用。确认继续前会再次提醒。")
+                    Text(L10n.CreateShard.noRedundancyBody)
                         .font(.caption2)
                 }
             } icon: {
@@ -263,7 +257,7 @@ struct ConfigureView: View {
         if viewModel.selectedTransports.contains(.relay) {
             VStack(alignment: .leading, spacing: 8) {
                 HStack {
-                    Text("中继服务器")
+                    Text(L10n.CreateShard.relayServer)
                         .font(.caption)
                         .foregroundStyle(.secondary)
                     Spacer()
@@ -273,17 +267,17 @@ struct ConfigureView: View {
                         .lineLimit(1)
                         .truncationMode(.middle)
                 }
-                Text("如需更改服务器地址，前往 设置 → 中继服务器")
+                Text(L10n.CreateShard.relayServerHint)
                     .font(.caption2)
                     .foregroundStyle(.tertiary)
 
-                Text("房间码（3 个单词）")
+                Text(L10n.CreateShard.roomCodeLabel)
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .padding(.top, 4)
 
                 HStack {
-                    TextField("apple-tiger-moon", text: $viewModel.roomCode)
+                    TextField(L10n.CreateShard.roomCodePlaceholder, text: $viewModel.roomCode)
                         .font(.system(.body, design: .monospaced))
                         .autocorrectionDisabled()
                         .textInputAutocapitalization(.never)
@@ -300,7 +294,7 @@ struct ConfigureView: View {
                         Image(systemName: "arrow.triangle.2.circlepath")
                     }
                     .buttonStyle(.bordered)
-                    .accessibilityLabel("生成新房间码")
+                    .accessibilityLabel(L10n.CreateShard.regenRoomCodeA11y)
 
                     Button {
                         showQRScanner = true
@@ -308,7 +302,7 @@ struct ConfigureView: View {
                         Image(systemName: "qrcode.viewfinder")
                     }
                     .buttonStyle(.bordered)
-                    .accessibilityLabel("扫码加入房间")
+                    .accessibilityLabel(L10n.CreateShard.scanRoomA11y)
                     .accessibilityIdentifier("configure_scanRoomCodeButton")
 
                     Button {
@@ -317,7 +311,7 @@ struct ConfigureView: View {
                         Image(systemName: "doc.on.doc")
                     }
                     .buttonStyle(.bordered)
-                    .accessibilityLabel("复制房间码")
+                    .accessibilityLabel(L10n.CreateShard.copyRoomCodeA11y)
                 }
 
                 if RoomCode.isValid(viewModel.roomCode) {
@@ -328,12 +322,12 @@ struct ConfigureView: View {
                         Spacer()
                     }
                     .padding(.top, 4)
-                    Text("让对方扫码即可快速输入房间码")
+                    Text(L10n.CreateShard.scanHint)
                         .font(.caption2)
                         .foregroundStyle(.secondary)
                         .frame(maxWidth: .infinity, alignment: .center)
                 } else if !viewModel.roomCode.isEmpty {
-                    Text("房间码应为 3 个用连字符分隔的单词")
+                    Text(L10n.CreateShard.roomCodeInvalid)
                         .font(.caption2)
                         .foregroundStyle(.orange)
                 }
@@ -351,7 +345,7 @@ private struct RoomCodeScanSheet: View {
         NavigationStack {
             QRScannerView(onScan: onScan)
                 .ignoresSafeArea()
-                .navigationTitle("扫描房间码")
+                .navigationTitle(L10n.CreateShard.scanRoomTitle)
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar {
                     ToolbarItem(placement: .cancellationAction) {
@@ -404,35 +398,35 @@ private struct MPCExplainerSheet: View {
                     explainerRow(
                         icon: "xmark.seal.fill",
                         color: .red,
-                        title: "无助记词",
-                        body: "传统钱包依赖 12/24 个助记词，写在纸上一旦泄露 = 钱包丢失。Horcrux 不生成助记词，无法被拍照、偷看或钓鱼。"
+                        title: L10n.CreateShard.explainerNoMnemonicTitle,
+                        body: L10n.CreateShard.explainerNoMnemonicBody
                     )
                     explainerRow(
                         icon: "rectangle.split.3x1.fill",
                         color: .blue,
-                        title: "密钥分片",
-                        body: "DKG（分布式密钥生成）算法让每台设备只持有部分密钥。任何单台设备被攻破都不会泄露完整私钥。"
+                        title: L10n.CreateShard.explainerShardsTitle,
+                        body: L10n.CreateShard.explainerShardsBody
                     )
                     explainerRow(
                         icon: "checkmark.shield.fill",
                         color: .green,
-                        title: "丢设备也能恢复",
-                        body: "2-of-3 配置下，任何 2 台设备即可签名。丢失 1 台，用剩下 2 台签发交易，把资产转到新钱包。"
+                        title: L10n.CreateShard.explainerRecoverTitle,
+                        body: L10n.CreateShard.explainerRecoverBody
                     )
                     explainerRow(
                         icon: "link.circle.fill",
                         color: .purple,
-                        title: "一次 DKG，多链共享",
-                        body: "secp256k1 曲线一次生成即可同时用于 ETH 与 BTC 地址，无需重复创建。"
+                        title: L10n.CreateShard.explainerMultiChainTitle,
+                        body: L10n.CreateShard.explainerMultiChainBody
                     )
                 }
                 .padding()
             }
-            .navigationTitle("什么是门限签名？")
+            .navigationTitle(L10n.CreateShard.explainerNavTitle)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("完成") { dismiss() }
+                    Button(L10n.CreateShard.explainerDone) { dismiss() }
                 }
             }
         }
@@ -492,7 +486,7 @@ struct PeerDiscoveryView: View {
                     Text("\(timeRemaining)")
                         .font(.system(size: 44, weight: .bold, design: .monospaced))
                         .foregroundStyle(timeRemaining < 15 ? Color.red : Color.primary)
-                    Text("秒后超时")
+                    Text(L10n.Discovery.secondsTimeout)
                         .font(.caption2)
                         .foregroundStyle(.secondary)
                 }
@@ -508,8 +502,8 @@ struct PeerDiscoveryView: View {
                       : "person.crop.circle.badge.checkmark")
                     .foregroundStyle(viewModel.role == .create ? .orange : HorcruxTheme.accentCyan)
                 Text(viewModel.role == .create
-                     ? "发起人 · My ID: \(viewModel.localPeerId)"
-                     : "加入者 · My ID: \(viewModel.localPeerId)")
+                     ? L10n.Discovery.initiatorId(viewModel.localPeerId)
+                     : L10n.Discovery.joinerId(viewModel.localPeerId))
                     .font(.system(.caption, design: .monospaced))
                     .foregroundStyle(HorcruxTheme.accentCyan)
             }
@@ -525,11 +519,11 @@ struct PeerDiscoveryView: View {
                 HStack(spacing: 8) {
                     if presentCount == 0 {
                         ProgressView().controlSize(.small)
-                        Text("正在等待发起人…")
+                        Text(L10n.Discovery.waitingInitiator)
                     } else {
                         Image(systemName: "antenna.radiowaves.left.and.right")
                             .foregroundStyle(.green)
-                        Text("已连接 \(presentCount) 台设备 · 等待发起人启动")
+                        Text(L10n.Discovery.connectedWaiting(presentCount))
                     }
                 }
                 .font(.headline)
@@ -546,7 +540,7 @@ struct PeerDiscoveryView: View {
                         VStack(alignment: .leading) {
                             Text(pres.deviceName)
                                 .font(.headline)
-                            Text(pres.role == "create" ? "发起人" : "加入者")
+                            Text(pres.role == "create" ? L10n.Discovery.initiatorLabel : L10n.Discovery.joinerLabel)
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                         }
@@ -587,7 +581,7 @@ struct PeerDiscoveryView: View {
                     .accessibilityHint(L10n.Discovery.startKeyGenHint)
                     .accessibilityIdentifier("discover_startDKGButton")
                 } else {
-                    Text("提示：加入者需在同一房间码下开启「加入他人创建」流程")
+                    Text(L10n.Discovery.joinerHint)
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .multilineTextAlignment(.center)
@@ -596,7 +590,7 @@ struct PeerDiscoveryView: View {
             } else {
                 // Joiner: no button. Auto-advances when the creator's
                 // SessionBegin arrives (handled in the view model).
-                Text("发起人点击开始后，本机会自动进入密钥生成。")
+                Text(L10n.Discovery.joinerWaitStart)
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
@@ -659,7 +653,7 @@ struct DKGProgressView: View {
             return "~\(remaining)s"
         }
         // We've already exceeded the estimate — don't lie with "0s".
-        return "收尾中…"
+        return L10n.DKG.wrappingUp
     }
 
     var body: some View {
@@ -690,14 +684,14 @@ struct DKGProgressView: View {
                 VStack {
                     Text("\(elapsedSeconds)s")
                         .font(.headline.monospacedDigit())
-                    Text("已用时").font(.caption2).foregroundStyle(.secondary)
+                    Text(L10n.DKG.elapsedLabel).font(.caption2).foregroundStyle(.secondary)
                 }
                 Divider().frame(height: 30)
                 VStack {
                     Text(remainingLabel)
                         .font(.headline.monospacedDigit())
                         .foregroundStyle(.secondary)
-                    Text("预计剩余").font(.caption2).foregroundStyle(.secondary)
+                    Text(L10n.DKG.remainingLabel).font(.caption2).foregroundStyle(.secondary)
                 }
             }
 
@@ -828,20 +822,20 @@ struct DKGCompleteView: View {
             )
             .interactiveDismissDisabled(true)
         }
-        .alert("⚠️ 未备份就退出？", isPresented: $showSkipBackupWarn) {
-            Button("我承担风险，稍后备份", role: .destructive) {
+        .alert(L10n.DKG.unbackedExitTitle, isPresented: $showSkipBackupWarn) {
+            Button(L10n.DKG.unbackedExitContinue, role: .destructive) {
                 showBackupGate = false
                 dismiss()
             }
-            Button("返回备份", role: .cancel) { }
+            Button(L10n.DKG.unbackedExitReturn, role: .cancel) { }
         } message: {
-            Text("如果你丢失或损坏这台设备，没有备份将无法恢复这份分片，可能导致钱包永久锁死。")
+            Text(L10n.DKG.unbackedExitBody)
         }
-        .alert("保存失败", isPresented: Binding(
+        .alert(L10n.DKG.saveFailedTitle, isPresented: Binding(
             get: { saveError != nil },
             set: { if !$0 { saveError = nil } }
         )) {
-            Button("好", role: .cancel) { saveError = nil }
+            Button(L10n.DKG.saveFailedOk, role: .cancel) { saveError = nil }
         } message: {
             Text(saveError ?? "")
         }
@@ -893,25 +887,25 @@ private struct BackupGateSheet: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 20) {
                     Label {
-                        Text("最后一步：备份分片").font(.title2.bold())
+                        Text(L10n.Backup.lastStep).font(.title2.bold())
                     } icon: {
                         Image(systemName: "icloud.and.arrow.up.fill")
                             .foregroundStyle(.blue)
                     }
 
-                    Text("MPC 钱包的关键是——只要有 t 份分片就能恢复。这台设备上的分片如果只有一份且未备份，一旦设备损坏、丢失或被擦除，钱包将无法使用。")
+                    Text(L10n.Backup.whyBody)
                         .font(.callout)
                         .foregroundStyle(.secondary)
 
                     VStack(alignment: .leading, spacing: 10) {
-                        bullet("把分片导出到 iCloud Drive / 加密文件")
-                        bullet("或让另一台信任设备加入、共同持有分片")
-                        bullet("记下钱包名和恢复说明，存到不同位置")
+                        bullet(L10n.Backup.bullet1)
+                        bullet(L10n.Backup.bullet2)
+                        bullet(L10n.Backup.bullet3)
                     }
                     .font(.callout)
 
                     Toggle(isOn: $acknowledged) {
-                        Text("我已经做了备份，并能在新设备上恢复。")
+                        Text(L10n.Backup.ackToggle)
                             .font(.callout)
                     }
                     .tint(.blue)
@@ -919,7 +913,7 @@ private struct BackupGateSheet: View {
                     .background(RoundedRectangle(cornerRadius: 10).fill(Color.gray.opacity(0.12)))
 
                     Button(action: onBackupNow) {
-                        Label("我已做好备份，完成", systemImage: "checkmark.circle")
+                        Label(L10n.Backup.doneButton, systemImage: "checkmark.circle")
                             .frame(maxWidth: .infinity)
                             .font(.headline)
                     }
@@ -927,7 +921,7 @@ private struct BackupGateSheet: View {
                     .disabled(!acknowledged)
 
                     Button(role: .destructive, action: onSkip) {
-                        Text("稍后备份（不推荐）")
+                        Text(L10n.Backup.skipButton)
                             .frame(maxWidth: .infinity)
                             .font(.callout)
                     }
@@ -935,7 +929,7 @@ private struct BackupGateSheet: View {
                 }
                 .padding()
             }
-            .navigationTitle("备份分片")
+            .navigationTitle(L10n.Backup.navTitle)
             .navigationBarTitleDisplayMode(.inline)
         }
     }
