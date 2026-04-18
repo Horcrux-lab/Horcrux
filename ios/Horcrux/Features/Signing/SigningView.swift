@@ -168,7 +168,7 @@ struct ComposeTransactionView: View {
                             }
                         }
                     )) {
-                        Text(viewModel.wallet.chain.symbol + "（原生代币）").tag("__native__")
+                        Text(viewModel.wallet.chain.symbol + L10n.SigningExtra.nativeTokenSuffix).tag("__native__")
                         ForEach(viewModel.availableTokens, id: \.id) { token in
                             Text("\(token.symbol) — \(token.name)").tag(token.id)
                         }
@@ -207,7 +207,7 @@ struct ComposeTransactionView: View {
 
                     if viewModel.feeTier == .custom {
                         HStack {
-                            Text("Gas 价 (gwei)")
+                            Text(L10n.SigningExtra.gasPriceGwei)
                             Spacer()
                             TextField(L10n.Signing.customGasPlaceholder, text: $viewModel.customGasPriceGwei)
                                 .keyboardType(.decimalPad)
@@ -307,7 +307,7 @@ struct ComposeTransactionView: View {
                     ensStatus = "→ \(addr.prefix(10))…\(addr.suffix(6))"
                     viewModel.recipientAddress = addr
                 } else {
-                    ensStatus = "ENS 解析失败，请手动粘贴地址。"
+                    ensStatus = L10n.SigningExtra.ensResolveFailed
                 }
             }
         }
@@ -660,7 +660,7 @@ struct SigningCompleteView: View {
                                     reason: L10n.Signing.bioReason
                                 )
                                 if !ok {
-                                    viewModel.broadcastStatus = "❌ 生物识别失败"
+                                    viewModel.broadcastStatus = L10n.SigningExtra.bioFailedIcon
                                     return
                                 }
                             }
@@ -749,9 +749,9 @@ struct TransactionPreviewCard: View {
     private var operationLabel: String {
         if !isTokenTransfer { return L10n.Signing.nativeTransfer }
         switch viewModel.wallet.chain {
-        case .tron: return "TRC-20 代币转账"
-        case .solana: return "SPL 代币转账"
-        default: return "ERC-20 代币转账"
+        case .tron: return L10n.SigningExtra.tokenTransferTRC20
+        case .solana: return L10n.SigningExtra.tokenTransferSPL
+        default: return L10n.SigningExtra.tokenTransferERC20
         }
     }
 

@@ -1097,6 +1097,82 @@ extension L10n {
         static let refreshShardsComingSoon = NSLocalizedString("settingsR.refreshShardsComingSoon", comment: "")
         static let replaceNavTitle = NSLocalizedString("settingsR.replaceNavTitle", comment: "")
     }
+
+    // MARK: - dev.48 additions
+
+    enum SigningExtra {
+        static let speedSlow = NSLocalizedString("signingX.speedSlow", comment: "")
+        static let speedNormal = NSLocalizedString("signingX.speedNormal", comment: "")
+        static let speedFast = NSLocalizedString("signingX.speedFast", comment: "")
+        static let speedCustom = NSLocalizedString("signingX.speedCustom", comment: "")
+        static let nativeTokenSuffix = NSLocalizedString("signingX.nativeTokenSuffix", comment: "")
+        static let gasPriceGwei = NSLocalizedString("signingX.gasPriceGwei", comment: "")
+        static let ensResolveFailed = NSLocalizedString("signingX.ensResolveFailed", comment: "")
+        static let bioFailedIcon = NSLocalizedString("signingX.bioFailedIcon", comment: "")
+        static let tokenTransferTRC20 = NSLocalizedString("signingX.tokenTransferTRC20", comment: "")
+        static let tokenTransferSPL = NSLocalizedString("signingX.tokenTransferSPL", comment: "")
+        static let tokenTransferERC20 = NSLocalizedString("signingX.tokenTransferERC20", comment: "")
+        static let broadcastFailTronSigMissing = NSLocalizedString("signingX.broadcastFailTronSigMissing", comment: "")
+
+        static func feeTRXEnergy(_ trx: Double, _ energy: UInt64) -> String {
+            String(format: NSLocalizedString("signingX.feeTRXEnergy", comment: ""), trx, energy)
+        }
+        static func broadcastFailed(_ msg: String) -> String {
+            String(format: NSLocalizedString("signingX.broadcastFailed", comment: ""), msg)
+        }
+    }
+
+    enum OnboardingCards {
+        static let card1Title = NSLocalizedString("onb.card1Title", comment: "")
+        static let card1Subtitle = NSLocalizedString("onb.card1Subtitle", comment: "")
+        static let card2Title = NSLocalizedString("onb.card2Title", comment: "")
+        static let card2Subtitle = NSLocalizedString("onb.card2Subtitle", comment: "")
+        static let card3Title = NSLocalizedString("onb.card3Title", comment: "")
+        static let card3Subtitle = NSLocalizedString("onb.card3Subtitle", comment: "")
+        static let continueBtn = NSLocalizedString("onb.continueBtn", comment: "")
+    }
+
+    enum ShardsVM {
+        static let pinRequired = NSLocalizedString("shardsVM.pinRequired", comment: "")
+        static let pinWrong = NSLocalizedString("shardsVM.pinWrong", comment: "")
+        static let icloudRKUnavailable = NSLocalizedString("shardsVM.icloudRKUnavailable", comment: "")
+        static let encModeICloudRK = NSLocalizedString("shardsVM.encModeICloudRK", comment: "")
+        static let encModePIN = NSLocalizedString("shardsVM.encModePIN", comment: "")
+
+        static func exportedSummary(_ chains: Int, _ bytes: Int, _ mode: String) -> String {
+            let key = chains > 1 ? "shardsVM.exportedSummaryPlural" : "shardsVM.exportedSummary"
+            return String(format: NSLocalizedString(key, comment: ""), chains, bytes, mode)
+        }
+    }
+
+    enum BackupCrypto {
+        static let decryptFailed = NSLocalizedString("backupCrypto.decryptFailed", comment: "")
+
+        static func unsupportedVersion(_ v: Any) -> String {
+            String(format: NSLocalizedString("backupCrypto.unsupportedVersion", comment: ""), "\(v)")
+        }
+        static func malformed(_ m: String) -> String {
+            String(format: NSLocalizedString("backupCrypto.malformed", comment: ""), m)
+        }
+    }
+
+    enum ColdSignErr {
+        static let mvpOnly2of2 = NSLocalizedString("coldSignErr.mvpOnly2of2", comment: "")
+        static let signatureMissing = NSLocalizedString("coldSignErr.signatureMissing", comment: "")
+
+        static func qrMismatchPhase(_ phase: String) -> String {
+            String(format: NSLocalizedString("coldSignErr.qrMismatchPhase", comment: ""), phase)
+        }
+    }
+
+    enum ReceiveExtra {
+        static let requestAmount = NSLocalizedString("receiveX.requestAmount", comment: "")
+        static let optional = NSLocalizedString("receiveX.optional", comment: "")
+    }
+
+    enum CustomTokensExtra {
+        static let solanaMintPlaceholder = NSLocalizedString("customTokensX.solanaMintPlaceholder", comment: "")
+    }
 }
 
 // swiftlint:enable type_body_length file_length

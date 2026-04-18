@@ -78,10 +78,10 @@ struct ReceiveView: View {
 
                     // Amount request (optional)
                     HStack {
-                        Text("请求金额")
+                        Text(L10n.ReceiveExtra.requestAmount)
                             .font(.subheadline)
                             .foregroundStyle(HorcruxTheme.subtleText)
-                        TextField("可选", text: $requestedAmount)
+                        TextField(L10n.ReceiveExtra.optional, text: $requestedAmount)
                             .keyboardType(.decimalPad)
                             .multilineTextAlignment(.trailing)
                             .foregroundStyle(.white)

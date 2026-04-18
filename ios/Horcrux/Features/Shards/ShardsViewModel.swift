@@ -51,11 +51,11 @@ final class ShardsViewModel: ObservableObject {
         // If it's not cached, the caller supplied a PIN; verify + unlock.
         if appState.cachedShardKey() == nil {
             guard !pin.isEmpty else {
-                error = "请输入 PIN 以解锁分片"
+                error = L10n.ShardsVM.pinRequired
                 return
             }
             guard appState.verifyPin(pin) else {
-                error = "PIN 错误"
+                error = L10n.ShardsVM.pinWrong
                 return
             }
         }
@@ -89,7 +89,7 @@ final class ShardsViewModel: ObservableObject {
             } catch {
                 SecureLog.warning("RK unavailable for backup, falling back to PIN: \(error.localizedDescription)")
                 guard !pin.isEmpty else {
-                    self.error = "无法访问 iCloud 恢复密钥，请输入 PIN 作为备份密码"
+                    self.error = L10n.ShardsVM.icloudRKUnavailable
                     return
                 }
                 envelope = try PortableBackupCrypto.encrypt(plaintext: plaintext, password: pin)
@@ -130,8 +130,8 @@ final class ShardsViewModel: ObservableObject {
 
             let data = try encoder.encode(backup)
             exportData = data
-            let mode = usedRK ? "iCloud 恢复密钥" : "PIN"
-            backupStatus = "Account exported — \(siblings.count) chain\(siblings.count > 1 ? "s" : "") · \(data.count) bytes (\(mode) 加密)"
+            let mode = usedRK ? L10n.ShardsVM.encModeICloudRK : L10n.ShardsVM.encModePIN
+            backupStatus = L10n.ShardsVM.exportedSummary(siblings.count, data.count, mode)
             SecureLog.info("Account backup created for \(accountId.prefix(8)) (v\(backupVersion))")
         } catch {
             self.error = error.localizedDescription

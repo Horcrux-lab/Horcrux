@@ -55,10 +55,10 @@ final class SigningViewModel: ObservableObject {
         var id: String { rawValue }
         var label: String {
             switch self {
-            case .slow: return "慢"
-            case .normal: return "标准"
-            case .fast: return "快"
-            case .custom: return "自定义"
+            case .slow: return L10n.SigningExtra.speedSlow
+            case .normal: return L10n.SigningExtra.speedNormal
+            case .fast: return L10n.SigningExtra.speedFast
+            case .custom: return L10n.SigningExtra.speedCustom
             }
         }
         /// Multiplier applied to maxFeePerGas & maxPriorityFeePerGas
@@ -357,7 +357,7 @@ final class SigningViewModel: ObservableObject {
                                     apiURL: api
                                 )
                                 let trx = Double(result.feeSun) / 1_000_000.0
-                                feeTRX = String(format: "≈ %.2f TRX (%llu 能量)", trx, result.energy)
+                                feeTRX = L10n.SigningExtra.feeTRXEnergy(trx, result.energy)
                             } catch {
                                 feeTRX = "≈ 14 TRX"
                             }
@@ -1127,7 +1127,7 @@ final class SigningViewModel: ObservableObject {
                         guard let tron = self.pendingTronTx,
                               let sig = self.pendingTronSignature else {
                             await MainActor.run {
-                                broadcastStatus = "广播失败：TRON 签名状态缺失"
+                                broadcastStatus = L10n.SigningExtra.broadcastFailTronSigMissing
                                 isBroadcasting = false
                                 Haptics.error()
                                 if let id = currentRecordId {
@@ -1164,7 +1164,7 @@ final class SigningViewModel: ObservableObject {
             } catch {
                 await MainActor.run {
                     let mapped = NodeErrorMapper.map(error)
-                    broadcastStatus = "广播失败：\(mapped.message)"
+                    broadcastStatus = L10n.SigningExtra.broadcastFailed(mapped.message)
                     isBroadcasting = false
                     Haptics.error()
                     if let id = currentRecordId {

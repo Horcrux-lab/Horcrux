@@ -128,20 +128,20 @@ struct OnboardingView: View {
                 case .valueProp1:
                     valuePropPage(
                         icon: "shield.lefthalf.filled",
-                        title: "无需助记词",
-                        subtitle: "Horcrux 不用 12/24 个助记词。私钥被切分成多个分片，从未以完整形式存在于任何地方。"
+                        title: L10n.OnboardingCards.card1Title,
+                        subtitle: L10n.OnboardingCards.card1Subtitle
                     )
                 case .valueProp2:
                     valuePropPage(
                         icon: "iphone.and.arrow.forward",
-                        title: "多设备阈值签名",
-                        subtitle: "任意 2 台设备即可一起签名。单台设备被窃取或丢失，你的资产仍然安全。"
+                        title: L10n.OnboardingCards.card2Title,
+                        subtitle: L10n.OnboardingCards.card2Subtitle
                     )
                 case .valueProp3:
                     valuePropPage(
                         icon: "arrow.triangle.2.circlepath.circle.fill",
-                        title: "多链支持，一套分片",
-                        subtitle: "同一曲线的链（ETH / BTC）共用一套密钥分片，减少备份压力，自动派生多链地址。"
+                        title: L10n.OnboardingCards.card3Title,
+                        subtitle: L10n.OnboardingCards.card3Subtitle
                     )
                 case .createPin:
                     createPinContent
@@ -201,7 +201,7 @@ struct OnboardingView: View {
                     .lineSpacing(4)
             }
 
-            Button("继续") {
+            Button(L10n.OnboardingCards.continueBtn) {
                 withAnimation(.spring(response: 0.5)) {
                     switch step {
                     case .valueProp1: step = .valueProp2

@@ -9,7 +9,7 @@ enum SecureClipboard {
     /// Copy text to clipboard with automatic clearing after `expireSeconds`.
     /// Uses UIPasteboard expiration API for background safety (no Timer/GCD needed).
     /// Also emits a global toast + haptic so the user gets immediate confirmation.
-    static func copy(_ text: String, expireSeconds: TimeInterval = defaultExpireSeconds, toast: String = "已复制") {
+    static func copy(_ text: String, expireSeconds: TimeInterval = defaultExpireSeconds, toast: String = L10n.Common.copied) {
         let items: [[String: String]] = [["public.utf8-plain-text": text]]
         let options: [UIPasteboard.OptionsKey: Any] = [
             .expirationDate: Date().addingTimeInterval(expireSeconds)

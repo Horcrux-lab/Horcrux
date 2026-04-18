@@ -793,3 +793,48 @@
 "settingsR.refreshShardsComingSoon" = "真正的\"分片刷新\"（保持公钥/地址不变，仅轮换底层密钥份额）将在 Rust 底层暴露 CGGMP21 refresh 原语后支持，届时无需转账迁移。";
 "settingsR.replaceNavTitle" = "替换设备";
 "settingsR.hwWalletSubtitle" = "Ledger / Trezor 作为一个分片（计划中）";
+
+// dev.48 — Signing residual + Onboarding + ShardsVM + BackupCrypto + ColdSign err + Receive + CustomTokens
+"signingX.speedSlow" = "慢";
+"signingX.speedNormal" = "标准";
+"signingX.speedFast" = "快";
+"signingX.speedCustom" = "自定义";
+"signingX.nativeTokenSuffix" = "（原生代币）";
+"signingX.gasPriceGwei" = "Gas 价 (gwei)";
+"signingX.ensResolveFailed" = "ENS 解析失败，请手动粘贴地址。";
+"signingX.bioFailedIcon" = "❌ 生物识别失败";
+"signingX.tokenTransferTRC20" = "TRC-20 代币转账";
+"signingX.tokenTransferSPL" = "SPL 代币转账";
+"signingX.tokenTransferERC20" = "ERC-20 代币转账";
+"signingX.broadcastFailTronSigMissing" = "广播失败：TRON 签名状态缺失";
+"signingX.feeTRXEnergy" = "≈ %1$.2f TRX (%2$llu 能量)";
+"signingX.broadcastFailed" = "广播失败：%@";
+
+"onb.card1Title" = "无需助记词";
+"onb.card1Subtitle" = "Horcrux 不用 12/24 个助记词。私钥被切分成多个分片，从未以完整形式存在于任何地方。";
+"onb.card2Title" = "多设备阈值签名";
+"onb.card2Subtitle" = "任意 2 台设备即可一起签名。单台设备被窃取或丢失，你的资产仍然安全。";
+"onb.card3Title" = "多链支持，一套分片";
+"onb.card3Subtitle" = "同一曲线的链（ETH / BTC）共用一套密钥分片，减少备份压力，自动派生多链地址。";
+"onb.continueBtn" = "继续";
+
+"shardsVM.pinRequired" = "请输入 PIN 以解锁分片";
+"shardsVM.pinWrong" = "PIN 错误";
+"shardsVM.icloudRKUnavailable" = "无法访问 iCloud 恢复密钥，请输入 PIN 作为备份密码";
+"shardsVM.encModeICloudRK" = "iCloud 恢复密钥";
+"shardsVM.encModePIN" = "PIN";
+"shardsVM.exportedSummary" = "Account exported — %1$d chain · %2$d bytes (%3$@ 加密)";
+"shardsVM.exportedSummaryPlural" = "Account exported — %1$d chains · %2$d bytes (%3$@ 加密)";
+
+"backupCrypto.decryptFailed" = "密码/恢复密钥无法解密此备份";
+"backupCrypto.unsupportedVersion" = "不支持的备份版本 v%@";
+"backupCrypto.malformed" = "备份文件已损坏：%@";
+
+"coldSignErr.mvpOnly2of2" = "冷签名 MVP 仅支持 2-of-2 钱包，当前版本暂不支持 2-of-3。";
+"coldSignErr.signatureMissing" = "签名协议结束但未产出签名。这通常意味着对端的分片不属于同一钱包。";
+"coldSignErr.qrMismatchPhase" = "扫到的二维码与当前步骤不匹配（阶段 = %@）。请确认扫码顺序。";
+
+"receiveX.requestAmount" = "请求金额";
+"receiveX.optional" = "可选";
+
+"customTokensX.solanaMintPlaceholder" = "mint 地址";

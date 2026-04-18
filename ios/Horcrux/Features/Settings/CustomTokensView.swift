@@ -107,7 +107,7 @@ private struct AddCustomTokenSheet: View {
                     }
                 }
                 Section(L10n.CustomTokens.contractSection) {
-                    TextField(chain.isEVM ? "0x…" : (chain == .solana ? "mint 地址" : "T…"), text: $contract)
+                    TextField(chain.isEVM ? "0x…" : (chain == .solana ? L10n.CustomTokensExtra.solanaMintPlaceholder : "T…"), text: $contract)
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()
                         .font(.system(.body, design: .monospaced))

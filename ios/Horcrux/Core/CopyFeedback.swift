@@ -19,7 +19,7 @@ final class CopyFeedback: ObservableObject {
 
     /// Copy `value` to the clipboard and flash a transient toast.
     /// Pass an optional `label` to override the toast text (e.g. "地址已复制").
-    static func copy(_ value: String, label: String = "已复制") {
+    static func copy(_ value: String, label: String = L10n.Common.copied) {
         UIPasteboard.general.string = value
         Haptics.selection()
         shared.show(label)

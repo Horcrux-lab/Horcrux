@@ -42,9 +42,9 @@ enum PortableBackupCrypto {
 
         var errorDescription: String? {
             switch self {
-            case .unsupportedVersion(let v): return "不支持的备份版本 v\(v)"
-            case .malformed(let m): return "备份文件已损坏：\(m)"
-            case .decryptFailed: return "密码/恢复密钥无法解密此备份"
+            case .unsupportedVersion(let v): return L10n.BackupCrypto.unsupportedVersion(v)
+            case .malformed(let m): return L10n.BackupCrypto.malformed(m)
+            case .decryptFailed: return L10n.BackupCrypto.decryptFailed
             }
         }
     }

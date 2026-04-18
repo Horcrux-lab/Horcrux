@@ -185,11 +185,11 @@ final class ColdSigningCoordinator: ObservableObject {
         var errorDescription: String? {
             switch self {
             case .unsupportedWalletShape:
-                return "冷签名 MVP 仅支持 2-of-2 钱包，当前版本暂不支持 2-of-3。"
+                return L10n.ColdSignErr.mvpOnly2of2
             case .unexpectedPacket(let phase):
-                return "扫到的二维码与当前步骤不匹配（阶段 = \(phase)）。请确认扫码顺序。"
+                return L10n.ColdSignErr.qrMismatchPhase("\(phase)")
             case .noSignatureProduced:
-                return "签名协议结束但未产出签名。这通常意味着对端的分片不属于同一钱包。"
+                return L10n.ColdSignErr.signatureMissing
             }
         }
     }

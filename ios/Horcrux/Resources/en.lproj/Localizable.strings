@@ -793,3 +793,48 @@
 "settingsR.refreshShardsComingSoon" = "True \"shard refresh\" (same public key / address, only rotate underlying key shares) will arrive once the Rust layer exposes the CGGMP21 refresh primitive — no asset migration required.";
 "settingsR.replaceNavTitle" = "Replace device";
 "settingsR.hwWalletSubtitle" = "Ledger / Trezor as a shard (planned)";
+
+// dev.48 — Signing residual + Onboarding + ShardsVM + BackupCrypto + ColdSign err + Receive + CustomTokens
+"signingX.speedSlow" = "Slow";
+"signingX.speedNormal" = "Normal";
+"signingX.speedFast" = "Fast";
+"signingX.speedCustom" = "Custom";
+"signingX.nativeTokenSuffix" = " (native)";
+"signingX.gasPriceGwei" = "Gas price (gwei)";
+"signingX.ensResolveFailed" = "ENS resolution failed, paste the address manually.";
+"signingX.bioFailedIcon" = "❌ Biometric auth failed";
+"signingX.tokenTransferTRC20" = "TRC-20 token transfer";
+"signingX.tokenTransferSPL" = "SPL token transfer";
+"signingX.tokenTransferERC20" = "ERC-20 token transfer";
+"signingX.broadcastFailTronSigMissing" = "Broadcast failed: TRON signing state missing";
+"signingX.feeTRXEnergy" = "≈ %1$.2f TRX (%2$llu energy)";
+"signingX.broadcastFailed" = "Broadcast failed: %@";
+
+"onb.card1Title" = "No seed phrase";
+"onb.card1Subtitle" = "Horcrux doesn't use a 12/24-word seed phrase. The private key is split into shards and never exists as a whole anywhere.";
+"onb.card2Title" = "Threshold signing across devices";
+"onb.card2Subtitle" = "Any 2 devices can sign together. If one device is stolen or lost, your assets stay safe.";
+"onb.card3Title" = "Multi-chain on one shard set";
+"onb.card3Subtitle" = "Chains sharing a curve (ETH / BTC) share one set of key shards — less backup burden, addresses derived automatically.";
+"onb.continueBtn" = "Continue";
+
+"shardsVM.pinRequired" = "Enter your PIN to unlock the shard";
+"shardsVM.pinWrong" = "Incorrect PIN";
+"shardsVM.icloudRKUnavailable" = "Can't access the iCloud recovery key — enter your PIN as a fallback password";
+"shardsVM.encModeICloudRK" = "iCloud recovery key";
+"shardsVM.encModePIN" = "PIN";
+"shardsVM.exportedSummary" = "Account exported — %1$d chain · %2$d bytes (%3$@ encrypted)";
+"shardsVM.exportedSummaryPlural" = "Account exported — %1$d chains · %2$d bytes (%3$@ encrypted)";
+
+"backupCrypto.decryptFailed" = "Password / recovery key can't decrypt this backup";
+"backupCrypto.unsupportedVersion" = "Unsupported backup version v%@";
+"backupCrypto.malformed" = "Backup file is corrupted: %@";
+
+"coldSignErr.mvpOnly2of2" = "Cold-signing MVP only supports 2-of-2 wallets; 2-of-3 isn't supported yet.";
+"coldSignErr.signatureMissing" = "The signing protocol ended without producing a signature. This usually means the peer's shard doesn't belong to the same wallet.";
+"coldSignErr.qrMismatchPhase" = "The scanned QR doesn't match the current step (phase = %@). Check the scan order.";
+
+"receiveX.requestAmount" = "Request amount";
+"receiveX.optional" = "Optional";
+
+"customTokensX.solanaMintPlaceholder" = "mint address";
