@@ -39,6 +39,8 @@
 		C3D4E5F6A7B8C9D0E1F2A1B2 /* CustomTokensView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D4E5F6A7B8C9D0E1F2A1B2C3 /* CustomTokensView.swift */; };
 		E5F6A7B8C9D0E1F2A1B2C3D4 /* ShardHealthView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F6A7B8C9D0E1F2A1B2C3D4E5 /* ShardHealthView.swift */; };
 		A1B2C3D4E5F6A7B8C9D0E1F3 /* HorcruxAppIntents.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2C3D4E5F6A7B8C9D0E1F2A3 /* HorcruxAppIntents.swift */; };
+		C3D4E5F6A7B8C9D0E1F2A3B4 /* ColdSigningView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D4E5F6A7B8C9D0E1F2A3B4C5 /* ColdSigningView.swift */; };
+		E5F6A7B8C9D0E1F2A3B4C5D6 /* ColdSigningCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = F6A7B8C9D0E1F2A3B4C5D6E7 /* ColdSigningCoordinator.swift */; };
 		379BE3A131F9CE4A70AA1923 /* PendingBroadcastQueueTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2F2D677F4FC0A239EA253203 /* PendingBroadcastQueueTests.swift */; };
 		37C641C45ADB6ABE3721EB1F /* TransactionConfirmationPoller.swift in Sources */ = {isa = PBXBuildFile; fileRef = 95C0DF3FB32992A358342714 /* TransactionConfirmationPoller.swift */; };
 		39A1D2DBFA6831A2A883D1B6 /* CeremonyStateManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3B42A4B665C2E8E13CB2E1D /* CeremonyStateManager.swift */; };
@@ -173,6 +175,8 @@
 		D4E5F6A7B8C9D0E1F2A1B2C3 /* CustomTokensView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CustomTokensView.swift; sourceTree = "<group>"; };
 		F6A7B8C9D0E1F2A1B2C3D4E5 /* ShardHealthView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ShardHealthView.swift; sourceTree = "<group>"; };
 		B2C3D4E5F6A7B8C9D0E1F2A3 /* HorcruxAppIntents.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HorcruxAppIntents.swift; sourceTree = "<group>"; };
+		D4E5F6A7B8C9D0E1F2A3B4C5 /* ColdSigningView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ColdSigningView.swift; sourceTree = "<group>"; };
+		F6A7B8C9D0E1F2A3B4C5D6E7 /* ColdSigningCoordinator.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ColdSigningCoordinator.swift; sourceTree = "<group>"; };
 		71C26970D9D9C110CD5AFF06 /* AddressValidator.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AddressValidator.swift; sourceTree = "<group>"; };
 		85DE3C5A10CCE0DB2B96E51A /* AddressFormatter.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AddressFormatter.swift; sourceTree = "<group>"; };
 		B7C300001111AAA0 /* Bech32.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Bech32.swift; sourceTree = "<group>"; };
@@ -476,6 +480,8 @@
 				49A262F731DB964A68E24B04 /* SigningView.swift */,
 				4B97A4C60C8B4D040DBB1906 /* SigningViewModel.swift */,
 				FC6695ABD2E5D63B03476E9E /* QRScannerView.swift */,
+				D4E5F6A7B8C9D0E1F2A3B4C5 /* ColdSigningView.swift */,
+				F6A7B8C9D0E1F2A3B4C5D6E7 /* ColdSigningCoordinator.swift */,
 			);
 			path = Signing;
 			sourceTree = "<group>";
@@ -714,6 +720,8 @@
 				1929C70C2E419C8D2D7A499C /* ShardsListView.swift in Sources */,
 				4B7B6F204D8AFDEB4EACE5EB /* ShardsViewModel.swift in Sources */,
 				88380DABC0637076A7B84583 /* SigningView.swift in Sources */,
+				C3D4E5F6A7B8C9D0E1F2A3B4 /* ColdSigningView.swift in Sources */,
+				E5F6A7B8C9D0E1F2A3B4C5D6 /* ColdSigningCoordinator.swift in Sources */,
 				E85D8AFAAED7835EB9BA6C5F /* SigningViewModel.swift in Sources */,
 				06556B994EE86463923812D0 /* TransportProtocol.swift in Sources */,
 				DB6B04E3DB8E15D4FC56228F /* WalletHomeView.swift in Sources */,
