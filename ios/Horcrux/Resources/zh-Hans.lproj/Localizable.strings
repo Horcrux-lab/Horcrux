@@ -694,3 +694,41 @@
 "shardImport.restoredAccount" = "已恢复账户「%1$@」· %2$d 条链";
 "shardImport.readFailed" = "读取失败: %@";
 "shardImport.failedToParseBackup" = "无法解析备份文件";
+
+// dev.46 — AddressBook + CustomTokens
+"addressBook.empty" = "还没有联系人";
+"addressBook.emptyHint" = "添加常用地址后，签名时可以一键填入并减少输错的风险。";
+"addressBook.title" = "地址簿";
+"addressBook.newContact" = "新建联系人";
+"addressBook.export" = "导出";
+"addressBook.import" = "导入";
+"addressBook.importedCount" = "已导入 %d 条";
+"addressBook.allExisted" = "全部已存在";
+"addressBook.importFailed" = "导入失败：%@";
+"addressBook.importResultTitle" = "导入结果";
+"addressBook.contactSection" = "联系人";
+"addressBook.labelPlaceholder" = "标签（如：Binance 主钱包）";
+"addressBook.chainPickerLabel" = "链";
+"addressBook.addressPlaceholder" = "地址";
+"addressBook.notePlaceholder" = "备注（可选）";
+"addressBook.navNew" = "新建联系人";
+"addressBook.navEdit" = "编辑联系人";
+"addressBook.saveButton" = "保存";
+"addressBook.emptyOnChain" = "这条链上还没有保存的联系人。";
+"addressBook.pickContactTitle" = "选择联系人";
+
+"customTokens.emptyTitle" = "还没有自定义代币";
+"customTokens.emptyHint" = "点右上角 + 添加合约地址";
+"customTokens.deleteLabel" = "删除";
+"customTokens.navTitle" = "自定义代币";
+"customTokens.chainSection" = "链";
+"customTokens.chainPickerLabel" = "链";
+"customTokens.contractSection" = "合约地址";
+"customTokens.metadataSection" = "元数据";
+"customTokens.symbolPlaceholder" = "符号 (USDT)";
+"customTokens.namePlaceholder" = "名称 (Tether USD)";
+"customTokens.decimalsPlaceholder" = "小数位 (18)";
+"customTokens.autoResolve" = "自动查询链上元数据";
+"customTokens.addTokenTitle" = "添加代币";
+"customTokens.errEvmOnly" = "自动查询仅支持 EVM 链";
+"customTokens.queryFailed" = "查询失败：%@";

@@ -885,6 +885,59 @@ enum L10n {
         static let coreDependencies = NSLocalizedString("licenses.coreDependencies", comment: "")
     }
 
+    // MARK: - Address Book (dev.46)
+
+    enum AddressBook {
+        static let empty = NSLocalizedString("addressBook.empty", comment: "")
+        static let emptyHint = NSLocalizedString("addressBook.emptyHint", comment: "")
+        static let title = NSLocalizedString("addressBook.title", comment: "")
+        static let newContact = NSLocalizedString("addressBook.newContact", comment: "")
+        static let export = NSLocalizedString("addressBook.export", comment: "")
+        static let importLabel = NSLocalizedString("addressBook.import", comment: "")
+        static let allExisted = NSLocalizedString("addressBook.allExisted", comment: "")
+        static let importResultTitle = NSLocalizedString("addressBook.importResultTitle", comment: "")
+        static let contactSection = NSLocalizedString("addressBook.contactSection", comment: "")
+        static let labelPlaceholder = NSLocalizedString("addressBook.labelPlaceholder", comment: "")
+        static let chainPickerLabel = NSLocalizedString("addressBook.chainPickerLabel", comment: "")
+        static let addressPlaceholder = NSLocalizedString("addressBook.addressPlaceholder", comment: "")
+        static let notePlaceholder = NSLocalizedString("addressBook.notePlaceholder", comment: "")
+        static let navNew = NSLocalizedString("addressBook.navNew", comment: "")
+        static let navEdit = NSLocalizedString("addressBook.navEdit", comment: "")
+        static let saveButton = NSLocalizedString("addressBook.saveButton", comment: "")
+        static let emptyOnChain = NSLocalizedString("addressBook.emptyOnChain", comment: "")
+        static let pickContactTitle = NSLocalizedString("addressBook.pickContactTitle", comment: "")
+
+        static func importedCount(_ n: Int) -> String {
+            String(format: NSLocalizedString("addressBook.importedCount", comment: ""), n)
+        }
+        static func importFailed(_ desc: String) -> String {
+            String(format: NSLocalizedString("addressBook.importFailed", comment: ""), desc)
+        }
+    }
+
+    // MARK: - Custom Tokens (dev.46)
+
+    enum CustomTokens {
+        static let emptyTitle = NSLocalizedString("customTokens.emptyTitle", comment: "")
+        static let emptyHint = NSLocalizedString("customTokens.emptyHint", comment: "")
+        static let deleteLabel = NSLocalizedString("customTokens.deleteLabel", comment: "")
+        static let navTitle = NSLocalizedString("customTokens.navTitle", comment: "")
+        static let chainSection = NSLocalizedString("customTokens.chainSection", comment: "")
+        static let chainPickerLabel = NSLocalizedString("customTokens.chainPickerLabel", comment: "")
+        static let contractSection = NSLocalizedString("customTokens.contractSection", comment: "")
+        static let metadataSection = NSLocalizedString("customTokens.metadataSection", comment: "")
+        static let symbolPlaceholder = NSLocalizedString("customTokens.symbolPlaceholder", comment: "")
+        static let namePlaceholder = NSLocalizedString("customTokens.namePlaceholder", comment: "")
+        static let decimalsPlaceholder = NSLocalizedString("customTokens.decimalsPlaceholder", comment: "")
+        static let autoResolve = NSLocalizedString("customTokens.autoResolve", comment: "")
+        static let addTokenTitle = NSLocalizedString("customTokens.addTokenTitle", comment: "")
+        static let errEvmOnly = NSLocalizedString("customTokens.errEvmOnly", comment: "")
+
+        static func queryFailed(_ desc: String) -> String {
+            String(format: NSLocalizedString("customTokens.queryFailed", comment: ""), desc)
+        }
+    }
+
     // MARK: - Node errors, shard health, cold signing
 
     enum NodeErr {

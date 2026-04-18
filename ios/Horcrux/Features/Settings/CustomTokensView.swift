@@ -15,8 +15,8 @@ struct CustomTokensView: View {
                     Section {
                         VaultEmptyState(
                             icon: "plus.circle",
-                            title: "还没有自定义代币",
-                            subtitle: "点右上角 + 添加合约地址",
+                            title: L10n.CustomTokens.emptyTitle,
+                            subtitle: L10n.CustomTokens.emptyHint,
                             iconSize: 40
                         )
                         .frame(maxWidth: .infinity)
@@ -48,7 +48,7 @@ struct CustomTokensView: View {
                                         Button(role: .destructive) {
                                             appState.customTokenStore.remove(token)
                                         } label: {
-                                            Label("删除", systemImage: "trash")
+                                            Label(L10n.CustomTokens.deleteLabel, systemImage: "trash")
                                         }
                                     }
                                 }
@@ -59,7 +59,7 @@ struct CustomTokensView: View {
             }
             .scrollContentBackground(.hidden)
         }
-        .navigationTitle("自定义代币")
+        .navigationTitle(L10n.CustomTokens.navTitle)
         .navigationBarTitleDisplayMode(.inline)
         .toolbarColorScheme(.dark, for: .navigationBar)
         .toolbar {
@@ -99,28 +99,28 @@ private struct AddCustomTokenSheet: View {
     var body: some View {
         NavigationStack {
             Form {
-                Section("链") {
-                    Picker("链", selection: $chain) {
+                Section(L10n.CustomTokens.chainSection) {
+                    Picker(L10n.CustomTokens.chainPickerLabel, selection: $chain) {
                         ForEach(supportedChains, id: \.self) { c in
                             Text(c.rawValue).tag(c)
                         }
                     }
                 }
-                Section("合约地址") {
+                Section(L10n.CustomTokens.contractSection) {
                     TextField(chain.isEVM ? "0x…" : (chain == .solana ? "mint 地址" : "T…"), text: $contract)
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()
                         .font(.system(.body, design: .monospaced))
                         .accessibilityIdentifier("addToken_contract")
                 }
-                Section("元数据") {
-                    TextField("符号 (USDT)", text: $symbol)
+                Section(L10n.CustomTokens.metadataSection) {
+                    TextField(L10n.CustomTokens.symbolPlaceholder, text: $symbol)
                         .textInputAutocapitalization(.characters)
                         .autocorrectionDisabled()
                         .accessibilityIdentifier("addToken_symbol")
-                    TextField("名称 (Tether USD)", text: $name)
+                    TextField(L10n.CustomTokens.namePlaceholder, text: $name)
                         .accessibilityIdentifier("addToken_name")
-                    TextField("小数位 (18)", text: $decimalsText)
+                    TextField(L10n.CustomTokens.decimalsPlaceholder, text: $decimalsText)
                         .keyboardType(.numberPad)
                         .accessibilityIdentifier("addToken_decimals")
                 }
@@ -133,21 +133,21 @@ private struct AddCustomTokenSheet: View {
                     } label: {
                         HStack {
                             if isResolving { ProgressView().scaleEffect(0.7) }
-                            Text("自动查询链上元数据")
+                            Text(L10n.CustomTokens.autoResolve)
                         }
                     }
                     .disabled(contract.trimmingCharacters(in: .whitespaces).isEmpty || isResolving)
                     .accessibilityIdentifier("addToken_autofillButton")
                 }
             }
-            .navigationTitle("添加代币")
+            .navigationTitle(L10n.CustomTokens.addTokenTitle)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("取消") { dismiss() }
+                    Button(L10n.Common.cancel) { dismiss() }
                 }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("保存") { save() }
+                    Button(L10n.AddressBook.saveButton) { save() }
                         .disabled(!canSave)
                         .accessibilityIdentifier("addToken_saveButton")
                 }
@@ -195,10 +195,10 @@ private struct AddCustomTokenSheet: View {
                 name = meta.name
                 decimalsText = String(meta.decimals)
             } else {
-                errorMsg = "自动查询仅支持 EVM 链"
+                errorMsg = L10n.CustomTokens.errEvmOnly
             }
         } catch {
-            errorMsg = "查询失败：\(error.localizedDescription)"
+            errorMsg = L10n.CustomTokens.queryFailed(error.localizedDescription)
         }
     }
 }

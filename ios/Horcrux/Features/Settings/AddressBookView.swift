@@ -18,9 +18,9 @@ struct AddressBookView: View {
                     Image(systemName: "person.crop.circle.badge.plus")
                         .font(.system(size: 48))
                         .foregroundStyle(.secondary)
-                    Text("还没有联系人")
+                    Text(L10n.AddressBook.empty)
                         .font(.headline)
-                    Text("添加常用地址后，签名时可以一键填入并减少输错的风险。")
+                    Text(L10n.AddressBook.emptyHint)
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .multilineTextAlignment(.center)
@@ -49,23 +49,23 @@ struct AddressBookView: View {
                 }
             }
         }
-        .navigationTitle("地址簿")
+        .navigationTitle(L10n.AddressBook.title)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 Menu {
                     Button {
                         showAdd = true
-                    } label: { Label("新建联系人", systemImage: "person.badge.plus") }
+                    } label: { Label(L10n.AddressBook.newContact, systemImage: "person.badge.plus") }
                     Button {
                         if let data = store.exportJSON() {
                             exportDoc = AddressBookDocument(data: data)
                             showExporter = true
                         }
-                    } label: { Label("导出", systemImage: "square.and.arrow.up") }
+                    } label: { Label(L10n.AddressBook.export, systemImage: "square.and.arrow.up") }
                         .disabled(store.entries.isEmpty)
                     Button {
                         showImporter = true
-                    } label: { Label("导入", systemImage: "square.and.arrow.down") }
+                    } label: { Label(L10n.AddressBook.importLabel, systemImage: "square.and.arrow.down") }
                 } label: {
                     Image(systemName: "ellipsis.circle")
                         .accessibilityIdentifier("addressBook_menu")
@@ -90,9 +90,9 @@ struct AddressBookView: View {
                 do {
                     let data = try Data(contentsOf: url)
                     let n = try store.importJSON(data)
-                    importResult = n > 0 ? "已导入 \(n) 条" : "全部已存在"
+                    importResult = n > 0 ? L10n.AddressBook.importedCount(n) : L10n.AddressBook.allExisted
                 } catch {
-                    importResult = "导入失败：\(error.localizedDescription)"
+                    importResult = L10n.AddressBook.importFailed(error.localizedDescription)
                 }
             case .failure(let err):
                 importResult = err.localizedDescription
@@ -104,7 +104,7 @@ struct AddressBookView: View {
             contentType: .json,
             defaultFilename: "horcrux-addressbook"
         ) { _ in }
-        .alert("导入结果", isPresented: .constant(importResult != nil)) {
+        .alert(L10n.AddressBook.importResultTitle, isPresented: .constant(importResult != nil)) {
             Button("OK") { importResult = nil }
         } message: {
             Text(importResult ?? "")
@@ -160,31 +160,31 @@ struct AddressBookEditor: View {
     var body: some View {
         NavigationStack {
             Form {
-                Section("联系人") {
-                    TextField("标签（如：Binance 主钱包）", text: $label)
-                    Picker("链", selection: $chain) {
+                Section(L10n.AddressBook.contactSection) {
+                    TextField(L10n.AddressBook.labelPlaceholder, text: $label)
+                    Picker(L10n.AddressBook.chainPickerLabel, selection: $chain) {
                         ForEach(Chain.allCases) { c in
                             Text(c.rawValue).tag(c)
                         }
                     }
-                    TextField("地址", text: $address)
+                    TextField(L10n.AddressBook.addressPlaceholder, text: $address)
                         .font(.system(.body, design: .monospaced))
                         .autocorrectionDisabled()
                         .textInputAutocapitalization(.never)
-                    TextField("备注（可选）", text: $note)
+                    TextField(L10n.AddressBook.notePlaceholder, text: $note)
                 }
                 if let error {
                     Text(error).font(.caption).foregroundStyle(.red)
                 }
             }
-            .navigationTitle(existing == nil ? "新建联系人" : "编辑联系人")
+            .navigationTitle(existing == nil ? L10n.AddressBook.navNew : L10n.AddressBook.navEdit)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("取消") { dismiss() }
+                    Button(L10n.Common.cancel) { dismiss() }
                 }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("保存") { save() }.disabled(label.isEmpty || address.isEmpty)
+                    Button(L10n.AddressBook.saveButton) { save() }.disabled(label.isEmpty || address.isEmpty)
                 }
             }
             .onAppear {
@@ -223,7 +223,7 @@ struct AddressBookPicker: View {
             let entries = store.entries(for: chain)
             List {
                 if entries.isEmpty {
-                    Text("这条链上还没有保存的联系人。")
+                    Text(L10n.AddressBook.emptyOnChain)
                         .foregroundStyle(.secondary)
                         .listRowBackground(Color.clear)
                 } else {
@@ -238,11 +238,11 @@ struct AddressBookPicker: View {
                     }
                 }
             }
-            .navigationTitle("选择联系人")
+            .navigationTitle(L10n.AddressBook.pickContactTitle)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("取消") { dismiss() }
+                    Button(L10n.Common.cancel) { dismiss() }
                 }
             }
         }

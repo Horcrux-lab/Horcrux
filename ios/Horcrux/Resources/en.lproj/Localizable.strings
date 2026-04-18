@@ -694,3 +694,41 @@
 "shardImport.restoredAccount" = "Restored account \"%1$@\" · %2$d chains";
 "shardImport.readFailed" = "Read failed: %@";
 "shardImport.failedToParseBackup" = "Could not parse backup file";
+
+// dev.46 — AddressBook + CustomTokens
+"addressBook.empty" = "No contacts yet";
+"addressBook.emptyHint" = "Add common addresses to fill them in signing with one tap and reduce typos.";
+"addressBook.title" = "Address Book";
+"addressBook.newContact" = "New contact";
+"addressBook.export" = "Export";
+"addressBook.import" = "Import";
+"addressBook.importedCount" = "Imported %d";
+"addressBook.allExisted" = "All already existed";
+"addressBook.importFailed" = "Import failed: %@";
+"addressBook.importResultTitle" = "Import result";
+"addressBook.contactSection" = "Contact";
+"addressBook.labelPlaceholder" = "Label (e.g. Binance main wallet)";
+"addressBook.chainPickerLabel" = "Chain";
+"addressBook.addressPlaceholder" = "Address";
+"addressBook.notePlaceholder" = "Note (optional)";
+"addressBook.navNew" = "New contact";
+"addressBook.navEdit" = "Edit contact";
+"addressBook.saveButton" = "Save";
+"addressBook.emptyOnChain" = "No saved contacts on this chain.";
+"addressBook.pickContactTitle" = "Pick contact";
+
+"customTokens.emptyTitle" = "No custom tokens yet";
+"customTokens.emptyHint" = "Tap + in the top right to add a contract address";
+"customTokens.deleteLabel" = "Delete";
+"customTokens.navTitle" = "Custom tokens";
+"customTokens.chainSection" = "Chain";
+"customTokens.chainPickerLabel" = "Chain";
+"customTokens.contractSection" = "Contract address";
+"customTokens.metadataSection" = "Metadata";
+"customTokens.symbolPlaceholder" = "Symbol (USDT)";
+"customTokens.namePlaceholder" = "Name (Tether USD)";
+"customTokens.decimalsPlaceholder" = "Decimals (18)";
+"customTokens.autoResolve" = "Auto-query on-chain metadata";
+"customTokens.addTokenTitle" = "Add token";
+"customTokens.errEvmOnly" = "Auto-query only supports EVM chains";
+"customTokens.queryFailed" = "Query failed: %@";
