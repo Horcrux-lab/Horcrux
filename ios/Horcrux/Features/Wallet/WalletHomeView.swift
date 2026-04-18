@@ -659,6 +659,10 @@ struct WalletDetailView: View {
                     .accessibilityIdentifier("walletDetail_receiveButton")
                 }
 
+                if isEmptyWallet {
+                    emptyWalletCTA
+                }
+
                 // Tokens (only for chains that have a token list or user-added customs)
                 if !appState.customTokenStore.effectiveTokens(for: wallet.chain).isEmpty {
                     VStack(alignment: .leading, spacing: 10) {
@@ -835,6 +839,87 @@ struct WalletDetailView: View {
                 .foregroundStyle(.white)
         }
         .padding(.vertical, 10)
+    }
+
+    /// Heuristic: balance has loaded, it parses to ≤ 0, and no non-zero
+    /// tokens are present. Prompts the user to receive first funds.
+    private var isEmptyWallet: Bool {
+        guard !isLoadingBalance, !isLoadingTokens else { return false }
+        guard let balance else { return false }
+        let numeric = balance.split(separator: " ").first.map(String.init) ?? ""
+        let amount = Double(numeric.replacingOccurrences(of: ",", with: "")) ?? 0
+        if amount > 0 { return false }
+        let nonZeroTokens = tokenBalances.contains { tb in
+            let s = tb.displayBalance.split(separator: " ").first.map(String.init) ?? ""
+            return (Double(s.replacingOccurrences(of: ",", with: "")) ?? 0) > 0
+        }
+        return !nonZeroTokens
+    }
+
+    @ViewBuilder
+    private var emptyWalletCTA: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack(spacing: 10) {
+                Image(systemName: "sparkles")
+                    .font(.title3)
+                    .foregroundStyle(HorcruxTheme.accentCyan)
+                Text("开始使用这个钱包")
+                    .font(.headline)
+                    .foregroundStyle(.white)
+            }
+            Text("此地址目前没有资产。分享上方地址或用\"接收\"按钮生成 QR，让发送方把 \(wallet.chain.symbol) 打到这里。")
+                .font(.caption)
+                .foregroundStyle(HorcruxTheme.subtleText)
+                .fixedSize(horizontal: false, vertical: true)
+
+            HStack(spacing: 10) {
+                Button {
+                    SecureClipboard.copy(wallet.address)
+                    copiedAddress = true
+                    DispatchQueue.main.asyncAfter(deadline: .now() + UXTiming.clipboardFeedback) { copiedAddress = false }
+                } label: {
+                    Label(copiedAddress ? "已复制" : "复制地址", systemImage: copiedAddress ? "checkmark" : "doc.on.doc")
+                        .font(.caption.weight(.semibold))
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 10)
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(HorcruxTheme.accentPurple.opacity(0.8))
+
+                Button {
+                    showReceive = true
+                } label: {
+                    Label("显示 QR", systemImage: "qrcode")
+                        .font(.caption.weight(.semibold))
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 10)
+                }
+                .buttonStyle(.bordered)
+                .tint(HorcruxTheme.accentBlue)
+            }
+
+            if wallet.chain.isEVM {
+                NavigationLink {
+                    CustomTokensView()
+                } label: {
+                    HStack {
+                        Image(systemName: "plus.circle")
+                        Text("在此链上添加自定义代币")
+                        Spacer()
+                        Image(systemName: "chevron.right").font(.caption2)
+                    }
+                    .font(.caption.weight(.medium))
+                    .foregroundStyle(HorcruxTheme.accentCyan)
+                    .padding(.vertical, 6)
+                }
+            }
+        }
+        .padding(16)
+        .background(
+            RoundedRectangle(cornerRadius: 16)
+                .fill(HorcruxTheme.accentCyan.opacity(0.08))
+                .overlay(RoundedRectangle(cornerRadius: 16).stroke(HorcruxTheme.accentCyan.opacity(0.25), lineWidth: 1))
+        )
     }
 
     private func fetchBalance() async {

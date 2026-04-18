@@ -117,6 +117,43 @@ final class WalletStore: ObservableObject {
         save()
     }
 
+    // MARK: - Health Check
+
+    enum ShardHealth: Equatable {
+        case ok(bytes: Int)
+        case missing
+        case empty
+        case unreadable(String)
+    }
+
+    /// For each unique accountId currently in `wallets`, check whether the
+    /// keychain entry is retrievable and non-empty. This is a cheap
+    /// smoke-test that catches the most common corruption modes (restored
+    /// device wiped keychain, OS migration dropped Secure Enclave bits).
+    ///
+    /// Does **not** attempt to decode or cryptographically verify the
+    /// share contents — that would require the signer (and a round-trip),
+    /// which is overkill for a periodic UI health indicator.
+    func verifyShardHealth() -> [(accountId: String, status: ShardHealth, walletNames: [String])] {
+        var byAccount: [String: [String]] = [:]
+        for w in wallets {
+            byAccount[w.accountId, default: []].append(w.name)
+        }
+        return byAccount.map { (accountId, names) in
+            let status: ShardHealth
+            do {
+                if let data = try keychain.retrieve(key: "shard_\(accountId)") {
+                    status = data.isEmpty ? .empty : .ok(bytes: data.count)
+                } else {
+                    status = .missing
+                }
+            } catch {
+                status = .unreadable(error.localizedDescription)
+            }
+            return (accountId: accountId, status: status, walletNames: names)
+        }.sorted { $0.walletNames.first ?? "" < $1.walletNames.first ?? "" }
+    }
+
     // MARK: - Persistence
 
     private func load() {

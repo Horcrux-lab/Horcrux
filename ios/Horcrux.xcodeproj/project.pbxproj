@@ -37,6 +37,7 @@
 		965F23FA074A419D96E16115 /* TransactionHistorySyncer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 69133FDFA83546FEB66C98D3 /* TransactionHistorySyncer.swift */; };
 		A1B2C3D4E5F6A7B8C9D0E1F2 /* CustomTokenStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2C3D4E5F6A7B8C9D0E1F2A1 /* CustomTokenStore.swift */; };
 		C3D4E5F6A7B8C9D0E1F2A1B2 /* CustomTokensView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D4E5F6A7B8C9D0E1F2A1B2C3 /* CustomTokensView.swift */; };
+		E5F6A7B8C9D0E1F2A1B2C3D4 /* ShardHealthView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F6A7B8C9D0E1F2A1B2C3D4E5 /* ShardHealthView.swift */; };
 		379BE3A131F9CE4A70AA1923 /* PendingBroadcastQueueTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2F2D677F4FC0A239EA253203 /* PendingBroadcastQueueTests.swift */; };
 		37C641C45ADB6ABE3721EB1F /* TransactionConfirmationPoller.swift in Sources */ = {isa = PBXBuildFile; fileRef = 95C0DF3FB32992A358342714 /* TransactionConfirmationPoller.swift */; };
 		39A1D2DBFA6831A2A883D1B6 /* CeremonyStateManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3B42A4B665C2E8E13CB2E1D /* CeremonyStateManager.swift */; };
@@ -169,6 +170,7 @@
 		69133FDFA83546FEB66C98D3 /* TransactionHistorySyncer.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TransactionHistorySyncer.swift; sourceTree = "<group>"; };
 		B2C3D4E5F6A7B8C9D0E1F2A1 /* CustomTokenStore.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CustomTokenStore.swift; sourceTree = "<group>"; };
 		D4E5F6A7B8C9D0E1F2A1B2C3 /* CustomTokensView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CustomTokensView.swift; sourceTree = "<group>"; };
+		F6A7B8C9D0E1F2A1B2C3D4E5 /* ShardHealthView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ShardHealthView.swift; sourceTree = "<group>"; };
 		71C26970D9D9C110CD5AFF06 /* AddressValidator.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AddressValidator.swift; sourceTree = "<group>"; };
 		85DE3C5A10CCE0DB2B96E51A /* AddressFormatter.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AddressFormatter.swift; sourceTree = "<group>"; };
 		B7C300001111AAA0 /* Bech32.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Bech32.swift; sourceTree = "<group>"; };
@@ -351,6 +353,7 @@
 				46F96EED87A21ED0BBE9B1B0 /* SettingsView.swift */,
 				C38D9F404F05092ED681EBC9 /* AddressBookView.swift */,
 				D4E5F6A7B8C9D0E1F2A1B2C3 /* CustomTokensView.swift */,
+				F6A7B8C9D0E1F2A1B2C3D4E5 /* ShardHealthView.swift */,
 			);
 			path = Settings;
 			sourceTree = "<group>";
@@ -740,6 +743,7 @@
 				965F23FA074A419D96E16115 /* TransactionHistorySyncer.swift in Sources */,
 				A1B2C3D4E5F6A7B8C9D0E1F2 /* CustomTokenStore.swift in Sources */,
 				C3D4E5F6A7B8C9D0E1F2A1B2 /* CustomTokensView.swift in Sources */,
+				E5F6A7B8C9D0E1F2A1B2C3D4 /* ShardHealthView.swift in Sources */,
 				211D697D6DB3B271F40FF71A /* WalletStore.swift in Sources */,
 				A11C0751C0A9E1A1C0A9E1A1 /* AccountStore.swift in Sources */,
 				5DCEBD20DB9F6FC25739EF4F /* QRScannerView.swift in Sources */,

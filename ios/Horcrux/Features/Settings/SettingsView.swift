@@ -217,6 +217,26 @@ struct SettingsView: View {
                         .accessibilityIdentifier("settings_customTokensLink")
                     }
 
+                    // Shard health self-check
+                    VStack(alignment: .leading, spacing: 10) {
+                        VaultSectionHeader("诊断", icon: "stethoscope")
+                            .padding(.horizontal, 4)
+
+                        NavigationLink {
+                            ShardHealthView()
+                        } label: {
+                            HStack {
+                                VaultSettingsRow(icon: "checkmark.shield", iconColor: HorcruxTheme.successGreen, title: "分片健康自检")
+                                Spacer()
+                                Image(systemName: "chevron.right")
+                                    .font(.caption)
+                                    .foregroundStyle(HorcruxTheme.subtleText)
+                            }
+                        }
+                        .glassCard()
+                        .accessibilityIdentifier("settings_shardHealthLink")
+                    }
+
                     // Replace device / Share refresh
                     VStack(alignment: .leading, spacing: 10) {
                         VaultSectionHeader("设备管理", icon: "iphone.gen3")
