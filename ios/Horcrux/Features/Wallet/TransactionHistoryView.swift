@@ -238,8 +238,10 @@ struct TransactionRow: View {
 // MARK: - Detail
 
 struct TransactionDetailView: View {
+    @EnvironmentObject private var appState: AppState
     let transaction: TransactionRecord
     @State private var copiedHash = false
+    @State private var showRBFSigner = false
 
     var body: some View {
         ScrollView {
@@ -346,6 +348,24 @@ struct TransactionDetailView: View {
                             }
                         }
                         .glassCard()
+
+                        if canRBF {
+                            Button {
+                                showRBFSigner = true
+                            } label: {
+                                Label("加速交易（RBF）", systemImage: "hare.fill")
+                                    .font(.subheadline.weight(.semibold))
+                                    .frame(maxWidth: .infinity)
+                                    .padding(.vertical, 12)
+                            }
+                            .buttonStyle(.borderedProminent)
+                            .tint(HorcruxTheme.accentCyan)
+
+                            Text("用更高矿工费重新广播同一笔交易，加速确认。只对仍在内存池中的未确认交易有效。")
+                                .font(.caption)
+                                .foregroundStyle(HorcruxTheme.subtleText)
+                                .padding(.horizontal, 4)
+                        }
                     }
                 }
             }
@@ -356,6 +376,24 @@ struct TransactionDetailView: View {
         .navigationTitle(L10n.TxDetail.title)
         .navigationBarTitleDisplayMode(.inline)
         .toolbarColorScheme(.dark, for: .navigationBar)
+        .sheet(isPresented: $showRBFSigner) {
+            if let wallet = rbfWallet {
+                SigningView(wallet: wallet, rbfFrom: transaction)
+            }
+        }
+    }
+
+    private var rbfWallet: Wallet? {
+        appState.walletStore.wallets.first { $0.id == transaction.walletId }
+    }
+
+    /// Only BTC/LTC broadcast-but-not-confirmed txs are eligible for RBF.
+    /// We also require a wallet still exists to re-drive signing.
+    private var canRBF: Bool {
+        guard transaction.chain == .bitcoin || transaction.chain == .litecoin else { return false }
+        guard transaction.status == .broadcast else { return false }
+        guard transaction.txHash != nil, !(transaction.txHash ?? "").isEmpty else { return false }
+        return rbfWallet != nil
     }
 
     private func detailRow(_ label: String, value: String) -> some View {

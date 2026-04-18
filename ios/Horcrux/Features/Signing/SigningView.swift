@@ -12,6 +12,21 @@ struct SigningView: View {
         _viewModel = StateObject(wrappedValue: SigningViewModel(wallet: wallet))
     }
 
+    /// RBF variant: pre-fills recipient + amount from a pending BTC/LTC tx and
+    /// bumps the fee tier to fast. The wallet will naturally re-select the
+    /// same still-unconfirmed UTXOs, producing a Bitcoin-policy-compliant
+    /// RBF replacement.
+    init(wallet: Wallet, rbfFrom record: TransactionRecord) {
+        let vm = SigningViewModel(wallet: wallet)
+        vm.recipientAddress = record.toAddress
+        // `amount` on the record is display-formatted like "0.001 BTC".
+        let numeric = record.amount.split(separator: " ").first.map(String.init) ?? record.amount
+        vm.amount = numeric
+        vm.feeTier = .fast
+        vm.rbfReplacing = record.txHash
+        _viewModel = StateObject(wrappedValue: vm)
+    }
+
     var body: some View {
         NavigationStack {
             Group {

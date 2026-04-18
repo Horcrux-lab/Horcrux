@@ -98,6 +98,20 @@ final class TransactionStore: ObservableObject {
         save()
     }
 
+    /// Mark a broadcast record as replaced (BIP-125 RBF succeeded with a
+    /// higher-fee tx). We flip its status to `.failed` so the history view
+    /// visually shows it as superseded; the replacement tx lives as its own
+    /// record.
+    func markReplaced(txHash: String) {
+        guard !txHash.isEmpty else { return }
+        var changed = false
+        for idx in records.indices where records[idx].txHash == txHash {
+            records[idx].status = .failed
+            changed = true
+        }
+        if changed { save() }
+    }
+
     func wipeAll() {
         records = []
         save()
@@ -141,7 +155,8 @@ final class TransactionStore: ObservableObject {
             txHash: txHash,
             status: record.status,
             createdAt: record.createdAt,
-            broadcastAt: record.broadcastAt
+            broadcastAt: record.broadcastAt,
+            confirmedAt: record.confirmedAt
         )
     }
 }

@@ -45,6 +45,11 @@ final class SigningViewModel: ObservableObject {
         }
     }
 
+    /// When set, the current signing session is replacing a prior (pending)
+    /// BTC/LTC tx with higher fee (BIP-125 RBF). On broadcast success we flag
+    /// the original record so history UI can show a "被 RBF 替换" marker.
+    var rbfReplacing: String?
+
     enum FeeTier: String, CaseIterable, Identifiable {
         case slow, normal, fast, custom
         var id: String { rawValue }
@@ -1085,6 +1090,9 @@ final class SigningViewModel: ObservableObject {
                             if let id = currentRecordId {
                                 transactionStore?.updateStatus(id: id, status: .broadcast, txHash: result)
                             }
+                            if let replaced = rbfReplacing {
+                                transactionStore?.markReplaced(txHash: replaced)
+                            }
                         }
                     case .litecoin:
                         let result = try await blockchainService.btcBroadcast(
@@ -1097,6 +1105,9 @@ final class SigningViewModel: ObservableObject {
                             Haptics.success()
                             if let id = currentRecordId {
                                 transactionStore?.updateStatus(id: id, status: .broadcast, txHash: result)
+                            }
+                            if let replaced = rbfReplacing {
+                                transactionStore?.markReplaced(txHash: replaced)
                             }
                         }
                     case .solana:
