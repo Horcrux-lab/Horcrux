@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.0-dev.36] - 2026-04-18
+
+### Added
+
+- **iOS**: 交易历史导出 CSV（菜单里的"导出 CSV"，遵循当前筛选条件，UTF-8 带 BOM 兼容 Excel）
+- **iOS**: 交易历史顶部改为菜单（刷新 / 导出）
+
 ## [0.3.0-dev.35] - 2026-04-18
 
 ### Added

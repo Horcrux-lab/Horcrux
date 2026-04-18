@@ -1,4 +1,5 @@
 import SwiftUI
+import UniformTypeIdentifiers
 
 /// Lists past transactions for a wallet — dark glass card design.
 struct TransactionHistoryView: View {
@@ -8,6 +9,8 @@ struct TransactionHistoryView: View {
     @State private var syncResult: String?
     @State private var searchText = ""
     @State private var statusFilter: StatusFilter = .all
+    @State private var showExporter = false
+    @State private var exportDoc: CSVDocument?
 
     enum StatusFilter: String, CaseIterable, Identifiable {
         case all, pending, confirmed, failed
@@ -71,19 +74,36 @@ struct TransactionHistoryView: View {
         .toolbarColorScheme(.dark, for: .navigationBar)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
-                Button {
-                    Task { await sync() }
+                Menu {
+                    Button {
+                        Task { await sync() }
+                    } label: {
+                        Label("刷新", systemImage: "arrow.clockwise")
+                    }
+                    Button {
+                        exportDoc = CSVDocument(csv: buildCSV())
+                        showExporter = true
+                    } label: {
+                        Label("导出 CSV", systemImage: "square.and.arrow.up")
+                    }
+                    .disabled(transactions.isEmpty)
                 } label: {
                     if isSyncing {
                         ProgressView().scaleEffect(0.7)
                     } else {
-                        Image(systemName: "arrow.clockwise")
+                        Image(systemName: "ellipsis.circle")
                     }
                 }
                 .disabled(isSyncing)
                 .accessibilityIdentifier("txHistory_syncButton")
             }
         }
+        .fileExporter(
+            isPresented: $showExporter,
+            document: exportDoc,
+            contentType: .commaSeparatedText,
+            defaultFilename: "horcrux-\(wallet.chain.symbol.lowercased())-\(Int(Date().timeIntervalSince1970))"
+        ) { _ in }
         .refreshable { await sync() }
         .overlay(alignment: .bottom) {
             if let syncResult {
@@ -115,6 +135,32 @@ struct TransactionHistoryView: View {
         }
         try? await Task.sleep(nanoseconds: 1_800_000_000)
         withAnimation { syncResult = nil }
+    }
+
+    /// Build a CSV of the currently-filtered transactions.
+    private func buildCSV() -> String {
+        let df = ISO8601DateFormatter()
+        var lines = ["date,status,chain,from,to,amount,fee,tx_hash"]
+        for rec in transactions {
+            let date = df.string(from: rec.createdAt)
+            let row = [
+                date,
+                rec.status.rawValue,
+                rec.chain.symbol,
+                rec.fromAddress,
+                rec.toAddress,
+                rec.amount,
+                rec.fee ?? "",
+                rec.txHash ?? ""
+            ].map { csvEscape($0) }.joined(separator: ",")
+            lines.append(row)
+        }
+        return lines.joined(separator: "\n")
+    }
+
+    private func csvEscape(_ s: String) -> String {
+        guard s.contains(",") || s.contains("\"") || s.contains("\n") else { return s }
+        return "\"\(s.replacingOccurrences(of: "\"", with: "\"\""))\""
     }
 
     private var emptyState: some View {
@@ -439,5 +485,29 @@ struct TransactionDetailView: View {
             .padding(.vertical, 5)
             .background(detailStatusColor.opacity(0.15), in: Capsule())
             .foregroundStyle(detailStatusColor)
+    }
+}
+
+/// Wraps CSV text for `.fileExporter`. Text is UTF-8 with a BOM so Excel
+/// opens non-ASCII characters correctly.
+struct CSVDocument: FileDocument {
+    static var readableContentTypes: [UTType] { [.commaSeparatedText] }
+    var csv: String
+
+    init(csv: String) { self.csv = csv }
+
+    init(configuration: ReadConfiguration) throws {
+        if let data = configuration.file.regularFileContents,
+           let s = String(data: data, encoding: .utf8) {
+            csv = s
+        } else {
+            csv = ""
+        }
+    }
+
+    func fileWrapper(configuration: WriteConfiguration) throws -> FileWrapper {
+        var data = Data([0xEF, 0xBB, 0xBF])
+        data.append(csv.data(using: .utf8) ?? Data())
+        return FileWrapper(regularFileWithContents: data)
     }
 }
