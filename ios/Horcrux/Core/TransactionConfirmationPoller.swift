@@ -40,6 +40,10 @@ actor TransactionConfirmationPoller {
             )
             if confirmed {
                 store.updateStatus(id: tx.id, status: .confirmed)
+                NotificationManager.shared.notifyTransactionConfirmed(
+                    txHash: txHash,
+                    chain: tx.chain.rawValue
+                )
             }
         }
     }

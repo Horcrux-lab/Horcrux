@@ -263,6 +263,12 @@ struct TransactionDetailView: View {
                         .font(.system(size: 28, weight: .bold, design: .rounded).monospacedDigit())
                         .foregroundStyle(.white)
 
+                    if let fiat = fiatAmount {
+                        Text(fiat)
+                            .font(.subheadline.weight(.medium).monospacedDigit())
+                            .foregroundStyle(HorcruxTheme.subtleText)
+                    }
+
                     statusBadge
                 }
                 .frame(maxWidth: .infinity)
@@ -385,6 +391,14 @@ struct TransactionDetailView: View {
 
     private var rbfWallet: Wallet? {
         appState.walletStore.wallets.first { $0.id == transaction.walletId }
+    }
+
+    /// Best-effort USD conversion using PriceService's cached quotes.
+    /// Returns nil if no price is cached (caller shouldn't block on network).
+    private var fiatAmount: String? {
+        let raw = transaction.amount.split(separator: " ").first.map(String.init) ?? transaction.amount
+        guard let value = Double(raw) else { return nil }
+        return PriceService.shared.fiatString(amount: value, symbol: transaction.chain.symbol)
     }
 
     /// Only BTC/LTC broadcast-but-not-confirmed txs are eligible for RBF.
