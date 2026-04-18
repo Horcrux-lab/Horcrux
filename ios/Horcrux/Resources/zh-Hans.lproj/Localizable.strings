@@ -870,3 +870,23 @@
 "coldSign.step.cosigner2of3" = "第 2 / 3 步";
 "coldSign.step.cosigner3of3" = "第 3 / 3 步";
 "coldSign.cosigner.complete" = "协签完成。发起方扫到最后一张二维码后，本次冷签名即全部结束。";
+
+/* dev.52 — 主动刷新分片 */
+"refresh.title" = "刷新分片";
+"refresh.subtitle" = "为「%@」刷新分片";
+"refresh.explainer" = "在保持钱包地址不变的前提下，对两台设备的分片重新随机化。两台手机均需在线并已连接。";
+"refresh.idle" = "准备就绪。";
+"refresh.waitingPeer" = "等待另一台设备加入房间…";
+"refresh.runningRound" = "正在刷新分片… 第 %d / %d 轮";
+"refresh.persisting" = "正在安全保存新分片…";
+"refresh.complete" = "分片刷新完成，钱包地址保持不变。";
+"refresh.errorTitle" = "刷新失败";
+"refresh.errorNonNofN" = "目前仅支持 n-of-n 钱包（例如 2-of-2）。";
+"refresh.errorNeedsPin" = "需要输入 PIN 解锁现有分片。";
+"refresh.startButton" = "立即刷新分片";
+"refresh.pinTitle" = "解锁以刷新";
+"refresh.pinMessage" = "请输入 PIN 解密现有分片。";
+"refresh.pinIncorrect" = "PIN 不正确，请重试。";
+"refresh.unlock" = "解锁并刷新";
+"refresh.entryPoint" = "立即刷新分片";
+"refresh.entryPointSubtitle" = "重新随机化两端分片（地址不变）";

@@ -1191,4 +1191,32 @@ extension L10n {
     }
 }
 
+// MARK: - dev.52 additions (key refresh)
+
+extension L10n {
+    enum Refresh {
+        static let title = NSLocalizedString("refresh.title", comment: "")
+        static func subtitle(_ name: String) -> String {
+            String(format: NSLocalizedString("refresh.subtitle", comment: ""), name)
+        }
+        static let explainer = NSLocalizedString("refresh.explainer", comment: "")
+        static let idle = NSLocalizedString("refresh.idle", comment: "")
+        static let waitingPeer = NSLocalizedString("refresh.waitingPeer", comment: "")
+        static func runningRound(_ done: Int, _ total: Int) -> String {
+            String(format: NSLocalizedString("refresh.runningRound", comment: ""), done, total)
+        }
+        static let persisting = NSLocalizedString("refresh.persisting", comment: "")
+        static let complete = NSLocalizedString("refresh.complete", comment: "")
+        static let errorTitle = NSLocalizedString("refresh.errorTitle", comment: "")
+        static let errorNonNofN = NSLocalizedString("refresh.errorNonNofN", comment: "")
+        static let errorNeedsPin = NSLocalizedString("refresh.errorNeedsPin", comment: "")
+        static let startButton = NSLocalizedString("refresh.startButton", comment: "")
+        static let pinTitle = NSLocalizedString("refresh.pinTitle", comment: "")
+        static let pinMessage = NSLocalizedString("refresh.pinMessage", comment: "")
+        static let pinIncorrect = NSLocalizedString("refresh.pinIncorrect", comment: "")
+        static let unlock = NSLocalizedString("refresh.unlock", comment: "")
+        static let entryPoint = NSLocalizedString("refresh.entryPoint", comment: "")
+        static let entryPointSubtitle = NSLocalizedString("refresh.entryPointSubtitle", comment: "")
+    }
+}
 // swiftlint:enable type_body_length file_length

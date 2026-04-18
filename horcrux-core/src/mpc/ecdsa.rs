@@ -25,7 +25,7 @@ use serde::{de::DeserializeOwned, Serialize};
 // Type-erased state machine driver
 // =============================================================================
 
-enum DriverAction {
+pub(super) enum DriverAction {
     Send {
         recipient: Option<u16>,
         data: Vec<u8>,
@@ -35,14 +35,14 @@ enum DriverAction {
 }
 
 /// Object-safe trait for driving any round-based state machine.
-trait AnyDriver {
+pub(super) trait AnyDriver {
     fn drive(&mut self) -> Result<DriverAction, MpcError>;
     fn feed(&mut self, sender: u16, is_broadcast: bool, data: &[u8]) -> Result<(), MpcError>;
 }
 
 /// Concrete driver wrapping a StateMachine whose Output = Result<T, E>.
-struct SmDriver<SM: StateMachine> {
-    sm: SM,
+pub(super) struct SmDriver<SM: StateMachine> {
+    pub(super) sm: SM,
 }
 
 impl<SM, T, E> AnyDriver for SmDriver<SM>
@@ -193,6 +193,7 @@ pub enum EcdsaPhase {
     Keygen,
     AuxInfo,
     Signing,
+    Refresh,
 }
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]

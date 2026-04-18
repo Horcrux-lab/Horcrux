@@ -30,6 +30,22 @@ final class HorcruxBridge: ObservableObject {
         session.getKeygenResult(sessionId: sessionId)
     }
 
+    // MARK: - Key Refresh (proactive share rotation)
+
+    /// Start a CGGMP21 key refresh ceremony. Re-randomises the local shard
+    /// while keeping the wallet's group public key unchanged. n-of-n only.
+    func startRefresh(sessionId: String, config: FfiHorcruxConfig,
+                      shardData: Data) throws -> [FfiMpcMessage] {
+        try session.createRefresh(sessionId: sessionId, config: config, shardData: shardData)
+    }
+
+    /// Retrieve the refresh result once the ceremony completes. Returns nil
+    /// while still in progress. The `publicKey` field is identical to the
+    /// pre-refresh value; `shardData` is the new shard payload to persist.
+    func getRefreshResult(sessionId: String) -> FfiKeygenResult? {
+        session.getRefreshResult(sessionId: sessionId)
+    }
+
     /// Clean up a finished session.
     func removeSession(sessionId: String) {
         session.removeSession(sessionId: sessionId)

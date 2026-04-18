@@ -870,3 +870,23 @@
 "coldSign.step.cosigner2of3" = "Step 2 / 3";
 "coldSign.step.cosigner3of3" = "Step 3 / 3";
 "coldSign.cosigner.complete" = "Co-sign done. The ceremony ends once the initiator scans your final QR.";
+
+/* dev.52 — proactive key refresh */
+"refresh.title" = "Refresh Shards";
+"refresh.subtitle" = "Refresh shards for %@";
+"refresh.explainer" = "Re-randomises both devices' shards while keeping your wallet address unchanged. Both phones must be online and connected.";
+"refresh.idle" = "Ready to begin.";
+"refresh.waitingPeer" = "Waiting for the other device to join the room…";
+"refresh.runningRound" = "Refreshing shard… round %d / %d";
+"refresh.persisting" = "Saving the new shard securely…";
+"refresh.complete" = "Shard refreshed. Wallet address unchanged.";
+"refresh.errorTitle" = "Refresh failed";
+"refresh.errorNonNofN" = "Refresh is currently only available for n-of-n wallets (e.g. 2-of-2).";
+"refresh.errorNeedsPin" = "PIN unlock required to access the existing shard.";
+"refresh.startButton" = "Refresh Shards Now";
+"refresh.pinTitle" = "Unlock to refresh";
+"refresh.pinMessage" = "Enter your PIN to decrypt the existing shard.";
+"refresh.pinIncorrect" = "Incorrect PIN. Try again.";
+"refresh.unlock" = "Unlock & Refresh";
+"refresh.entryPoint" = "Refresh Shards Now";
+"refresh.entryPointSubtitle" = "Re-randomise both shards (address unchanged)";

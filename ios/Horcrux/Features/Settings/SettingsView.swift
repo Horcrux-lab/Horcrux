@@ -1093,6 +1093,18 @@ struct LicenseRow: View {
 ///
 /// Surfaced here so users understand the recovery story before they need it.
 struct ReplaceDeviceInfoView: View {
+    @EnvironmentObject var appState: AppState
+    @State private var refreshTarget: Wallet?
+
+    /// First refreshable wallet (n-of-n CGGMP21 ECDSA). Currently 2-of-2 secp256k1.
+    private var refreshable: Wallet? {
+        appState.walletStore.wallets.first { w in
+            w.threshold == w.totalParties &&
+            w.chain.curveType == .secp256k1 &&
+            !w.hidden
+        }
+    }
+
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
@@ -1114,23 +1126,53 @@ struct ReplaceDeviceInfoView: View {
                     stepRow(index: 4, title: L10n.SettingsResidual.step4Title, body: L10n.SettingsResidual.step4Body)
                 }
 
-                VStack(alignment: .leading, spacing: 8) {
-                    Label {
-                        Text(L10n.SettingsResidual.comingSoon).font(.subheadline.weight(.semibold))
-                    } icon: {
-                        Image(systemName: "sparkles").foregroundStyle(.yellow)
+                if let w = refreshable {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Label {
+                            Text(L10n.Refresh.entryPoint).font(.subheadline.weight(.semibold))
+                        } icon: {
+                            Image(systemName: "arrow.triangle.2.circlepath").foregroundStyle(HorcruxTheme.accentCyan)
+                        }
+                        Text(L10n.Refresh.entryPointSubtitle)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        Button {
+                            refreshTarget = w
+                        } label: {
+                            Text(L10n.Refresh.startButton)
+                                .frame(maxWidth: .infinity)
+                                .font(.subheadline.weight(.semibold))
+                                .padding(.vertical, 6)
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .tint(HorcruxTheme.accentCyan)
+                        .accessibilityIdentifier("refresh_startButton")
                     }
-                    Text(L10n.SettingsResidual.refreshShardsComingSoon)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                    .padding(12)
+                    .background(RoundedRectangle(cornerRadius: 12).fill(HorcruxTheme.accentCyan.opacity(0.08)))
+                } else {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Label {
+                            Text(L10n.SettingsResidual.comingSoon).font(.subheadline.weight(.semibold))
+                        } icon: {
+                            Image(systemName: "sparkles").foregroundStyle(.yellow)
+                        }
+                        Text(L10n.SettingsResidual.refreshShardsComingSoon)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    .padding(12)
+                    .background(RoundedRectangle(cornerRadius: 12).fill(Color.yellow.opacity(0.1)))
                 }
-                .padding(12)
-                .background(RoundedRectangle(cornerRadius: 12).fill(Color.yellow.opacity(0.1)))
             }
             .padding()
         }
         .navigationTitle(L10n.SettingsResidual.replaceNavTitle)
         .navigationBarTitleDisplayMode(.inline)
+        .sheet(item: $refreshTarget) { wallet in
+            RefreshShardSheet(wallet: wallet, appState: appState)
+                .environmentObject(appState)
+        }
     }
 
     private func stepRow(index: Int, title: String, body: String) -> some View {

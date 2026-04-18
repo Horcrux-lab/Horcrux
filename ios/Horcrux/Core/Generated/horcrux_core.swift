@@ -799,6 +799,13 @@ public protocol HorcruxSessionManagerProtocol : AnyObject {
     func createKeygen(sessionId: String, config: FfiHorcruxConfig) throws  -> [FfiMpcMessage]
     
     /**
+     * Initiate a proactive key refresh session. Re-randomises the local
+     * shard while keeping the wallet's group public key unchanged.
+     * Currently restricted to n-of-n CGGMP21 ECDSA shares.
+     */
+    func createRefresh(sessionId: String, config: FfiHorcruxConfig, shardData: Data) throws  -> [FfiMpcMessage]
+    
+    /**
      * Start a threshold signing session. Requires the local shard and participant list.
      */
     func createSigning(sessionId: String, config: FfiHorcruxConfig, messageHash: Data, shardData: Data, participants: [UInt16]) throws  -> [FfiMpcMessage]
@@ -807,6 +814,14 @@ public protocol HorcruxSessionManagerProtocol : AnyObject {
      * Retrieve the DKG result (public key + shard). Returns `None` if still in progress.
      */
     func getKeygenResult(sessionId: String)  -> FfiKeygenResult?
+    
+    /**
+     * Retrieve a refresh ceremony result (new shard, same public key).
+     * Returns `None` if still in progress. Uses the same payload shape as
+     * `FfiKeygenResult`; on success the `public_key` is identical to the
+     * pre-refresh value and `shard_data` is the new encrypted-on-disk shard.
+     */
+    func getRefreshResult(sessionId: String)  -> FfiKeygenResult?
     
     /**
      * Retrieve the signing result (signature). Returns `None` if still in progress.
@@ -901,6 +916,21 @@ open func createKeygen(sessionId: String, config: FfiHorcruxConfig)throws  -> [F
 }
     
     /**
+     * Initiate a proactive key refresh session. Re-randomises the local
+     * shard while keeping the wallet's group public key unchanged.
+     * Currently restricted to n-of-n CGGMP21 ECDSA shares.
+     */
+open func createRefresh(sessionId: String, config: FfiHorcruxConfig, shardData: Data)throws  -> [FfiMpcMessage] {
+    return try  FfiConverterSequenceTypeFfiMpcMessage.lift(try rustCallWithError(FfiConverterTypeHorcruxError.lift) {
+    uniffi_horcrux_core_fn_method_horcruxsessionmanager_create_refresh(self.uniffiClonePointer(),
+        FfiConverterString.lower(sessionId),
+        FfiConverterTypeFfiHorcruxConfig.lower(config),
+        FfiConverterData.lower(shardData),$0
+    )
+})
+}
+    
+    /**
      * Start a threshold signing session. Requires the local shard and participant list.
      */
 open func createSigning(sessionId: String, config: FfiHorcruxConfig, messageHash: Data, shardData: Data, participants: [UInt16])throws  -> [FfiMpcMessage] {
@@ -921,6 +951,20 @@ open func createSigning(sessionId: String, config: FfiHorcruxConfig, messageHash
 open func getKeygenResult(sessionId: String) -> FfiKeygenResult? {
     return try!  FfiConverterOptionTypeFfiKeygenResult.lift(try! rustCall() {
     uniffi_horcrux_core_fn_method_horcruxsessionmanager_get_keygen_result(self.uniffiClonePointer(),
+        FfiConverterString.lower(sessionId),$0
+    )
+})
+}
+    
+    /**
+     * Retrieve a refresh ceremony result (new shard, same public key).
+     * Returns `None` if still in progress. Uses the same payload shape as
+     * `FfiKeygenResult`; on success the `public_key` is identical to the
+     * pre-refresh value and `shard_data` is the new encrypted-on-disk shard.
+     */
+open func getRefreshResult(sessionId: String) -> FfiKeygenResult? {
+    return try!  FfiConverterOptionTypeFfiKeygenResult.lift(try! rustCall() {
+    uniffi_horcrux_core_fn_method_horcruxsessionmanager_get_refresh_result(self.uniffiClonePointer(),
         FfiConverterString.lower(sessionId),$0
     )
 })
@@ -3249,10 +3293,16 @@ private var initializationResult: InitializationResult = {
     if (uniffi_horcrux_core_checksum_method_horcruxsessionmanager_create_keygen() != 15041) {
         return InitializationResult.apiChecksumMismatch
     }
+    if (uniffi_horcrux_core_checksum_method_horcruxsessionmanager_create_refresh() != 6495) {
+        return InitializationResult.apiChecksumMismatch
+    }
     if (uniffi_horcrux_core_checksum_method_horcruxsessionmanager_create_signing() != 55500) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_horcrux_core_checksum_method_horcruxsessionmanager_get_keygen_result() != 62251) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_horcrux_core_checksum_method_horcruxsessionmanager_get_refresh_result() != 13379) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_horcrux_core_checksum_method_horcruxsessionmanager_get_signing_result() != 36798) {

@@ -5,7 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.3.0-dev.51] - 2026-04-18
+## [0.3.0-dev.52] - 2026-04-19
+
+### Added
+
+- **Rust + iOS**: 暴露 CGGMP21 **`key_refresh()`** 主动刷新 FFI —— `horcrux-core` 新增 `mpc/refresh.rs::EcdsaRefreshSession`，沿用现有 `EcdsaDkgSession` 模式包一层 driver；`SessionManager::create_refresh()` 校验当前钱包必须是 n-of-n（CGGMP21 的硬约束）+ Secp256k1 + ECDSA，然后 `cggmp21::key_refresh(eid, &key_share, pregen).into_state_machine(rng)` 把所有 round 跑完。完成后 `KeyShare::into_inner()` 拆出 `core: DirtyIncompleteKeyShare<E>` + `aux: DirtyAuxInfo<L>`，分别 `Valid::validate(...)` 重新封装并序列化成现有 `EcdsaShardData`。**关键不变量**：refresh 前后群公钥（钱包地址）必须完全相同 —— Rust 侧 `assert_eq!`，Swift 侧 `RefreshShardCoordinator` 在写回 Keychain 前再次校验。新增 `EcdsaPhase::Refresh` wire-msg 守卫，避免 keygen / auxinfo / sign / refresh 四种协议消息互相串扰；`ExecutionId` 形如 `horcrux-refresh-{session_id}` 与其它流程隔离。
+- **iOS**: `RefreshShardCoordinator` + `RefreshShardSheet` —— PIN 解锁 → 取出 SWK 解密现有分片 → `bridge.startRefresh(...)` → 与对端走标准 relay round-loop → 收到新 `KeyShare` → 公钥不变量校验 → 用旧 SWK 重新派生 PBKDF2-AES-GCM 重新加密 → `WalletStore.storeKeyShare(_, accountId:)` 走 Keychain `update` 原子替换（崩溃也不会留下半截密文）。`SettingsView` 的 "更换设备" 入口从 "敬请期待" 占位改造成可实际触发 sheet 的按钮（首个 n-of-n + secp256k1 + 未隐藏的钱包），覆盖现役 2-of-2 BTC/ETH/LTC/SOL/TRON 路径。
+
+### Changed
+
+- **iOS**: `ReplaceDeviceInfoView` 新增 wallet picker 逻辑 —— 自动挑选首个 `threshold == totalParties && curveType == .secp256k1 && !hidden` 的钱包作为 refresh target，避免误碰 ed25519/Solana 这类暂时不能 CGGMP21 refresh 的钱包。
+
+
 
 ### Added
 

@@ -219,11 +219,20 @@ interface HorcruxSessionManager {
     );
 
     [Throws=HorcruxError]
+    sequence<MpcMessage> create_refresh(
+        string session_id,
+        HorcruxConfig config,
+        bytes shard_data
+    );
+
+    [Throws=HorcruxError]
     sequence<MpcMessage> handle_message(MpcMessage msg);
 
     KeygenResult? get_keygen_result(string session_id);
 
     SigningResult? get_signing_result(string session_id);
+
+    KeygenResult? get_refresh_result(string session_id);
 
     void remove_session(string session_id);
 };

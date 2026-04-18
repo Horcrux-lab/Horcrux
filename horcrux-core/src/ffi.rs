@@ -651,6 +651,26 @@ impl HorcruxSessionManager {
         Ok(msgs.into_iter().map(Into::into).collect())
     }
 
+    /// Initiate a proactive key refresh session. Re-randomises the local
+    /// shard while keeping the wallet's group public key unchanged.
+    /// Currently restricted to n-of-n CGGMP21 ECDSA shares.
+    pub fn create_refresh(
+        &self,
+        session_id: String,
+        config: FfiHorcruxConfig,
+        shard_data: Vec<u8>,
+    ) -> Result<Vec<FfiMpcMessage>, HorcruxError> {
+        let cfg = HorcruxConfig::new(
+            config.threshold,
+            config.total_parties,
+            config.party_index,
+            config.curve.into(),
+        )?;
+        let mut mgr = lock_or_err!(self.inner, HorcruxError, SessionError)?;
+        let msgs = mgr.create_refresh(session_id, cfg, shard_data)?;
+        Ok(msgs.into_iter().map(Into::into).collect())
+    }
+
     /// Process an inbound MPC protocol message and return any outgoing responses.
     pub fn handle_message(&self, msg: FfiMpcMessage) -> Result<Vec<FfiMpcMessage>, HorcruxError> {
         let mut mgr = lock_or_err!(self.inner, HorcruxError, SessionError)?;
@@ -660,6 +680,15 @@ impl HorcruxSessionManager {
 
     /// Retrieve the DKG result (public key + shard). Returns `None` if still in progress.
     pub fn get_keygen_result(&self, session_id: String) -> Option<FfiKeygenResult> {
+        let mgr = self.inner.lock().ok()?;
+        mgr.keygen_result(&session_id).map(Into::into)
+    }
+
+    /// Retrieve a refresh ceremony result (new shard, same public key).
+    /// Returns `None` if still in progress. Uses the same payload shape as
+    /// `FfiKeygenResult`; on success the `public_key` is identical to the
+    /// pre-refresh value and `shard_data` is the new encrypted-on-disk shard.
+    pub fn get_refresh_result(&self, session_id: String) -> Option<FfiKeygenResult> {
         let mgr = self.inner.lock().ok()?;
         mgr.keygen_result(&session_id).map(Into::into)
     }

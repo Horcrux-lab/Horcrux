@@ -8,6 +8,7 @@
 use super::ecdsa::{EcdsaDkgSession, EcdsaSigningSession};
 use super::frost::{FrostDkgSession, FrostSigningSession};
 use super::keygen::KeygenSession;
+use super::refresh::EcdsaRefreshSession;
 use super::signing::SigningSession;
 use super::types::{KeygenResult, MpcMessage, SigningResult};
 use super::{CurveType, HorcruxConfig, MpcError};
@@ -20,6 +21,7 @@ enum DkgSessionKind {
     Schnorr(KeygenSession),
     Frost(FrostDkgSession),
     Ecdsa(EcdsaDkgSession),
+    EcdsaRefresh(EcdsaRefreshSession),
 }
 
 /// Abstracts over different signing session types.
@@ -118,6 +120,32 @@ impl SessionManager {
         Ok(msgs)
     }
 
+    /// Create and start a new key refresh session (proactive share rotation).
+    /// Only supported for Secp256k1 / CGGMP21 (n-of-n only); requires the
+    /// existing shard for this party.
+    pub fn create_refresh(
+        &mut self,
+        session_id: String,
+        config: HorcruxConfig,
+        shard_data: Vec<u8>,
+    ) -> Result<Vec<MpcMessage>, MpcError> {
+        if !matches!(config.curve, CurveType::Secp256k1) || !self.use_ecdsa {
+            return Err(MpcError::InvalidConfig(
+                "refresh only supported for CGGMP21 ECDSA (Secp256k1)".into(),
+            ));
+        }
+        if config.threshold != config.total_parties {
+            return Err(MpcError::InvalidConfig(
+                "refresh currently only supported for n-of-n shares".into(),
+            ));
+        }
+        let mut session = EcdsaRefreshSession::new(config, shard_data)?;
+        let msgs = session.start(&session_id)?;
+        self.keygen_sessions
+            .insert(session_id, (DkgSessionKind::EcdsaRefresh(session), Instant::now()));
+        Ok(msgs)
+    }
+
     /// Route an incoming message to the correct session.
     pub fn handle_message(&mut self, msg: MpcMessage) -> Result<Vec<MpcMessage>, MpcError> {
         if let Some((session, ts)) = self.keygen_sessions.get_mut(&msg.session_id) {
@@ -126,6 +154,7 @@ impl SessionManager {
                 DkgSessionKind::Schnorr(s) => s.process_message(msg),
                 DkgSessionKind::Frost(s) => s.process_message(msg),
                 DkgSessionKind::Ecdsa(s) => s.process_message(msg),
+                DkgSessionKind::EcdsaRefresh(s) => s.process_message(msg),
             };
         }
         if let Some((session, ts)) = self.signing_sessions.get_mut(&msg.session_id) {
@@ -150,6 +179,7 @@ impl SessionManager {
                 DkgSessionKind::Schnorr(s) => s.result(),
                 DkgSessionKind::Frost(s) => s.result(),
                 DkgSessionKind::Ecdsa(s) => s.result(),
+                DkgSessionKind::EcdsaRefresh(s) => s.result(),
             })
     }
 
