@@ -801,8 +801,8 @@
 "walletEmpty.showQR" = "Show QR";
 "walletEmpty.addCustomToken" = "Add a custom token on this chain";
 "walletEmpty.totalAssets" = "Total assets";
-"walletEmpty.summaryOneAccount" = "%d chain(s) · Live USD quotes (source: CoinGecko)";
-"walletEmpty.summaryMultiAccount" = "Across %1$d account(s) · %2$d chain(s) · Live USD quotes (source: CoinGecko)";
+"walletEmpty.summaryOneAccount" = "%d chain(s)";
+"walletEmpty.summaryMultiAccount" = "Across %1$d account(s) · %2$d chain(s)";
 "walletEmpty.removeFromDevice" = "This removes the wallet and its transaction history from this device. Other shard holders are unaffected; on-chain assets are not deleted.";
 
 "settingsR.languageSection" = "Language";

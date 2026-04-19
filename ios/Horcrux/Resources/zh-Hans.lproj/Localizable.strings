@@ -801,8 +801,8 @@
 "walletEmpty.showQR" = "显示 QR";
 "walletEmpty.addCustomToken" = "在此链上添加自定义代币";
 "walletEmpty.totalAssets" = "总资产";
-"walletEmpty.summaryOneAccount" = "%d 条链 · 实时 USD 报价（来源：CoinGecko）";
-"walletEmpty.summaryMultiAccount" = "跨 %1$d 个账户 · %2$d 条链 · 实时 USD 报价（来源：CoinGecko）";
+"walletEmpty.summaryOneAccount" = "%d 条链";
+"walletEmpty.summaryMultiAccount" = "跨 %1$d 个账户 · %2$d 条链";
 "walletEmpty.removeFromDevice" = "这会从本设备移除钱包和它的交易历史。其他持分设备不受影响；链上资产不会被删除。";
 
 "settingsR.languageSection" = "语言";
