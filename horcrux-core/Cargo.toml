@@ -64,6 +64,7 @@ ripemd = "0.1"
 
 [build-dependencies]
 uniffi = { version = "0.28", features = ["build"] }
+cc = "1"
 
 [dev-dependencies]
 tokio = { version = "1", features = ["full", "test-util"] }
