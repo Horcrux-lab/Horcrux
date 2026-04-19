@@ -728,8 +728,11 @@ struct SigningCompleteView: View {
     let dismiss: DismissAction
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.openURL) private var openURL
     @State private var pulse = false
     @State private var sealScale: CGFloat = 0.4
+    @State private var hashRevealed = false
+    @State private var hashCopied = false
 
     var body: some View {
         let chainTint = viewModel.wallet.chain.color
@@ -776,6 +779,17 @@ struct SigningCompleteView: View {
                 pulse = true
                 sealScale = 1.0
                 Haptics.success()
+                // Delay the hash reveal so the seal animation lands first —
+                // then the tx hash chip floats in with its action row.
+                if reduceMotion {
+                    hashRevealed = true
+                } else {
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.45) {
+                        withAnimation(.spring(response: 0.45, dampingFraction: 0.75)) {
+                            hashRevealed = true
+                        }
+                    }
+                }
             }
 
             VStack(spacing: 8) {
@@ -786,10 +800,7 @@ struct SigningCompleteView: View {
                     .font(.title2)
 
                 if let txHash = viewModel.txHash {
-                    Text(txHash)
-                        .font(.system(.caption2, design: .monospaced))
-                        .foregroundStyle(.secondary)
-                        .textSelection(.enabled)
+                    txHashReveal(hash: txHash)
                 }
             }
 
@@ -860,9 +871,78 @@ struct SigningCompleteView: View {
         }
         .padding()
     }
-}
 
-// MARK: - Error
+    /// Tx hash reveal: monospace chip chunked 6-4 with spring fade-in,
+    /// copy button, and a conditional explorer link. Anchors the seal
+    /// animation — appears 450ms after onAppear so the seal stamps
+    /// first, then the receipt chip floats in.
+    @ViewBuilder
+    private func txHashReveal(hash: String) -> some View {
+        let explorerURL = AddressFormatter.txExplorerURL(txHash: hash, chain: viewModel.wallet.chain)
+        HStack(spacing: 10) {
+            Image(systemName: "number")
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(HorcruxTheme.subtleText)
+            Text(shortHash(hash))
+                .font(.system(.caption, design: .monospaced))
+                .foregroundStyle(.white.opacity(0.85))
+                .textSelection(.enabled)
+            Spacer(minLength: 8)
+            Button {
+                SecureClipboard.copy(hash)
+                Haptics.success()
+                withAnimation(.easeInOut(duration: 0.2)) { hashCopied = true }
+                Task {
+                    try? await Task.sleep(nanoseconds: 1_500_000_000)
+                    await MainActor.run { withAnimation { hashCopied = false } }
+                }
+            } label: {
+                Image(systemName: hashCopied ? "checkmark" : "doc.on.doc")
+                    .font(.caption)
+                    .foregroundStyle(hashCopied ? HorcruxTheme.successGreen : HorcruxTheme.accentBlue)
+                    .frame(width: 28, height: 28)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(L10n.WalletDetail.copyAddress)
+
+            if let url = explorerURL {
+                Button {
+                    Haptics.tap()
+                    openURL(url)
+                } label: {
+                    Image(systemName: "arrow.up.right.square")
+                        .font(.caption)
+                        .foregroundStyle(HorcruxTheme.accentBlue)
+                        .frame(width: 28, height: 28)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(L10n.TxDetail.viewOnExplorer)
+            }
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+        .background(
+            RoundedRectangle(cornerRadius: 10)
+                .fill(Color.white.opacity(0.04))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 10)
+                        .stroke(HorcruxTheme.hairline, lineWidth: 1)
+                )
+        )
+        .padding(.horizontal, 24)
+        .opacity(hashRevealed ? 1.0 : 0.0)
+        .offset(y: hashRevealed ? 0 : 8)
+        .accessibilityElement(children: .combine)
+        .accessibilityIdentifier("complete_txHashChip")
+    }
+
+    private func shortHash(_ h: String) -> String {
+        guard h.count > 14 else { return h }
+        return "\(h.prefix(8))…\(h.suffix(6))"
+    }
+}
 
 struct SigningErrorView: View {
     @ObservedObject var viewModel: SigningViewModel
