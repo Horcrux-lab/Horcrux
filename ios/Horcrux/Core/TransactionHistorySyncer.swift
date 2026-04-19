@@ -46,7 +46,7 @@ final class TransactionHistorySyncer {
             if wallet.chain.isEVM {
                 let erc20 = (try? await service.etherscanRecentTokenTxs(
                     address: wallet.address,
-                    chainId: config.evmChainId,
+                    chainId: evmChainId(for: wallet),
                     apiKey: config.etherscanAPIKey
                 )) ?? []
                 for (ext, symbol, decimals, _) in erc20 where !existing.contains("\(ext.txHash):\(symbol)") {
@@ -80,12 +80,22 @@ final class TransactionHistorySyncer {
             if wallet.chain.isEVM {
                 return try await service.etherscanRecentTxs(
                     address: wallet.address,
-                    chainId: config.evmChainId,
+                    chainId: evmChainId(for: wallet),
                     apiKey: config.etherscanAPIKey
                 )
             }
             return []
         }
+    }
+
+    /// For Ethereum the user-toggled mainnet/sepolia switch wins so the
+    /// history view stays consistent with what they see in Settings. For
+    /// every other EVM chain we always use that chain's own chainId —
+    /// `config.evmChainId` only tracks the Ethereum mainnet/sepolia
+    /// toggle and has nothing to say about e.g. BNB or Polygon.
+    private func evmChainId(for wallet: Wallet) -> UInt64 {
+        if wallet.chain == .ethereum { return config.evmChainId }
+        return wallet.chain.defaultEVMNetwork?.rawValue ?? config.evmChainId
     }
 
     private func makeRecord(_ ext: BlockchainService.ExternalTx, wallet: Wallet) -> TransactionRecord {
