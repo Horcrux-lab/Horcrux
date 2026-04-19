@@ -73,6 +73,66 @@ struct PriceChangeBadge: View {
     }
 }
 
+/// Minimal 24h portfolio sparkline. Draws a smooth polyline over the
+/// normalized values, plus a soft gradient fill under the line tinted
+/// with the trend direction (green if rising, red if falling).
+struct Sparkline: View {
+    let values: [Double]
+    var height: CGFloat = 32
+
+    private var isUp: Bool {
+        guard let first = values.first, let last = values.last else { return true }
+        return last >= first
+    }
+    private var color: Color {
+        isUp ? HorcruxTheme.successGreen : .red
+    }
+
+    var body: some View {
+        GeometryReader { geo in
+            if values.count >= 2,
+               let minV = values.min(), let maxV = values.max(), maxV > minV {
+                let w = geo.size.width
+                let h = geo.size.height
+                let step = w / CGFloat(values.count - 1)
+                let range = maxV - minV
+                let points: [CGPoint] = values.enumerated().map { i, v in
+                    CGPoint(x: CGFloat(i) * step,
+                            y: h - CGFloat((v - minV) / range) * h)
+                }
+                ZStack {
+                    Path { p in
+                        p.move(to: CGPoint(x: 0, y: h))
+                        for pt in points { p.addLine(to: pt) }
+                        p.addLine(to: CGPoint(x: w, y: h))
+                        p.closeSubpath()
+                    }
+                    .fill(
+                        LinearGradient(
+                            colors: [color.opacity(0.35), color.opacity(0.0)],
+                            startPoint: .top, endPoint: .bottom
+                        )
+                    )
+                    Path { p in
+                        p.move(to: points[0])
+                        for pt in points.dropFirst() { p.addLine(to: pt) }
+                    }
+                    .stroke(color, style: StrokeStyle(lineWidth: 1.6, lineCap: .round, lineJoin: .round))
+                }
+            } else {
+                // Flat placeholder line
+                Path { p in
+                    p.move(to: CGPoint(x: 0, y: geo.size.height / 2))
+                    p.addLine(to: CGPoint(x: geo.size.width, y: geo.size.height / 2))
+                }
+                .stroke(HorcruxTheme.subtleText.opacity(0.3), style: StrokeStyle(lineWidth: 1, dash: [2, 3]))
+            }
+        }
+        .frame(height: height)
+        .accessibilityHidden(true)
+    }
+}
+
 /// Badge showing t-of-n threshold.
 struct ShardStatusBadge: View {
     let threshold: UInt16

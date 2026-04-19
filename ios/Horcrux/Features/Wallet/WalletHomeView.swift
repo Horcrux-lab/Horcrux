@@ -1236,6 +1236,7 @@ struct PortfolioSummaryCard: View {
     @StateObject private var priceService = PriceService.shared
     @ObservedObject private var balanceCache = BalanceCache.shared
     @State private var isLoading = false
+    @AppStorage("portfolio.valueHidden") private var valueHidden: Bool = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -1249,11 +1250,28 @@ struct PortfolioSummaryCard: View {
                 if isLoading {
                     ProgressView().scaleEffect(0.7).tint(HorcruxTheme.accentPurple)
                 }
+                Button {
+                    withAnimation(.easeInOut(duration: 0.2)) { valueHidden.toggle() }
+                    Haptics.selection()
+                } label: {
+                    Image(systemName: valueHidden ? "eye.slash.fill" : "eye.fill")
+                        .font(.subheadline)
+                        .foregroundStyle(HorcruxTheme.subtleText)
+                        .frame(width: 32, height: 32)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(valueHidden ? "Show balance" : "Hide balance")
             }
-            Text(totalFiatString)
-                .font(.system(size: 32, weight: .bold, design: .rounded).monospacedDigit())
-                .foregroundStyle(.white)
-                .contentTransition(.numericText())
+            HStack(alignment: .firstTextBaseline) {
+                Text(valueHidden ? "••••••" : totalFiatString)
+                    .font(.system(size: 32, weight: .bold, design: .rounded).monospacedDigit())
+                    .foregroundStyle(.white)
+                    .contentTransition(.numericText())
+                Spacer(minLength: 8)
+                Sparkline(values: portfolioSparkline, height: 36)
+                    .frame(maxWidth: 110)
+                    .opacity(valueHidden ? 0.25 : 1.0)
+            }
             if let (percent, absolute) = total24hChange() {
                 HStack(spacing: 6) {
                     Image(systemName: percent >= 0 ? "arrow.up.right" : "arrow.down.right")
@@ -1264,6 +1282,7 @@ struct PortfolioSummaryCard: View {
                                 absolute >= 0 ? "+" : "-",
                                 abs(absolute)))
                         .font(.caption.weight(.medium).monospacedDigit())
+                        .opacity(valueHidden ? 0.0 : 1.0)
                 }
                 .foregroundStyle(percent >= 0 ? HorcruxTheme.successGreen : HorcruxTheme.dangerRed)
             }
@@ -1277,6 +1296,31 @@ struct PortfolioSummaryCard: View {
         .task {
             await refreshAll()
         }
+    }
+
+    /// Weighted 24h portfolio sparkline. For each of the 24 hourly buckets,
+    /// multiplies per-chain historical price by the wallet's current native
+    /// amount (we don't track historical balances, only historical prices —
+    /// this approximates 'how the portfolio's current composition moved').
+    private var portfolioSparkline: [Double] {
+        var holdings: [String: Double] = [:]
+        for w in wallets {
+            let amount = balanceCache.nativeAmount(walletId: w.id) ?? 0
+            holdings[w.chain.symbol, default: 0] += amount
+        }
+        var bucketValues = Array(repeating: 0.0, count: 24)
+        var anyData = false
+        for (symbol, amount) in holdings where amount > 0 {
+            guard let spark = priceService.sparkline24h(symbol: symbol) else { continue }
+            anyData = true
+            let padded: [Double] = spark.count >= 24
+                ? Array(spark.suffix(24))
+                : Array(repeating: spark.first ?? 0, count: 24 - spark.count) + spark
+            for i in 0..<24 {
+                bucketValues[i] += padded[i] * amount
+            }
+        }
+        return anyData ? bucketValues : []
     }
 
     private var summarySubtitle: String {
@@ -1327,6 +1371,7 @@ struct PortfolioSummaryCard: View {
 
     private func refreshAll() async {
         priceService.refreshIfNeeded()
+        priceService.refreshSparklinesIfNeeded()
         isLoading = true
         defer { isLoading = false }
         await BalanceCache.shared.refreshAll(
