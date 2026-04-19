@@ -351,6 +351,8 @@ struct SettingsView: View {
                             Divider().background(HorcruxTheme.hairline)
                             aboutRow(L10n.Settings.e2eEncryption, value: "Noise Protocol")
                             Divider().background(HorcruxTheme.hairline)
+                            aboutRow(L10n.Settings.priceDataSources, value: "CoinGecko · Coincap")
+                            Divider().background(HorcruxTheme.hairline)
                             HStack {
                                 Text(L10n.Settings.secureEnclave)
                                     .font(.subheadline)

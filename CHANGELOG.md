@@ -5,6 +5,82 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.0-dev.59] - 2026-04-19
+
+### Added
+
+- **iOS**: `WalletHomeView` — **可折叠账户组**（仅当账户数 > 1 时生效）。`WalletGroupHeader` 变成可点 Button，右侧多一个 chevron；收起后 chevron 旋转 -90°，shared-EVM-address chip 被替换为一行摘要 `N 条链中 M 条有余额` / `M 条链 · 全部为空`。`@State collapsedGroups: Set<String>` session-local，不持久化——iOS 原生 disclosure group 的语义：opt-in fold / relaunch 自动展开。单账户用户无感知。新增 i18n：`common.expand` / `common.collapse` / `walletHome.collapsedFundedOfTotal` / `walletHome.collapsedAllEmpty`（zh-Hans + en）。
+- **iOS**: `PriceService` — **两级报价源**兜底。原先单源 CoinGecko，429/超时/Cloudflare 挑战就整 App 美元列静默变空。现在 `fetch(symbols:)` 先打 CoinGecko `/simple/price`，再对未返回的 symbol 用 Coincap `/v2/assets?ids=...` 精准补请求（`priceUsd` + `changePercent24Hr` 字段直接映射现有 `Quote` 模型）。两家独立基建、都无需 API Key。Sparkline 仍单源 CoinGecko（装饰性，CG 挂了就静默隐藏，已有行为）。类头注释同步更新说明 fallback 阶梯。
+
+### Fixed
+
+- **iOS**: `CreateShardFlow` — **加入房间时房间码不再残留**。Creator 路径 `onAppear` 会自动生成房间码避免 host 面对空框，但切换到 Joiner 时这串自动码留在输入框里，加入方得先全选删除再粘贴对方房间码。`onChange(of: role)` 里现在检测切到 `.join` 先把 `viewModel.roomCode = ""` 再调用 `autofillRoomCodeIfNeeded()`（对加入方天然 no-op），加入路径永远以空输入框启动。
+- **iOS**: `ProgressRing` — 仪式页图标遮挡百分比修复。`ProgressRing` 内置在 ZStack 中心渲染 `"NN%"` Text，仪式 UI（SigningProgressView / DKGProgressView）又把 44pt ChainIcon / `key.horizontal.fill` 叠在中心，两者抢同一位置——数字被盖。加 `showPercentage: Bool = true` 开关，仪式场景传 `false` 让图标独占；独立 ring（发现/lobby）保留默认行为。进度仍由环 trim + round 计数 + elapsed 时间三重可视化。
+
+### Changed
+
+- **iOS**: `PortfolioSummaryCard` 副标题清理。原文 `1 条链 · 实时 USD 报价（来源：CoinGecko）` 精简为 `1 条链`（多账户：`跨 N 个账户 · M 条链`）。"实时 USD 报价" 与上方 $ 金额自解释；CoinGecko 归属属 footer 级信息，不该戳在主要余额下方。将来若 ToS 要求应用内署名，放到 Settings → 关于/数据源一行即可。zh-Hans + en 两份 `.strings` 同步。
+
+## [0.3.0-dev.58] - 2026-04-19
+
+### Added
+
+- **iOS**: `OnboardingView` value-prop 卡片升级为 **ShardOrbit hero 组合**。`valuePropPage(icon:title:subtitle:orbitStates:)` 加入每卡专属的轨道配置，用 `ShardOrbit.DotState` 编码叙事：卡 1（安全）3 个 `.active` 点、卡 2（多设备）4 个 `.active` 点、卡 3（恢复）3 个点中间 `.failed` 两侧 `.active` —— 可视化"一台设备挂了密钥仍在" 的 t-of-n resilience。180pt 紫色径向光晕 + 64pt radius orbit + 44pt SF Symbol 中心 glyph（用 `shieldGradient` + 紫色外发光）。卡 3 图标从通用循环箭头换成 `key.horizontal.fill`，与 DKG/签名仪式 glyph 对齐。Continue 按钮加 `Haptics.selection()`。
+
+## [0.3.0-dev.57] - 2026-04-19
+
+### Added
+
+- **iOS**: `PortfolioBreakdownSheet` —— 点钱包主页 Portfolio 卡片展开**各链分配明细**。`PortfolioSummaryCard` 获得 `@State showBreakdown` + `.contentShape(Rectangle())` + `.onTapGesture { Haptics.selection(); showBreakdown = true }`，`.sheet` 走 `.medium/.large` detents + 顶部拖动指示条。Sheet 内部：按 USD 倒序排的 per-chain row（`ChainIcon` + 链名 + 原生数量 + 美元值 + 24h 涨跌 badge + tinted 分配条），`GeometryReader` 实现的 capsule 分配条宽度 `max(6, geo.size.width * pct)`（≥1pt 最小宽度保证 sub-1% 仓位也可见），每行包 `.tintedGlassCard(color: chain.color, padding: 14)`；空状态兜底。v1 只聚合链级原生资产——ERC-20/SPL 待 BalanceCache 补上跨钱包 token seed。`.numericText` contentTransition 让总额跳数字有动画；NavigationStack + Done 按钮走 accentBlue。
+
+## [0.3.0-dev.56] - 2026-04-19
+
+### Added
+
+- **iOS**: **Send 流程 chain-tint 全覆盖**。`ComposeTransactionView` 加 `liveFiatString` 计算属性（复用 `PriceService.fiatString(amount:symbol:)`，空/零/非法时返 nil），金额 HStack 下方显示 `≈ $X.XX` caption（`compose_amountFiat` identifier），支持 token 路径（走 `viewModel.transferSymbol`）；`GradientButtonStyle` 扩展可选 `tint: Color?` 参数——非 nil 时用 `LinearGradient([tint, tint.opacity(0.7)])` + `tint.opacity(0.45)` 外发光覆盖默认紫色梯度；Next/Sign 按钮传 `wallet.chain.color`。`InviteSignersView` 全面链色化：`SignerSlot` 加 `tint: Color = accentPurple` 参数（默认保留 DKG 场景的紫色），已加入的对端行从 `.glassCard` 升级为 `.tintedGlassCard(color: chain.color)`，等待 ProgressView + Sign Transaction CTA 都走链色。`TransactionPreviewCard` 的放大镜图标、plain-language 摘要 pill 底色（`tint.opacity(0.15)`）、外框 stroke（`tint.opacity(0.25)`）全改为链色；复制/区块浏览器图标**故意保留 accentBlue**——App 全局约定 accentBlue = "可点击的操作"，chain-tint = "这属于此链"，语义分层。
+
+## [0.3.0-dev.55] - 2026-04-19
+
+### Added
+
+- **iOS**: **签名仪式 UI**（`SigningProgressView`）。ZStack 合成：`ShardOrbit`（对端点映射到 `.active` / `.waiting` / `.done` / `.failed`）+ 链色 `ProgressRing`（`showPercentage: false`，由外层 glyph 独占中心）+ 44pt `ChainIcon` 中心 glyph + 链色径向外发光。Round N of M 文字 + 等宽 elapsed 时间下沉到 ring 外。
+- **iOS**: **DKG 仪式 UI**（`DKGProgressView`）。同款 ShardOrbit + ProgressRing 合成，`key.horizontal.fill` 为 glyph，根据 `curveTint`（secp256k1 → ETH 蓝、ed25519 → SOL 紫）切颜色。`DKGCompleteView` 新增庆祝 ZStack：脉冲环 + 径向 halo + spring 弹出封印效果。
+- **iOS**: `WalletDetailView` 继承主页视觉语言——tinted hero card、balance 大字、PriceChangeBadge + Sparkline 组合、GlassCard 的 Send/Receive CTA。
+
+## [0.3.0-dev.54] - 2026-04-18
+
+### Added
+
+- **iOS**: `PortfolioSummaryCard` 获得 **sparkline + 隐私 toggle**。24h 价格走势来自 `PriceService.sparkline24h(symbol:)`（CoinGecko `/coins/markets?sparkline=true` 取 7d 里最后 24 小时，5min TTL 独立缓存），按总值加权混合成 portfolio-level 走势；长按 card 切换金额可见性（存 UserDefaults）。
+- **iOS**: 钱包行 **24h 价格变化 badge** + **链品牌色**。每行右侧显示 `PriceChangeBadge`（↑/↓ + 百分比 + 绿红色），行背景带 `tintedGlassCard(color: chain.color)` 左侧 3pt 色条。`Chain.color` 使用品牌色十六进制（ETH #627EEA / BTC #F7931A / SOL #9945FF / BNB #F0B90B 等）。
+- **iOS**: 钱包行**快捷操作**（长按上下文菜单 Copy / Receive / Hide）+ 离线 banner 可收起。
+- **iOS**: **账户级地址去重**——组内所有 EVM 钱包共用一个地址时，`WalletGroupHeader` 顶部挂一条可复制的 shared-address chip（`link.circle.fill` + 缩写 hex），每行不再重复显示。
+- **iOS**: **空余额链自动折叠**——组内 ≥2 个零余额链且至少 1 个有余额时，空链默认收起并提供 "Show N more chains" 展开按钮；`expandedGroups: Set<String>` session-local。
+- **iOS**: 钱包列表视觉层级（Portfolio hero + per-group 卡片 + FAB 间距）重整。
+
+## [0.3.0-dev.53] - 2026-04-18
+
+### Added
+
+- **iOS**: **自定义数字键盘**（`PinKeypad`）—— PIN 输入从系统 number pad 换成全屏 in-app 九宫格，抛掉键盘弹出抖动；`PinDotsField` 统一所有 PIN 录入点（Lock、Settings、Refresh 等）。
+- **iOS**: PIN 长度策略统一（默认 6 位、可配置）+ 锁屏 biometric 解锁**默认开启**。
+- **iOS**: **App 图标**首次落地（ios/Horcrux/Assets.xcassets/AppIcon）。
+- **iOS**: Siri Shortcuts `HorcruxAppIntents` 本地化（见 dev.52）；"更换设备" 入口改造为真实 PIN→refresh→re-encrypt 流程（见 dev.52 详述）。
+- **Core perf**: **Paillier 安全素数池** —— `horcrux-core/src/mpc/paillier_pool.rs` 后台线程预生成 2048-bit safe primes（CGGMP21 DKG 的热点成本），需要时从池里 pop 而不是现场生成；N-party DKG 实测冷启提速显著。
+- **Core perf**: **aarch64 GMP 手写汇编** —— `third_party/gmp-asm-override/` 补齐 `mpn_addmul_1` / `mpn_submul_1` 两个热函数的 aarch64 汇编版（GMP 默认 C 路径），通过 `build.rs` 钩子覆盖到 `gmp-mpfr-sys` 编译结果；`tests/devel/try.c` harness 跑通验证 ABI 正确。
+- **Core tests**: 差分模糊测试 `mpn_{add,sub}mul_1` 汇编 vs 参考实现；DKG perf harness 泛化到 N-party + FROST + prime-pool benchmark。
+- **iOS**: DKG 时间预估 + 慢路径提示（等待 >45s 时 banner 提示可能是对端网络问题）；Create Shard 流程 QR 码和房间码在 initiator 等待页保持可见。
+
+### Changed
+
+- **iOS**: **P0-P3 UX polish 批次**：
+  - P0：offline banner 不再把 navbar 染成黄色；修复坏掉的 zh 字符串
+  - P1：empty-state 减少视觉拥挤，Shards tab 改名
+  - P2：hairline token、更粗的 empty-state hero、更温和的 "save for later" 措辞；App 全局强制 dark color scheme
+  - P3：empty-state CTA 改读 "Create Your First Wallet"
+- **iOS**: DKG/签名按钮统一走 `GradientButtonStyle`；WalletHome 加 FAB；Auto-Lock 去掉 "Never" 选项（留着是安全风险）。
+- **iOS**: 语言切换页停止混杂中英；Settings 节点配置页剩余硬编码字符串本地化；从 Settings 隐藏硬件钱包入口（未落地前不展示）。
+
 ## [0.3.0-dev.52] - 2026-04-19
 
 ### Added

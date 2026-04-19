@@ -363,6 +363,7 @@
 "settings.coreLibrary" = "Core Library";
 "settings.mpcProtocols" = "MPC Protocols";
 "settings.e2eEncryption" = "E2E Encryption";
+"settings.priceDataSources" = "Price data";
 "settings.secureEnclave" = "Secure Enclave";
 "settings.hardwareProtected" = "Hardware Protected";
 "settings.softwareOnly" = "Software Only";

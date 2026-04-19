@@ -847,6 +847,7 @@ enum L10n {
         static let coreLibrary = NSLocalizedString("settings.coreLibrary", comment: "")
         static let mpcProtocols = NSLocalizedString("settings.mpcProtocols", comment: "")
         static let e2eEncryption = NSLocalizedString("settings.e2eEncryption", comment: "")
+        static let priceDataSources = NSLocalizedString("settings.priceDataSources", comment: "")
         static let secureEnclave = NSLocalizedString("settings.secureEnclave", comment: "")
         static let hardwareProtected = NSLocalizedString("settings.hardwareProtected", comment: "")
         static let softwareOnly = NSLocalizedString("settings.softwareOnly", comment: "")

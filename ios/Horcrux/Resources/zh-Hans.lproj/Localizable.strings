@@ -363,6 +363,7 @@
 "settings.coreLibrary" = "核心库";
 "settings.mpcProtocols" = "MPC 协议";
 "settings.e2eEncryption" = "端到端加密";
+"settings.priceDataSources" = "价格数据";
 "settings.secureEnclave" = "安全隔区";
 "settings.hardwareProtected" = "硬件保护";
 "settings.softwareOnly" = "纯软件";
