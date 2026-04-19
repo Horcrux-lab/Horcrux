@@ -1,12 +1,17 @@
 import Foundation
 import Combine
 
-/// CoinGecko-backed price service for the three supported chains.
+/// Price service for supported chains + stablecoins.
 ///
-/// Caches quotes in memory with a 5-minute TTL. Users of this class should
-/// observe `@Published quotes` and format via `Quote.fiatString(for:)`.
+/// Two-tier source strategy so a CoinGecko outage doesn't blank out the
+/// whole app:
+/// 1. **Primary**: CoinGecko `/simple/price` (free, no key).
+/// 2. **Fallback**: Coincap `/v2/assets` fills any symbol CoinGecko failed
+///    to return (request error, 429, or partial response). Independent
+///    infrastructure, also keyless.
 ///
-/// No API key needed: we use the free `/api/v3/simple/price` endpoint.
+/// Caches quotes in memory with a 5-minute TTL. Users should observe
+/// `@Published quotes` and format via `fiatString(amount:symbol:)`.
 @MainActor
 final class PriceService: ObservableObject {
     static let shared = PriceService()
@@ -51,6 +56,24 @@ final class PriceService: ObservableObject {
     }
 
     private func fetch(symbols: [String]) async {
+        // Primary: CoinGecko. Populate what we can; anything it misses falls
+        // through to Coincap. This covers both the "whole request failed"
+        // case (429/timeout/5xx) and the "partial response" case.
+        var collected: [String: Quote] = quotes
+        await fetchCoinGecko(symbols: symbols, into: &collected)
+
+        let missing = symbols.filter { sym in
+            guard let q = collected[sym] else { return true }
+            return Date().timeIntervalSince(q.fetchedAt) > ttl
+        }
+        if !missing.isEmpty {
+            await fetchCoincap(symbols: missing, into: &collected)
+        }
+
+        self.quotes = collected
+    }
+
+    private func fetchCoinGecko(symbols: [String], into out: inout [String: Quote]) async {
         let mapping: [String: String] = [
             "ETH": "ethereum",
             "BTC": "bitcoin",
@@ -62,20 +85,50 @@ final class PriceService: ObservableObject {
         ]
         let ids = symbols.compactMap { mapping[$0] }.joined(separator: ",")
         guard let url = URL(string: "https://api.coingecko.com/api/v3/simple/price?ids=\(ids)&vs_currencies=usd&include_24hr_change=true") else { return }
-
         do {
             let (data, _) = try await session.data(from: url)
             guard let json = try JSONSerialization.jsonObject(with: data) as? [String: [String: Double]] else { return }
-            var new: [String: Quote] = quotes
             for symbol in symbols {
                 guard let cgId = mapping[symbol], let obj = json[cgId], let usd = obj["usd"] else { continue }
-                // CoinGecko returns `usd_24h_change` with this flag set.
                 let change = obj["usd_24h_change"] ?? 0
-                new[symbol] = Quote(symbol: symbol, usd: usd, change24h: change, fetchedAt: Date())
+                out[symbol] = Quote(symbol: symbol, usd: usd, change24h: change, fetchedAt: Date())
             }
-            self.quotes = new
         } catch {
-            // Silent failure — price display is best-effort.
+            // Fall through to Coincap.
+        }
+    }
+
+    /// Coincap fallback. Same `/v2/assets?ids=` shape — uppercased slug IDs,
+    /// `priceUsd` + `changePercent24Hr` string fields. No API key.
+    private func fetchCoincap(symbols: [String], into out: inout [String: Quote]) async {
+        let mapping: [String: String] = [
+            "ETH": "ethereum",
+            "BTC": "bitcoin",
+            "SOL": "solana",
+            "LTC": "litecoin",
+            "TRX": "tron",
+            "USDC": "usd-coin",
+            "USDT": "tether"
+        ]
+        let ids = symbols.compactMap { mapping[$0] }.joined(separator: ",")
+        guard !ids.isEmpty,
+              let url = URL(string: "https://api.coincap.io/v2/assets?ids=\(ids)") else { return }
+        do {
+            let (data, _) = try await session.data(from: url)
+            guard let root = try JSONSerialization.jsonObject(with: data) as? [String: Any],
+                  let rows = root["data"] as? [[String: Any]] else { return }
+            let reverse = Dictionary(uniqueKeysWithValues: mapping.map { ($0.value, $0.key) })
+            for row in rows {
+                guard let id = row["id"] as? String,
+                      let symbol = reverse[id],
+                      let priceStr = row["priceUsd"] as? String,
+                      let usd = Double(priceStr) else { continue }
+                let changeStr = (row["changePercent24Hr"] as? String) ?? "0"
+                let change = Double(changeStr) ?? 0
+                out[symbol] = Quote(symbol: symbol, usd: usd, change24h: change, fetchedAt: Date())
+            }
+        } catch {
+            // Both sources failed — keep whatever was already cached.
         }
     }
 
