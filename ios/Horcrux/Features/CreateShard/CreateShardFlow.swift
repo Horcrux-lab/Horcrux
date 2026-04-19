@@ -787,6 +787,8 @@ struct DKGProgressView: View {
     @ObservedObject var viewModel: CreateShardViewModel
     @State private var elapsedSeconds = 0
     @State private var elapsedTask: Task<Void, Never>?
+    @State private var completionPulse = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private var estimatedTotal: Int {
         // secp256k1 DKG (CGGMP21) requires generating a 2048-bit Paillier
@@ -829,14 +831,48 @@ struct DKGProgressView: View {
         return L10n.DKG.wrappingUp
     }
 
+    /// Curve-family tint: secp256k1 gets Ethereum blue-purple (its home
+    /// family), ed25519 gets Solana violet. DKG doesn't run per-chain so
+    /// the tint picks the dominant chain associated with the chosen curve.
+    private var curveTint: Color {
+        viewModel.selectedCurve == .ed25519
+            ? Chain.solana.color
+            : Chain.ethereum.color
+    }
+
+    /// Per-shard orbit states. DKG is a collective ceremony without
+    /// independent per-peer progress reporting — while running, every
+    /// party is .active; on completion all flip to .done. Gives the
+    /// orbit visible rhythm during the long Paillier wait.
+    private var shardStates: [ShardOrbit.DotState] {
+        let done = displayProgress >= 1.0
+        return Array(repeating: done ? ShardOrbit.DotState.done : .active,
+                     count: max(viewModel.totalParties, 1))
+    }
+
     var body: some View {
+        let tint = curveTint
         VStack(spacing: 24) {
             Spacer()
 
-            ProgressRing(progress: displayProgress)
-                .frame(width: 120, height: 120)
-                .accessibilityLabel(L10n.DKG.keyGenProgress)
-                .accessibilityValue("\(Int(displayProgress * 100)) percent")
+            ZStack {
+                ShardOrbit(
+                    total: max(viewModel.totalParties, 1),
+                    states: shardStates,
+                    radius: 84,
+                    tint: tint
+                )
+                ProgressRing(progress: displayProgress, tint: tint)
+                    .frame(width: 120, height: 120)
+                    .accessibilityLabel(L10n.DKG.keyGenProgress)
+                    .accessibilityValue("\(Int(displayProgress * 100)) percent")
+                Image(systemName: "key.horizontal.fill")
+                    .font(.system(size: 32, weight: .semibold))
+                    .foregroundStyle(tint)
+                    .scaleEffect(completionPulse ? 1.15 : 1.0)
+                    .animation(reduceMotion ? nil : .spring(response: 0.4, dampingFraction: 0.5), value: completionPulse)
+            }
+            .frame(height: 200)
 
             VStack(spacing: 8) {
                 Text(L10n.DKG.generatingKeyShards)
@@ -852,7 +888,8 @@ struct DKGProgressView: View {
                 .foregroundStyle(.tertiary)
                 .accessibilityLabel(L10n.DKG.keyGenRound(viewModel.currentRound, viewModel.totalRounds))
 
-            // Elapsed timer (item 12: no feedback during 40s keygen)
+            // Elapsed timer card — tint-wrapped for visual continuity with
+            // signing ceremony and wallet home.
             HStack(spacing: 16) {
                 VStack {
                     Text("\(elapsedSeconds)s")
@@ -867,6 +904,8 @@ struct DKGProgressView: View {
                     Text(L10n.DKG.remainingLabel).font(.caption2).foregroundStyle(.secondary)
                 }
             }
+            .tintedGlassCard(color: tint, cornerRadius: 12, padding: 12)
+            .padding(.horizontal)
 
             Spacer()
 
@@ -910,6 +949,12 @@ struct DKGProgressView: View {
             }
         }
         .onDisappear { elapsedTask?.cancel() }
+        .onChange(of: displayProgress) { _, new in
+            if new >= 1.0 && !completionPulse {
+                Haptics.success()
+                completionPulse = true
+            }
+        }
     }
 }
 
@@ -927,15 +972,60 @@ struct DKGCompleteView: View {
     @State private var acknowledgedBackup = false
     @State private var saveError: String?
     @ScaledMetric(relativeTo: .largeTitle) private var successIconSize: CGFloat = 72
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var pulse = false
+    @State private var sealScale: CGFloat = 0.4
+
+    private var ceremonyTint: Color {
+        viewModel.selectedCurve == .ed25519
+            ? Chain.solana.color
+            : Chain.ethereum.color
+    }
 
     var body: some View {
+        let tint = ceremonyTint
         VStack(spacing: 32) {
             Spacer()
 
-            Image(systemName: "checkmark.seal.fill")
-                .font(.system(size: successIconSize))
-                .foregroundStyle(.green)
-                .accessibilityHidden(true)
+            ZStack {
+                ForEach(0..<2, id: \.self) { i in
+                    Circle()
+                        .stroke(tint.opacity(0.35), lineWidth: 2)
+                        .frame(width: successIconSize * 1.6, height: successIconSize * 1.6)
+                        .scaleEffect(pulse ? 1.35 : 0.9)
+                        .opacity(pulse ? 0.0 : 0.9)
+                        .animation(
+                            reduceMotion ? nil :
+                                .easeOut(duration: 1.8)
+                                .repeatForever(autoreverses: false)
+                                .delay(Double(i) * 0.9),
+                            value: pulse
+                        )
+                }
+                Circle()
+                    .fill(
+                        RadialGradient(
+                            colors: [HorcruxTheme.successGreen.opacity(0.35), tint.opacity(0.0)],
+                            center: .center,
+                            startRadius: 2,
+                            endRadius: successIconSize
+                        )
+                    )
+                    .frame(width: successIconSize * 1.4, height: successIconSize * 1.4)
+
+                Image(systemName: "checkmark.seal.fill")
+                    .font(.system(size: successIconSize))
+                    .foregroundStyle(HorcruxTheme.successGreen)
+                    .accessibilityHidden(true)
+                    .scaleEffect(sealScale)
+                    .animation(reduceMotion ? nil : .spring(response: 0.5, dampingFraction: 0.55), value: sealScale)
+            }
+            .onAppear {
+                pulse = true
+                sealScale = 1.0
+                Haptics.success()
+            }
+
             VStack(spacing: 8) {
                 Text(L10n.DKG.walletCreated)
                     .font(.title.bold())
