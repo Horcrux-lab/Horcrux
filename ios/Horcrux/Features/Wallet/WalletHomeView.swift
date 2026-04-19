@@ -313,7 +313,7 @@ struct WalletHomeView: View {
                     label: group.label,
                     threshold: Int(group.wallets.first?.threshold ?? 0),
                     total: Int(group.wallets.first?.totalParties ?? 0),
-                    sharedAddress: isCollapsed ? nil : evmAddress,
+                    sharedAddress: evmAddress,
                     isCollapsed: isCollapsible ? isCollapsed : nil,
                     collapsedSummary: isCollapsed ? collapsedSummary(for: group) : nil
                 )
@@ -714,7 +714,7 @@ struct WalletGroupHeader: View {
                         .accessibilityHidden(true)
                 }
             }
-            if isCollapsed != true, let addr = sharedAddress {
+            if let addr = sharedAddress {
                 Button {
                     SecureClipboard.copy(addr)
                     Haptics.success()
