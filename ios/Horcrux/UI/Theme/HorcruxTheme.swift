@@ -86,6 +86,56 @@ extension View {
     func glassCard(cornerRadius: CGFloat = HorcruxTheme.cornerRadius, padding: CGFloat = HorcruxTheme.cardPadding) -> some View {
         modifier(GlassCard(cornerRadius: cornerRadius, padding: padding))
     }
+
+    /// Glass card with a chain-branded left accent stripe and subtly
+    /// tinted border/gradient. Gives each wallet row a visual identity
+    /// tied to its chain without overwhelming the dark theme.
+    func tintedGlassCard(color: Color,
+                         cornerRadius: CGFloat = HorcruxTheme.cornerRadius,
+                         padding: CGFloat = HorcruxTheme.cardPadding) -> some View {
+        modifier(TintedGlassCard(tint: color, cornerRadius: cornerRadius, padding: padding))
+    }
+}
+
+// MARK: - Tinted Glass Card
+
+struct TintedGlassCard: ViewModifier {
+    var tint: Color
+    var cornerRadius: CGFloat = HorcruxTheme.cornerRadius
+    var padding: CGFloat = HorcruxTheme.cardPadding
+
+    func body(content: Content) -> some View {
+        content
+            .padding(padding)
+            .background(
+                ZStack {
+                    RoundedRectangle(cornerRadius: cornerRadius)
+                        .fill(HorcruxTheme.cardSurface.opacity(0.7))
+                    LinearGradient(
+                        colors: [tint.opacity(0.12), tint.opacity(0.0)],
+                        startPoint: .leading,
+                        endPoint: .trailing
+                    )
+                    .clipShape(RoundedRectangle(cornerRadius: cornerRadius))
+                    RoundedRectangle(cornerRadius: cornerRadius)
+                        .stroke(
+                            LinearGradient(
+                                colors: [tint.opacity(0.55), HorcruxTheme.cardBorder],
+                                startPoint: .leading,
+                                endPoint: .trailing
+                            ),
+                            lineWidth: 1
+                        )
+                    HStack(spacing: 0) {
+                        Capsule()
+                            .fill(tint)
+                            .frame(width: 3)
+                            .padding(.vertical, 10)
+                        Spacer(minLength: 0)
+                    }
+                }
+            )
+    }
 }
 
 // MARK: - Gradient Button Style

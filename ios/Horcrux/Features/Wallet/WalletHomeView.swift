@@ -756,7 +756,7 @@ struct WalletRow: View {
             }
         }
         .padding(.vertical, 12)
-        .glassCard()
+        .tintedGlassCard(color: wallet.chain.color)
         .opacity(isZeroBalance ? 0.82 : 1.0)
         .accessibilityElement(children: .combine)
         .task {

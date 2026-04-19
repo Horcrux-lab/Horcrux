@@ -598,19 +598,22 @@ enum Chain: String, Codable, CaseIterable, Identifiable {
         }
     }
 
+    /// Brand-accurate accent color for each chain, used for row tints,
+    /// icon backgrounds and accent stripes. Values taken from each chain's
+    /// primary logo hex to keep visual identity consistent across the app.
     var color: Color {
         switch self {
-        case .ethereum: return .blue
-        case .bnb: return Color(red: 0.94, green: 0.73, blue: 0.11)
-        case .avalanche: return Color(red: 0.91, green: 0.26, blue: 0.26)
-        case .optimism: return .red
-        case .zksync: return Color(red: 0.54, green: 0.53, blue: 0.98)
-        case .linea: return Color(red: 0.32, green: 0.89, blue: 0.74)
-        case .scroll: return Color(red: 0.98, green: 0.91, blue: 0.79)
-        case .bitcoin: return .orange
-        case .litecoin: return Color(red: 0.65, green: 0.65, blue: 0.7)
-        case .solana: return .purple
-        case .tron: return .red
+        case .ethereum:  return Color(red: 0.384, green: 0.494, blue: 0.918) // #627EEA
+        case .bnb:       return Color(red: 0.941, green: 0.725, blue: 0.043) // #F0B90B
+        case .avalanche: return Color(red: 0.910, green: 0.255, blue: 0.259) // #E84142
+        case .optimism:  return Color(red: 1.000, green: 0.016, blue: 0.125) // #FF0420
+        case .zksync:    return Color(red: 0.549, green: 0.553, blue: 0.988) // #8C8DFC
+        case .linea:     return Color(red: 0.380, green: 0.875, blue: 0.776) // #61DFC6
+        case .scroll:    return Color(red: 1.000, green: 0.929, blue: 0.741) // #FFEDBD
+        case .bitcoin:   return Color(red: 0.969, green: 0.576, blue: 0.102) // #F7931A
+        case .litecoin:  return Color(red: 0.651, green: 0.663, blue: 0.667) // #A6A9AA
+        case .solana:    return Color(red: 0.600, green: 0.271, blue: 1.000) // #9945FF
+        case .tron:      return Color(red: 0.937, green: 0.000, blue: 0.153) // #EF0027
         }
     }
 
