@@ -70,6 +70,9 @@
 "walletHome.nodesUnreachable" = "%@ 节点不可达";
 "walletHome.networkWarning" = "网络警告：%@ 节点不可达";
 "walletHome.loadingBalance" = "正在加载余额";
+"walletHome.showMoreChains" = "显示其他 %d 条链";
+"walletHome.hideEmptyChains" = "收起空余额链";
+"walletHome.sharedAddressHint" = "EVM 共用地址";
 
 /* Pending Broadcast */
 "pending.retry" = "重试";

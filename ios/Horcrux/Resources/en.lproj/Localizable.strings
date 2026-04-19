@@ -70,6 +70,9 @@
 "walletHome.nodesUnreachable" = "%@ nodes unreachable";
 "walletHome.networkWarning" = "Network warning: %@ nodes are unreachable";
 "walletHome.loadingBalance" = "Loading balance";
+"walletHome.showMoreChains" = "Show %d more chains";
+"walletHome.hideEmptyChains" = "Hide empty chains";
+"walletHome.sharedAddressHint" = "Shared EVM address";
 
 /* Pending Broadcast */
 "pending.retry" = "Retry";

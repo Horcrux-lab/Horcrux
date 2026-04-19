@@ -103,6 +103,11 @@ enum L10n {
         static let editWalletList = NSLocalizedString("walletHome.editWalletList", comment: "")
         static let pendingBroadcasts = NSLocalizedString("walletHome.pendingBroadcasts", comment: "")
         static let loadingBalance = NSLocalizedString("walletHome.loadingBalance", comment: "")
+        static func showMoreChains(_ n: Int) -> String {
+            String(format: NSLocalizedString("walletHome.showMoreChains", comment: ""), n)
+        }
+        static let hideEmptyChains = NSLocalizedString("walletHome.hideEmptyChains", comment: "")
+        static let sharedAddressHint = NSLocalizedString("walletHome.sharedAddressHint", comment: "")
 
         // dev.40 i18n batch
         static let restoreFromBackup = NSLocalizedString("wallet.restoreFromBackup", comment: "")

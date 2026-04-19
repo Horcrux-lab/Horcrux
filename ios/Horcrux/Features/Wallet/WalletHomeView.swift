@@ -13,6 +13,8 @@ struct WalletHomeView: View {
     @State private var showCreateShard = false
     @State private var showRestoreSheet = false
     @State private var networkReachable: [Chain: Bool] = [:]
+    @State private var expandedGroups: Set<String> = []
+    @ObservedObject private var balanceCache = BalanceCache.shared
 
     var body: some View {
         NavigationStack {
@@ -180,41 +182,7 @@ struct WalletHomeView: View {
 
                 // Wallets grouped by MPC account (same groupPublicKey → one account spanning multiple chains)
                 ForEach(walletGroups, id: \.accountId) { group in
-                    VStack(alignment: .leading, spacing: 8) {
-                        if walletGroups.count > 1 || group.wallets.count > 1 {
-                            HStack(spacing: 6) {
-                                Image(systemName: "key.horizontal")
-                                    .font(.caption)
-                                    .foregroundStyle(HorcruxTheme.accentPurple)
-                                Text(group.label)
-                                    .font(.caption.weight(.semibold))
-                                    .foregroundStyle(HorcruxTheme.subtleText)
-                                Spacer()
-                                Text(L10n.Shards.thresholdValue(Int(group.wallets.first?.threshold ?? 0), Int(group.wallets.first?.totalParties ?? 0)))
-                                    .font(.caption2)
-                                    .foregroundStyle(HorcruxTheme.subtleText)
-                            }
-                            .padding(.horizontal, 6)
-                        }
-
-                        ForEach(group.wallets) { wallet in
-                            NavigationLink {
-                                WalletDetailView(wallet: wallet)
-                            } label: {
-                                WalletRow(wallet: wallet, showThresholdBadge: group.wallets.count == 1 && walletGroups.count == 1)
-                            }
-                            .accessibilityLabel("\(wallet.name), \(wallet.chain.rawValue) wallet")
-                            .accessibilityHint(L10n.WalletHome.viewDetailsHint)
-                            .accessibilityIdentifier("walletHome_walletRow_\(wallet.id)")
-                            .contextMenu {
-                                Button {
-                                    walletStore.setHidden(id: wallet.id, hidden: true)
-                                } label: {
-                                    Label(L10n.Common.hide, systemImage: "eye.slash")
-                                }
-                            }
-                        }
-                    }
+                    walletGroupSection(group)
                 }
 
                 if !hiddenWallets.isEmpty {
@@ -262,6 +230,117 @@ struct WalletHomeView: View {
 
     private var hiddenWallets: [Wallet] {
         walletStore.wallets.filter { $0.hidden }.sorted { $0.chain.rawValue < $1.chain.rawValue }
+    }
+
+    /// Returns the EVM address shared across ≥2 EVM wallets in the group, if any.
+    /// Used by the account header so we don't repeat "0xce82…dae2" on every EVM row.
+    private func sharedEVMAddress(in group: WalletGroup) -> String? {
+        let evm = group.wallets.filter { $0.chain.isEVM }
+        guard evm.count >= 2, let first = evm.first?.address,
+              evm.dropFirst().allSatisfy({ $0.address == first }) else { return nil }
+        return first
+    }
+
+    /// True when the cached balance for this wallet parses to zero. If the
+    /// balance hasn't loaded yet we conservatively return false so pending
+    /// rows stay visible during the initial fetch.
+    private func isEmptyBalance(_ wallet: Wallet) -> Bool {
+        guard let raw = balanceCache.cachedRaw(walletId: wallet.id) else { return false }
+        let first = raw.split(separator: " ", maxSplits: 1).first.map(String.init) ?? ""
+        let amount = Double(first.replacingOccurrences(of: ",", with: "")) ?? 0
+        return amount == 0
+    }
+
+    /// Partitions a group's wallets into (funded, empty) and decides which
+    /// wallets to show now based on the per-group expand state. Rule of thumb:
+    /// collapse empty rows only when there are ≥2 of them AND at least one
+    /// funded wallet exists — otherwise the user needs to see something.
+    private func visibleWallets(in group: WalletGroup) -> (visible: [Wallet], hiddenCount: Int) {
+        let funded = group.wallets.filter { !isEmptyBalance($0) }
+        let empty = group.wallets.filter { isEmptyBalance($0) }
+        let expanded = expandedGroups.contains(group.accountId)
+        if expanded || empty.count < 2 || funded.isEmpty {
+            return (group.wallets, 0)
+        }
+        return (funded, empty.count)
+    }
+
+    @ViewBuilder
+    private func walletGroupSection(_ group: WalletGroup) -> some View {
+        let evmAddress = sharedEVMAddress(in: group)
+        let partition = visibleWallets(in: group)
+        let expanded = expandedGroups.contains(group.accountId)
+        VStack(alignment: .leading, spacing: 8) {
+            if walletGroups.count > 1 || group.wallets.count > 1 || evmAddress != nil {
+                WalletGroupHeader(
+                    label: group.label,
+                    threshold: Int(group.wallets.first?.threshold ?? 0),
+                    total: Int(group.wallets.first?.totalParties ?? 0),
+                    sharedAddress: evmAddress
+                )
+                .padding(.horizontal, 6)
+            }
+
+            ForEach(partition.visible) { wallet in
+                NavigationLink {
+                    WalletDetailView(wallet: wallet)
+                } label: {
+                    WalletRow(
+                        wallet: wallet,
+                        showThresholdBadge: group.wallets.count == 1 && walletGroups.count == 1,
+                        hideAddress: wallet.chain.isEVM && evmAddress != nil
+                    )
+                }
+                .accessibilityLabel("\(wallet.name), \(wallet.chain.rawValue) wallet")
+                .accessibilityHint(L10n.WalletHome.viewDetailsHint)
+                .accessibilityIdentifier("walletHome_walletRow_\(wallet.id)")
+                .contextMenu {
+                    Button {
+                        walletStore.setHidden(id: wallet.id, hidden: true)
+                    } label: {
+                        Label(L10n.Common.hide, systemImage: "eye.slash")
+                    }
+                }
+            }
+
+            if empty(group).count >= 2 && !funded(group).isEmpty {
+                Button {
+                    withAnimation {
+                        if expanded {
+                            expandedGroups.remove(group.accountId)
+                        } else {
+                            expandedGroups.insert(group.accountId)
+                        }
+                    }
+                } label: {
+                    HStack(spacing: 6) {
+                        Image(systemName: expanded ? "chevron.up" : "chevron.down")
+                            .font(.caption2.weight(.semibold))
+                        Text(expanded
+                             ? L10n.WalletHome.hideEmptyChains
+                             : L10n.WalletHome.showMoreChains(empty(group).count))
+                            .font(.caption.weight(.medium))
+                    }
+                    .foregroundStyle(HorcruxTheme.accentPurple)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 10)
+                    .background(
+                        HorcruxTheme.accentPurple.opacity(0.08),
+                        in: RoundedRectangle(cornerRadius: 10)
+                    )
+                }
+                .buttonStyle(.plain)
+                .accessibilityIdentifier("walletHome_expandToggle_\(group.accountId)")
+            }
+        }
+    }
+
+    private func funded(_ group: WalletGroup) -> [Wallet] {
+        group.wallets.filter { !isEmptyBalance($0) }
+    }
+
+    private func empty(_ group: WalletGroup) -> [Wallet] {
+        group.wallets.filter { isEmptyBalance($0) }
     }
 
     @State private var hiddenExpanded = false
@@ -486,6 +565,75 @@ struct RBFInfoSheet: View {
     }
 }
 
+struct WalletGroupHeader: View {
+    let label: String
+    let threshold: Int
+    let total: Int
+    /// Non-nil when every EVM wallet in the group shares the same address;
+    /// shown as a copy-able chip so each row doesn't repeat the hex string.
+    let sharedAddress: String?
+
+    @State private var copied = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 6) {
+                Image(systemName: "key.horizontal")
+                    .font(.caption)
+                    .foregroundStyle(HorcruxTheme.accentPurple)
+                Text(label)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(HorcruxTheme.subtleText)
+                Spacer()
+                if threshold > 0 && total > 0 {
+                    Text(L10n.Shards.thresholdValue(threshold, total))
+                        .font(.caption2)
+                        .foregroundStyle(HorcruxTheme.subtleText)
+                }
+            }
+            if let addr = sharedAddress {
+                Button {
+                    SecureClipboard.copy(addr)
+                    Haptics.success()
+                    withAnimation { copied = true }
+                    Task {
+                        try? await Task.sleep(nanoseconds: 1_500_000_000)
+                        await MainActor.run { withAnimation { copied = false } }
+                    }
+                } label: {
+                    HStack(spacing: 6) {
+                        Image(systemName: "link.circle.fill")
+                            .font(.caption)
+                            .foregroundStyle(HorcruxTheme.accentCyan)
+                        Text(shortAddress(addr))
+                            .font(.caption.monospaced())
+                            .foregroundStyle(.white.opacity(0.85))
+                        Spacer()
+                        Image(systemName: copied ? "checkmark" : "doc.on.doc")
+                            .font(.caption2)
+                            .foregroundStyle(copied ? HorcruxTheme.successGreen : HorcruxTheme.subtleText)
+                        Text(L10n.WalletHome.sharedAddressHint)
+                            .font(.caption2)
+                            .foregroundStyle(HorcruxTheme.subtleText)
+                    }
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 6)
+                    .background(
+                        HorcruxTheme.accentCyan.opacity(0.08),
+                        in: RoundedRectangle(cornerRadius: 8)
+                    )
+                }
+                .buttonStyle(.plain)
+            }
+        }
+    }
+
+    private func shortAddress(_ a: String) -> String {
+        guard a.count > 12 else { return a }
+        return "\(a.prefix(6))…\(a.suffix(4))"
+    }
+}
+
 struct WalletRow: View {
     let wallet: Wallet
     /// When true, render the N-of-M shard badge on the row. Usually false:
@@ -493,6 +641,9 @@ struct WalletRow: View {
     /// it again per row is redundant. Only shown for solo wallets that
     /// don't have a group header.
     var showThresholdBadge: Bool = false
+    /// When true, suppress the per-row address line. Used for EVM rows
+    /// inside a group whose header already advertises the shared address.
+    var hideAddress: Bool = false
     @EnvironmentObject private var appState: AppState
     @StateObject private var priceService = PriceService.shared
     @ObservedObject private var balanceCache = BalanceCache.shared
@@ -522,11 +673,13 @@ struct WalletRow: View {
                     .font(.headline)
                     .foregroundStyle(isZeroBalance ? HorcruxTheme.subtleText : .white)
 
-                Text(shortAddress(wallet.address))
-                    .font(.caption)
-                    .foregroundStyle(HorcruxTheme.subtleText)
-                    .monospaced()
-                    .opacity(isZeroBalance ? 0.7 : 1.0)
+                if !hideAddress {
+                    Text(shortAddress(wallet.address))
+                        .font(.caption)
+                        .foregroundStyle(HorcruxTheme.subtleText)
+                        .monospaced()
+                        .opacity(isZeroBalance ? 0.7 : 1.0)
+                }
             }
 
             Spacer()
