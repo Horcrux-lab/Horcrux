@@ -51,9 +51,7 @@ struct SettingsView: View {
                                 HStack {
                                     VaultSettingsRow(icon: "key.fill", iconColor: HorcruxTheme.accentBlue, title: L10n.Settings.changePin)
                                     Spacer()
-                                    Image(systemName: "chevron.right")
-                                        .font(.caption)
-                                        .foregroundStyle(HorcruxTheme.subtleText)
+                                    VaultDisclosureIndicator()
                                 }
                             }
                             .glassCard()
@@ -90,9 +88,7 @@ struct SettingsView: View {
                                 HStack {
                                     VaultSettingsRow(icon: "server.rack", iconColor: HorcruxTheme.accentCyan, title: L10n.Settings.rpcEndpoints, subtitle: networkSummary)
                                     Spacer()
-                                    Image(systemName: "chevron.right")
-                                        .font(.caption)
-                                        .foregroundStyle(HorcruxTheme.subtleText)
+                                    VaultDisclosureIndicator()
                                 }
                             }
                             .glassCard()
@@ -123,18 +119,7 @@ struct SettingsView: View {
                             }
 
                             if useCustomRelay {
-                                TextField(L10n.Settings.webSocketURL, text: $relayURL)
-                                    .font(.system(.caption, design: .monospaced))
-                                    .autocorrectionDisabled()
-                                    .textInputAutocapitalization(.never)
-                                    .padding(12)
-                                    .background(
-                                        RoundedRectangle(cornerRadius: 10)
-                                            .fill(HorcruxTheme.hairline)
-                                            .overlay(RoundedRectangle(cornerRadius: 10).stroke(Color.white.opacity(0.1), lineWidth: 1))
-                                    )
-                                    .foregroundStyle(.white)
-                                    .tint(HorcruxTheme.accentPurple)
+                                VaultTextField(text: $relayURL, placeholder: L10n.Settings.webSocketURL)
                                     .onChange(of: relayURL) { _, newValue in
                                         relayWarning = Self.validateRelayURL(newValue)
                                         appState.peerManager.relay.relayURL = newValue
@@ -187,9 +172,7 @@ struct SettingsView: View {
                             HStack {
                                 VaultSettingsRow(icon: "person.2.circle", iconColor: HorcruxTheme.accentBlue, title: L10n.Settings.addressBook)
                                 Spacer()
-                                Image(systemName: "chevron.right")
-                                    .font(.caption)
-                                    .foregroundStyle(HorcruxTheme.subtleText)
+                                VaultDisclosureIndicator()
                             }
                         }
                         .glassCard()
@@ -207,9 +190,7 @@ struct SettingsView: View {
                             HStack {
                                 VaultSettingsRow(icon: "plus.circle", iconColor: HorcruxTheme.accentPurple, title: L10n.Settings.customTokens)
                                 Spacer()
-                                Image(systemName: "chevron.right")
-                                    .font(.caption)
-                                    .foregroundStyle(HorcruxTheme.subtleText)
+                                VaultDisclosureIndicator()
                             }
                         }
                         .glassCard()
@@ -227,9 +208,7 @@ struct SettingsView: View {
                             HStack {
                                 VaultSettingsRow(icon: "checkmark.shield", iconColor: HorcruxTheme.successGreen, title: L10n.Settings.shardHealth)
                                 Spacer()
-                                Image(systemName: "chevron.right")
-                                    .font(.caption)
-                                    .foregroundStyle(HorcruxTheme.subtleText)
+                                VaultDisclosureIndicator()
                             }
                         }
                         .glassCard()
@@ -252,9 +231,7 @@ struct SettingsView: View {
                                     subtitle: languageSummary
                                 )
                                 Spacer()
-                                Image(systemName: "chevron.right")
-                                    .font(.caption)
-                                    .foregroundStyle(HorcruxTheme.subtleText)
+                                VaultDisclosureIndicator()
                             }
                         }
                         .glassCard()
@@ -277,9 +254,7 @@ struct SettingsView: View {
                                     subtitle: L10n.Settings.replaceDeviceSubtitle
                                 )
                                 Spacer()
-                                Image(systemName: "chevron.right")
-                                    .font(.caption)
-                                    .foregroundStyle(HorcruxTheme.subtleText)
+                                VaultDisclosureIndicator()
                             }
                         }
                         .glassCard()
@@ -302,17 +277,7 @@ struct SettingsView: View {
                                         .foregroundStyle(.white)
                                     Spacer()
                                 }
-                                TextField(UIDevice.current.name, text: $deviceNickname)
-                                    .font(.system(.caption, design: .default))
-                                    .autocorrectionDisabled()
-                                    .padding(12)
-                                    .background(
-                                        RoundedRectangle(cornerRadius: 10)
-                                            .fill(HorcruxTheme.hairline)
-                                            .overlay(RoundedRectangle(cornerRadius: 10).stroke(Color.white.opacity(0.1), lineWidth: 1))
-                                    )
-                                    .foregroundStyle(.white)
-                                    .tint(HorcruxTheme.accentPurple)
+                                VaultTextField(text: $deviceNickname, placeholder: UIDevice.current.name, monospaced: false)
                                     .accessibilityIdentifier("settings_deviceNicknameField")
                                 Text(L10n.SettingsResidual.deviceNicknameHint)
                                     .font(.caption2)
@@ -327,9 +292,7 @@ struct SettingsView: View {
                             HStack {
                                 VaultSettingsRow(icon: "antenna.radiowaves.left.and.right", iconColor: HorcruxTheme.successGreen, title: L10n.Settings.transportPreferences)
                                 Spacer()
-                                Image(systemName: "chevron.right")
-                                    .font(.caption)
-                                    .foregroundStyle(HorcruxTheme.subtleText)
+                                VaultDisclosureIndicator()
                             }
                         }
                         .glassCard()
@@ -386,9 +349,7 @@ struct SettingsView: View {
                                         .font(.subheadline)
                                         .foregroundStyle(.white)
                                     Spacer()
-                                    Image(systemName: "chevron.right")
-                                        .font(.caption)
-                                        .foregroundStyle(HorcruxTheme.subtleText)
+                                    VaultDisclosureIndicator()
                                 }
                                 .padding(.vertical, 10)
                             }
@@ -409,9 +370,7 @@ struct SettingsView: View {
                             HStack {
                                 VaultSettingsRow(icon: "trash.fill", iconColor: HorcruxTheme.dangerRed, title: L10n.Settings.wipeAllData, subtitle: L10n.Settings.wipeAllDataSubtitle)
                                 Spacer()
-                                Image(systemName: "chevron.right")
-                                    .font(.caption)
-                                    .foregroundStyle(HorcruxTheme.subtleText)
+                                VaultDisclosureIndicator()
                             }
                         }
                         .glassCard()
@@ -595,7 +554,7 @@ struct ChangePinView: View {
 
                 if let errorMessage {
                     Text(errorMessage)
-                        .foregroundStyle(.red)
+                        .foregroundStyle(HorcruxTheme.dangerRed)
                         .font(.caption)
                 }
 
@@ -677,10 +636,10 @@ private struct PinStrengthIndicator: View {
 
     private var color: Color {
         switch score {
-        case 0...1: return .red
-        case 2: return .orange
-        case 3: return .yellow
-        default: return .green
+        case 0...1: return HorcruxTheme.dangerRed
+        case 2: return HorcruxTheme.warningAmber
+        case 3: return HorcruxTheme.warningAmber.opacity(0.85)
+        default: return HorcruxTheme.successGreen
         }
     }
 
@@ -718,7 +677,7 @@ struct BlockchainNodeSettingsView: View {
                                 .padding(.vertical, 8)
                         }
                         .buttonStyle(.bordered)
-                        .tint(isCurrentPreset(preset) ? .green : .accentColor)
+                        .tint(isCurrentPreset(preset) ? HorcruxTheme.successGreen : HorcruxTheme.accentPurple)
                         .accessibilityLabel(L10n.NodeSettings.switchTo(preset.name))
                     }
                 }
@@ -874,7 +833,7 @@ struct BlockchainNodeSettingsView: View {
                 Button(L10n.NodeSettings.resetToDefaults) {
                     showResetConfirm = true
                 }
-                .foregroundStyle(.red)
+                .foregroundStyle(HorcruxTheme.dangerRed)
                 .accessibilityHint(L10n.NodeSettings.resetHint)
                 .accessibilityIdentifier("nodeSettings_resetButton")
             }
@@ -913,7 +872,7 @@ struct URLValidationHint: View {
                 Text(warning)
                     .font(.caption2)
             }
-            .foregroundStyle(v.ok ? .orange : .red)
+            .foregroundStyle(v.ok ? HorcruxTheme.warningAmber : HorcruxTheme.dangerRed)
             .accessibilityLabel(warning)
         }
     }
@@ -930,9 +889,9 @@ struct NodeStatusRow: View {
 
         var color: Color {
             switch self {
-            case .unknown: return .gray
-            case .connected: return .green
-            case .error: return .red
+            case .unknown: return HorcruxTheme.subtleText
+            case .connected: return HorcruxTheme.successGreen
+            case .error: return HorcruxTheme.dangerRed
             }
         }
 
@@ -961,11 +920,11 @@ struct NodeStatusRow: View {
                     }
                     Text(checking ? L10n.NodeStatus.checking : status.label)
                         .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(HorcruxTheme.subtleText)
                     Spacer()
                     Text(L10n.Common.test)
                         .font(.caption)
-                        .foregroundStyle(.blue)
+                        .foregroundStyle(HorcruxTheme.accentCyan)
                 }
             }
             .buttonStyle(.plain)
@@ -1134,14 +1093,14 @@ struct ReplaceDeviceInfoView: View {
                         Label {
                             Text(L10n.SettingsResidual.comingSoon).font(.subheadline.weight(.semibold))
                         } icon: {
-                            Image(systemName: "sparkles").foregroundStyle(.yellow)
+                            Image(systemName: "sparkles").foregroundStyle(HorcruxTheme.warningAmber)
                         }
                         Text(L10n.SettingsResidual.refreshShardsComingSoon)
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
                     .padding(12)
-                    .background(RoundedRectangle(cornerRadius: 12).fill(Color.yellow.opacity(0.1)))
+                    .background(RoundedRectangle(cornerRadius: 12).fill(HorcruxTheme.warningAmber.opacity(0.1)))
                 }
             }
             .padding()

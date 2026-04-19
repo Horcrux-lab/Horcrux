@@ -463,6 +463,57 @@ struct VaultSettingsRow: View {
     }
 }
 
+// MARK: - Disclosure Indicator
+
+/// Chevron used as the trailing affordance on VaultSettingsRow-style
+/// navigation links. Centralised so nine copies of
+/// `Image("chevron.right").font(.caption).foregroundStyle(subtleText)`
+/// don't drift apart over time.
+struct VaultDisclosureIndicator: View {
+    var body: some View {
+        Image(systemName: "chevron.right")
+            .font(.caption)
+            .foregroundStyle(HorcruxTheme.subtleText)
+            .accessibilityHidden(true)
+    }
+}
+
+// MARK: - Vault Text Field
+
+/// Text-field presentation used across Settings: hairline fill, white
+/// stroke, monospaced caption, purple tint. Replaces the two hand-rolled
+/// copies in SettingsView (relay URL + device nickname).
+struct VaultTextField: View {
+    @Binding var text: String
+    var placeholder: String = ""
+    var monospaced: Bool = true
+    var isSecure: Bool = false
+    var keyboardType: UIKeyboardType = .default
+    var autocapitalization: TextInputAutocapitalization = .never
+
+    var body: some View {
+        Group {
+            if isSecure {
+                SecureField(placeholder, text: $text)
+            } else {
+                TextField(placeholder, text: $text)
+            }
+        }
+        .font(monospaced ? .system(.caption, design: .monospaced) : .system(.caption))
+        .autocorrectionDisabled()
+        .textInputAutocapitalization(autocapitalization)
+        .keyboardType(keyboardType)
+        .padding(12)
+        .background(
+            RoundedRectangle(cornerRadius: 10)
+                .fill(HorcruxTheme.hairline)
+                .overlay(RoundedRectangle(cornerRadius: 10).stroke(Color.white.opacity(0.1), lineWidth: 1))
+        )
+        .foregroundStyle(.white)
+        .tint(HorcruxTheme.accentPurple)
+    }
+}
+
 // MARK: - Empty State View
 
 struct VaultEmptyState: View {
