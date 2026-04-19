@@ -897,6 +897,20 @@ enum L10n {
         static func switchTo(_ name: String) -> String {
             String(format: NSLocalizedString("nodeSettings.switchTo", comment: ""), name)
         }
+
+        static let litecoinSection = NSLocalizedString("nodeSettings.litecoinSection", comment: "")
+        static let tronSection = NSLocalizedString("nodeSettings.tronSection", comment: "")
+        static let signingUnsupportedNote = NSLocalizedString("nodeSettings.signingUnsupportedNote", comment: "")
+        static let alchemyKeyLabel = NSLocalizedString("nodeSettings.alchemyKeyLabel", comment: "")
+        static let heliusKeyLabel = NSLocalizedString("nodeSettings.heliusKeyLabel", comment: "")
+        static let pasteKeyPlaceholder = NSLocalizedString("nodeSettings.pasteKeyPlaceholder", comment: "")
+        static let useHelius = NSLocalizedString("nodeSettings.useHelius", comment: "")
+        static let etherscanKeySection = NSLocalizedString("nodeSettings.etherscanKeySection", comment: "")
+        static let etherscanKeyLabel = NSLocalizedString("nodeSettings.etherscanKeyLabel", comment: "")
+
+        static func useAlchemyFor(_ name: String) -> String {
+            String(format: NSLocalizedString("nodeSettings.useAlchemyFor", comment: ""), name)
+        }
     }
 
     // MARK: - Node Status

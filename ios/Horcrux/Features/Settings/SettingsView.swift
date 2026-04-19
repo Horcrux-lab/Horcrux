@@ -735,17 +735,17 @@ struct BlockchainNodeSettingsView: View {
                 }
 
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("Alchemy API key (optional, stored in Keychain)")
+                    Text(L10n.NodeSettings.alchemyKeyLabel)
                         .font(.caption)
                         .foregroundStyle(.secondary)
-                    SecureField("Paste your key", text: $config.alchemyAPIKey)
+                    SecureField(L10n.NodeSettings.pasteKeyPlaceholder, text: $config.alchemyAPIKey)
                         .font(.system(.body, design: .monospaced))
                         .autocorrectionDisabled()
                         .textInputAutocapitalization(.never)
                     if !config.alchemyAPIKey.isEmpty,
                        let net = EVMNetwork(rawValue: config.evmChainId),
                        let tmpl = RPCProviderTemplate.alchemy(evm: net) {
-                        Button("Use Alchemy for \(net.displayName)") {
+                        Button(L10n.NodeSettings.useAlchemyFor(net.displayName)) {
                             config.ethereumRPC = tmpl
                         }
                         .font(.caption)
@@ -773,7 +773,7 @@ struct BlockchainNodeSettingsView: View {
                 NodeStatusRow(chain: .bitcoin)
             }
 
-            Section("Litecoin (read-only)") {
+            Section(L10n.NodeSettings.litecoinSection) {
                 VStack(alignment: .leading, spacing: 4) {
                     Text(L10n.NodeSettings.restAPIURL)
                         .font(.caption)
@@ -783,7 +783,7 @@ struct BlockchainNodeSettingsView: View {
                         .autocorrectionDisabled()
                         .textInputAutocapitalization(.never)
                     URLValidationHint(urlString: config.litecoinAPI)
-                    Text("Signing not yet supported — balance + address only.")
+                    Text(L10n.NodeSettings.signingUnsupportedNote)
                         .font(.caption2)
                         .foregroundStyle(.secondary)
                 }
@@ -807,15 +807,15 @@ struct BlockchainNodeSettingsView: View {
                     .accessibilityHint(L10n.NodeSettings.devnetHint)
 
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("Helius API key (optional, stored in Keychain)")
+                    Text(L10n.NodeSettings.heliusKeyLabel)
                         .font(.caption)
                         .foregroundStyle(.secondary)
-                    SecureField("Paste your key", text: $config.heliusAPIKey)
+                    SecureField(L10n.NodeSettings.pasteKeyPlaceholder, text: $config.heliusAPIKey)
                         .font(.system(.body, design: .monospaced))
                         .autocorrectionDisabled()
                         .textInputAutocapitalization(.never)
                     if !config.heliusAPIKey.isEmpty {
-                        Button("Use Helius") {
+                        Button(L10n.NodeSettings.useHelius) {
                             config.solanaRPC = RPCProviderTemplate.helius(mainnet: !config.solDevnet)
                         }
                         .font(.caption)
@@ -825,7 +825,7 @@ struct BlockchainNodeSettingsView: View {
                 NodeStatusRow(chain: .solana)
             }
 
-            Section("Tron (read-only)") {
+            Section(L10n.NodeSettings.tronSection) {
                 VStack(alignment: .leading, spacing: 4) {
                     Text(L10n.NodeSettings.restAPIURL)
                         .font(.caption)
@@ -835,7 +835,7 @@ struct BlockchainNodeSettingsView: View {
                         .autocorrectionDisabled()
                         .textInputAutocapitalization(.never)
                     URLValidationHint(urlString: config.tronAPI)
-                    Text("Signing not yet supported — balance + address only.")
+                    Text(L10n.NodeSettings.signingUnsupportedNote)
                         .font(.caption2)
                         .foregroundStyle(.secondary)
                 }
@@ -843,12 +843,12 @@ struct BlockchainNodeSettingsView: View {
                 NodeStatusRow(chain: .tron)
             }
 
-            Section("Etherscan API key") {
+            Section(L10n.NodeSettings.etherscanKeySection) {
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("Etherscan V2 multichain key (optional, stored in Keychain). Used for EVM transaction history sync on all chains.")
+                    Text(L10n.NodeSettings.etherscanKeyLabel)
                         .font(.caption)
                         .foregroundStyle(.secondary)
-                    SecureField("Paste your key", text: $config.etherscanAPIKey)
+                    SecureField(L10n.NodeSettings.pasteKeyPlaceholder, text: $config.etherscanAPIKey)
                         .font(.system(.body, design: .monospaced))
                         .autocorrectionDisabled()
                         .textInputAutocapitalization(.never)

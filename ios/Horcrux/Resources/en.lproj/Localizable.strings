@@ -420,6 +420,16 @@
 "nodeSettings.resetConfirmTitle" = "Reset to Defaults?";
 "nodeSettings.reset" = "Reset";
 "nodeSettings.resetMessage" = "This will reset all RPC endpoints to the default public nodes.";
+"nodeSettings.litecoinSection" = "Litecoin (read-only)";
+"nodeSettings.tronSection" = "Tron (read-only)";
+"nodeSettings.signingUnsupportedNote" = "Signing not yet supported — balance + address only.";
+"nodeSettings.alchemyKeyLabel" = "Alchemy API key (optional, stored in Keychain)";
+"nodeSettings.heliusKeyLabel" = "Helius API key (optional, stored in Keychain)";
+"nodeSettings.pasteKeyPlaceholder" = "Paste your key";
+"nodeSettings.useHelius" = "Use Helius";
+"nodeSettings.useAlchemyFor" = "Use Alchemy for %@";
+"nodeSettings.etherscanKeySection" = "Etherscan API key";
+"nodeSettings.etherscanKeyLabel" = "Etherscan V2 multichain key (optional, stored in Keychain). Used for EVM transaction history sync on all chains.";
 
 /* Node Status */
 "nodeStatus.notChecked" = "Not checked";
