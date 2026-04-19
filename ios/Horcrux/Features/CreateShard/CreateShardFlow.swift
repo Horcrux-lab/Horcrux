@@ -1032,18 +1032,6 @@ struct DKGCompleteView: View {
             VStack(spacing: 8) {
                 Text(L10n.DKG.walletCreated)
                     .font(.title.bold())
-
-                ForEach(viewModel.generatedAddresses, id: \.chain) { entry in
-                    HStack(spacing: 6) {
-                        ChainIcon(chain: entry.chain, size: 20)
-                        Text(entry.address)
-                            .font(.system(.caption, design: .monospaced))
-                            .lineLimit(1)
-                            .truncationMode(.middle)
-                    }
-                    .textSelection(.enabled)
-                    .padding(.horizontal)
-                }
             }
 
             VStack(spacing: 4) {
