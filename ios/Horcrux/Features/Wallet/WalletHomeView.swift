@@ -223,7 +223,7 @@ struct WalletHomeView: View {
             }
             .padding(.horizontal, 16)
             .padding(.top, 8)
-            .padding(.bottom, 24)
+            .padding(.bottom, 96)  // reserve space for the floating + FAB
         }
         .refreshable {
             // Pull-to-refresh: force-bypass the 30s TTL so pulling actually
@@ -500,20 +500,33 @@ struct WalletRow: View {
 
     private var balance: String? { balanceCache.cachedRaw(walletId: wallet.id) }
 
+    /// Returns true when we have a cached balance and it parses to 0.
+    /// Used to visually demote empty rows so the list shows a clear
+    /// hierarchy between funded and untouched chains.
+    private var isZeroBalance: Bool {
+        guard let balance else { return false }
+        let parts = balance.split(separator: " ", maxSplits: 1).map(String.init)
+        guard let amount = Double(parts.first?.replacingOccurrences(of: ",", with: "") ?? "") else { return false }
+        return amount == 0
+    }
+
     var body: some View {
         HStack(spacing: 14) {
             ChainIcon(chain: wallet.chain, size: 44)
+                .saturation(isZeroBalance ? 0.5 : 1.0)
+                .opacity(isZeroBalance ? 0.6 : 1.0)
                 .accessibilityHidden(true)
 
             VStack(alignment: .leading, spacing: 4) {
                 Text(wallet.chain.rawValue)
                     .font(.headline)
-                    .foregroundStyle(.white)
+                    .foregroundStyle(isZeroBalance ? HorcruxTheme.subtleText : .white)
 
                 Text(shortAddress(wallet.address))
                     .font(.caption)
                     .foregroundStyle(HorcruxTheme.subtleText)
                     .monospaced()
+                    .opacity(isZeroBalance ? 0.7 : 1.0)
             }
 
             Spacer()
@@ -525,12 +538,13 @@ struct WalletRow: View {
                 } else if let balance {
                     Text(balance)
                         .font(.subheadline.bold().monospacedDigit())
-                        .foregroundStyle(.white)
+                        .foregroundStyle(isZeroBalance ? HorcruxTheme.subtleText : .white)
                         .accessibilityLabel("Balance: \(balance)")
                     if let fiat = fiatEstimate(from: balance) {
                         Text(fiat)
                             .font(.caption2.monospacedDigit())
                             .foregroundStyle(HorcruxTheme.subtleText)
+                            .opacity(isZeroBalance ? 0.7 : 1.0)
                     }
                 } else {
                     Text(wallet.chain.symbol)
@@ -546,6 +560,7 @@ struct WalletRow: View {
         }
         .padding(.vertical, 12)
         .glassCard()
+        .opacity(isZeroBalance ? 0.82 : 1.0)
         .accessibilityElement(children: .combine)
         .task {
             await fetchBalance()
