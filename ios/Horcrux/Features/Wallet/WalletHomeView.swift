@@ -798,6 +798,8 @@ struct WalletRow: View {
 
 struct WalletDetailView: View {
     @EnvironmentObject private var appState: AppState
+    @StateObject private var priceService = PriceService.shared
+    @ObservedObject private var balanceCache = BalanceCache.shared
     let wallet: Wallet
     @State private var showSigning = false
     @State private var showReceive = false
@@ -827,6 +829,22 @@ struct WalletDetailView: View {
                             .foregroundStyle(.white)
                             .accessibilityLabel("Balance: \(balance)")
                             .accessibilityIdentifier("walletDetail_balance")
+
+                        HStack(spacing: 8) {
+                            if let fiat = fiatString(from: balance) {
+                                Text(fiat)
+                                    .font(.subheadline.monospacedDigit())
+                                    .foregroundStyle(HorcruxTheme.subtleText)
+                            }
+                            if let change = priceService.change24h(symbol: wallet.chain.symbol) {
+                                PriceChangeBadge(percent: change)
+                            }
+                        }
+
+                        if let spark = priceService.sparkline24h(symbol: wallet.chain.symbol), spark.count >= 2 {
+                            Sparkline(values: spark, height: 36)
+                                .frame(maxWidth: 220)
+                        }
                     }
 
                     Text(wallet.address)
@@ -861,7 +879,7 @@ struct WalletDetailView: View {
                         .accessibilityLabel(L10n.Shards.shardThreshold(Int(wallet.threshold), Int(wallet.totalParties)))
                 }
                 .frame(maxWidth: .infinity)
-                .glassCard(padding: 24)
+                .tintedGlassCard(color: wallet.chain.color, padding: 24)
 
                 // Action buttons
                 if !wallet.chain.signingSupported {
@@ -897,8 +915,8 @@ struct WalletDetailView: View {
                         .padding(.vertical, 16)
                         .background(
                             RoundedRectangle(cornerRadius: 14)
-                                .fill(HorcruxTheme.accentPurple.opacity(wallet.chain.signingSupported ? 0.2 : 0.06))
-                                .overlay(RoundedRectangle(cornerRadius: 14).stroke(HorcruxTheme.accentPurple.opacity(wallet.chain.signingSupported ? 0.3 : 0.12), lineWidth: 1))
+                                .fill(wallet.chain.color.opacity(wallet.chain.signingSupported ? 0.22 : 0.06))
+                                .overlay(RoundedRectangle(cornerRadius: 14).stroke(wallet.chain.color.opacity(wallet.chain.signingSupported ? 0.45 : 0.12), lineWidth: 1))
                         )
                     }
                     .disabled(!wallet.chain.signingSupported)
@@ -1089,11 +1107,25 @@ struct WalletDetailView: View {
         .task {
             await fetchBalance()
             await fetchTokenBalances()
+            priceService.refreshIfNeeded()
+            priceService.refreshSparklinesIfNeeded()
         }
         .refreshable {
             await fetchBalance()
             await fetchTokenBalances()
+            priceService.refreshIfNeeded()
+            priceService.refreshSparklinesIfNeeded()
         }
+    }
+
+    /// Extracts the numeric portion of a balance string like "1.234 ETH"
+    /// and converts it to a USD estimate via PriceService. Returns nil
+    /// when the quote or parse fails.
+    private func fiatString(from balance: String) -> String? {
+        let parts = balance.split(separator: " ", maxSplits: 1).map(String.init)
+        guard let numericPart = parts.first,
+              let amount = Double(numericPart.replacingOccurrences(of: ",", with: "")) else { return nil }
+        return priceService.fiatString(amount: amount, symbol: wallet.chain.symbol)
     }
 
     private func detailRow(_ label: String, value: String) -> some View {
