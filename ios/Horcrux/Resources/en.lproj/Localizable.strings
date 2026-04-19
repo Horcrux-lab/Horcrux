@@ -479,6 +479,9 @@
 "settings.comingSoon" = "Coming Soon";
 "settings.language" = "Language";
 "settings.languageFollowSystem" = "Follow System";
+"settings.languageRestartFooter" = "Close the app (swipe up) and reopen it for the new language to take effect.";
+"settings.languageRestartTitle" = "Applied on Next Launch";
+"settings.languageRestartMessage" = "Close and reopen Horcrux to apply the new language.";
 
 /* Wallet actions (batch dev.40) */
 "wallet.restoreFromBackup" = "Restore from Backup";

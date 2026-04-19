@@ -17,7 +17,7 @@ struct LanguageSettingsView: View {
 
         var displayName: String {
             switch self {
-            case .system: return "跟随系统 / System"
+            case .system: return L10n.Settings.languageFollowSystem
             case .zhHans: return "简体中文"
             case .en: return "English"
             }
@@ -57,17 +57,17 @@ struct LanguageSettingsView: View {
                     .accessibilityIdentifier("language_option_\(opt.rawValue)")
                 }
             } footer: {
-                Text("切换后请退出并重新打开 App（上滑关闭再打开即可），新语言下次启动生效。\nRestart the app for the new language to take effect.")
+                Text(L10n.Settings.languageRestartFooter)
                     .font(.footnote)
                     .foregroundStyle(.secondary)
             }
         }
-        .navigationTitle("语言 / Language")
+        .navigationTitle(L10n.Settings.language)
         .navigationBarTitleDisplayMode(.inline)
-        .alert("下次启动生效 / Applied on Next Launch", isPresented: $showRestartAlert) {
-            Button("好 / OK", role: .cancel) {}
+        .alert(L10n.Settings.languageRestartTitle, isPresented: $showRestartAlert) {
+            Button(L10n.Common.ok, role: .cancel) {}
         } message: {
-            Text("请手动退出并重新打开 App 以看到新语言。\nClose and reopen Horcrux to apply.")
+            Text(L10n.Settings.languageRestartMessage)
         }
     }
 

@@ -814,6 +814,9 @@ enum L10n {
         static let comingSoon = NSLocalizedString("settings.comingSoon", comment: "")
         static let language = NSLocalizedString("settings.language", comment: "")
         static let languageFollowSystem = NSLocalizedString("settings.languageFollowSystem", comment: "")
+        static let languageRestartFooter = NSLocalizedString("settings.languageRestartFooter", comment: "")
+        static let languageRestartTitle = NSLocalizedString("settings.languageRestartTitle", comment: "")
+        static let languageRestartMessage = NSLocalizedString("settings.languageRestartMessage", comment: "")
 
         static let transportPreferences = NSLocalizedString("settings.transportPreferences", comment: "")
         static let transportHint = NSLocalizedString("settings.transportHint", comment: "")

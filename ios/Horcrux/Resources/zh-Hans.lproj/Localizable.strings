@@ -479,6 +479,9 @@
 "settings.comingSoon" = "即将推出";
 "settings.language" = "语言";
 "settings.languageFollowSystem" = "跟随系统";
+"settings.languageRestartFooter" = "切换后请退出并重新打开 App（上滑关闭再打开即可），新语言下次启动生效。";
+"settings.languageRestartTitle" = "下次启动生效";
+"settings.languageRestartMessage" = "请手动退出并重新打开 App 以看到新语言。";
 
 /* Wallet actions (batch dev.40) */
 "wallet.restoreFromBackup" = "从备份恢复";
@@ -790,8 +793,8 @@
 "walletEmpty.summaryMultiAccount" = "跨 %1$d 个账户 · %2$d 条链 · 实时 USD 报价（来源：CoinGecko）";
 "walletEmpty.removeFromDevice" = "这会从本设备移除钱包和它的交易历史。其他持分设备不受影响；链上资产不会被删除。";
 
-"settingsR.languageSection" = "语言 / Language";
-"settingsR.languageRowTitle" = "语言 / Language";
+"settingsR.languageSection" = "语言";
+"settingsR.languageRowTitle" = "语言";
 "settingsR.deviceNickname" = "设备昵称";
 "settingsR.deviceNicknameHint" = "配对和签名时，其他设备会看到这个名字。";
 "settingsR.hwWalletTitle" = "硬件钱包支持";
