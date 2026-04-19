@@ -15,6 +15,9 @@ struct WalletHomeView: View {
     @State private var networkReachable: [Chain: Bool] = [:]
     @State private var expandedGroups: Set<String> = []
     @ObservedObject private var balanceCache = BalanceCache.shared
+    @State private var receiveWallet: Wallet?
+    @State private var offlineBannerExpanded = false
+    @State private var lastReachabilityCheck: Date?
 
     var body: some View {
         NavigationStack {
@@ -77,8 +80,12 @@ struct WalletHomeView: View {
             .sheet(isPresented: $showRestoreSheet) {
                 AccountImportView(viewModel: ShardsViewModel())
             }
+            .sheet(item: $receiveWallet) { wallet in
+                ReceiveView(wallet: wallet)
+            }
             .task {
                 networkReachable = await NetworkStatus.shared.checkAll(config: appState.networkConfig)
+                lastReachabilityCheck = Date()
             }
             .preferredColorScheme(.dark)
         }
@@ -92,23 +99,48 @@ struct WalletHomeView: View {
             let label = offline.count > 1
                 ? L10n.WalletHome.nodesUnreachable(chainList)
                 : L10n.WalletHome.nodeUnreachable(chainList)
-            HStack(spacing: 8) {
-                Image(systemName: "wifi.slash")
-                    .font(.caption.weight(.semibold))
-                Text(label)
-                    .font(.caption.weight(.medium))
+            Button {
+                withAnimation(.easeInOut(duration: 0.2)) {
+                    offlineBannerExpanded.toggle()
+                }
+            } label: {
+                VStack(alignment: .leading, spacing: 6) {
+                    HStack(spacing: 8) {
+                        Image(systemName: "wifi.slash")
+                            .font(.caption.weight(.semibold))
+                        Text(offlineBannerExpanded ? label : "\(offline.count) \(offline.count > 1 ? "chains" : "chain") offline")
+                            .font(.caption.weight(.medium))
+                            .lineLimit(1)
+                        Spacer()
+                        Image(systemName: offlineBannerExpanded ? "chevron.up" : "chevron.down")
+                            .font(.caption2.weight(.semibold))
+                    }
+                    if offlineBannerExpanded, let checked = lastReachabilityCheck {
+                        Text(relativeTimeDescription(checked))
+                            .font(.caption2)
+                            .foregroundStyle(HorcruxTheme.warningAmber.opacity(0.75))
+                    }
+                }
+                .foregroundStyle(HorcruxTheme.warningAmber)
+                .padding(.vertical, 8)
+                .padding(.horizontal, 14)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(
+                    Capsule().fill(HorcruxTheme.warningAmber.opacity(0.12))
+                )
+                .overlay(
+                    Capsule().stroke(HorcruxTheme.warningAmber.opacity(0.35), lineWidth: 1)
+                )
             }
-            .foregroundStyle(HorcruxTheme.warningAmber)
-            .padding(.vertical, 8)
-            .padding(.horizontal, 14)
-            .background(
-                Capsule().fill(HorcruxTheme.warningAmber.opacity(0.12))
-            )
-            .overlay(
-                Capsule().stroke(HorcruxTheme.warningAmber.opacity(0.35), lineWidth: 1)
-            )
+            .buttonStyle(.plain)
             .accessibilityLabel(L10n.WalletHome.networkWarning(chainList))
         }
+    }
+
+    private func relativeTimeDescription(_ date: Date) -> String {
+        let formatter = RelativeDateTimeFormatter()
+        formatter.unitsStyle = .abbreviated
+        return "Checked \(formatter.localizedString(for: date, relativeTo: Date()))"
     }
 
     private var emptyState: some View {
@@ -295,6 +327,18 @@ struct WalletHomeView: View {
                 .accessibilityHint(L10n.WalletHome.viewDetailsHint)
                 .accessibilityIdentifier("walletHome_walletRow_\(wallet.id)")
                 .contextMenu {
+                    Button {
+                        SecureClipboard.copy(wallet.address)
+                        Haptics.success()
+                    } label: {
+                        Label(L10n.WalletDetail.copyAddress, systemImage: "doc.on.doc")
+                    }
+                    Button {
+                        receiveWallet = wallet
+                    } label: {
+                        Label(L10n.Receive.title, systemImage: "qrcode")
+                    }
+                    Divider()
                     Button {
                         walletStore.setHidden(id: wallet.id, hidden: true)
                     } label: {
