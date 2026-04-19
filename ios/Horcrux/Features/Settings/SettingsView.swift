@@ -343,7 +343,7 @@ struct SettingsView: View {
                             .padding(.horizontal, 4)
 
                         VStack(spacing: 0) {
-                            aboutRow(L10n.Settings.version, value: "0.2.0")
+                            aboutRow(L10n.Settings.version, value: Self.appVersion)
                             Divider().background(HorcruxTheme.hairline)
                             aboutRow(L10n.Settings.coreLibrary, value: "horcrux-core (Rust)")
                             Divider().background(HorcruxTheme.hairline)
@@ -407,7 +407,7 @@ struct SettingsView: View {
                             showWipeConfirmation = true
                         } label: {
                             HStack {
-                                VaultSettingsRow(icon: "trash.fill", iconColor: HorcruxTheme.dangerRed, title: L10n.Settings.wipeAllData, subtitle: "Permanently delete all keys and data")
+                                VaultSettingsRow(icon: "trash.fill", iconColor: HorcruxTheme.dangerRed, title: L10n.Settings.wipeAllData, subtitle: L10n.Settings.wipeAllDataSubtitle)
                                 Spacer()
                                 Image(systemName: "chevron.right")
                                     .font(.caption)
@@ -495,6 +495,18 @@ struct SettingsView: View {
             return "URL must use wss:// (or ws:// for local dev)"
         }
         return nil
+    }
+
+    /// Marketing version from Info.plist, with the build number appended when
+    /// present. Renders as either "0.3.0" or "0.3.0 (42)" so About always
+    /// reflects what's actually installed instead of a stale hard-coded literal.
+    static var appVersion: String {
+        let info = Bundle.main.infoDictionary
+        let short = (info?["CFBundleShortVersionString"] as? String) ?? "?"
+        if let build = info?["CFBundleVersion"] as? String, !build.isEmpty, build != short {
+            return "\(short) (\(build))"
+        }
+        return short
     }
 }
 

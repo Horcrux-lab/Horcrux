@@ -371,6 +371,7 @@
 "settings.licensesHint" = "View open source library licenses";
 "settings.dangerZone" = "Danger Zone";
 "settings.wipeAllData" = "Wipe All Data";
+"settings.wipeAllDataSubtitle" = "Permanently delete all keys and data";
 "settings.wipeHint" = "Permanently delete all wallets, key shards, and settings";
 "settings.wipeConfirmTitle" = "Wipe All Data?";
 "settings.wipeEverything" = "Wipe Everything";

@@ -26,7 +26,7 @@ struct CustomTokensView: View {
                     ForEach(Chain.allCases, id: \.self) { chain in
                         let byChain = appState.customTokenStore.tokens.filter { $0.chain == chain }
                         if !byChain.isEmpty {
-                            Section(chain.rawValue) {
+                            Section(chain.displayName) {
                                 ForEach(byChain, id: \.id) { token in
                                     VStack(alignment: .leading, spacing: 4) {
                                         HStack {

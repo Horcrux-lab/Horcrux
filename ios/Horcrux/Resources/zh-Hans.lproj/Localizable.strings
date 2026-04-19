@@ -371,6 +371,7 @@
 "settings.licensesHint" = "查看开源库许可";
 "settings.dangerZone" = "危险区域";
 "settings.wipeAllData" = "清除所有数据";
+"settings.wipeAllDataSubtitle" = "永久删除所有密钥和数据";
 "settings.wipeHint" = "永久删除所有钱包、密钥分片和设置";
 "settings.wipeConfirmTitle" = "确定清除所有数据？";
 "settings.wipeEverything" = "全部清除";

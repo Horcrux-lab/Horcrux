@@ -855,6 +855,7 @@ enum L10n {
         static let licensesHint = NSLocalizedString("settings.licensesHint", comment: "")
         static let dangerZone = NSLocalizedString("settings.dangerZone", comment: "")
         static let wipeAllData = NSLocalizedString("settings.wipeAllData", comment: "")
+        static let wipeAllDataSubtitle = NSLocalizedString("settings.wipeAllDataSubtitle", comment: "")
         static let wipeHint = NSLocalizedString("settings.wipeHint", comment: "")
         static let wipeConfirmTitle = NSLocalizedString("settings.wipeConfirmTitle", comment: "")
         static let wipeEverything = NSLocalizedString("settings.wipeEverything", comment: "")

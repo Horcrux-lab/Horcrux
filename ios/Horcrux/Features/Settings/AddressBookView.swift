@@ -32,7 +32,7 @@ struct AddressBookView: View {
                 ForEach(Chain.allCases) { chain in
                     let entries = store.entries(for: chain)
                     if !entries.isEmpty {
-                        Section(chain.rawValue) {
+                        Section(chain.displayName) {
                             ForEach(entries) { entry in
                                 Button {
                                     editing = entry
