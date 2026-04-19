@@ -615,7 +615,7 @@ struct PeerDiscoveryView: View {
                             .frame(maxWidth: .infinity)
                             .font(.headline)
                     }
-                    .buttonStyle(.borderedProminent)
+                    .buttonStyle(GradientButtonStyle())
                     .padding(.horizontal)
                     .accessibilityHint(L10n.Discovery.startKeyGenHint)
                     .accessibilityIdentifier("discover_startDKGButton")
@@ -816,7 +816,7 @@ struct DKGCompleteView: View {
                     .frame(maxWidth: .infinity)
                     .font(.headline)
             }
-            .buttonStyle(.borderedProminent)
+            .buttonStyle(GradientButtonStyle())
             .padding(.horizontal)
             .accessibilityHint(L10n.DKG.saveEncryptHint)
             .accessibilityIdentifier("dkgComplete_saveButton")
@@ -947,24 +947,24 @@ private struct BackupGateSheet: View {
                         Text(L10n.Backup.ackToggle)
                             .font(.callout)
                     }
-                    .tint(.blue)
+                    .tint(HorcruxTheme.accentBlue)
                     .padding(12)
-                    .background(RoundedRectangle(cornerRadius: 10).fill(Color.gray.opacity(0.12)))
+                    .background(RoundedRectangle(cornerRadius: 10).fill(HorcruxTheme.cardSurface.opacity(0.5)))
 
                     Button(action: onBackupNow) {
                         Label(L10n.Backup.doneButton, systemImage: "checkmark.circle")
                             .frame(maxWidth: .infinity)
-                            .font(.headline)
                     }
-                    .buttonStyle(.borderedProminent)
+                    .buttonStyle(GradientButtonStyle(isEnabled: acknowledged))
                     .disabled(!acknowledged)
 
                     Button(role: .destructive, action: onSkip) {
                         Text(L10n.Backup.skipButton)
                             .frame(maxWidth: .infinity)
                             .font(.callout)
+                            .foregroundStyle(HorcruxTheme.dangerRed)
+                            .padding(.vertical, 10)
                     }
-                    .buttonStyle(.bordered)
                 }
                 .padding()
             }
@@ -976,7 +976,7 @@ private struct BackupGateSheet: View {
     private func bullet(_ text: String) -> some View {
         HStack(alignment: .top, spacing: 8) {
             Image(systemName: "checkmark.circle")
-                .foregroundStyle(.blue)
+                .foregroundStyle(HorcruxTheme.accentBlue)
             Text(text)
         }
     }
@@ -994,7 +994,7 @@ struct DKGErrorView: View {
 
             Image(systemName: "exclamationmark.triangle.fill")
                 .font(.system(size: errorIconSize))
-                .foregroundStyle(.red)
+                .foregroundStyle(HorcruxTheme.dangerRed)
                 .accessibilityHidden(true)
 
             Text(L10n.DKG.keyGenFailed)
@@ -1007,7 +1007,8 @@ struct DKGErrorView: View {
             Button(L10n.Common.retry) {
                 viewModel.step = .discover
             }
-            .buttonStyle(.borderedProminent)
+            .buttonStyle(GradientButtonStyle())
+            .padding(.horizontal)
             .accessibilityHint(L10n.DKG.retryHint)
             .accessibilityIdentifier("dkgError_retryButton")
 

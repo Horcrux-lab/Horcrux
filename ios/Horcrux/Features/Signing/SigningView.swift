@@ -718,7 +718,7 @@ struct SigningCompleteView: View {
                             .frame(maxWidth: .infinity)
                             .font(.headline)
                     }
-                    .buttonStyle(.borderedProminent)
+                    .buttonStyle(GradientButtonStyle())
                     .tint(HorcruxTheme.successGreen)
                     .padding(.horizontal)
                     .accessibilityHint(L10n.Signing.broadcastHint)
@@ -731,8 +731,11 @@ struct SigningCompleteView: View {
                         Label(L10n.Signing.saveForLater, systemImage: "clock.arrow.circlepath")
                             .frame(maxWidth: .infinity)
                             .font(.subheadline)
+                            .foregroundStyle(.white)
+                            .padding(.vertical, 10)
+                            .background(HorcruxTheme.cardSurface, in: Capsule())
+                            .overlay(Capsule().strokeBorder(.white.opacity(0.15), lineWidth: 1))
                     }
-                    .buttonStyle(.bordered)
                     .padding(.horizontal)
                     .accessibilityHint(L10n.Signing.saveForLaterHint)
                     .accessibilityIdentifier("complete_saveForLaterButton")
@@ -744,9 +747,8 @@ struct SigningCompleteView: View {
             Button { dismiss() } label: {
                 Text(L10n.Common.done)
                     .frame(maxWidth: .infinity)
-                    .font(.headline)
             }
-            .buttonStyle(.borderedProminent)
+            .buttonStyle(GradientButtonStyle())
             .padding(.horizontal)
             .accessibilityIdentifier("complete_doneButton")
         }
@@ -773,7 +775,8 @@ struct SigningErrorView: View {
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
             Button(L10n.Common.retry) { viewModel.step = .invite }
-                .buttonStyle(.borderedProminent)
+                .buttonStyle(GradientButtonStyle())
+                .padding(.horizontal)
                 .accessibilityHint(L10n.Signing.retryHint)
                 .accessibilityIdentifier("signingError_retryButton")
             Spacer()
