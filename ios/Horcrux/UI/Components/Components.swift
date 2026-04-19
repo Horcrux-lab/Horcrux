@@ -5,20 +5,21 @@ struct ProgressRing: View {
     let progress: Double
     var lineWidth: CGFloat = 8
     var color: Color = HorcruxTheme.accentPurple
+    /// Optional solid tint for the ring stroke. When non-nil, replaces the
+    /// default purple/blue/cyan angular gradient with a solid-color stroke
+    /// — used to tie signing/DKG ceremonies to the chain's brand color.
+    var tint: Color? = nil
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         ZStack {
             Circle()
-                .stroke(color.opacity(0.15), lineWidth: lineWidth)
+                .stroke((tint ?? color).opacity(0.15), lineWidth: lineWidth)
 
             Circle()
                 .trim(from: 0, to: progress)
                 .stroke(
-                    AngularGradient(
-                        colors: [HorcruxTheme.accentPurple, HorcruxTheme.accentBlue, HorcruxTheme.accentCyan],
-                        center: .center
-                    ),
+                    ringStrokeStyle,
                     style: StrokeStyle(lineWidth: lineWidth, lineCap: .round)
                 )
                 .rotationEffect(.degrees(-90))
@@ -27,6 +28,79 @@ struct ProgressRing: View {
             Text("\(Int(progress * 100))%")
                 .font(.title2.bold().monospacedDigit())
                 .foregroundStyle(.white)
+        }
+    }
+
+    private var ringStrokeStyle: AnyShapeStyle {
+        if let tint {
+            return AnyShapeStyle(
+                AngularGradient(
+                    colors: [tint.opacity(0.55), tint, tint.opacity(0.85)],
+                    center: .center
+                )
+            )
+        }
+        return AnyShapeStyle(
+            AngularGradient(
+                colors: [HorcruxTheme.accentPurple, HorcruxTheme.accentBlue, HorcruxTheme.accentCyan],
+                center: .center
+            )
+        )
+    }
+}
+
+/// Ritual visualization: N shard dots orbiting the progress ring, one per
+/// MPC signer. Dots rotate slowly while the ceremony is active; each
+/// completes (green) or fails (red) as the peer reports its state.
+/// Gives the otherwise opaque MPC round-trip visible rhythm and ties the
+/// abstract "t-of-n" badge to a physical metaphor.
+struct ShardOrbit: View {
+    enum DotState { case waiting, active, done, failed }
+    let total: Int
+    /// One entry per shard; positional index maps to clock-angle starting
+    /// at 12 o'clock and going clockwise.
+    let states: [DotState]
+    var radius: CGFloat
+    var tint: Color = HorcruxTheme.accentPurple
+    var dotSize: CGFloat = 14
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var phase: Double = 0
+
+    var body: some View {
+        ZStack {
+            ForEach(0..<total, id: \.self) { i in
+                let baseAngle = Double(i) / Double(max(total, 1)) * 360.0
+                let angle = baseAngle + phase
+                let rad = angle * .pi / 180
+                Circle()
+                    .fill(color(for: i))
+                    .frame(width: dotSize, height: dotSize)
+                    .overlay(
+                        Circle()
+                            .stroke(color(for: i).opacity(0.5), lineWidth: 1)
+                    )
+                    .shadow(color: color(for: i).opacity(0.6), radius: 4)
+                    .offset(x: CGFloat(cos(rad)) * radius,
+                            y: CGFloat(sin(rad)) * radius)
+            }
+        }
+        .onAppear {
+            guard !reduceMotion else { return }
+            withAnimation(.linear(duration: 18).repeatForever(autoreverses: false)) {
+                phase = 360
+            }
+        }
+        .accessibilityHidden(true)
+    }
+
+    private func color(for index: Int) -> Color {
+        guard index < states.count else { return tint.opacity(0.3) }
+        switch states[index] {
+        case .waiting: return tint.opacity(0.35)
+        case .active:  return tint
+        case .done:    return HorcruxTheme.successGreen
+        case .failed:  return HorcruxTheme.dangerRed
         }
     }
 }

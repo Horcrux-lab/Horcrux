@@ -457,15 +457,55 @@ private struct SignerSlot: View {
 
 struct SigningProgressView: View {
     @ObservedObject var viewModel: SigningViewModel
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var completionPulse = false
+
+    /// Shard states for ShardOrbit: index 0 is self, rest are joined peers
+    /// in the same order they appear in the status list below.
+    private var shardStates: [ShardOrbit.DotState] {
+        var states: [ShardOrbit.DotState] = [
+            viewModel.signingProgress >= 1.0 ? .done : .active
+        ]
+        for peer in viewModel.joinedSigners {
+            switch viewModel.peerStates[peer.id] {
+            case .waiting, .none: states.append(.waiting)
+            case .signing:        states.append(.active)
+            case .done:           states.append(.done)
+            case .failed:         states.append(.failed)
+            }
+        }
+        // Pad with .waiting up to threshold so the orbit shows the full
+        // t-of-n constellation from the start instead of popping in as
+        // peers join.
+        let target = Int(viewModel.wallet.threshold)
+        while states.count < target { states.append(.waiting) }
+        return states
+    }
 
     var body: some View {
+        let chainTint = viewModel.wallet.chain.color
         VStack(spacing: 24) {
             Spacer(minLength: 8)
 
-            ProgressRing(progress: viewModel.signingProgress)
-                .frame(width: 120, height: 120)
-                .accessibilityLabel(L10n.Signing.signingProgress)
-                .accessibilityValue("\(Int(viewModel.signingProgress * 100)) percent")
+            ZStack {
+                // Orbiting shard constellation — sits just outside the ring.
+                ShardOrbit(
+                    total: max(Int(viewModel.wallet.threshold), 1),
+                    states: shardStates,
+                    radius: 84,
+                    tint: chainTint
+                )
+                ProgressRing(progress: viewModel.signingProgress, tint: chainTint)
+                    .frame(width: 120, height: 120)
+                    .accessibilityLabel(L10n.Signing.signingProgress)
+                    .accessibilityValue("\(Int(viewModel.signingProgress * 100)) percent")
+                // Chain logo centered inside the ring — ties the ceremony
+                // to the specific asset being signed.
+                ChainIcon(chain: viewModel.wallet.chain, size: 44)
+                    .scaleEffect(completionPulse ? 1.12 : 1.0)
+                    .animation(reduceMotion ? nil : .spring(response: 0.4, dampingFraction: 0.5), value: completionPulse)
+            }
+            .frame(height: 200)
 
             VStack(spacing: 8) {
                 Text(L10n.Signing.signingTransaction)
@@ -486,9 +526,6 @@ struct SigningProgressView: View {
                 }
             }
 
-            // Elapsed hint — MPC ceremonies can feel "stuck" because there's no
-            // traditional progress bar during the cross-device round-trips. These
-            // thresholds tell the user whether "still waiting" is normal or not.
             if let started = viewModel.signingStartedAt {
                 SigningElapsedHint(startedAt: started)
             }
@@ -497,7 +534,7 @@ struct SigningProgressView: View {
             VStack(alignment: .leading, spacing: 8) {
                 HStack {
                     Image(systemName: "person.2.fill")
-                        .foregroundStyle(HorcruxTheme.accentPurple)
+                        .foregroundStyle(chainTint)
                     Text(L10n.Signing.coSigners)
                         .font(.subheadline.weight(.semibold))
                     Spacer()
@@ -506,32 +543,27 @@ struct SigningProgressView: View {
                         .foregroundStyle(.secondary)
                 }
 
-                // Self — always "signing" while ceremony runs, "done" once complete.
                 CosignerStatusRow(
                     name: L10n.Signing.selfLabel,
                     status: viewModel.signingProgress >= 1.0 ? .done : .signing,
                     round: viewModel.currentRound,
                     totalRounds: viewModel.totalRounds,
-                    isSelf: true
+                    isSelf: true,
+                    tint: chainTint
                 )
 
-                // Remote signers — state driven by real MPC message arrivals.
                 ForEach(viewModel.joinedSigners) { peer in
                     CosignerStatusRow(
                         name: peer.name,
                         status: viewModel.peerStates[peer.id].flatMap(mapState) ?? .waiting,
                         round: viewModel.peerRounds[peer.id] ?? 0,
                         totalRounds: viewModel.totalRounds,
-                        isSelf: false
+                        isSelf: false,
+                        tint: chainTint
                     )
                 }
             }
-            .padding(14)
-            .background(
-                RoundedRectangle(cornerRadius: 12)
-                    .fill(Color.white.opacity(0.04))
-                    .overlay(RoundedRectangle(cornerRadius: 12).stroke(Color.white.opacity(0.08), lineWidth: 1))
-            )
+            .tintedGlassCard(color: chainTint, cornerRadius: 12, padding: 14)
             .padding(.horizontal)
 
             Spacer()
@@ -544,6 +576,14 @@ struct SigningProgressView: View {
             .padding(.bottom)
         }
         .padding()
+        .onChange(of: viewModel.signingProgress) { _, new in
+            // Celebratory pulse + success haptic the moment the ceremony
+            // reaches full threshold. Single-fire via the pulse toggle.
+            if new >= 1.0 && !completionPulse {
+                Haptics.success()
+                completionPulse = true
+            }
+        }
     }
 
     private func mapState(_ s: SigningViewModel.PeerSigningState) -> CosignerStatusRow.Status {
@@ -618,11 +658,12 @@ private struct CosignerStatusRow: View {
     let round: Int
     let totalRounds: Int
     let isSelf: Bool
+    var tint: Color = HorcruxTheme.accentPurple
 
     var body: some View {
         HStack(spacing: 10) {
             Image(systemName: isSelf ? "iphone" : "laptopcomputer")
-                .foregroundStyle(HorcruxTheme.accentPurple)
+                .foregroundStyle(tint)
                 .frame(width: 20)
             Text(name)
                 .font(.caption)
@@ -636,7 +677,7 @@ private struct CosignerStatusRow: View {
                     .foregroundStyle(.secondary)
                     .padding(.horizontal, 6)
                     .padding(.vertical, 2)
-                    .background(Capsule().fill(HorcruxTheme.accentPurple.opacity(0.15)))
+                    .background(Capsule().fill(tint.opacity(0.18)))
             }
             switch status {
             case .waiting:
@@ -644,7 +685,7 @@ private struct CosignerStatusRow: View {
                     .font(.caption2)
                     .foregroundStyle(.secondary)
             case .signing:
-                ProgressView().scaleEffect(0.7)
+                ProgressView().scaleEffect(0.7).tint(tint)
             case .done:
                 Image(systemName: "checkmark.circle.fill").foregroundStyle(HorcruxTheme.successGreen)
             case .failed:
@@ -662,14 +703,57 @@ struct SigningCompleteView: View {
     @ScaledMetric(relativeTo: .largeTitle) private var largeIconSize: CGFloat = 72
     let dismiss: DismissAction
 
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var pulse = false
+    @State private var sealScale: CGFloat = 0.4
+
     var body: some View {
+        let chainTint = viewModel.wallet.chain.color
         VStack(spacing: 32) {
             Spacer()
 
-            Image(systemName: "checkmark.seal.fill")
-                .font(.system(size: largeIconSize))
-                .foregroundStyle(HorcruxTheme.successGreen)
-                .accessibilityHidden(true)
+            ZStack {
+                // Two expanding pulse rings radiate outward when the view
+                // appears, then settle into a slow ambient pulse. Tints
+                // follow the chain being signed.
+                ForEach(0..<2, id: \.self) { i in
+                    Circle()
+                        .stroke(chainTint.opacity(0.35), lineWidth: 2)
+                        .frame(width: largeIconSize * 1.6, height: largeIconSize * 1.6)
+                        .scaleEffect(pulse ? 1.35 : 0.9)
+                        .opacity(pulse ? 0.0 : 0.9)
+                        .animation(
+                            reduceMotion ? nil :
+                                .easeOut(duration: 1.8)
+                                .repeatForever(autoreverses: false)
+                                .delay(Double(i) * 0.9),
+                            value: pulse
+                        )
+                }
+                Circle()
+                    .fill(
+                        RadialGradient(
+                            colors: [HorcruxTheme.successGreen.opacity(0.35), chainTint.opacity(0.0)],
+                            center: .center,
+                            startRadius: 2,
+                            endRadius: largeIconSize
+                        )
+                    )
+                    .frame(width: largeIconSize * 1.4, height: largeIconSize * 1.4)
+
+                Image(systemName: "checkmark.seal.fill")
+                    .font(.system(size: largeIconSize))
+                    .foregroundStyle(HorcruxTheme.successGreen)
+                    .accessibilityHidden(true)
+                    .scaleEffect(sealScale)
+                    .animation(reduceMotion ? nil : .spring(response: 0.5, dampingFraction: 0.55), value: sealScale)
+            }
+            .onAppear {
+                pulse = true
+                sealScale = 1.0
+                Haptics.success()
+            }
+
             VStack(spacing: 8) {
                 Text(L10n.Signing.transactionSigned)
                     .font(.title.bold())
