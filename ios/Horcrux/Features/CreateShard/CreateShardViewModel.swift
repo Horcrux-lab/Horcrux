@@ -343,10 +343,12 @@ final class CreateShardViewModel: ObservableObject {
                 let session = bridge.session
                 let sid = sessionId!
                 let cfg = config
+                let startKeygenStart = Date()
                 let outgoing: [FfiMpcMessage] = try await Task.detached(priority: .userInitiated) {
                     try session.createKeygen(sessionId: sid, config: cfg)
                 }.value
-                NSLog("[DKG] startKeygen returned \(outgoing.count) messages")
+                let startKeygenElapsed = Date().timeIntervalSince(startKeygenStart)
+                NSLog("[DKG-PERF] startKeygen elapsed=\(String(format: "%.2f", startKeygenElapsed))s messages=\(outgoing.count)")
 
                 dkgStatusMessage = L10n.DKG.exchangingCommitments
 
@@ -478,8 +480,9 @@ final class CreateShardViewModel: ObservableObject {
                 updateDKGStatusMessage()
 
                 let responses: [FfiMpcMessage]
+                let roundStart = Date()
                 do {
-                    NSLog("[DKG] Calling bridge.handleMessage (off-main)...")
+                    NSLog("[DKG] Calling bridge.handleMessage (off-main) for round \(msgCount)...")
                     let session = bridge.session
                     let msgToProcess = msg
                     responses = try await Task.detached(priority: .userInitiated) {
@@ -489,7 +492,8 @@ final class CreateShardViewModel: ObservableObject {
                     NSLog("[DKG] handleMessage error: \(error.localizedDescription)")
                     throw error
                 }
-                NSLog("[DKG] handleMessage returned \(responses.count) responses")
+                let roundElapsed = Date().timeIntervalSince(roundStart)
+                NSLog("[DKG-PERF] round=\(msgCount) elapsed=\(String(format: "%.2f", roundElapsed))s responses=\(responses.count)")
 
                 for response in responses {
                     let responseData = try JSONEncoder().encode(MpcMessageDTO(response))
