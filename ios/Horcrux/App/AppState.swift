@@ -67,6 +67,12 @@ final class AppState: ObservableObject {
     private var cachedShardKeyMaterial: Data?
 
     init() {
+        // Migration: older builds allowed Auto-Lock = Never (-1). Remove that
+        // option for security — existing users on -1 get bumped to 1 hour.
+        if UserDefaults.standard.double(forKey: "autoLockTimeout") < 0 {
+            UserDefaults.standard.set(3600.0, forKey: "autoLockTimeout")
+        }
+
         // Propagate walletStore changes through our own objectWillChange so
         // every @EnvironmentObject appState consumer re-renders when wallets
         // are added, removed, or renamed. Without this, WalletHomeView would

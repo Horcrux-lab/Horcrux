@@ -69,7 +69,6 @@ struct SettingsView: View {
                                     Text(L10n.Settings.fiveMinutes).tag(TimeInterval(300))
                                     Text(L10n.Settings.fifteenMinutes).tag(TimeInterval(900))
                                     Text(L10n.Settings.oneHour).tag(TimeInterval(3600))
-                                    Text(L10n.Settings.never).tag(TimeInterval(-1))
                                 }
                                 .labelsHidden()
                                 .tint(HorcruxTheme.accentPurple)

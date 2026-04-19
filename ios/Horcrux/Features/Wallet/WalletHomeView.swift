@@ -26,6 +26,37 @@ struct WalletHomeView: View {
                         walletList
                     }
                 }
+
+                if !walletStore.wallets.isEmpty {
+                    VStack {
+                        Spacer()
+                        HStack {
+                            Spacer()
+                            Button {
+                                showCreateShard = true
+                            } label: {
+                                Image(systemName: "plus")
+                                    .font(.title2.weight(.bold))
+                                    .foregroundStyle(.white)
+                                    .frame(width: 56, height: 56)
+                                    .background(
+                                        LinearGradient(
+                                            colors: [HorcruxTheme.accentPurple, HorcruxTheme.accentBlue],
+                                            startPoint: .topLeading,
+                                            endPoint: .bottomTrailing
+                                        ),
+                                        in: Circle()
+                                    )
+                                    .shadow(color: HorcruxTheme.accentPurple.opacity(0.5), radius: 12, y: 6)
+                            }
+                            .padding(.trailing, 20)
+                            .padding(.bottom, 20)
+                            .accessibilityLabel(L10n.WalletHome.createNewWallet)
+                            .accessibilityHint(L10n.WalletHome.opensCreationFlow)
+                            .accessibilityIdentifier("walletHome_fabCreateButton")
+                        }
+                    }
+                }
             }
             .navigationTitle(L10n.WalletHome.title)
             .navigationBarTitleDisplayMode(.large)
