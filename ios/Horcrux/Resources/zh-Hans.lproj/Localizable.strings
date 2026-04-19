@@ -607,9 +607,9 @@
 "createShard.mpcExplainerA11y" = "什么是门限签名";
 "createShard.creatorValueProp" = "无需助记词。密钥分成 %1$d 片分发到不同设备，任意 %2$d 片即可签名 —— 丢失任一设备仍可恢复。";
 "createShard.joinerValueProp" = "无需助记词。你将加入发起人创建的门限签名钱包，并在本机获得一份密钥分片。";
-"createShard.chainEvmBtc" = "EVM 链 + Bitcoin";
+"createShard.chainEvmBtc" = "Bitcoin + 以太坊系";
 "createShard.chainSolana" = "Solana";
-"createShard.addrsEvmBtc" = "将生成：ETH · BTC 地址（共享同一密钥分片）";
+"createShard.addrsEvmBtc" = "一份分片生成 BTC、ETH、BNB、LTC、TRX 等多条链地址";
 "createShard.addrSolana" = "将生成：SOL 地址";
 "createShard.advancedSettings" = "高级设置";
 "createShard.advancedDefaults" = "默认：2-of-3 · 通过中继服务器发现设备 · 房间码已自动生成";

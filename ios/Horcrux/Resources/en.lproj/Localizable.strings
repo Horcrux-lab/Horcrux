@@ -607,9 +607,9 @@
 "createShard.mpcExplainerA11y" = "What is threshold signing";
 "createShard.creatorValueProp" = "No seed phrase. Key is split into %1$d shards distributed across devices. Any %2$d shards can sign — lose any one device and you can still recover.";
 "createShard.joinerValueProp" = "No seed phrase. You'll join the threshold wallet created by the initiator and receive one key shard on this device.";
-"createShard.chainEvmBtc" = "EVM chains + Bitcoin";
+"createShard.chainEvmBtc" = "Bitcoin + Ethereum family";
 "createShard.chainSolana" = "Solana";
-"createShard.addrsEvmBtc" = "Will generate: ETH · BTC addresses (sharing the same key shard)";
+"createShard.addrsEvmBtc" = "One shard, many chains: BTC, ETH, BNB, LTC, TRX & more";
 "createShard.addrSolana" = "Will generate: SOL address";
 "createShard.advancedSettings" = "Advanced settings";
 "createShard.advancedDefaults" = "Default: 2-of-3 · Discovery via relay server · Room code auto-generated";
