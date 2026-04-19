@@ -622,6 +622,9 @@
 "createShard.regenRoomCodeA11y" = "生成新房间码";
 "createShard.scanRoomA11y" = "扫码加入房间";
 "createShard.copyRoomCodeA11y" = "复制房间码";
+"createShard.copyRoomCode" = "复制";
+"createShard.showQR" = "显示二维码";
+"createShard.scanToJoin" = "让其他设备扫描此二维码，或手动输入三词房间码加入钱包。";
 "createShard.scanHint" = "让对方扫码即可快速输入房间码";
 "createShard.roomCodeInvalid" = "房间码应为 3 个用连字符分隔的单词";
 "createShard.scanRoomTitle" = "扫描房间码";

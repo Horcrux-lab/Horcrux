@@ -550,6 +550,14 @@ struct PeerDiscoveryView: View {
             .padding(.vertical, 8)
             .background(HorcruxTheme.accentCyan.opacity(0.1), in: Capsule())
 
+            // Initiator: keep the room code + QR visible in the waiting room
+            // so joiners arriving mid-ceremony can still scan / type the code
+            // without forcing the initiator to back out to the configure page.
+            if viewModel.role == .create && RoomCode.isValid(viewModel.roomCode) {
+                RoomCodeShareCard(code: viewModel.roomCode)
+                    .padding(.horizontal)
+            }
+
             if viewModel.role == .create {
                 Text(L10n.Discovery.peersFound(presentCount, viewModel.totalParties - 1))
                     .font(.headline)
@@ -656,6 +664,110 @@ struct PeerDiscoveryView: View {
         }
         .onDisappear {
             timerTask?.cancel()
+        }
+    }
+}
+
+// MARK: - Step 3: DKG Progress
+
+/// Compact room-code + QR pill used in the initiator's waiting room so
+/// joiners arriving late can still scan/read the code without making
+/// the initiator back out to the configure page.
+private struct RoomCodeShareCard: View {
+    let code: String
+    @State private var expanded = false
+    @State private var copied = false
+
+    var body: some View {
+        VStack(spacing: 12) {
+            HStack(spacing: 12) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(L10n.CreateShard.roomCodeLabel)
+                        .font(.caption)
+                        .foregroundStyle(HorcruxTheme.subtleText)
+                    Text(code)
+                        .font(.system(.title3, design: .monospaced).weight(.semibold))
+                        .foregroundStyle(.white)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.7)
+                }
+
+                Spacer()
+
+                Button {
+                    SecureClipboard.copy(code)
+                    Haptics.success()
+                    withAnimation { copied = true }
+                    Task {
+                        try? await Task.sleep(nanoseconds: 1_500_000_000)
+                        await MainActor.run { withAnimation { copied = false } }
+                    }
+                } label: {
+                    Image(systemName: copied ? "checkmark" : "doc.on.doc")
+                        .font(.body.weight(.semibold))
+                        .foregroundStyle(copied ? HorcruxTheme.successGreen : HorcruxTheme.accentCyan)
+                        .frame(width: 36, height: 36)
+                        .background(Circle().fill(Color.white.opacity(0.06)))
+                }
+                .accessibilityLabel(L10n.CreateShard.copyRoomCode)
+
+                Button {
+                    expanded = true
+                } label: {
+                    RoomCodeQRView(code: code)
+                        .frame(width: 44, height: 44)
+                        .padding(4)
+                        .background(RoundedRectangle(cornerRadius: 8).fill(Color.white))
+                }
+                .accessibilityLabel(L10n.CreateShard.showQR)
+            }
+        }
+        .padding(14)
+        .background(
+            RoundedRectangle(cornerRadius: 14)
+                .fill(Color.white.opacity(0.05))
+                .overlay(RoundedRectangle(cornerRadius: 14).stroke(HorcruxTheme.hairline, lineWidth: 1))
+        )
+        .sheet(isPresented: $expanded) {
+            RoomCodeExpandedSheet(code: code)
+                .presentationDetents([.medium])
+        }
+    }
+}
+
+private struct RoomCodeExpandedSheet: View {
+    let code: String
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        NavigationStack {
+            ZStack {
+                HorcruxTheme.backgroundGradient.ignoresSafeArea()
+                VStack(spacing: 20) {
+                    Text(L10n.CreateShard.roomCodeLabel)
+                        .font(.caption)
+                        .foregroundStyle(HorcruxTheme.subtleText)
+                    Text(code)
+                        .font(.system(.title, design: .monospaced).weight(.bold))
+                        .foregroundStyle(.white)
+
+                    RoomCodeQRView(code: code)
+                        .frame(width: 240, height: 240)
+
+                    Text(L10n.CreateShard.scanToJoin)
+                        .font(.footnote)
+                        .foregroundStyle(HorcruxTheme.subtleText)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal)
+                }
+                .padding()
+            }
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button(L10n.Common.done) { dismiss() }
+                }
+            }
         }
     }
 }
