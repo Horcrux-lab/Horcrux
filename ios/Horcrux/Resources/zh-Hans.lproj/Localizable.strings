@@ -73,6 +73,8 @@
 "walletHome.showMoreChains" = "显示其他 %d 条链";
 "walletHome.hideEmptyChains" = "收起空余额链";
 "walletHome.sharedAddressHint" = "EVM 共用地址";
+"walletHome.collapsedFundedOfTotal" = "%2$d 条链中 %1$d 条有余额";
+"walletHome.collapsedAllEmpty" = "%d 条链 · 全部为空";
 
 /* Pending Broadcast */
 "pending.retry" = "重试";
@@ -451,6 +453,8 @@
 "common.unhide" = "取消隐藏";
 "common.rename" = "重命名";
 "common.max" = "最大";
+"common.expand" = "展开";
+"common.collapse" = "收起";
 
 /* 统一的签名前 PIN 弹窗 */
 "signing.signersReady" = "%1$d/%2$d 个共签者已就绪";

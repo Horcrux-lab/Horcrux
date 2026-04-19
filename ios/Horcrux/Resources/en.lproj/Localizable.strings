@@ -73,6 +73,8 @@
 "walletHome.showMoreChains" = "Show %d more chains";
 "walletHome.hideEmptyChains" = "Hide empty chains";
 "walletHome.sharedAddressHint" = "Shared EVM address";
+"walletHome.collapsedFundedOfTotal" = "%1$d of %2$d chains funded";
+"walletHome.collapsedAllEmpty" = "%d chain(s) · all empty";
 
 /* Pending Broadcast */
 "pending.retry" = "Retry";
@@ -451,6 +453,8 @@
 "common.unhide" = "Unhide";
 "common.rename" = "Rename";
 "common.max" = "Max";
+"common.expand" = "Expand";
+"common.collapse" = "Collapse";
 
 /* Unified sign-time PIN sheet */
 "signing.signersReady" = "%1$d of %2$d signers ready";

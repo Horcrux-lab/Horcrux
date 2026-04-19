@@ -14,6 +14,9 @@ struct WalletHomeView: View {
     @State private var showRestoreSheet = false
     @State private var networkReachable: [Chain: Bool] = [:]
     @State private var expandedGroups: Set<String> = []
+    /// Account groups folded by the user (session-local). Collapsed state
+    /// is opt-in: empty set = every group expanded (today's behaviour).
+    @State private var collapsedGroups: Set<String> = []
     @ObservedObject private var balanceCache = BalanceCache.shared
     @State private var receiveWallet: Wallet?
     @State private var offlineBannerExpanded = false
@@ -302,54 +305,79 @@ struct WalletHomeView: View {
         let evmAddress = sharedEVMAddress(in: group)
         let partition = visibleWallets(in: group)
         let expanded = expandedGroups.contains(group.accountId)
+        let isCollapsible = walletGroups.count > 1
+        let isCollapsed = isCollapsible && collapsedGroups.contains(group.accountId)
         VStack(alignment: .leading, spacing: 8) {
             if walletGroups.count > 1 || group.wallets.count > 1 || evmAddress != nil {
-                WalletGroupHeader(
+                let header = WalletGroupHeader(
                     label: group.label,
                     threshold: Int(group.wallets.first?.threshold ?? 0),
                     total: Int(group.wallets.first?.totalParties ?? 0),
-                    sharedAddress: evmAddress
+                    sharedAddress: isCollapsed ? nil : evmAddress,
+                    isCollapsed: isCollapsible ? isCollapsed : nil,
+                    collapsedSummary: isCollapsed ? collapsedSummary(for: group) : nil
                 )
                 .padding(.horizontal, 6)
-            }
 
-            ForEach(partition.visible) { wallet in
-                NavigationLink {
-                    WalletDetailView(wallet: wallet)
-                } label: {
-                    WalletRow(
-                        wallet: wallet,
-                        showThresholdBadge: group.wallets.count == 1 && walletGroups.count == 1,
-                        hideAddress: wallet.chain.isEVM && evmAddress != nil
-                    )
-                }
-                .accessibilityLabel("\(wallet.name), \(wallet.chain.rawValue) wallet")
-                .accessibilityHint(L10n.WalletHome.viewDetailsHint)
-                .accessibilityIdentifier("walletHome_walletRow_\(wallet.id)")
-                .contextMenu {
+                if isCollapsible {
                     Button {
-                        SecureClipboard.copy(wallet.address)
-                        Haptics.success()
+                        Haptics.selection()
+                        withAnimation(.easeInOut(duration: 0.22)) {
+                            if isCollapsed {
+                                collapsedGroups.remove(group.accountId)
+                            } else {
+                                collapsedGroups.insert(group.accountId)
+                            }
+                        }
                     } label: {
-                        Label(L10n.WalletDetail.copyAddress, systemImage: "doc.on.doc")
+                        header
                     }
-                    Button {
-                        receiveWallet = wallet
-                    } label: {
-                        Label(L10n.Receive.title, systemImage: "qrcode")
-                    }
-                    Divider()
-                    Button {
-                        walletStore.setHidden(id: wallet.id, hidden: true)
-                    } label: {
-                        Label(L10n.Common.hide, systemImage: "eye.slash")
-                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("\(group.label), \(isCollapsed ? L10n.Common.expand : L10n.Common.collapse)")
+                    .accessibilityIdentifier("walletHome_groupToggle_\(group.accountId)")
+                } else {
+                    header
                 }
             }
 
-            if empty(group).count >= 2 && !funded(group).isEmpty {
-                Button {
-                    withAnimation {
+            if !isCollapsed {
+                ForEach(partition.visible) { wallet in
+                    NavigationLink {
+                        WalletDetailView(wallet: wallet)
+                    } label: {
+                        WalletRow(
+                            wallet: wallet,
+                            showThresholdBadge: group.wallets.count == 1 && walletGroups.count == 1,
+                            hideAddress: wallet.chain.isEVM && evmAddress != nil
+                        )
+                    }
+                    .accessibilityLabel("\(wallet.name), \(wallet.chain.rawValue) wallet")
+                    .accessibilityHint(L10n.WalletHome.viewDetailsHint)
+                    .accessibilityIdentifier("walletHome_walletRow_\(wallet.id)")
+                    .contextMenu {
+                        Button {
+                            SecureClipboard.copy(wallet.address)
+                            Haptics.success()
+                        } label: {
+                            Label(L10n.WalletDetail.copyAddress, systemImage: "doc.on.doc")
+                        }
+                        Button {
+                            receiveWallet = wallet
+                        } label: {
+                            Label(L10n.Receive.title, systemImage: "qrcode")
+                        }
+                        Divider()
+                        Button {
+                            walletStore.setHidden(id: wallet.id, hidden: true)
+                        } label: {
+                            Label(L10n.Common.hide, systemImage: "eye.slash")
+                        }
+                    }
+                }
+
+                if empty(group).count >= 2 && !funded(group).isEmpty {
+                    Button {
+                        withAnimation {
                         if expanded {
                             expandedGroups.remove(group.accountId)
                         } else {
@@ -373,8 +401,9 @@ struct WalletHomeView: View {
                         in: RoundedRectangle(cornerRadius: 10)
                     )
                 }
-                .buttonStyle(.plain)
-                .accessibilityIdentifier("walletHome_expandToggle_\(group.accountId)")
+                    .buttonStyle(.plain)
+                    .accessibilityIdentifier("walletHome_expandToggle_\(group.accountId)")
+                }
             }
         }
     }
@@ -385,6 +414,18 @@ struct WalletHomeView: View {
 
     private func empty(_ group: WalletGroup) -> [Wallet] {
         group.wallets.filter { isEmptyBalance($0) }
+    }
+
+    /// One-liner shown under the group header when it's collapsed.
+    /// Funded/empty counts give the user enough signal to decide whether
+    /// the group is worth expanding without scanning every row.
+    private func collapsedSummary(for group: WalletGroup) -> String {
+        let funded = funded(group).count
+        let total = group.wallets.count
+        if funded == 0 {
+            return L10n.WalletHome.collapsedAllEmpty(total)
+        }
+        return L10n.WalletHome.collapsedFundedOfTotal(funded, total)
     }
 
     @State private var hiddenExpanded = false
@@ -616,6 +657,12 @@ struct WalletGroupHeader: View {
     /// Non-nil when every EVM wallet in the group shares the same address;
     /// shown as a copy-able chip so each row doesn't repeat the hex string.
     let sharedAddress: String?
+    /// When non-nil the header renders a chevron and flips it based on
+    /// `isCollapsed`. The tap handler lives on the caller's Button.
+    var isCollapsed: Bool? = nil
+    /// Optional summary shown when the group is collapsed — replaces the
+    /// shared-address chip so a folded row stays one line tall.
+    var collapsedSummary: String? = nil
 
     @State private var copied = false
 
@@ -634,8 +681,22 @@ struct WalletGroupHeader: View {
                         .font(.caption2)
                         .foregroundStyle(HorcruxTheme.subtleText)
                 }
+                if let collapsed = isCollapsed {
+                    Image(systemName: "chevron.down")
+                        .font(.caption2.weight(.semibold))
+                        .foregroundStyle(HorcruxTheme.subtleText)
+                        .rotationEffect(.degrees(collapsed ? -90 : 0))
+                        .animation(.easeInOut(duration: 0.2), value: collapsed)
+                        .accessibilityHidden(true)
+                }
             }
-            if let addr = sharedAddress {
+            if isCollapsed == true, let summary = collapsedSummary {
+                Text(summary)
+                    .font(.caption2)
+                    .foregroundStyle(HorcruxTheme.subtleText)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 4)
+            } else if let addr = sharedAddress {
                 Button {
                     SecureClipboard.copy(addr)
                     Haptics.success()

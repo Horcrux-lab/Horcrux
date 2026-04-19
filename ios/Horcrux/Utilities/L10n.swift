@@ -25,6 +25,8 @@ enum L10n {
         static let unhide = NSLocalizedString("common.unhide", comment: "")
         static let rename = NSLocalizedString("common.rename", comment: "")
         static let max = NSLocalizedString("common.max", comment: "")
+        static let expand = NSLocalizedString("common.expand", comment: "")
+        static let collapse = NSLocalizedString("common.collapse", comment: "")
     }
 
     // MARK: - App
@@ -108,6 +110,12 @@ enum L10n {
         }
         static let hideEmptyChains = NSLocalizedString("walletHome.hideEmptyChains", comment: "")
         static let sharedAddressHint = NSLocalizedString("walletHome.sharedAddressHint", comment: "")
+        static func collapsedFundedOfTotal(_ funded: Int, _ total: Int) -> String {
+            String(format: NSLocalizedString("walletHome.collapsedFundedOfTotal", comment: ""), funded, total)
+        }
+        static func collapsedAllEmpty(_ total: Int) -> String {
+            String(format: NSLocalizedString("walletHome.collapsedAllEmpty", comment: ""), total)
+        }
 
         // dev.40 i18n batch
         static let restoreFromBackup = NSLocalizedString("wallet.restoreFromBackup", comment: "")
