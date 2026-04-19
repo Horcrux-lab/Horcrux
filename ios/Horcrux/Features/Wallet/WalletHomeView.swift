@@ -307,7 +307,7 @@ struct WalletHomeView: View {
         let expanded = expandedGroups.contains(group.accountId)
         let isCollapsible = walletGroups.count > 1
         let isCollapsed = isCollapsible && collapsedGroups.contains(group.accountId)
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: 8) {
             if walletGroups.count > 1 || group.wallets.count > 1 || evmAddress != nil {
                 let header = WalletGroupHeader(
                     label: group.label,
@@ -822,8 +822,7 @@ struct WalletRow: View {
                 }
             }
         }
-        .padding(.vertical, 14)
-        .contentShape(Rectangle())
+        .padding(.vertical, 12)
         .tintedGlassCard(color: wallet.chain.color)
         .opacity(isZeroBalance ? 0.82 : 1.0)
         .accessibilityElement(children: .combine)
