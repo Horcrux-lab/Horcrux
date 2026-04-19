@@ -77,6 +77,7 @@ struct ConfigureView: View {
     @State private var showQRScanner = false
     @State private var showNofNConfirm = false
     @State private var acknowledgedNofN = false
+    @State private var copiedFeedback = false
 
     var body: some View {
         Form {
@@ -239,6 +240,20 @@ struct ConfigureView: View {
                 showQRScanner = false
             }
         }
+        .onAppear { autofillRoomCodeIfNeeded() }
+        .onChange(of: viewModel.role) { _, _ in autofillRoomCodeIfNeeded() }
+        .onChange(of: viewModel.selectedTransports) { _, _ in autofillRoomCodeIfNeeded() }
+    }
+
+    /// Creator path always needs a non-empty room code when Relay is a
+    /// selected transport; auto-generate one so the user never sees an
+    /// empty field or has to hunt for the regenerate button.
+    private func autofillRoomCodeIfNeeded() {
+        guard viewModel.role == .create,
+              viewModel.selectedTransports.contains(.relay),
+              viewModel.roomCode.isEmpty
+        else { return }
+        viewModel.roomCode = RoomCode.generate()
     }
 
     @ViewBuilder
@@ -329,6 +344,7 @@ struct ConfigureView: View {
                         }
                     Button {
                         viewModel.roomCode = RoomCode.generate()
+                        Haptics.selection()
                     } label: {
                         Image(systemName: "arrow.triangle.2.circlepath")
                     }
@@ -346,10 +362,18 @@ struct ConfigureView: View {
 
                     Button {
                         SecureClipboard.copy(viewModel.roomCode)
+                        Haptics.success()
+                        withAnimation { copiedFeedback = true }
+                        Task {
+                            try? await Task.sleep(nanoseconds: 1_500_000_000)
+                            await MainActor.run { withAnimation { copiedFeedback = false } }
+                        }
                     } label: {
-                        Image(systemName: "doc.on.doc")
+                        Image(systemName: copiedFeedback ? "checkmark" : "doc.on.doc")
+                            .foregroundStyle(copiedFeedback ? HorcruxTheme.successGreen : HorcruxTheme.accentCyan)
                     }
                     .buttonStyle(.bordered)
+                    .disabled(viewModel.roomCode.isEmpty)
                     .accessibilityLabel(L10n.CreateShard.copyRoomCodeA11y)
                 }
 
@@ -364,6 +388,10 @@ struct ConfigureView: View {
                     Text(L10n.CreateShard.scanHint)
                         .font(.caption2)
                         .foregroundStyle(.secondary)
+                        .frame(maxWidth: .infinity, alignment: .center)
+                    Text(L10n.CreateShard.roomCodeEphemeralHint)
+                        .font(.caption2)
+                        .foregroundStyle(.tertiary)
                         .frame(maxWidth: .infinity, alignment: .center)
                 } else if !viewModel.roomCode.isEmpty {
                     Text(L10n.CreateShard.roomCodeInvalid)
@@ -757,6 +785,11 @@ private struct RoomCodeExpandedSheet: View {
                     Text(L10n.CreateShard.scanToJoin)
                         .font(.footnote)
                         .foregroundStyle(HorcruxTheme.subtleText)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal)
+                    Text(L10n.CreateShard.roomCodeEphemeralHint)
+                        .font(.caption2)
+                        .foregroundStyle(.tertiary)
                         .multilineTextAlignment(.center)
                         .padding(.horizontal)
                 }

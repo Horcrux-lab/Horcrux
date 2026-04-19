@@ -317,6 +317,8 @@ enum L10n {
         static let scanHint = NSLocalizedString("createShard.scanHint", comment: "")
         static let roomCodeInvalid = NSLocalizedString("createShard.roomCodeInvalid", comment: "")
         static let scanRoomTitle = NSLocalizedString("createShard.scanRoomTitle", comment: "")
+        static let roomCodeEphemeralHint = NSLocalizedString("createShard.roomCodeEphemeralHint", comment: "")
+        static let roomCodeCopied = NSLocalizedString("createShard.roomCodeCopied", comment: "")
 
         // MPC explainer sheet
         static let explainerNoMnemonicTitle = NSLocalizedString("createShard.explainerNoMnemonicTitle", comment: "")

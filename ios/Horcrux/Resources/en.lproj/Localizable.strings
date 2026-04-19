@@ -626,6 +626,8 @@
 "createShard.showQR" = "Show QR";
 "createShard.scanToJoin" = "Have other devices scan this QR, or type in the three-word code, to join the wallet.";
 "createShard.scanHint" = "Let the other device scan to quickly enter the room code";
+"createShard.roomCodeEphemeralHint" = "This code is only valid for this ceremony.";
+"createShard.roomCodeCopied" = "Copied";
 "createShard.roomCodeInvalid" = "Room code should be 3 words separated by hyphens";
 "createShard.scanRoomTitle" = "Scan room code";
 "createShard.explainerNoMnemonicTitle" = "No seed phrase";
