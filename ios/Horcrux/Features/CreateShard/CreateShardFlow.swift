@@ -240,7 +240,10 @@ struct ConfigureView: View {
             }
         }
         .onAppear { autofillRoomCodeIfNeeded() }
-        .onChange(of: viewModel.role) { _, _ in autofillRoomCodeIfNeeded() }
+        .onChange(of: viewModel.role) { _, newRole in
+            if newRole == .join { viewModel.roomCode = "" }
+            autofillRoomCodeIfNeeded()
+        }
         .onChange(of: viewModel.selectedTransports) { _, _ in autofillRoomCodeIfNeeded() }
     }
 
