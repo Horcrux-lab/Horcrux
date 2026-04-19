@@ -54,6 +54,7 @@ struct HorcruxApp: App {
     var body: some Scene {
         WindowGroup {
             ContentView()
+                .preferredColorScheme(.dark)
                 .environmentObject(appState)
                 .environmentObject(appState.walletStore)
                 .environmentObject(deepLinkRouter)
