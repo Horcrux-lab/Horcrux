@@ -937,10 +937,11 @@ struct TransactionPreviewCard: View {
     }
 
     var body: some View {
+        let tint = viewModel.wallet.chain.color
         VStack(alignment: .leading, spacing: 14) {
             HStack {
                 Image(systemName: "doc.text.magnifyingglass")
-                    .foregroundStyle(HorcruxTheme.accentBlue)
+                    .foregroundStyle(tint)
                 Text(L10n.Signing.preview)
                     .font(.subheadline.bold())
                     .foregroundStyle(.white)
@@ -956,7 +957,7 @@ struct TransactionPreviewCard: View {
                 .foregroundStyle(.white.opacity(0.9))
                 .padding(10)
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .background(RoundedRectangle(cornerRadius: 8).fill(HorcruxTheme.accentBlue.opacity(0.15)))
+                .background(RoundedRectangle(cornerRadius: 8).fill(tint.opacity(0.15)))
 
             Divider().background(Color.white.opacity(0.08))
 
@@ -1045,7 +1046,7 @@ struct TransactionPreviewCard: View {
                 .fill(Color.white.opacity(0.04))
                 .overlay(
                     RoundedRectangle(cornerRadius: 14)
-                        .stroke(HorcruxTheme.accentBlue.opacity(0.25), lineWidth: 1)
+                        .stroke(tint.opacity(0.25), lineWidth: 1)
                 )
         )
         .padding(.horizontal)
