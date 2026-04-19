@@ -43,7 +43,7 @@ final class PriceService: ObservableObject {
 
     /// Fetch prices for the listed CoinGecko IDs. Symbols are uppercase chain tickers.
     /// Call this lazily from views; repeated calls within TTL are ignored.
-    func refreshIfNeeded(symbols: [String] = ["ETH", "BTC", "SOL", "LTC", "TRX", "USDC", "USDT"]) {
+    func refreshIfNeeded(symbols: [String] = ["ETH", "BTC", "SOL", "LTC", "TRX", "BNB", "AVAX", "POL", "USDC", "USDT"]) {
         let needRefresh = symbols.contains { symbol in
             guard let q = quotes[symbol] else { return true }
             return Date().timeIntervalSince(q.fetchedAt) > ttl
@@ -80,6 +80,9 @@ final class PriceService: ObservableObject {
             "SOL": "solana",
             "LTC": "litecoin",
             "TRX": "tron",
+            "BNB": "binancecoin",
+            "AVAX": "avalanche-2",
+            "POL": "polygon-ecosystem-token",
             "USDC": "usd-coin",
             "USDT": "tether"
         ]
@@ -107,6 +110,9 @@ final class PriceService: ObservableObject {
             "SOL": "solana",
             "LTC": "litecoin",
             "TRX": "tron",
+            "BNB": "binance-coin",
+            "AVAX": "avalanche",
+            "POL": "polygon-ecosystem-token",
             "USDC": "usd-coin",
             "USDT": "tether"
         ]
@@ -159,7 +165,7 @@ final class PriceService: ObservableObject {
 
     /// Fetch hourly 7-day sparkline data via `/coins/markets` and retain only
     /// the last 24 points per symbol. Cached with the same 5-min TTL as quotes.
-    func refreshSparklinesIfNeeded(symbols: [String] = ["ETH", "BTC", "SOL", "LTC", "TRX", "USDC", "USDT"]) {
+    func refreshSparklinesIfNeeded(symbols: [String] = ["ETH", "BTC", "SOL", "LTC", "TRX", "BNB", "AVAX", "POL", "USDC", "USDT"]) {
         let stale: Bool = {
             guard let t = sparklinesFetchedAt else { return true }
             return Date().timeIntervalSince(t) > ttl
@@ -175,6 +181,8 @@ final class PriceService: ObservableObject {
         let mapping: [String: String] = [
             "ETH": "ethereum", "BTC": "bitcoin", "SOL": "solana",
             "LTC": "litecoin", "TRX": "tron",
+            "BNB": "binancecoin", "AVAX": "avalanche-2",
+            "POL": "polygon-ecosystem-token",
             "USDC": "usd-coin", "USDT": "tether"
         ]
         let ids = symbols.compactMap { mapping[$0] }.joined(separator: ",")

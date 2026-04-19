@@ -78,6 +78,12 @@ enum AddressFormatter {
             return URL(string: "https://etherscan.io/address/\(address)")
         case .bnb:
             return URL(string: "https://bscscan.com/address/\(address)")
+        case .polygon:
+            return URL(string: "https://polygonscan.com/address/\(address)")
+        case .arbitrum:
+            return URL(string: "https://arbiscan.io/address/\(address)")
+        case .base:
+            return URL(string: "https://basescan.org/address/\(address)")
         case .avalanche:
             return URL(string: "https://snowtrace.io/address/\(address)")
         case .optimism:
@@ -111,6 +117,12 @@ enum AddressFormatter {
             return URL(string: "https://etherscan.io/tx/\(txHash)")
         case .bnb:
             return URL(string: "https://bscscan.com/tx/\(txHash)")
+        case .polygon:
+            return URL(string: "https://polygonscan.com/tx/\(txHash)")
+        case .arbitrum:
+            return URL(string: "https://arbiscan.io/tx/\(txHash)")
+        case .base:
+            return URL(string: "https://basescan.org/tx/\(txHash)")
         case .avalanche:
             return URL(string: "https://snowtrace.io/tx/\(txHash)")
         case .optimism:

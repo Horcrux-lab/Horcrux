@@ -505,6 +505,9 @@ struct Wallet: Identifiable, Codable {
 enum Chain: String, Codable, CaseIterable, Identifiable {
     case ethereum = "Ethereum"
     case bnb = "BNB Smart Chain"
+    case polygon = "Polygon"
+    case arbitrum = "Arbitrum One"
+    case base = "Base"
     case avalanche = "Avalanche"
     case optimism = "Optimism"
     case zksync = "zkSync Era"
@@ -521,7 +524,8 @@ enum Chain: String, Codable, CaseIterable, Identifiable {
     /// address format; only chainId, RPC endpoint and explorer differ.
     var isEVM: Bool {
         switch self {
-        case .ethereum, .bnb, .avalanche, .optimism, .zksync, .linea, .scroll: return true
+        case .ethereum, .bnb, .polygon, .arbitrum, .base,
+             .avalanche, .optimism, .zksync, .linea, .scroll: return true
         case .bitcoin, .litecoin, .solana, .tron: return false
         }
     }
@@ -533,6 +537,9 @@ enum Chain: String, Codable, CaseIterable, Identifiable {
         switch self {
         case .ethereum: return .mainnet
         case .bnb: return .bnb
+        case .polygon: return .polygon
+        case .arbitrum: return .arbitrumOne
+        case .base: return .base
         case .avalanche: return .avalanche
         case .optimism: return .optimism
         case .zksync: return .zkSyncEra
@@ -553,8 +560,9 @@ enum Chain: String, Codable, CaseIterable, Identifiable {
 
     var symbol: String {
         switch self {
-        case .ethereum, .optimism, .zksync, .linea, .scroll: return "ETH"
+        case .ethereum, .arbitrum, .base, .optimism, .zksync, .linea, .scroll: return "ETH"
         case .bnb: return "BNB"
+        case .polygon: return "POL"
         case .avalanche: return "AVAX"
         case .bitcoin: return "BTC"
         case .litecoin: return "LTC"
@@ -567,6 +575,9 @@ enum Chain: String, Codable, CaseIterable, Identifiable {
         switch self {
         case .ethereum: return "e.circle.fill"
         case .bnb: return "b.circle.fill"
+        case .polygon: return "hexagon.fill"
+        case .arbitrum: return "a.square.fill"
+        case .base: return "b.square.fill"
         case .avalanche: return "a.circle.fill"
         case .optimism: return "o.circle.fill"
         case .zksync: return "z.circle.fill"
@@ -586,6 +597,9 @@ enum Chain: String, Codable, CaseIterable, Identifiable {
         switch self {
         case .ethereum: return "ChainIcons/ethereum"
         case .bnb: return "ChainIcons/bnb"
+        case .polygon: return "ChainIcons/polygon"
+        case .arbitrum: return "ChainIcons/arbitrum"
+        case .base: return "ChainIcons/base"
         case .avalanche: return "ChainIcons/avalanche"
         case .optimism: return "ChainIcons/optimism"
         case .zksync: return "ChainIcons/zksync"
@@ -605,6 +619,9 @@ enum Chain: String, Codable, CaseIterable, Identifiable {
         switch self {
         case .ethereum:  return Color(red: 0.384, green: 0.494, blue: 0.918) // #627EEA
         case .bnb:       return Color(red: 0.941, green: 0.725, blue: 0.043) // #F0B90B
+        case .polygon:   return Color(red: 0.510, green: 0.278, blue: 0.898) // #8247E5
+        case .arbitrum:  return Color(red: 0.157, green: 0.627, blue: 0.941) // #28A0F0
+        case .base:      return Color(red: 0.000, green: 0.322, blue: 1.000) // #0052FF
         case .avalanche: return Color(red: 0.910, green: 0.255, blue: 0.259) // #E84142
         case .optimism:  return Color(red: 1.000, green: 0.016, blue: 0.125) // #FF0420
         case .zksync:    return Color(red: 0.549, green: 0.553, blue: 0.988) // #8C8DFC

@@ -119,7 +119,7 @@ final class NetworkConfig: ObservableObject, @unchecked Sendable {
         let raw: String
         switch chain {
         case .ethereum: raw = ethereumRPC
-        case .bnb, .avalanche, .optimism, .zksync, .linea, .scroll:
+        case .bnb, .polygon, .arbitrum, .base, .avalanche, .optimism, .zksync, .linea, .scroll:
             // New EVM chains use hardcoded defaults for now; no per-chain
             // override field yet. Users can reach the same node via RPC
             // fallbacks if the default is unreachable.
