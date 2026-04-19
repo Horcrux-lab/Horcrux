@@ -16,9 +16,20 @@
 
     .text
 
-    .globl ___gmpn_addmul_1
+#ifdef HORCRUX_ASM_TEST_SYMS
+    // Host-test build: expose our implementation under neutral symbols so
+    // tests on macOS can compare against a Rust reference without colliding
+    // with libgmp.a's own ___gmpn_* on the same link line.
+    #define ADDMUL_1_SYM _horcrux_asm_addmul_1_test
+    #define SUBMUL_1_SYM _horcrux_asm_submul_1_test
+#else
+    #define ADDMUL_1_SYM ___gmpn_addmul_1
+    #define SUBMUL_1_SYM ___gmpn_submul_1
+#endif
+
+    .globl ADDMUL_1_SYM
     .p2align 4
-___gmpn_addmul_1:
+ADDMUL_1_SYM:
     adds    x15, xzr, xzr
 
     tbz     x2, #0, Laddmul_1
@@ -97,9 +108,9 @@ Laddmul_mid:
     ret
 
 
-    .globl ___gmpn_submul_1
+    .globl SUBMUL_1_SYM
     .p2align 4
-___gmpn_submul_1:
+SUBMUL_1_SYM:
     adds    x15, xzr, xzr
 
     tbz     x2, #0, Lsubmul_1
