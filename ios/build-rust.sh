@@ -84,6 +84,15 @@ mkdir -p "$HEADER_DIR"
 cp "$SCRIPT_DIR/Horcrux/Core/Generated/horcrux_coreFFI.h" "$HEADER_DIR/"
 cp "$SCRIPT_DIR/Horcrux/Core/Generated/horcrux_coreFFI.modulemap" "$HEADER_DIR/module.modulemap"
 
+# Keep the inline-imported header dir in sync too (Swift imports it via
+# `import horcrux_coreFFI`). If only the outer Generated/horcrux_coreFFI.h is
+# refreshed, the inner horcrux_coreFFI/horcrux_coreFFI.h drifts and Swift
+# fails to see newly-added symbols.
+if [[ -d "$SCRIPT_DIR/Horcrux/Core/Generated/horcrux_coreFFI" ]]; then
+    cp "$SCRIPT_DIR/Horcrux/Core/Generated/horcrux_coreFFI.h" \
+       "$SCRIPT_DIR/Horcrux/Core/Generated/horcrux_coreFFI/horcrux_coreFFI.h"
+fi
+
 # Build XCFramework
 echo "📱 Creating XCFramework..."
 rm -rf "$OUT_DIR/HorcruxCore.xcframework"

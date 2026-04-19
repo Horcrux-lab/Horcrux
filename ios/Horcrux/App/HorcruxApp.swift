@@ -37,6 +37,12 @@ struct HorcruxApp: App {
         // Anti-debug: deny attachment + detect (release builds only)
         AntiDebug.denyDebuggerAttach()
 
+        // Install Paillier prime pool directory and start background
+        // pre-generation. Filesystem setup is synchronous + cheap; the actual
+        // prime generation happens on a utility-priority task from
+        // `refillIfNeeded()`.
+        PrimePoolManager.shared.configure()
+
         BGTaskScheduler.shared.register(
             forTaskWithIdentifier: Self.broadcastRetryTaskIdentifier,
             using: nil
@@ -72,6 +78,7 @@ struct HorcruxApp: App {
                 }
                 .onReceive(NotificationCenter.default.publisher(for: UIApplication.didBecomeActiveNotification)) { _ in
                     blurRadius = 0
+                    PrimePoolManager.shared.refillIfNeeded()
                 }
                 .onReceive(NotificationCenter.default.publisher(for: UIApplication.userDidTakeScreenshotNotification)) { _ in
                     NotificationCenter.default.post(name: .horcruxScreenshotDetected, object: nil)
@@ -79,6 +86,7 @@ struct HorcruxApp: App {
                 .onChange(of: scenePhase) { _, newPhase in
                     if newPhase == .background {
                         appState.onEnterBackground()
+                        PrimePoolManager.shared.suspend()
                         Self.scheduleBroadcastRetry()
                     } else if newPhase == .active {
                         appState.checkAutoLock()

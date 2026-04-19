@@ -66,6 +66,7 @@
 		72B9C0F1D4A8390BAB6AC043 /* MessagePadding.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4B6E4D6FF4E1E291334F81AD /* MessagePadding.swift */; };
 		773069CC300E29CCFC7C940B /* SecureEnclaveManagerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6AB845987D1C925700225B43 /* SecureEnclaveManagerTests.swift */; };
 		7796AADB086F4ADF8D3A1DAE /* KeychainManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = E40F5C82E2B2A23A01ACEDF5 /* KeychainManager.swift */; };
+		B7D1A1A1D1A1D1A100000001 /* PrimePoolManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = B7D1A1A1D1A1D1A100000002 /* PrimePoolManager.swift */; };
 		77F9C81CC6B30731F02F60D2 /* NetworkConfigTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 89DC7DDF9C3EE0632FE5DB2D /* NetworkConfigTests.swift */; };
 		7BA88143B652370DAED1B6BB /* MessagePaddingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 381AF38EB22187DD56EF23DC /* MessagePaddingTests.swift */; };
 		7C01BF66F94495332721FAB0 /* SigningViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 36FEFBACE024F46E9D1DAB72 /* SigningViewModelTests.swift */; };
@@ -231,6 +232,7 @@
 		D886FBBE2DF6B3AA6FA5A29C /* Components.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Components.swift; sourceTree = "<group>"; };
 		DDE984B2508670F746A23966 /* SecureClipboardTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HorcruxTests/SecureClipboardTests.swift; sourceTree = SOURCE_ROOT; };
 		E40F5C82E2B2A23A01ACEDF5 /* KeychainManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainManager.swift; sourceTree = "<group>"; };
+		B7D1A1A1D1A1D1A100000002 /* PrimePoolManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PrimePoolManager.swift; sourceTree = "<group>"; };
 		ECD46EFA897275FDEA93B9F9 /* SecureClipboard.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SecureClipboard.swift; sourceTree = "<group>"; };
 		EFB2C38A7575A1CCFC326596 /* CertificatePinnerTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HorcruxTests/CertificatePinnerTests.swift; sourceTree = SOURCE_ROOT; };
 		F01AE22958DB93BC491B9519 /* ShardsListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShardsListView.swift; sourceTree = "<group>"; };
@@ -543,6 +545,7 @@
 				B2C3D4E5F6A7B8C9D0E1F2A1 /* CustomTokenStore.swift */,
 				9112A792D218E931835A0B74 /* WalletStore.swift */,
 				A11C0752C0A9E1A1C0A9E1A1 /* AccountStore.swift */,
+				B7D1A1A1D1A1D1A100000002 /* PrimePoolManager.swift */,
 			);
 			path = Core;
 			sourceTree = "<group>";
@@ -727,6 +730,7 @@
 				1A286F0E6C2F3FD1B7669F57 /* HorcruxBridge.swift in Sources */,
 				1FF4562440BA4836269A35B4 /* HorcruxTheme.swift in Sources */,
 				7796AADB086F4ADF8D3A1DAE /* KeychainManager.swift in Sources */,
+				B7D1A1A1D1A1D1A100000001 /* PrimePoolManager.swift in Sources */,
 				CAA62095ADB8219F055DB007 /* PeerManager.swift in Sources */,
 				413FFA707333203A9879D9D9 /* QRTransport.swift in Sources */,
 				D4E3C555F9B2C377BA01735A /* RelayTransport.swift in Sources */,

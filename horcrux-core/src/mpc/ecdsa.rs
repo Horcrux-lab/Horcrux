@@ -12,7 +12,7 @@ use super::{HorcruxConfig, MpcError};
 
 use cggmp21::security_level::SecurityLevel128;
 use cggmp21::supported_curves::Secp256k1;
-use cggmp21::{ExecutionId, PregeneratedPrimes};
+use cggmp21::ExecutionId;
 use generic_ec::as_raw::AsRaw;
 use generic_ec::core::UncompressedEncoding;
 use generic_ec::{NonZero, Point, Scalar};
@@ -139,8 +139,9 @@ fn make_auxinfo_driver(i: u16, n: u16, session_id: &str) -> Result<Box<dyn AnyDr
             .into_boxed_slice(),
     );
     let eid = ExecutionId::new(eid_bytes);
-    let rng: &'static mut OsRng = Box::leak(Box::new(OsRng));
-    let pregen: PregeneratedPrimes<SecurityLevel128> = PregeneratedPrimes::generate(rng);
+    // Pop a pregenerated prime pair if the pool has one, otherwise fall back
+    // to synchronous on-the-fly generation (slow on iOS; see prime_pool).
+    let pregen = super::prime_pool::take_or_generate();
     let rng2: &'static mut OsRng = Box::leak(Box::new(OsRng));
 
     let sm = cggmp21::aux_info_gen(eid, i, n, pregen).into_state_machine(rng2);

@@ -438,6 +438,33 @@ pub fn horcrux_keccak256(data: Vec<u8>) -> Vec<u8> {
     chain::keccak256(&data).to_vec()
 }
 
+// ============================================================================
+// Paillier prime pool — see mpc::prime_pool for rationale.
+// ============================================================================
+
+/// Install the pool directory. Must be called once at app startup before any
+/// DKG / refresh ceremony. Subsequent calls overwrite the prior path.
+#[uniffi::export]
+pub fn horcrux_prime_pool_init(dir: String) -> Result<(), HorcruxError> {
+    crate::mpc::prime_pool::init(std::path::PathBuf::from(dir))
+        .map_err(|msg| HorcruxError::StorageError { msg })
+}
+
+/// Current number of pregenerated prime pairs available in the pool.
+#[uniffi::export]
+pub fn horcrux_prime_pool_count() -> u32 {
+    crate::mpc::prime_pool::count()
+}
+
+/// Generate one prime pair and add it to the pool. Blocks the calling thread
+/// for tens of seconds on mobile hardware; the host MUST invoke this on a
+/// low-priority background thread (iOS `Task.detached(priority: .background)`).
+/// Returns `Ok(())` on success, error string otherwise.
+#[uniffi::export]
+pub fn horcrux_prime_pool_generate_one() -> Result<(), HorcruxError> {
+    crate::mpc::prime_pool::generate_one().map_err(|msg| HorcruxError::StorageError { msg })
+}
+
 /// Encrypt a key shard using AES-256-GCM with PBKDF2-derived key (device_key + PIN).
 #[uniffi::export]
 pub fn horcrux_encrypt_shard(

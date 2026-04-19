@@ -1,6 +1,7 @@
 pub mod ecdsa;
 pub mod frost;
 pub mod keygen;
+pub mod prime_pool;
 pub mod refresh;
 pub mod session;
 pub mod signing;

@@ -3214,6 +3214,36 @@ public func horcruxKeccak256(data: Data) -> Data {
 })
 }
 /**
+ * Current number of pregenerated prime pairs available in the pool.
+ */
+public func horcruxPrimePoolCount() -> UInt32 {
+    return try!  FfiConverterUInt32.lift(try! rustCall() {
+    uniffi_horcrux_core_fn_func_horcrux_prime_pool_count($0
+    )
+})
+}
+/**
+ * Generate one prime pair and add it to the pool. Blocks the calling thread
+ * for tens of seconds on mobile hardware; the host MUST invoke this on a
+ * low-priority background thread (iOS `Task.detached(priority: .background)`).
+ * Returns `Ok(())` on success, error string otherwise.
+ */
+public func horcruxPrimePoolGenerateOne()throws  {try rustCallWithError(FfiConverterTypeHorcruxError.lift) {
+    uniffi_horcrux_core_fn_func_horcrux_prime_pool_generate_one($0
+    )
+}
+}
+/**
+ * Install the pool directory. Must be called once at app startup before any
+ * DKG / refresh ceremony. Subsequent calls overwrite the prior path.
+ */
+public func horcruxPrimePoolInit(dir: String)throws  {try rustCallWithError(FfiConverterTypeHorcruxError.lift) {
+    uniffi_horcrux_core_fn_func_horcrux_prime_pool_init(
+        FfiConverterString.lower(dir),$0
+    )
+}
+}
+/**
  * Derive a base58 Solana address from an Ed25519 public key (32 bytes).
  */
 public func horcruxSolanaAddress(pubkey: Data)throws  -> String {
@@ -3267,6 +3297,15 @@ private var initializationResult: InitializationResult = {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_horcrux_core_checksum_func_horcrux_keccak256() != 29475) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_horcrux_core_checksum_func_horcrux_prime_pool_count() != 41137) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_horcrux_core_checksum_func_horcrux_prime_pool_generate_one() != 22306) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_horcrux_core_checksum_func_horcrux_prime_pool_init() != 1262) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_horcrux_core_checksum_func_horcrux_solana_address() != 22087) {

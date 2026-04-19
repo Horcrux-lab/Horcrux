@@ -21,7 +21,7 @@ use super::{HorcruxConfig, MpcError};
 use cggmp21::key_share::{AuxInfo, DirtyKeyShare, IncompleteKeyShare};
 use cggmp21::security_level::SecurityLevel128;
 use cggmp21::supported_curves::Secp256k1;
-use cggmp21::{ExecutionId, KeyShare, PregeneratedPrimes};
+use cggmp21::{ExecutionId, KeyShare};
 use generic_ec::as_raw::AsRaw;
 use generic_ec::core::UncompressedEncoding;
 use generic_ec::{NonZero, Point};
@@ -68,10 +68,10 @@ fn make_refresh_driver(
     let eid = ExecutionId::new(eid_bytes);
 
     // Pregenerated primes are required by CGGMP21 — generation dominates wall
-    // time (typically several seconds on mobile). We mint fresh primes for
-    // every refresh ceremony so a captured primes blob cannot be replayed.
-    let prime_rng: &'static mut OsRng = Box::leak(Box::new(OsRng));
-    let pregen: PregeneratedPrimes<SecurityLevel128> = PregeneratedPrimes::generate(prime_rng);
+    // time (typically several seconds on mobile). We prefer the pool when it
+    // has stock; otherwise we mint fresh ones synchronously. Pool entries are
+    // always single-use, so a captured blob cannot be replayed.
+    let pregen = super::prime_pool::take_or_generate();
     let proto_rng: &'static mut OsRng = Box::leak(Box::new(OsRng));
     let ks: &'static KeyShare<Secp256k1, SecurityLevel128> = Box::leak(Box::new(key_share.clone()));
 

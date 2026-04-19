@@ -440,6 +440,23 @@ RustBuffer uniffi_horcrux_core_fn_func_horcrux_generate_session_token(RustCallSt
 RustBuffer uniffi_horcrux_core_fn_func_horcrux_keccak256(RustBuffer data, RustCallStatus *_Nonnull out_status
 );
 #endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_HORCRUX_CORE_FN_FUNC_HORCRUX_PRIME_POOL_COUNT
+#define UNIFFI_FFIDEF_UNIFFI_HORCRUX_CORE_FN_FUNC_HORCRUX_PRIME_POOL_COUNT
+uint32_t uniffi_horcrux_core_fn_func_horcrux_prime_pool_count(RustCallStatus *_Nonnull out_status
+    
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_HORCRUX_CORE_FN_FUNC_HORCRUX_PRIME_POOL_GENERATE_ONE
+#define UNIFFI_FFIDEF_UNIFFI_HORCRUX_CORE_FN_FUNC_HORCRUX_PRIME_POOL_GENERATE_ONE
+void uniffi_horcrux_core_fn_func_horcrux_prime_pool_generate_one(RustCallStatus *_Nonnull out_status
+    
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_HORCRUX_CORE_FN_FUNC_HORCRUX_PRIME_POOL_INIT
+#define UNIFFI_FFIDEF_UNIFFI_HORCRUX_CORE_FN_FUNC_HORCRUX_PRIME_POOL_INIT
+void uniffi_horcrux_core_fn_func_horcrux_prime_pool_init(RustBuffer dir, RustCallStatus *_Nonnull out_status
+);
+#endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_HORCRUX_CORE_FN_FUNC_HORCRUX_SOLANA_ADDRESS
 #define UNIFFI_FFIDEF_UNIFFI_HORCRUX_CORE_FN_FUNC_HORCRUX_SOLANA_ADDRESS
 RustBuffer uniffi_horcrux_core_fn_func_horcrux_solana_address(RustBuffer pubkey, RustCallStatus *_Nonnull out_status
@@ -782,6 +799,24 @@ uint16_t uniffi_horcrux_core_checksum_func_horcrux_generate_session_token(void
 #ifndef UNIFFI_FFIDEF_UNIFFI_HORCRUX_CORE_CHECKSUM_FUNC_HORCRUX_KECCAK256
 #define UNIFFI_FFIDEF_UNIFFI_HORCRUX_CORE_CHECKSUM_FUNC_HORCRUX_KECCAK256
 uint16_t uniffi_horcrux_core_checksum_func_horcrux_keccak256(void
+    
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_HORCRUX_CORE_CHECKSUM_FUNC_HORCRUX_PRIME_POOL_COUNT
+#define UNIFFI_FFIDEF_UNIFFI_HORCRUX_CORE_CHECKSUM_FUNC_HORCRUX_PRIME_POOL_COUNT
+uint16_t uniffi_horcrux_core_checksum_func_horcrux_prime_pool_count(void
+    
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_HORCRUX_CORE_CHECKSUM_FUNC_HORCRUX_PRIME_POOL_GENERATE_ONE
+#define UNIFFI_FFIDEF_UNIFFI_HORCRUX_CORE_CHECKSUM_FUNC_HORCRUX_PRIME_POOL_GENERATE_ONE
+uint16_t uniffi_horcrux_core_checksum_func_horcrux_prime_pool_generate_one(void
+    
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_HORCRUX_CORE_CHECKSUM_FUNC_HORCRUX_PRIME_POOL_INIT
+#define UNIFFI_FFIDEF_UNIFFI_HORCRUX_CORE_CHECKSUM_FUNC_HORCRUX_PRIME_POOL_INIT
+uint16_t uniffi_horcrux_core_checksum_func_horcrux_prime_pool_init(void
     
 );
 #endif
