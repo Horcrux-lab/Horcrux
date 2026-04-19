@@ -11,7 +11,7 @@ struct SettingsView: View {
     @State private var showChangePin = false
     @State private var showWipeConfirmation = false
     @State private var relayWarning: String?
-    @State private var showHardwareWalletInfo = false
+
 
     private static let relayURLKey = RelayConfig.customURLKey
 
@@ -337,35 +337,6 @@ struct SettingsView: View {
                         .accessibilityIdentifier("settings_transportLink")
                     }
 
-                    // Advanced / Planned features (P3.3 stub)
-                    VStack(alignment: .leading, spacing: 10) {
-                        VaultSectionHeader(L10n.Settings.sectionAdvanced, icon: "sparkles")
-                            .padding(.horizontal, 4)
-
-                        VStack(spacing: 0) {
-                            Button {
-                                showHardwareWalletInfo = true
-                            } label: {
-                                HStack {
-                                    VaultSettingsRow(
-                                        icon: "externaldrive.connected.to.line.below",
-                                        iconColor: HorcruxTheme.accentCyan,
-                                        title: L10n.Settings.hardwareWallet,
-                                        subtitle: L10n.SettingsResidual.hwWalletSubtitle
-                                    )
-                                    Spacer()
-                                    Text(L10n.Settings.comingSoon)
-                                        .font(.caption2.weight(.medium))
-                                        .foregroundStyle(HorcruxTheme.accentCyan)
-                                        .padding(.horizontal, 8)
-                                        .padding(.vertical, 3)
-                                        .background(HorcruxTheme.accentCyan.opacity(0.15), in: Capsule())
-                                }
-                            }
-                        }
-                        .glassCard()
-                    }
-
                     // About
                     VStack(alignment: .leading, spacing: 10) {
                         VaultSectionHeader(L10n.Settings.about, icon: "info.circle")
@@ -463,11 +434,6 @@ struct SettingsView: View {
                 Button(L10n.Common.cancel, role: .cancel) {}
             } message: {
                 Text(L10n.Settings.wipeMessage)
-            }
-            .alert(L10n.SettingsResidual.hwWalletTitle, isPresented: $showHardwareWalletInfo) {
-                Button("OK", role: .cancel) {}
-            } message: {
-                Text(L10n.SettingsResidual.hwWalletBody)
             }
             .onAppear {
                 relayURL = RelayConfig.effectiveURL
