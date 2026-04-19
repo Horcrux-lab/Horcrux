@@ -499,8 +499,8 @@ private struct MPCExplainerSheet: View {
 struct PeerDiscoveryView: View {
     @EnvironmentObject private var appState: AppState
     @ObservedObject var viewModel: CreateShardViewModel
-    private let totalTimeout = 60
-    @State private var timeRemaining = 60
+    private let totalTimeout = 180
+    @State private var timeRemaining = 180
     @State private var timerTask: Task<Void, Never>?
 
     /// App-level presence count (unique deviceNames), not transport
@@ -651,10 +651,6 @@ struct PeerDiscoveryView: View {
                     .multilineTextAlignment(.center)
                     .padding(.horizontal)
             }
-
-            Button(L10n.Common.cancel, role: .cancel) {
-            }
-            .foregroundStyle(.secondary)
         }
         .padding()
         .onAppear {
