@@ -341,8 +341,9 @@ struct WalletHomeView: View {
             }
 
             if !isCollapsed {
-                ForEach(partition.visible) { wallet in
-                    NavigationLink {
+                VStack(spacing: 8) {
+                    ForEach(partition.visible) { wallet in
+                        NavigationLink {
                         WalletDetailView(wallet: wallet)
                     } label: {
                         WalletRow(
@@ -404,6 +405,11 @@ struct WalletHomeView: View {
                     .buttonStyle(.plain)
                     .accessibilityIdentifier("walletHome_expandToggle_\(group.accountId)")
                 }
+                }
+                .transition(.asymmetric(
+                    insertion: .opacity.combined(with: .move(edge: .top)),
+                    removal: .opacity.combined(with: .move(edge: .top))
+                ))
             }
         }
     }
@@ -667,36 +673,48 @@ struct WalletGroupHeader: View {
     @State private var copied = false
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack(spacing: 6) {
-                Image(systemName: "key.horizontal")
-                    .font(.caption)
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 10) {
+                Image(systemName: "key.horizontal.fill")
+                    .font(.subheadline.weight(.semibold))
                     .foregroundStyle(HorcruxTheme.accentPurple)
                 Text(label)
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(HorcruxTheme.subtleText)
-                Spacer()
+                    .font(.headline)
+                    .foregroundStyle(.white)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
                 if threshold > 0 && total > 0 {
                     Text(L10n.Shards.thresholdValue(threshold, total))
+                        .font(.caption2.weight(.medium).monospacedDigit())
+                        .foregroundStyle(HorcruxTheme.subtleText)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 3)
+                        .background(
+                            Capsule().fill(HorcruxTheme.subtleText.opacity(0.12))
+                        )
+                }
+                Spacer(minLength: 8)
+                if isCollapsed == true, let summary = collapsedSummary {
+                    Text(summary)
                         .font(.caption2)
                         .foregroundStyle(HorcruxTheme.subtleText)
+                        .lineLimit(1)
+                        .truncationMode(.tail)
                 }
                 if let collapsed = isCollapsed {
                     Image(systemName: "chevron.down")
-                        .font(.caption2.weight(.semibold))
+                        .font(.subheadline.weight(.semibold))
                         .foregroundStyle(HorcruxTheme.subtleText)
+                        .frame(width: 28, height: 28)
+                        .background(
+                            Circle().fill(HorcruxTheme.subtleText.opacity(0.08))
+                        )
                         .rotationEffect(.degrees(collapsed ? -90 : 0))
-                        .animation(.easeInOut(duration: 0.2), value: collapsed)
+                        .animation(.easeInOut(duration: 0.22), value: collapsed)
                         .accessibilityHidden(true)
                 }
             }
-            if isCollapsed == true, let summary = collapsedSummary {
-                Text(summary)
-                    .font(.caption2)
-                    .foregroundStyle(HorcruxTheme.subtleText)
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 4)
-            } else if let addr = sharedAddress {
+            if isCollapsed != true, let addr = sharedAddress {
                 Button {
                     SecureClipboard.copy(addr)
                     Haptics.success()
@@ -731,6 +749,17 @@ struct WalletGroupHeader: View {
                 .buttonStyle(.plain)
             }
         }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
+        .background(
+            RoundedRectangle(cornerRadius: 12)
+                .fill(HorcruxTheme.cardSurface.opacity(isCollapsed == true ? 0.55 : 0.35))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 12)
+                .stroke(HorcruxTheme.cardBorder.opacity(0.4), lineWidth: 1)
+        )
+        .contentShape(Rectangle())
     }
 
     private func shortAddress(_ a: String) -> String {
