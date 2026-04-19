@@ -50,6 +50,7 @@ struct AddressBookView: View {
             }
         }
         .navigationTitle(L10n.AddressBook.title)
+        .vaultForm()
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 Menu {
@@ -174,11 +175,12 @@ struct AddressBookEditor: View {
                     TextField(L10n.AddressBook.notePlaceholder, text: $note)
                 }
                 if let error {
-                    Text(error).font(.caption).foregroundStyle(.red)
+                    Text(error).font(.caption).foregroundStyle(HorcruxTheme.dangerRed)
                 }
             }
             .navigationTitle(existing == nil ? L10n.AddressBook.navNew : L10n.AddressBook.navEdit)
             .navigationBarTitleDisplayMode(.inline)
+            .vaultForm()
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button(L10n.Common.cancel) { dismiss() }
@@ -240,6 +242,7 @@ struct AddressBookPicker: View {
             }
             .navigationTitle(L10n.AddressBook.pickContactTitle)
             .navigationBarTitleDisplayMode(.inline)
+            .vaultForm()
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button(L10n.Common.cancel) { dismiss() }

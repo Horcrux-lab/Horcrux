@@ -520,6 +520,7 @@ struct TransportSettingsView: View {
             }
         }
         .navigationTitle(L10n.Transport.title)
+        .vaultForm()
     }
 }
 
@@ -571,6 +572,7 @@ struct ChangePinView: View {
                     Button(L10n.Common.cancel) { dismiss() }
                 }
             }
+            .vaultForm()
         }
     }
 
@@ -840,6 +842,7 @@ struct BlockchainNodeSettingsView: View {
         }
         .navigationTitle(L10n.NodeSettings.title)
         .navigationBarTitleDisplayMode(.inline)
+        .vaultForm()
         .alert(L10n.NodeSettings.resetConfirmTitle, isPresented: $showResetConfirm) {
             Button(L10n.NodeSettings.reset, role: .destructive) { config.resetToDefaults() }
             Button(L10n.Common.cancel, role: .cancel) {}
@@ -1107,6 +1110,8 @@ struct ReplaceDeviceInfoView: View {
         }
         .navigationTitle(L10n.SettingsResidual.replaceNavTitle)
         .navigationBarTitleDisplayMode(.inline)
+        .darkBackground()
+        .toolbarColorScheme(.dark, for: .navigationBar)
         .sheet(item: $refreshTarget) { wallet in
             RefreshShardSheet(wallet: wallet, appState: appState)
                 .environmentObject(appState)

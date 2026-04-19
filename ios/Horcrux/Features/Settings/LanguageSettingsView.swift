@@ -64,6 +64,7 @@ struct LanguageSettingsView: View {
         }
         .navigationTitle(L10n.Settings.language)
         .navigationBarTitleDisplayMode(.inline)
+        .vaultForm()
         .alert(L10n.Settings.languageRestartTitle, isPresented: $showRestartAlert) {
             Button(L10n.Common.ok, role: .cancel) {}
         } message: {

@@ -142,6 +142,7 @@ private struct AddCustomTokenSheet: View {
             }
             .navigationTitle(L10n.CustomTokens.addTokenTitle)
             .navigationBarTitleDisplayMode(.inline)
+            .vaultForm()
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button(L10n.Common.cancel) { dismiss() }

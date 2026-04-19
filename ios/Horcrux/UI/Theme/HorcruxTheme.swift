@@ -188,6 +188,21 @@ extension View {
     func darkBackground() -> some View {
         modifier(DarkBackground())
     }
+
+    /// Applies the Horcrux dark palette to a stock `Form` / `List`: hides
+    /// the default white scroll background, lays the vault gradient in
+    /// its place, forces the nav-bar colour scheme to dark and flips
+    /// `preferredColorScheme` so every inline control (toggles, pickers,
+    /// disclosure rows) picks up matching defaults. Use this on any
+    /// sub-settings screen that wants to match the root SettingsView
+    /// aesthetic without being rewritten from scratch.
+    func vaultForm() -> some View {
+        self
+            .scrollContentBackground(.hidden)
+            .background(HorcruxTheme.backgroundGradient.ignoresSafeArea())
+            .toolbarColorScheme(.dark, for: .navigationBar)
+            .preferredColorScheme(.dark)
+    }
 }
 
 // MARK: - Section Header Style
