@@ -80,6 +80,17 @@ struct ComposeTransactionView: View {
         return AddressValidator.errorMessage(for: viewModel.recipientAddress, chain: viewModel.wallet.chain)
     }
 
+    /// Live USD equivalent of the currently-typed amount. Returns nil when the
+    /// amount is empty/zero/invalid or when there is no cached quote for the
+    /// transfer symbol (tokens without a CoinGecko listing fall through to nil).
+    private var liveFiatString: String? {
+        let trimmed = viewModel.amount.trimmingCharacters(in: .whitespaces)
+        guard !trimmed.isEmpty,
+              let value = Double(trimmed),
+              value > 0 else { return nil }
+        return priceService.fiatString(amount: value, symbol: viewModel.transferSymbol)
+    }
+
     var body: some View {
         Form {
             Section(L10n.Signing.recipient) {
@@ -188,6 +199,14 @@ struct ComposeTransactionView: View {
                     Text(viewModel.transferSymbol)
                         .foregroundStyle(.secondary)
                 }
+
+                if let fiat = liveFiatString {
+                    Text("≈ \(fiat)")
+                        .font(.caption)
+                        .foregroundStyle(HorcruxTheme.subtleText)
+                        .transition(.opacity)
+                        .accessibilityIdentifier("compose_amountFiat")
+                }
             }
             .darkListRow()
 
@@ -272,7 +291,10 @@ struct ComposeTransactionView: View {
                     Text(L10n.Signing.nextInviteCoSigners)
                         .frame(maxWidth: .infinity)
                 }
-                .buttonStyle(GradientButtonStyle(isEnabled: !(viewModel.recipientAddress.isEmpty || viewModel.amount.isEmpty || addressError != nil)))
+                .buttonStyle(GradientButtonStyle(
+                    isEnabled: !(viewModel.recipientAddress.isEmpty || viewModel.amount.isEmpty || addressError != nil),
+                    tint: viewModel.wallet.chain.color
+                ))
                 .disabled(viewModel.recipientAddress.isEmpty || viewModel.amount.isEmpty || addressError != nil)
                 .accessibilityHint(L10n.Signing.inviteHint)
                 .accessibilityIdentifier("compose_nextButton")

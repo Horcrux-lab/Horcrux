@@ -142,6 +142,7 @@ struct TintedGlassCard: ViewModifier {
 
 struct GradientButtonStyle: ButtonStyle {
     var isEnabled: Bool = true
+    var tint: Color? = nil
 
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
@@ -152,14 +153,22 @@ struct GradientButtonStyle: ButtonStyle {
             .background(
                 Group {
                     if isEnabled {
-                        HorcruxTheme.accentGradient
+                        if let tint {
+                            LinearGradient(
+                                colors: [tint, tint.opacity(0.7)],
+                                startPoint: .leading,
+                                endPoint: .trailing
+                            )
+                        } else {
+                            HorcruxTheme.accentGradient
+                        }
                     } else {
                         LinearGradient(colors: [Color.gray.opacity(0.3), Color.gray.opacity(0.2)], startPoint: .leading, endPoint: .trailing)
                     }
                 }
             )
             .clipShape(RoundedRectangle(cornerRadius: 14))
-            .shadow(color: isEnabled ? HorcruxTheme.glowShadow : .clear, radius: configuration.isPressed ? 4 : 8, y: 4)
+            .shadow(color: isEnabled ? (tint?.opacity(0.45) ?? HorcruxTheme.glowShadow) : .clear, radius: configuration.isPressed ? 4 : 8, y: 4)
             .scaleEffect(configuration.isPressed ? 0.97 : 1.0)
             .animation(.spring(response: 0.3), value: configuration.isPressed)
     }
