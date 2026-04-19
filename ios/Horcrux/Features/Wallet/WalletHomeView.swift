@@ -63,18 +63,20 @@ struct WalletHomeView: View {
             .toolbarColorScheme(.dark, for: .navigationBar)
             .toolbar {
                 ToolbarItem(placement: .primaryAction) {
-                    Button {
-                        showCreateShard = true
-                    } label: {
-                        Image(systemName: "plus")
-                            .font(.body.weight(.semibold))
-                            .foregroundStyle(HorcruxTheme.accentPurple)
-                            .frame(width: 32, height: 32)
-                            .background(HorcruxTheme.accentPurple.opacity(0.15), in: Circle())
+                    if walletStore.wallets.isEmpty {
+                        Button {
+                            showCreateShard = true
+                        } label: {
+                            Image(systemName: "plus")
+                                .font(.body.weight(.semibold))
+                                .foregroundStyle(HorcruxTheme.accentPurple)
+                                .frame(width: 32, height: 32)
+                                .background(HorcruxTheme.accentPurple.opacity(0.15), in: Circle())
+                        }
+                        .accessibilityLabel(L10n.WalletHome.createNewWallet)
+                        .accessibilityHint(L10n.WalletHome.opensCreationFlow)
+                        .accessibilityIdentifier("walletHome_createButton")
                     }
-                    .accessibilityLabel(L10n.WalletHome.createNewWallet)
-                    .accessibilityHint(L10n.WalletHome.opensCreationFlow)
-                    .accessibilityIdentifier("walletHome_createButton")
                 }
             }
             .sheet(isPresented: $showCreateShard) {
@@ -719,7 +721,7 @@ struct WalletDetailView: View {
                             }
                             .glassCard()
                         } else if tokenBalances.isEmpty {
-                            VaultEmptyState(icon: "plus.circle", title: L10n.WalletDetail.noTokens, subtitle: L10n.WalletDetail.noTokensDescription, iconSize: 32)
+                            VaultEmptyState(icon: "circle.dashed", title: L10n.WalletDetail.noTokens, subtitle: L10n.WalletDetail.noTokensDescription, iconSize: 32)
                                 .frame(maxWidth: .infinity)
                                 .glassCard()
                         } else {

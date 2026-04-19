@@ -32,7 +32,7 @@
 "onboarding.getStartedHint" = "Begin setting up your wallet PIN";
 "onboarding.createPin" = "Create a PIN";
 "onboarding.pinProtects" = "This PIN protects your key shards";
-"onboarding.enterPinPlaceholder" = "Enter PIN (min 4 digits)";
+"onboarding.enterPinPlaceholder" = "Enter PIN (6 digits)";
 "onboarding.createPinHint" = "Enter at least 4 digits for your new PIN";
 "onboarding.nextHint" = "Proceed to confirm your PIN";
 "onboarding.confirmPin" = "Confirm PIN";
@@ -44,7 +44,7 @@
 
 /* Lock Screen */
 "lockScreen.title" = "Horcrux";
-"lockScreen.subtitle" = "Enter PIN to unlock your shards";
+"lockScreen.subtitle" = "Enter PIN to unlock your wallet";
 "lockScreen.pinHint" = "Enter your numeric PIN to unlock the app";
 "lockScreen.unlock" = "Unlock";
 "lockScreen.unlockHint" = "Unlock the app with the entered PIN";

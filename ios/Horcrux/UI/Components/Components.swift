@@ -109,6 +109,43 @@ struct PINDotsView: View {
     }
 }
 
+/// Unified PIN input: 6 dots visible, SecureField invisible but functional.
+/// Tapping the dot row focuses the field. Optionally auto-submits at `length`.
+/// Matches iOS-native passcode UX (Coinbase / Rainbow pattern).
+struct PinDotsField: View {
+    @Binding var pin: String
+    var length: Int = 6
+    var autoSubmit: Bool = true
+    var onComplete: () -> Void = {}
+    @FocusState private var focused: Bool
+
+    var body: some View {
+        ZStack {
+            // Invisible input receiving keyboard
+            SecureField("", text: $pin)
+                .keyboardType(.numberPad)
+                .textContentType(.oneTimeCode)
+                .focused($focused)
+                .frame(width: 1, height: 1)
+                .opacity(0.01)
+                .onChange(of: pin) { _, newValue in
+                    let digits = newValue.filter(\.isNumber)
+                    let clipped = String(digits.prefix(length))
+                    if clipped != newValue { pin = clipped; return }
+                    if autoSubmit && clipped.count == length {
+                        onComplete()
+                    }
+                }
+
+            // Visible dots — tappable to focus
+            PINDotsView(length: length, filled: min(pin.count, length))
+                .contentShape(Rectangle())
+                .onTapGesture { focused = true }
+        }
+        .onAppear { focused = true }
+    }
+}
+
 // MARK: - Animated Shield Logo
 
 struct AnimatedShieldLogo: View {
@@ -311,7 +348,6 @@ struct PinUnlockSheet: View {
     @State private var pin: String = ""
     @State private var errorMessage: String?
     @State private var shakeOffset: CGFloat = 0
-    @FocusState private var fieldFocused: Bool
 
     var body: some View {
         ZStack {
@@ -334,26 +370,8 @@ struct PinUnlockSheet: View {
                         .multilineTextAlignment(.center)
                 }
 
-                PINDotsView(length: 6, filled: min(pin.count, 6))
+                PinDotsField(pin: $pin, length: 6, autoSubmit: true, onComplete: submit)
                     .offset(x: shakeOffset)
-
-                SecureField(L10n.Common.pin, text: $pin)
-                    .keyboardType(.numberPad)
-                    .textContentType(.password)
-                    .focused($fieldFocused)
-                    .font(.title3.monospacedDigit())
-                    .multilineTextAlignment(.center)
-                    .padding(.vertical, 14)
-                    .padding(.horizontal, 20)
-                    .background(
-                        RoundedRectangle(cornerRadius: 12)
-                            .fill(Color.white.opacity(0.06))
-                            .overlay(RoundedRectangle(cornerRadius: 12).stroke(Color.white.opacity(0.1), lineWidth: 1))
-                    )
-                    .frame(maxWidth: 200)
-                    .foregroundStyle(.white)
-                    .tint(HorcruxTheme.accentPurple)
-                    .onSubmit { submit() }
                     .accessibilityLabel(L10n.Common.pin)
                     .accessibilityIdentifier("pinUnlockSheet_pinField")
 
@@ -369,8 +387,8 @@ struct PinUnlockSheet: View {
                 }
 
                 Button(L10n.LockScreen.unlock) { submit() }
-                    .buttonStyle(GradientButtonStyle(isEnabled: pin.count >= 4))
-                    .disabled(pin.count < 4)
+                    .buttonStyle(GradientButtonStyle(isEnabled: pin.count >= 6))
+                    .disabled(pin.count < 6)
                     .padding(.horizontal, 32)
                     .accessibilityIdentifier("pinUnlockSheet_unlockButton")
 
@@ -382,7 +400,6 @@ struct PinUnlockSheet: View {
             }
             .padding(.horizontal, 32)
         }
-        .onAppear { fieldFocused = true }
         .preferredColorScheme(.dark)
     }
 

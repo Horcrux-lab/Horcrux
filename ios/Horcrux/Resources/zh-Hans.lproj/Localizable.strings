@@ -32,7 +32,7 @@
 "onboarding.getStartedHint" = "开始设置您的钱包 PIN";
 "onboarding.createPin" = "创建 PIN";
 "onboarding.pinProtects" = "此 PIN 用于保护您的密钥分片";
-"onboarding.enterPinPlaceholder" = "输入 PIN（至少 4 位）";
+"onboarding.enterPinPlaceholder" = "输入 PIN（6 位）";
 "onboarding.createPinHint" = "输入至少 4 位数字作为新 PIN";
 "onboarding.nextHint" = "继续确认您的 PIN";
 "onboarding.confirmPin" = "确认 PIN";
@@ -44,7 +44,7 @@
 
 /* Lock Screen */
 "lockScreen.title" = "Horcrux";
-"lockScreen.subtitle" = "输入 PIN 解锁分片";
+"lockScreen.subtitle" = "输入 PIN 解锁钱包";
 "lockScreen.pinHint" = "输入数字 PIN 解锁应用";
 "lockScreen.unlock" = "解锁";
 "lockScreen.unlockHint" = "使用输入的 PIN 解锁应用";

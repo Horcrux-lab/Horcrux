@@ -271,23 +271,8 @@ struct OnboardingView: View {
                     .multilineTextAlignment(.center)
             }
 
-            PINDotsView(length: 6, filled: min(pin.count, 6))
+            PinDotsField(pin: $pin, length: 6, autoSubmit: false)
                 .padding(.vertical, 8)
-
-            SecureField(L10n.Onboarding.enterPinPlaceholder, text: $pin)
-                .keyboardType(.numberPad)
-                .font(.title3.monospacedDigit())
-                .multilineTextAlignment(.center)
-                .padding(.vertical, 14)
-                .padding(.horizontal, 20)
-                .background(
-                    RoundedRectangle(cornerRadius: 12)
-                        .fill(Color.white.opacity(0.06))
-                        .overlay(RoundedRectangle(cornerRadius: 12).stroke(Color.white.opacity(0.1), lineWidth: 1))
-                )
-                .frame(maxWidth: 200)
-                .foregroundStyle(.white)
-                .tint(HorcruxTheme.accentPurple)
                 .accessibilityLabel(L10n.Onboarding.createPin)
                 .accessibilityHint(L10n.Onboarding.createPinHint)
                 .accessibilityIdentifier("onboarding_createPinField")
@@ -295,8 +280,8 @@ struct OnboardingView: View {
             Button(L10n.Common.next) {
                 withAnimation(.spring(response: 0.5)) { step = .confirmPin }
             }
-            .buttonStyle(GradientButtonStyle(isEnabled: pin.count >= 4))
-            .disabled(pin.count < 4)
+            .buttonStyle(GradientButtonStyle(isEnabled: pin.count >= 6))
+            .disabled(pin.count < 6)
             .accessibilityHint(L10n.Onboarding.nextHint)
             .accessibilityIdentifier("onboarding_nextButton")
         }
@@ -323,26 +308,8 @@ struct OnboardingView: View {
                     .multilineTextAlignment(.center)
             }
 
-            PINDotsView(length: 6, filled: min(confirmPin.count, 6))
+            PinDotsField(pin: $confirmPin, length: 6, autoSubmit: false)
                 .padding(.vertical, 8)
-
-            SecureField(L10n.Onboarding.confirmPin, text: $confirmPin)
-                .keyboardType(.numberPad)
-                .font(.title3.monospacedDigit())
-                .multilineTextAlignment(.center)
-                .padding(.vertical, 14)
-                .padding(.horizontal, 20)
-                .background(
-                    RoundedRectangle(cornerRadius: 12)
-                        .fill(Color.white.opacity(0.06))
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 12)
-                                .stroke(!confirmPin.isEmpty && confirmPin != pin ? HorcruxTheme.dangerRed.opacity(0.5) : Color.white.opacity(0.1), lineWidth: 1)
-                        )
-                )
-                .frame(maxWidth: 200)
-                .foregroundStyle(.white)
-                .tint(HorcruxTheme.accentPurple)
                 .accessibilityLabel(L10n.Onboarding.confirmPin)
                 .accessibilityHint(L10n.Onboarding.confirmPinHint)
                 .accessibilityIdentifier("onboarding_confirmPinField")
@@ -366,8 +333,8 @@ struct OnboardingView: View {
                 Task { await NotificationManager.shared.requestAuthorization() }
                 #endif
             }
-            .buttonStyle(GradientButtonStyle(isEnabled: confirmPin.count >= 4 && pin == confirmPin))
-            .disabled(confirmPin.count < 4 || pin != confirmPin)
+            .buttonStyle(GradientButtonStyle(isEnabled: confirmPin.count >= 6 && pin == confirmPin))
+            .disabled(confirmPin.count < 6 || pin != confirmPin)
             .accessibilityHint(L10n.Onboarding.createWalletHint)
             .accessibilityIdentifier("onboarding_createWalletButton")
         }
@@ -418,25 +385,9 @@ struct LockScreenView: View {
                     .font(.subheadline)
                     .foregroundStyle(HorcruxTheme.subtleText)
 
-                PINDotsView(length: 6, filled: min(pin.count, 6))
+                PinDotsField(pin: $pin, length: 6, autoSubmit: true, onComplete: unlock)
                     .offset(x: shakeOffset)
                     .padding(.vertical, 4)
-
-                SecureField(L10n.Common.pin, text: $pin)
-                    .keyboardType(.numberPad)
-                    .font(.title3.monospacedDigit())
-                    .multilineTextAlignment(.center)
-                    .padding(.vertical, 14)
-                    .padding(.horizontal, 20)
-                    .background(
-                        RoundedRectangle(cornerRadius: 12)
-                            .fill(Color.white.opacity(0.06))
-                            .overlay(RoundedRectangle(cornerRadius: 12).stroke(Color.white.opacity(0.1), lineWidth: 1))
-                    )
-                    .frame(maxWidth: 200)
-                    .foregroundStyle(.white)
-                    .tint(HorcruxTheme.accentPurple)
-                    .onSubmit { unlock() }
                     .accessibilityLabel(L10n.Common.pin)
                     .accessibilityHint(L10n.LockScreen.pinHint)
                     .accessibilityIdentifier("lockScreen_pinField")
@@ -453,8 +404,8 @@ struct LockScreenView: View {
                 }
 
                 Button(L10n.LockScreen.unlock) { unlock() }
-                    .buttonStyle(GradientButtonStyle(isEnabled: pin.count >= 4))
-                    .disabled(pin.count < 4)
+                    .buttonStyle(GradientButtonStyle(isEnabled: pin.count >= 6))
+                    .disabled(pin.count < 6)
                     .padding(.horizontal, 32)
                     .accessibilityLabel(L10n.LockScreen.unlock)
                     .accessibilityHint(L10n.LockScreen.unlockHint)
