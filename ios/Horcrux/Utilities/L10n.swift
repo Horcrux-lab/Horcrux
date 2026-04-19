@@ -437,6 +437,7 @@ enum L10n {
 
         // dev.44 — progress + save fail alerts
         static let wrappingUp = NSLocalizedString("dkg.wrappingUp", comment: "")
+        static let slowPathHint = NSLocalizedString("dkg.slowPathHint", comment: "")
         static let elapsedLabel = NSLocalizedString("dkg.elapsedLabel", comment: "")
         static let remainingLabel = NSLocalizedString("dkg.remainingLabel", comment: "")
         static let unbackedExitTitle = NSLocalizedString("dkg.unbackedExitTitle", comment: "")

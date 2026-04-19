@@ -650,6 +650,7 @@
 "discovery.joinerWaitStart" = "Once the initiator taps Start, this device auto-enters key generation.";
 
 "dkg.wrappingUp" = "Wrapping up…";
+"dkg.slowPathHint" = "Still working — not stuck. secp256k1 needs a 2048-bit safe prime, which is probabilistic and can take a couple of minutes on mobile. Keep both devices awake.";
 "dkg.elapsedLabel" = "Elapsed";
 "dkg.remainingLabel" = "Est. remaining";
 "dkg.unbackedExitTitle" = "⚠️ Exit without backup?";

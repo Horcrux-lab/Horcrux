@@ -650,6 +650,7 @@
 "discovery.joinerWaitStart" = "发起人点击开始后，本机会自动进入密钥生成。";
 
 "dkg.wrappingUp" = "收尾中…";
+"dkg.slowPathHint" = "仍在计算，未卡死。secp256k1 需生成 2048 位安全素数，运气影响耗时，移动端可能需要一两分钟。请保持两台设备亮屏。";
 "dkg.elapsedLabel" = "已用时";
 "dkg.remainingLabel" = "预计剩余";
 "dkg.unbackedExitTitle" = "⚠️ 未备份就退出？";

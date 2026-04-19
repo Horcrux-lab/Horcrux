@@ -780,7 +780,20 @@ struct DKGProgressView: View {
     @State private var elapsedTask: Task<Void, Never>?
 
     private var estimatedTotal: Int {
-        viewModel.selectedCurve == .ed25519 ? 15 : 45
+        // secp256k1 DKG (CGGMP21) requires generating a 2048-bit Paillier
+        // safe prime, which is probabilistic. On iOS the GMP assembly is
+        // disabled for cross-compilation reasons (see Cargo.toml patch),
+        // so we fall back to portable C — 5-10× slower than desktop.
+        // Real-world p50 ≈ 60s, p95 ≈ 180s on device; simulator can be
+        // even slower. Ed25519 (FROST) doesn't need Paillier primes at all.
+        viewModel.selectedCurve == .ed25519 ? 15 : 120
+    }
+
+    /// Show a slow-path disclosure after we've exceeded the estimate.
+    /// Reassures the user that safe prime generation is probabilistic
+    /// and the wait is expected, not a hang.
+    private var showSlowPathHint: Bool {
+        viewModel.selectedCurve != .ed25519 && elapsedSeconds > estimatedTotal
     }
 
     /// Smooth display progress derived from both the round index and
@@ -847,6 +860,25 @@ struct DKGProgressView: View {
             }
 
             Spacer()
+
+            if showSlowPathHint {
+                HStack(alignment: .top, spacing: 8) {
+                    Image(systemName: "info.circle")
+                        .foregroundStyle(HorcruxTheme.accentCyan)
+                    Text(L10n.DKG.slowPathHint)
+                        .font(.caption)
+                        .foregroundStyle(HorcruxTheme.subtleText)
+                        .multilineTextAlignment(.leading)
+                }
+                .padding(12)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(
+                    RoundedRectangle(cornerRadius: 10)
+                        .fill(HorcruxTheme.accentCyan.opacity(0.08))
+                        .overlay(RoundedRectangle(cornerRadius: 10).stroke(HorcruxTheme.accentCyan.opacity(0.25), lineWidth: 1))
+                )
+                .padding(.horizontal)
+            }
 
             Text(L10n.DKG.keepDevicesNearby)
                 .font(.caption)
