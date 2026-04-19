@@ -66,8 +66,8 @@
 "walletHome.editWalletList" = "编辑钱包列表";
 "walletHome.pendingBroadcasts" = "待广播交易";
 "walletHome.nodeUnreachable" = "%@ 节点不可达";
-"walletHome.nodesUnreachable" = "%@ 个节点不可达";
-"walletHome.networkWarning" = "网络警告：%@ 个节点不可达";
+"walletHome.nodesUnreachable" = "%@ 节点不可达";
+"walletHome.networkWarning" = "网络警告：%@ 节点不可达";
 "walletHome.loadingBalance" = "正在加载余额";
 
 /* Pending Broadcast */

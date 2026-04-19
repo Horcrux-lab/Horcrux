@@ -88,30 +88,42 @@ struct WalletHomeView: View {
             .task {
                 networkReachable = await NetworkStatus.shared.checkAll(config: appState.networkConfig)
             }
-            .safeAreaInset(edge: .top) {
-                if !networkReachable.isEmpty, networkReachable.values.contains(false) {
-                    let offlineChains = networkReachable.filter { !$0.value }.map(\.key.symbol).sorted().joined(separator: ", ")
-                    HStack(spacing: 8) {
-                        Image(systemName: "wifi.slash")
-                            .font(.caption.weight(.semibold))
-                        Text(offlineChains.contains(",")
-                             ? L10n.WalletHome.nodesUnreachable(offlineChains)
-                             : L10n.WalletHome.nodeUnreachable(offlineChains))
-                            .font(.caption)
-                    }
-                    .foregroundStyle(.white)
-                    .padding(.vertical, 8)
-                    .frame(maxWidth: .infinity)
-                    .background(HorcruxTheme.warningAmber.opacity(0.85).gradient)
-                    .accessibilityLabel(L10n.WalletHome.networkWarning(offlineChains))
-                }
-            }
             .preferredColorScheme(.dark)
+        }
+    }
+
+    @ViewBuilder
+    private var offlineBanner: some View {
+        if !networkReachable.isEmpty, networkReachable.values.contains(false) {
+            let offline = networkReachable.filter { !$0.value }.map(\.key.symbol).sorted()
+            let chainList = offline.joined(separator: "、")
+            let label = offline.count > 1
+                ? L10n.WalletHome.nodesUnreachable(chainList)
+                : L10n.WalletHome.nodeUnreachable(chainList)
+            HStack(spacing: 8) {
+                Image(systemName: "wifi.slash")
+                    .font(.caption.weight(.semibold))
+                Text(label)
+                    .font(.caption.weight(.medium))
+            }
+            .foregroundStyle(HorcruxTheme.warningAmber)
+            .padding(.vertical, 8)
+            .padding(.horizontal, 14)
+            .background(
+                Capsule().fill(HorcruxTheme.warningAmber.opacity(0.12))
+            )
+            .overlay(
+                Capsule().stroke(HorcruxTheme.warningAmber.opacity(0.35), lineWidth: 1)
+            )
+            .accessibilityLabel(L10n.WalletHome.networkWarning(chainList))
         }
     }
 
     private var emptyState: some View {
         VStack(spacing: 24) {
+            offlineBanner
+                .padding(.top, 8)
+
             Spacer()
 
             VaultEmptyState(
@@ -152,6 +164,9 @@ struct WalletHomeView: View {
     private var walletList: some View {
         ScrollView {
             LazyVStack(spacing: 12) {
+                offlineBanner
+                    .padding(.top, 4)
+
                 // Portfolio summary (IA: root → chain → asset)
                 PortfolioSummaryCard(wallets: walletStore.wallets.filter { !$0.hidden })
 
