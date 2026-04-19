@@ -204,3 +204,207 @@ struct VaultEmptyState: View {
         }
     }
 }
+
+// MARK: - Dark Form Style
+
+/// Apply to a `Form` (or `List`) to match the Horcrux dark theme.
+/// Removes the default system-grouped background and paints the gradient.
+extension View {
+    func darkFormStyle() -> some View {
+        self
+            .scrollContentBackground(.hidden)
+            .background(HorcruxTheme.backgroundGradient.ignoresSafeArea())
+    }
+}
+
+/// Standard dark row background for `Form`/`List` sections.
+struct DarkListRow: ViewModifier {
+    func body(content: Content) -> some View {
+        content.listRowBackground(HorcruxTheme.cardSurface.opacity(0.5))
+    }
+}
+
+extension View {
+    func darkListRow() -> some View {
+        modifier(DarkListRow())
+    }
+}
+
+// MARK: - Step Progress Bar
+
+/// Compact 1…N step indicator used during multi-step ceremonies (DKG, cold signing).
+struct StepProgressBar: View {
+    let steps: [String]
+    let currentIndex: Int
+
+    var body: some View {
+        HStack(spacing: 6) {
+            ForEach(steps.indices, id: \.self) { i in
+                let state = stepState(i)
+                HStack(spacing: 6) {
+                    ZStack {
+                        Circle()
+                            .fill(state == .done
+                                  ? HorcruxTheme.accentPurple
+                                  : (state == .current ? HorcruxTheme.accentPurple.opacity(0.25) : Color.white.opacity(0.08)))
+                            .frame(width: 22, height: 22)
+                            .overlay(
+                                Circle().stroke(
+                                    state == .current ? HorcruxTheme.accentPurple : Color.white.opacity(0.15),
+                                    lineWidth: 1
+                                )
+                            )
+                        if state == .done {
+                            Image(systemName: "checkmark")
+                                .font(.caption2.weight(.bold))
+                                .foregroundStyle(.white)
+                        } else {
+                            Text("\(i + 1)")
+                                .font(.caption2.monospacedDigit().weight(.semibold))
+                                .foregroundStyle(state == .current ? .white : HorcruxTheme.subtleText)
+                        }
+                    }
+                    if i == currentIndex {
+                        Text(steps[i])
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(.white)
+                            .lineLimit(1)
+                    }
+                }
+                if i < steps.count - 1 {
+                    Rectangle()
+                        .fill(state == .done ? HorcruxTheme.accentPurple : Color.white.opacity(0.1))
+                        .frame(height: 1)
+                        .frame(maxWidth: .infinity)
+                }
+            }
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 10)
+        .background(HorcruxTheme.cardSurface.opacity(0.4))
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Step \(currentIndex + 1) of \(steps.count): \(steps[currentIndex])")
+    }
+
+    private enum StepState { case done, current, pending }
+
+    private func stepState(_ i: Int) -> StepState {
+        if i < currentIndex { return .done }
+        if i == currentIndex { return .current }
+        return .pending
+    }
+}
+
+// MARK: - PIN Unlock Sheet
+
+/// Themed PIN entry sheet used before signing/decryption. Replaces the
+/// system `.alert { SecureField }` variant so the keypad and error UI
+/// match `LockScreenView`.
+struct PinUnlockSheet: View {
+    let title: String
+    let subtitle: String
+    /// Called with the entered PIN. Return `nil` on success (sheet dismisses),
+    /// or a localized error string to display + reset the field.
+    let onSubmit: (String) -> String?
+
+    @Environment(\.dismiss) private var dismiss
+    @State private var pin: String = ""
+    @State private var errorMessage: String?
+    @State private var shakeOffset: CGFloat = 0
+    @FocusState private var fieldFocused: Bool
+
+    var body: some View {
+        ZStack {
+            HorcruxTheme.backgroundGradient.ignoresSafeArea()
+
+            VStack(spacing: 28) {
+                Spacer()
+
+                AnimatedShieldLogo(size: 48)
+
+                VStack(spacing: 6) {
+                    Text(title)
+                        .font(.title2.weight(.bold))
+                        .foregroundStyle(.white)
+                        .multilineTextAlignment(.center)
+
+                    Text(subtitle)
+                        .font(.subheadline)
+                        .foregroundStyle(HorcruxTheme.subtleText)
+                        .multilineTextAlignment(.center)
+                }
+
+                PINDotsView(length: 6, filled: min(pin.count, 6))
+                    .offset(x: shakeOffset)
+
+                SecureField(L10n.Common.pin, text: $pin)
+                    .keyboardType(.numberPad)
+                    .textContentType(.password)
+                    .focused($fieldFocused)
+                    .font(.title3.monospacedDigit())
+                    .multilineTextAlignment(.center)
+                    .padding(.vertical, 14)
+                    .padding(.horizontal, 20)
+                    .background(
+                        RoundedRectangle(cornerRadius: 12)
+                            .fill(Color.white.opacity(0.06))
+                            .overlay(RoundedRectangle(cornerRadius: 12).stroke(Color.white.opacity(0.1), lineWidth: 1))
+                    )
+                    .frame(maxWidth: 200)
+                    .foregroundStyle(.white)
+                    .tint(HorcruxTheme.accentPurple)
+                    .onSubmit { submit() }
+                    .accessibilityLabel(L10n.Common.pin)
+                    .accessibilityIdentifier("pinUnlockSheet_pinField")
+
+                if let errorMessage {
+                    HStack(spacing: 6) {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .font(.caption2)
+                        Text(errorMessage)
+                            .font(.caption)
+                    }
+                    .foregroundStyle(HorcruxTheme.dangerRed)
+                    .transition(.opacity)
+                }
+
+                Button(L10n.LockScreen.unlock) { submit() }
+                    .buttonStyle(GradientButtonStyle(isEnabled: pin.count >= 4))
+                    .disabled(pin.count < 4)
+                    .padding(.horizontal, 32)
+                    .accessibilityIdentifier("pinUnlockSheet_unlockButton")
+
+                Button(L10n.Common.cancel) { dismiss() }
+                    .foregroundStyle(HorcruxTheme.subtleText)
+                    .accessibilityIdentifier("pinUnlockSheet_cancelButton")
+
+                Spacer()
+            }
+            .padding(.horizontal, 32)
+        }
+        .onAppear { fieldFocused = true }
+        .preferredColorScheme(.dark)
+    }
+
+    private func submit() {
+        if let err = onSubmit(pin) {
+            errorMessage = err
+            pin = ""
+            Haptics.error()
+            triggerShake()
+        } else {
+            Haptics.success()
+            dismiss()
+        }
+    }
+
+    private func triggerShake() {
+        withAnimation(.default) { shakeOffset = -12 }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.08) {
+            withAnimation(.default) { shakeOffset = 12 }
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.16) {
+            withAnimation(.spring(response: 0.2)) { shakeOffset = 0 }
+        }
+    }
+}

@@ -29,22 +29,27 @@ struct SigningView: View {
 
     var body: some View {
         NavigationStack {
-            Group {
-                switch viewModel.step {
-                case .compose:
-                    ComposeTransactionView(viewModel: viewModel)
-                case .invite:
-                    InviteSignersView(viewModel: viewModel)
-                case .signing:
-                    SigningProgressView(viewModel: viewModel)
-                case .complete:
-                    SigningCompleteView(viewModel: viewModel, dismiss: dismiss)
-                case .error:
-                    SigningErrorView(viewModel: viewModel)
+            ZStack {
+                HorcruxTheme.backgroundGradient.ignoresSafeArea()
+
+                Group {
+                    switch viewModel.step {
+                    case .compose:
+                        ComposeTransactionView(viewModel: viewModel)
+                    case .invite:
+                        InviteSignersView(viewModel: viewModel)
+                    case .signing:
+                        SigningProgressView(viewModel: viewModel)
+                    case .complete:
+                        SigningCompleteView(viewModel: viewModel, dismiss: dismiss)
+                    case .error:
+                        SigningErrorView(viewModel: viewModel)
+                    }
                 }
             }
             .navigationTitle(L10n.Signing.sendSymbol(viewModel.wallet.chain.symbol))
             .navigationBarTitleDisplayMode(.inline)
+            .toolbarColorScheme(.dark, for: .navigationBar)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button(L10n.Common.cancel) { dismiss() }
@@ -55,6 +60,7 @@ struct SigningView: View {
                 viewModel.bind(to: appState)
             }
         }
+        .preferredColorScheme(.dark)
     }
 }
 
@@ -93,35 +99,23 @@ struct ComposeTransactionView: View {
                             }
                         }
 
-                    if viewModel.wallet.chain != .bitcoin {
-                        Button {
-                            showAddressBook = true
-                        } label: {
-                            Image(systemName: "person.crop.circle")
-                                .font(.title2)
-                                .foregroundStyle(.blue)
-                        }
-                        .buttonStyle(.plain)
-                        .accessibilityLabel(L10n.Signing.pickFromAddressBook)
-                        .accessibilityIdentifier("compose_addressBookButton")
-                    } else {
-                        Button {
-                            showAddressBook = true
-                        } label: {
-                            Image(systemName: "person.crop.circle")
-                                .font(.title2)
-                                .foregroundStyle(.blue)
-                        }
-                        .buttonStyle(.plain)
-                        .accessibilityLabel(L10n.Signing.pickFromAddressBook)
+                    Button {
+                        showAddressBook = true
+                    } label: {
+                        Image(systemName: "person.crop.circle")
+                            .font(.title2)
+                            .foregroundStyle(HorcruxTheme.accentBlue)
                     }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel(L10n.Signing.pickFromAddressBook)
+                    .accessibilityIdentifier(viewModel.wallet.chain != .bitcoin ? "compose_addressBookButton" : "")
 
                     Button {
                         showQRScanner = true
                     } label: {
                         Image(systemName: "qrcode.viewfinder")
                             .font(.title2)
-                            .foregroundStyle(.blue)
+                            .foregroundStyle(HorcruxTheme.accentBlue)
                     }
                     .buttonStyle(.plain)
                     .accessibilityLabel(L10n.Signing.scanQR)
@@ -132,7 +126,7 @@ struct ComposeTransactionView: View {
                 if let ensStatus {
                     HStack(spacing: 6) {
                         Image(systemName: "at.circle")
-                            .foregroundStyle(.blue)
+                            .foregroundStyle(HorcruxTheme.accentBlue)
                         Text(ensStatus)
                             .font(.caption)
                     }
@@ -141,7 +135,7 @@ struct ComposeTransactionView: View {
                 if let primaryName = viewModel.resolvedRecipientENS {
                     HStack(spacing: 6) {
                         Image(systemName: "checkmark.seal.fill")
-                            .foregroundStyle(.green)
+                            .foregroundStyle(HorcruxTheme.successGreen)
                         Text("ENS: \(primaryName)")
                             .font(.caption)
                             .foregroundStyle(.secondary)
@@ -152,9 +146,10 @@ struct ComposeTransactionView: View {
                 if let addressError {
                     Text(addressError)
                         .font(.caption)
-                        .foregroundStyle(.red)
+                        .foregroundStyle(HorcruxTheme.dangerRed)
                 }
             }
+            .darkListRow()
 
             Section(L10n.Signing.amount) {
                 if !viewModel.availableTokens.isEmpty {
@@ -183,7 +178,7 @@ struct ComposeTransactionView: View {
                         .accessibilityHint(L10n.Signing.amountHint)
                         .accessibilityIdentifier("compose_amountField")
                     if viewModel.canFillMax {
-                        Button("Max") {
+                        Button(L10n.Common.max) {
                             viewModel.fillMax()
                         }
                         .buttonStyle(.bordered)
@@ -194,6 +189,7 @@ struct ComposeTransactionView: View {
                         .foregroundStyle(.secondary)
                 }
             }
+            .darkListRow()
 
             if viewModel.wallet.chain.isEVM {
                 Section(L10n.Signing.gas) {
@@ -229,6 +225,7 @@ struct ComposeTransactionView: View {
                         LabeledContent(L10n.Signing.estFee, value: viewModel.estimatedFee)
                     }
                 }
+                .darkListRow()
             } else if viewModel.wallet.chain == .bitcoin || viewModel.wallet.chain == .litecoin || viewModel.wallet.chain == .solana {
                 Section(L10n.Signing.fee) {
                     if viewModel.wallet.chain != .solana {
@@ -264,6 +261,7 @@ struct ComposeTransactionView: View {
                         LabeledContent(L10n.Signing.estFee, value: viewModel.estimatedFee)
                     }
                 }
+                .darkListRow()
             }
 
             Section {
@@ -273,14 +271,16 @@ struct ComposeTransactionView: View {
                 } label: {
                     Text(L10n.Signing.nextInviteCoSigners)
                         .frame(maxWidth: .infinity)
-                        .font(.headline)
                 }
-                .buttonStyle(.borderedProminent)
+                .buttonStyle(GradientButtonStyle(isEnabled: !(viewModel.recipientAddress.isEmpty || viewModel.amount.isEmpty || addressError != nil)))
                 .disabled(viewModel.recipientAddress.isEmpty || viewModel.amount.isEmpty || addressError != nil)
                 .accessibilityHint(L10n.Signing.inviteHint)
                 .accessibilityIdentifier("compose_nextButton")
             }
+            .listRowBackground(Color.clear)
+            .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
         }
+        .darkFormStyle()
         .sheet(isPresented: $showQRScanner) {
             QRScannerSheet { scannedAddress in
                 viewModel.recipientAddress = scannedAddress
@@ -319,89 +319,136 @@ struct ComposeTransactionView: View {
 struct InviteSignersView: View {
     @EnvironmentObject private var appState: AppState
     @ObservedObject var viewModel: SigningViewModel
-    @State private var showPinPrompt = false
-    @State private var pin = ""
-    @State private var pinError: String?
+    @State private var showPinSheet = false
+
+    /// How many peers (excluding self) are needed to reach threshold.
+    private var peersNeeded: Int { Int(viewModel.wallet.threshold) - 1 }
+    private var peersJoined: Int { viewModel.joinedSigners.count }
+    private var thresholdMet: Bool { peersJoined >= peersNeeded }
 
     var body: some View {
-        VStack(spacing: 20) {
-            VStack(spacing: 8) {
-                Text(L10n.Signing.inviteCoSigners)
-                    .font(.title2.bold())
+        ZStack {
+            HorcruxTheme.backgroundGradient.ignoresSafeArea()
 
-                Text(L10n.Signing.needMoreSigners(Int(viewModel.wallet.threshold) - 1))
-                    .foregroundStyle(.secondary)
-            }
+            ScrollView {
+                VStack(spacing: 20) {
+                    // Header + progress
+                    VStack(spacing: 10) {
+                        Text(L10n.Signing.inviteCoSigners)
+                            .font(.title2.bold())
+                            .foregroundStyle(.white)
 
-            // Transaction preview (simulation)
-            TransactionPreviewCard(viewModel: viewModel)
+                        // "N of M signers ready" — counts self as always ready.
+                        Text(L10n.Signing.signersReady(peersJoined + 1, Int(viewModel.wallet.threshold)))
+                            .font(.subheadline.monospacedDigit())
+                            .foregroundStyle(HorcruxTheme.subtleText)
 
-            ProgressView()
-                .padding()
-
-            Text(L10n.Signing.waitingForCoSigners)
-                .foregroundStyle(.secondary)
-
-            List(viewModel.joinedSigners) { peer in
-                HStack {
-                    Image(systemName: "person.circle.fill")
-                        .foregroundStyle(.green)
-                    Text(peer.name)
-                    Spacer()
-                    Image(systemName: "checkmark.circle.fill")
-                        .foregroundStyle(.green)
-                }
-            }
-
-            if viewModel.joinedSigners.count >= viewModel.wallet.threshold - 1 {
-                Button {
-                    // Fast path: SWK is cached from the unlock session.
-                    if let swk = appState.cachedShardKey() {
-                        viewModel.setShardKey(swk)
-                        viewModel.startSigning()
-                    } else {
-                        showPinPrompt = true
+                        // Visual dot row: self + peer slots
+                        HStack(spacing: 10) {
+                            SignerSlot(filled: true, isSelf: true)
+                            ForEach(0..<peersNeeded, id: \.self) { idx in
+                                SignerSlot(filled: idx < peersJoined, isSelf: false)
+                            }
+                        }
+                        .padding(.top, 4)
                     }
-                } label: {
-                    Text(L10n.Signing.signTransaction)
-                        .frame(maxWidth: .infinity)
-                        .font(.headline)
+                    .padding(.top, 16)
+
+                    TransactionPreviewCard(viewModel: viewModel)
+
+                    // Joined peers list
+                    if !viewModel.joinedSigners.isEmpty {
+                        VStack(alignment: .leading, spacing: 8) {
+                            VaultSectionHeader(L10n.Signing.coSigners, icon: "person.2.fill")
+                            ForEach(viewModel.joinedSigners) { peer in
+                                HStack(spacing: 10) {
+                                    Image(systemName: "person.circle.fill")
+                                        .foregroundStyle(HorcruxTheme.successGreen)
+                                    Text(peer.name)
+                                        .foregroundStyle(.white)
+                                    Spacer()
+                                    Image(systemName: "checkmark.circle.fill")
+                                        .foregroundStyle(HorcruxTheme.successGreen)
+                                }
+                                .glassCard()
+                            }
+                        }
+                    }
+
+                    // Waiting indicator until threshold met
+                    if !thresholdMet {
+                        HStack(spacing: 10) {
+                            ProgressView()
+                                .tint(HorcruxTheme.accentPurple)
+                            Text(L10n.Signing.waitingForCoSigners)
+                                .font(.subheadline)
+                                .foregroundStyle(HorcruxTheme.subtleText)
+                        }
+                        .padding(.vertical, 8)
+                    }
+
+                    if thresholdMet {
+                        Button {
+                            // Fast path: SWK is cached from the unlock session.
+                            if let swk = appState.cachedShardKey() {
+                                viewModel.setShardKey(swk)
+                                viewModel.startSigning()
+                            } else {
+                                showPinSheet = true
+                            }
+                        } label: {
+                            Text(L10n.Signing.signTransaction)
+                        }
+                        .buttonStyle(GradientButtonStyle())
+                        .accessibilityHint(L10n.Signing.signHint)
+                        .accessibilityIdentifier("invite_signButton")
+                    }
                 }
-                .buttonStyle(.borderedProminent)
-                .padding(.horizontal)
-                .accessibilityHint(L10n.Signing.signHint)
-                .accessibilityIdentifier("invite_signButton")
+                .padding(.horizontal, 16)
+                .padding(.bottom, 24)
             }
         }
-        .padding()
-        .alert(L10n.Signing.enterPinDecrypt, isPresented: $showPinPrompt) {
-            SecureField(L10n.Common.pin, text: $pin)
-                .keyboardType(.numberPad)
-            Button(L10n.Signing.unlockSign) {
+        .sheet(isPresented: $showPinSheet) {
+            PinUnlockSheet(
+                title: L10n.Signing.unlockToSignTitle,
+                subtitle: L10n.Signing.unlockToSignSubtitle
+            ) { pin in
                 guard appState.verifyPin(pin) else {
-                    pinError = L10n.Signing.incorrectPin
-                    pin = ""
-                    showPinPrompt = true
-                    return
+                    return L10n.Signing.incorrectPin
                 }
-                // `verifyPin` populated the cache; grab the SWK and start.
                 guard let swk = appState.cachedShardKey() else {
-                    pinError = L10n.Signing.incorrectPin
-                    pin = ""
-                    showPinPrompt = true
-                    return
+                    return L10n.Signing.incorrectPin
                 }
                 viewModel.setShardKey(swk)
-                pin = ""
-                viewModel.startSigning()
+                // Kick off signing after the sheet dismisses so the animation
+                // doesn't fight the state transition.
+                DispatchQueue.main.async { viewModel.startSigning() }
+                return nil
             }
-            Button(L10n.Common.cancel, role: .cancel) { pin = "" }
-        } message: {
-            if let pinError {
-                Text(pinError)
-            } else {
-                Text(L10n.Signing.pinNeededDecrypt)
-            }
+            .presentationDetents([.medium, .large])
+        }
+    }
+}
+
+/// Circular signer slot used in the threshold progress row.
+private struct SignerSlot: View {
+    let filled: Bool
+    let isSelf: Bool
+
+    var body: some View {
+        ZStack {
+            Circle()
+                .fill(filled ? HorcruxTheme.accentPurple.opacity(0.2) : Color.white.opacity(0.05))
+                .overlay(
+                    Circle().stroke(
+                        filled ? HorcruxTheme.accentPurple : Color.white.opacity(0.15),
+                        lineWidth: 1.5
+                    )
+                )
+                .frame(width: 36, height: 36)
+            Image(systemName: isSelf ? "iphone" : (filled ? "checkmark" : "person"))
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(filled ? HorcruxTheme.accentPurple : HorcruxTheme.subtleText)
         }
     }
 }
@@ -537,7 +584,7 @@ private struct SigningElapsedHint: View {
             if secs >= 60 {
                 hint(
                     icon: "exclamationmark.triangle.fill",
-                    tint: .orange,
+                    tint: HorcruxTheme.warningAmber,
                     text: L10n.Signing.slowHint
                 )
             } else if secs >= 30 {
@@ -599,9 +646,9 @@ private struct CosignerStatusRow: View {
             case .signing:
                 ProgressView().scaleEffect(0.7)
             case .done:
-                Image(systemName: "checkmark.circle.fill").foregroundStyle(.green)
+                Image(systemName: "checkmark.circle.fill").foregroundStyle(HorcruxTheme.successGreen)
             case .failed:
-                Image(systemName: "xmark.circle.fill").foregroundStyle(.red)
+                Image(systemName: "xmark.circle.fill").foregroundStyle(HorcruxTheme.dangerRed)
             }
         }
     }
@@ -621,7 +668,7 @@ struct SigningCompleteView: View {
 
             Image(systemName: "checkmark.seal.fill")
                 .font(.system(size: largeIconSize))
-                .foregroundStyle(.green)
+                .foregroundStyle(HorcruxTheme.successGreen)
                 .accessibilityHidden(true)
             VStack(spacing: 8) {
                 Text(L10n.Signing.transactionSigned)
@@ -648,7 +695,7 @@ struct SigningCompleteView: View {
                 } else if let status = viewModel.broadcastStatus {
                     Text(status)
                         .font(.caption)
-                        .foregroundStyle(status.contains("OK") ? .green : .red)
+                        .foregroundStyle(status.contains("OK") ? HorcruxTheme.successGreen : HorcruxTheme.dangerRed)
                         .multilineTextAlignment(.center)
                 } else {
                     Button {
@@ -672,7 +719,7 @@ struct SigningCompleteView: View {
                             .font(.headline)
                     }
                     .buttonStyle(.borderedProminent)
-                    .tint(.green)
+                    .tint(HorcruxTheme.successGreen)
                     .padding(.horizontal)
                     .accessibilityHint(L10n.Signing.broadcastHint)
                     .accessibilityIdentifier("complete_broadcastButton")
@@ -718,7 +765,7 @@ struct SigningErrorView: View {
             Spacer()
             Image(systemName: "xmark.circle.fill")
                 .font(.system(size: errorIconSize))
-                .foregroundStyle(.red)
+                .foregroundStyle(HorcruxTheme.dangerRed)
                 .accessibilityHidden(true)
             Text(L10n.Signing.signingFailed)
                 .font(.title2.bold())
@@ -821,10 +868,10 @@ struct TransactionPreviewCard: View {
             if !isTokenTransfer, let pct = gasPercent(), pct >= 0.05 {
                 HStack(alignment: .top, spacing: 8) {
                     Image(systemName: "exclamationmark.triangle.fill")
-                        .foregroundStyle(.orange)
+                        .foregroundStyle(HorcruxTheme.warningAmber)
                     Text(L10n.Signing.feeWarnPct(pct * 100))
                         .font(.caption)
-                        .foregroundStyle(.orange)
+                        .foregroundStyle(HorcruxTheme.warningAmber)
                 }
             }
 
@@ -875,10 +922,10 @@ struct TransactionPreviewCard: View {
                 ForEach(warnings, id: \.self) { msg in
                     HStack(alignment: .top, spacing: 8) {
                         Image(systemName: "exclamationmark.triangle.fill")
-                            .foregroundStyle(.orange)
+                            .foregroundStyle(HorcruxTheme.warningAmber)
                         Text(msg)
                             .font(.caption)
-                            .foregroundStyle(.orange)
+                            .foregroundStyle(HorcruxTheme.warningAmber)
                     }
                 }
             }

@@ -436,6 +436,18 @@
 "common.hide" = "隐藏";
 "common.unhide" = "取消隐藏";
 "common.rename" = "重命名";
+"common.max" = "最大";
+
+/* 统一的签名前 PIN 弹窗 */
+"signing.signersReady" = "%1$d/%2$d 个共签者已就绪";
+"signing.unlockToSignTitle" = "解锁以签名";
+"signing.unlockToSignSubtitle" = "输入 PIN 解密你的分片。";
+
+/* DKG 步骤条 */
+"createShard.stepConfigure" = "配置";
+"createShard.stepDiscover" = "搜索设备";
+"createShard.stepGenerate" = "生成密钥";
+"createShard.stepDone" = "完成";
 
 /* Settings sections (batch dev.40) */
 "settings.section.contacts" = "联系人";

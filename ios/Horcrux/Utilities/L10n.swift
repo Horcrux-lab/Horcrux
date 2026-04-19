@@ -24,6 +24,7 @@ enum L10n {
         static let hide = NSLocalizedString("common.hide", comment: "")
         static let unhide = NSLocalizedString("common.unhide", comment: "")
         static let rename = NSLocalizedString("common.rename", comment: "")
+        static let max = NSLocalizedString("common.max", comment: "")
     }
 
     // MARK: - App
@@ -325,6 +326,12 @@ enum L10n {
         static let explainerNavTitle = NSLocalizedString("createShard.explainerNavTitle", comment: "")
         static let explainerDone = NSLocalizedString("createShard.explainerDone", comment: "")
 
+        // Stepper bar
+        static let stepConfigure = NSLocalizedString("createShard.stepConfigure", comment: "")
+        static let stepDiscover = NSLocalizedString("createShard.stepDiscover", comment: "")
+        static let stepGenerate = NSLocalizedString("createShard.stepGenerate", comment: "")
+        static let stepDone = NSLocalizedString("createShard.stepDone", comment: "")
+
         static func creatorValueProp(_ total: Int, _ threshold: Int) -> String {
             String(format: NSLocalizedString("createShard.creatorValueProp", comment: ""), total, threshold)
         }
@@ -523,6 +530,13 @@ enum L10n {
         static func needMoreSigners(_ count: Int) -> String {
             String(format: NSLocalizedString("signing.needMoreSigners", comment: ""), count)
         }
+
+        static func signersReady(_ joined: Int, _ needed: Int) -> String {
+            String(format: NSLocalizedString("signing.signersReady", comment: ""), joined, needed)
+        }
+
+        static let unlockToSignTitle = NSLocalizedString("signing.unlockToSignTitle", comment: "")
+        static let unlockToSignSubtitle = NSLocalizedString("signing.unlockToSignSubtitle", comment: "")
 
         static func roundOf(_ current: Int, _ total: Int) -> String {
             String(format: NSLocalizedString("signing.roundOf", comment: ""), current, total)

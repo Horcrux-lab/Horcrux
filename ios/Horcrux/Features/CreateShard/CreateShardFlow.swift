@@ -8,24 +8,51 @@ struct CreateShardFlow: View {
     @StateObject private var viewModel = CreateShardViewModel()
     @Environment(\.dismiss) private var dismiss
 
+    private var stepIndex: Int {
+        switch viewModel.step {
+        case .configure: return 0
+        case .discover: return 1
+        case .dkg: return 2
+        case .complete, .error: return 3
+        }
+    }
+
+    private var stepLabels: [String] {
+        [
+            L10n.CreateShard.stepConfigure,
+            L10n.CreateShard.stepDiscover,
+            L10n.CreateShard.stepGenerate,
+            L10n.CreateShard.stepDone,
+        ]
+    }
+
     var body: some View {
         NavigationStack {
-            Group {
-                switch viewModel.step {
-                case .configure:
-                    ConfigureView(viewModel: viewModel)
-                case .discover:
-                    PeerDiscoveryView(viewModel: viewModel)
-                case .dkg:
-                    DKGProgressView(viewModel: viewModel)
-                case .complete:
-                    DKGCompleteView(viewModel: viewModel, dismiss: dismiss)
-                case .error:
-                    DKGErrorView(viewModel: viewModel)
+            ZStack {
+                HorcruxTheme.backgroundGradient.ignoresSafeArea()
+
+                VStack(spacing: 0) {
+                    StepProgressBar(steps: stepLabels, currentIndex: stepIndex)
+
+                    Group {
+                        switch viewModel.step {
+                        case .configure:
+                            ConfigureView(viewModel: viewModel)
+                        case .discover:
+                            PeerDiscoveryView(viewModel: viewModel)
+                        case .dkg:
+                            DKGProgressView(viewModel: viewModel)
+                        case .complete:
+                            DKGCompleteView(viewModel: viewModel, dismiss: dismiss)
+                        case .error:
+                            DKGErrorView(viewModel: viewModel)
+                        }
+                    }
                 }
             }
             .navigationTitle(L10n.CreateShard.title)
             .navigationBarTitleDisplayMode(.inline)
+            .toolbarColorScheme(.dark, for: .navigationBar)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button(L10n.Common.cancel) { dismiss() }
@@ -37,6 +64,7 @@ struct CreateShardFlow: View {
                 viewModel.bind(to: appState)
             }
         }
+        .preferredColorScheme(.dark)
     }
 }
 
@@ -68,13 +96,14 @@ struct ConfigureView: View {
                     .font(.caption2)
                     .foregroundStyle(.secondary)
             }
+            .darkListRow()
 
             // Value-prop header (item 2: convey MPC core value)
             Section {
                 VStack(alignment: .leading, spacing: 8) {
                     HStack {
                         Image(systemName: "shield.lefthalf.filled")
-                            .foregroundStyle(.green)
+                            .foregroundStyle(HorcruxTheme.successGreen)
                         Text(L10n.CreateShard.mpcTitle)
                             .font(.headline)
                         Spacer()
@@ -82,6 +111,7 @@ struct ConfigureView: View {
                             showExplainer = true
                         } label: {
                             Image(systemName: "info.circle")
+                                .foregroundStyle(HorcruxTheme.accentBlue)
                         }
                         .accessibilityLabel(L10n.CreateShard.mpcExplainerA11y)
                     }
@@ -97,6 +127,7 @@ struct ConfigureView: View {
                 }
                 .padding(.vertical, 4)
             }
+            .darkListRow()
 
             Section(L10n.CreateShard.walletName) {
                 TextField(L10n.CreateShard.walletNamePlaceholder, text: $viewModel.walletName)
@@ -104,6 +135,7 @@ struct ConfigureView: View {
                     .accessibilityHint(L10n.CreateShard.walletNameHint)
                     .accessibilityIdentifier("configure_walletNameField")
             }
+            .darkListRow()
 
             if viewModel.role == .create {
                 Section(L10n.CreateShard.blockchain) {
@@ -121,6 +153,7 @@ struct ConfigureView: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
+                .darkListRow()
 
                 // Advanced settings (item 1: reduce cognitive load)
                 Section {
@@ -135,6 +168,7 @@ struct ConfigureView: View {
                             .foregroundStyle(.secondary)
                     }
                 }
+                .darkListRow()
             } else {
                 // Joiner only exposes transports + room code; m/n and
                 // curve will be dictated by the creator's SessionBegin.
@@ -147,6 +181,7 @@ struct ConfigureView: View {
                         .font(.caption2)
                         .foregroundStyle(.secondary)
                 }
+                .darkListRow()
             }
 
             Section {
@@ -164,14 +199,18 @@ struct ConfigureView: View {
                          ? L10n.CreateShard.nextFindPeers
                          : L10n.CreateShard.nextWaitCreator)
                         .frame(maxWidth: .infinity)
-                        .font(.headline)
                 }
-                .buttonStyle(.borderedProminent)
+                .buttonStyle(GradientButtonStyle(
+                    isEnabled: !(viewModel.walletName.isEmpty || (viewModel.selectedTransports.contains(.relay) && viewModel.roomCode.isEmpty))
+                ))
                 .disabled(viewModel.walletName.isEmpty || (viewModel.selectedTransports.contains(.relay) && viewModel.roomCode.isEmpty))
                 .accessibilityHint(L10n.CreateShard.findPeersHint)
                 .accessibilityIdentifier("configure_nextButton")
             }
+            .listRowBackground(Color.clear)
+            .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
         }
+        .darkFormStyle()
         .alert(L10n.CreateShard.nofnAlertTitle, isPresented: $showNofNConfirm) {
             Button(L10n.CreateShard.nofnContinue, role: .destructive) {
                 viewModel.step = .discover
@@ -218,7 +257,7 @@ struct ConfigureView: View {
                 Text(L10n.CreateShard.recommendedNof3)
                     .font(.caption)
             } icon: {
-                Image(systemName: "checkmark.shield.fill").foregroundStyle(.green)
+                Image(systemName: "checkmark.shield.fill").foregroundStyle(HorcruxTheme.successGreen)
             }
         } else if viewModel.totalParties == viewModel.threshold {
             Label {
@@ -329,7 +368,7 @@ struct ConfigureView: View {
                 } else if !viewModel.roomCode.isEmpty {
                     Text(L10n.CreateShard.roomCodeInvalid)
                         .font(.caption2)
-                        .foregroundStyle(.orange)
+                        .foregroundStyle(HorcruxTheme.warningAmber)
                 }
             }
         }

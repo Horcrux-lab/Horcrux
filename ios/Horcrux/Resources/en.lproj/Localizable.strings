@@ -436,6 +436,18 @@
 "common.hide" = "Hide";
 "common.unhide" = "Unhide";
 "common.rename" = "Rename";
+"common.max" = "Max";
+
+/* Unified sign-time PIN sheet */
+"signing.signersReady" = "%1$d of %2$d signers ready";
+"signing.unlockToSignTitle" = "Unlock to sign";
+"signing.unlockToSignSubtitle" = "Enter your PIN to unseal your shard.";
+
+/* DKG step labels */
+"createShard.stepConfigure" = "Configure";
+"createShard.stepDiscover" = "Find peers";
+"createShard.stepGenerate" = "Generate keys";
+"createShard.stepDone" = "Done";
 
 /* Settings sections (batch dev.40) */
 "settings.section.contacts" = "Contacts";
