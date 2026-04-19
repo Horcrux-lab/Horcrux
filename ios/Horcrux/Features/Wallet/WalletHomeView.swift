@@ -1269,6 +1269,7 @@ struct PortfolioSummaryCard: View {
     @ObservedObject private var balanceCache = BalanceCache.shared
     @State private var isLoading = false
     @AppStorage("portfolio.valueHidden") private var valueHidden: Bool = false
+    @State private var showBreakdown = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -1325,8 +1326,21 @@ struct PortfolioSummaryCard: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(16)
         .glassCard()
+        .contentShape(Rectangle())
+        .onTapGesture {
+            Haptics.selection()
+            showBreakdown = true
+        }
+        .accessibilityAddTraits(.isButton)
+        .accessibilityHint("Show per-chain breakdown")
+        .accessibilityIdentifier("portfolio_summaryCard")
         .task {
             await refreshAll()
+        }
+        .sheet(isPresented: $showBreakdown) {
+            PortfolioBreakdownSheet(wallets: wallets)
+                .presentationDetents([.medium, .large])
+                .presentationDragIndicator(.visible)
         }
     }
 
@@ -1411,5 +1425,185 @@ struct PortfolioSummaryCard: View {
             service: appState.blockchainService,
             config: appState.networkConfig
         )
+    }
+}
+
+// MARK: - Portfolio Breakdown Sheet
+
+/// Per-chain allocation sheet shown when the portfolio summary card is
+/// tapped. Groups wallets by chain, sums USD values across accounts, and
+/// renders a tinted row per chain with amount, value, 24h change, and
+/// percentage share of the portfolio (visualised as a filled bar).
+struct PortfolioBreakdownSheet: View {
+    let wallets: [Wallet]
+    @Environment(\.dismiss) private var dismiss
+    @StateObject private var priceService = PriceService.shared
+    @ObservedObject private var balanceCache = BalanceCache.shared
+
+    /// Collapses wallets by chain and computes per-chain allocation data.
+    private struct Slice: Identifiable {
+        let chain: Chain
+        let nativeAmount: Double
+        let usdValue: Double
+        let change24h: Double?
+        var id: Chain { chain }
+    }
+
+    private var slices: [Slice] {
+        var bucket: [Chain: Double] = [:]
+        for w in wallets {
+            guard let amount = balanceCache.nativeAmount(walletId: w.id) else { continue }
+            bucket[w.chain, default: 0] += amount
+        }
+        let rows: [Slice] = bucket.compactMap { chain, amount in
+            let price = priceService.usdPrice(symbol: chain.symbol) ?? 0
+            let usd = amount * price
+            return Slice(
+                chain: chain,
+                nativeAmount: amount,
+                usdValue: usd,
+                change24h: priceService.change24h(symbol: chain.symbol)
+            )
+        }
+        return rows.sorted { $0.usdValue > $1.usdValue }
+    }
+
+    private var totalUSD: Double {
+        slices.reduce(0) { $0 + $1.usdValue }
+    }
+
+    private static let fiatFormatter: NumberFormatter = {
+        let f = NumberFormatter()
+        f.numberStyle = .currency
+        f.currencyCode = "USD"
+        f.maximumFractionDigits = 2
+        return f
+    }()
+
+    var body: some View {
+        NavigationStack {
+            ZStack {
+                HorcruxTheme.backgroundGradient.ignoresSafeArea()
+
+                ScrollView {
+                    VStack(spacing: 12) {
+                        header
+                        if slices.filter({ $0.usdValue > 0 }).isEmpty {
+                            emptyState
+                        } else {
+                            ForEach(slices) { slice in
+                                sliceRow(slice)
+                            }
+                        }
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 12)
+                }
+            }
+            .navigationTitle("Portfolio Breakdown")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbarBackground(.hidden, for: .navigationBar)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Done") { dismiss() }
+                        .foregroundStyle(HorcruxTheme.accentBlue)
+                }
+            }
+            .preferredColorScheme(.dark)
+        }
+    }
+
+    private var header: some View {
+        VStack(spacing: 6) {
+            Text("Total Across All Chains")
+                .font(.caption)
+                .foregroundStyle(HorcruxTheme.subtleText)
+            Text(Self.fiatFormatter.string(from: NSNumber(value: totalUSD)) ?? "$—")
+                .font(.system(size: 28, weight: .bold, design: .rounded).monospacedDigit())
+                .foregroundStyle(.white)
+                .contentTransition(.numericText())
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 8)
+    }
+
+    private var emptyState: some View {
+        VStack(spacing: 8) {
+            Image(systemName: "chart.pie")
+                .font(.largeTitle)
+                .foregroundStyle(HorcruxTheme.subtleText)
+            Text("No balances yet")
+                .font(.subheadline.weight(.medium))
+                .foregroundStyle(.white)
+            Text("Pull to refresh on the main screen once your wallets are funded.")
+                .font(.caption)
+                .foregroundStyle(HorcruxTheme.subtleText)
+                .multilineTextAlignment(.center)
+        }
+        .padding(24)
+        .frame(maxWidth: .infinity)
+        .glassCard()
+    }
+
+    @ViewBuilder
+    private func sliceRow(_ slice: Slice) -> some View {
+        let pct: Double = totalUSD > 0 ? (slice.usdValue / totalUSD) : 0
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 10) {
+                ChainIcon(chain: slice.chain, size: 28)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(slice.chain.rawValue)
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(.white)
+                    Text(CurrencyFormatter.crypto(slice.nativeAmount, symbol: slice.chain.symbol))
+                        .font(.caption)
+                        .foregroundStyle(HorcruxTheme.subtleText)
+                        .monospacedDigit()
+                }
+                Spacer()
+                VStack(alignment: .trailing, spacing: 2) {
+                    Text(Self.fiatFormatter.string(from: NSNumber(value: slice.usdValue)) ?? "—")
+                        .font(.subheadline.weight(.semibold).monospacedDigit())
+                        .foregroundStyle(.white)
+                    if let change = slice.change24h {
+                        HStack(spacing: 3) {
+                            Image(systemName: change >= 0 ? "arrow.up.right" : "arrow.down.right")
+                                .font(.caption2.weight(.bold))
+                            Text(String(format: "%@%.2f%%", change >= 0 ? "+" : "", change))
+                                .font(.caption2.weight(.medium).monospacedDigit())
+                        }
+                        .foregroundStyle(change >= 0 ? HorcruxTheme.successGreen : HorcruxTheme.dangerRed)
+                    }
+                }
+            }
+
+            // Allocation bar: chain-tinted fill proportional to share of total.
+            GeometryReader { geo in
+                ZStack(alignment: .leading) {
+                    Capsule()
+                        .fill(Color.white.opacity(0.06))
+                    Capsule()
+                        .fill(
+                            LinearGradient(
+                                colors: [slice.chain.color, slice.chain.color.opacity(0.6)],
+                                startPoint: .leading,
+                                endPoint: .trailing
+                            )
+                        )
+                        .frame(width: max(6, geo.size.width * pct))
+                }
+            }
+            .frame(height: 6)
+
+            HStack {
+                Text(String(format: "%.1f%% of portfolio", pct * 100))
+                    .font(.caption2.monospacedDigit())
+                    .foregroundStyle(HorcruxTheme.subtleText)
+                Spacer()
+            }
+        }
+        .tintedGlassCard(color: slice.chain.color, padding: 14)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(slice.chain.rawValue): \(Self.fiatFormatter.string(from: NSNumber(value: slice.usdValue)) ?? ""), \(String(format: "%.1f", pct * 100)) percent of portfolio")
     }
 }
