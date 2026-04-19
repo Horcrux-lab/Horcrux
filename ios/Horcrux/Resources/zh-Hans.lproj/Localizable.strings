@@ -59,6 +59,7 @@
 "walletHome.noWalletsTitle" = "暂无钱包";
 "walletHome.noWalletsSubtitle" = "通过将密钥分割到多个设备\n创建您的第一个 MPC 钱包。";
 "walletHome.createWallet" = "创建钱包";
+"walletHome.createFirstWallet" = "创建第一个钱包";
 "walletHome.createNewWallet" = "创建新钱包";
 "walletHome.opensCreationFlow" = "打开钱包创建流程";
 "walletHome.startMPCHint" = "开始多方密钥生成流程";

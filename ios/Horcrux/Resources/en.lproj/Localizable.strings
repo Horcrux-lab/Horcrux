@@ -59,6 +59,7 @@
 "walletHome.noWalletsTitle" = "No Wallets Yet";
 "walletHome.noWalletsSubtitle" = "Create your first MPC wallet by\nsplitting a key across devices.";
 "walletHome.createWallet" = "Create Wallet";
+"walletHome.createFirstWallet" = "Create Your First Wallet";
 "walletHome.createNewWallet" = "Create new wallet";
 "walletHome.opensCreationFlow" = "Opens the wallet creation flow";
 "walletHome.startMPCHint" = "Start the multi-party key generation process";

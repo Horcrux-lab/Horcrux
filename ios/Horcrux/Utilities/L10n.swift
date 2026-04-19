@@ -95,6 +95,7 @@ enum L10n {
         static let noWalletsTitle = NSLocalizedString("walletHome.noWalletsTitle", comment: "")
         static let noWalletsSubtitle = NSLocalizedString("walletHome.noWalletsSubtitle", comment: "")
         static let createWallet = NSLocalizedString("walletHome.createWallet", comment: "")
+        static let createFirstWallet = NSLocalizedString("walletHome.createFirstWallet", comment: "")
         static let createNewWallet = NSLocalizedString("walletHome.createNewWallet", comment: "")
         static let opensCreationFlow = NSLocalizedString("walletHome.opensCreationFlow", comment: "")
         static let startMPCHint = NSLocalizedString("walletHome.startMPCHint", comment: "")

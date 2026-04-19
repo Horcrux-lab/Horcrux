@@ -126,7 +126,7 @@ struct WalletHomeView: View {
                 Button {
                     showCreateShard = true
                 } label: {
-                    Label(L10n.WalletHome.createWallet, systemImage: "plus.circle.fill")
+                    Label(L10n.WalletHome.createFirstWallet, systemImage: "plus.circle.fill")
                 }
                 .buttonStyle(GradientButtonStyle())
                 .accessibilityHint(L10n.WalletHome.startMPCHint)
