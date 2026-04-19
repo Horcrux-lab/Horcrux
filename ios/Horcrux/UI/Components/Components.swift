@@ -9,6 +9,10 @@ struct ProgressRing: View {
     /// default purple/blue/cyan angular gradient with a solid-color stroke
     /// — used to tie signing/DKG ceremonies to the chain's brand color.
     var tint: Color? = nil
+    /// Whether to render the "NN%" label in the centre. Callers that
+    /// overlay their own glyph (e.g. chain logo, key) should pass false
+    /// so the label doesn't collide with the overlay.
+    var showPercentage: Bool = true
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
@@ -25,9 +29,11 @@ struct ProgressRing: View {
                 .rotationEffect(.degrees(-90))
                 .animation(reduceMotion ? nil : .easeInOut(duration: 0.3), value: progress)
 
-            Text("\(Int(progress * 100))%")
-                .font(.title2.bold().monospacedDigit())
-                .foregroundStyle(.white)
+            if showPercentage {
+                Text("\(Int(progress * 100))%")
+                    .font(.title2.bold().monospacedDigit())
+                    .foregroundStyle(.white)
+            }
         }
     }
 

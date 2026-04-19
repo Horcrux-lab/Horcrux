@@ -519,7 +519,7 @@ struct SigningProgressView: View {
                     radius: 84,
                     tint: chainTint
                 )
-                ProgressRing(progress: viewModel.signingProgress, tint: chainTint)
+                ProgressRing(progress: viewModel.signingProgress, tint: chainTint, showPercentage: false)
                     .frame(width: 120, height: 120)
                     .accessibilityLabel(L10n.Signing.signingProgress)
                     .accessibilityValue("\(Int(viewModel.signingProgress * 100)) percent")

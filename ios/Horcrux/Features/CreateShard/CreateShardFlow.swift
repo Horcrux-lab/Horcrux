@@ -862,7 +862,7 @@ struct DKGProgressView: View {
                     radius: 84,
                     tint: tint
                 )
-                ProgressRing(progress: displayProgress, tint: tint)
+                ProgressRing(progress: displayProgress, tint: tint, showPercentage: false)
                     .frame(width: 120, height: 120)
                     .accessibilityLabel(L10n.DKG.keyGenProgress)
                     .accessibilityValue("\(Int(displayProgress * 100)) percent")
