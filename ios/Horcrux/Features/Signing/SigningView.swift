@@ -349,6 +349,7 @@ struct InviteSignersView: View {
     private var thresholdMet: Bool { peersJoined >= peersNeeded }
 
     var body: some View {
+        let chainTint = viewModel.wallet.chain.color
         ZStack {
             HorcruxTheme.backgroundGradient.ignoresSafeArea()
 
@@ -367,9 +368,9 @@ struct InviteSignersView: View {
 
                         // Visual dot row: self + peer slots
                         HStack(spacing: 10) {
-                            SignerSlot(filled: true, isSelf: true)
+                            SignerSlot(filled: true, isSelf: true, tint: chainTint)
                             ForEach(0..<peersNeeded, id: \.self) { idx in
-                                SignerSlot(filled: idx < peersJoined, isSelf: false)
+                                SignerSlot(filled: idx < peersJoined, isSelf: false, tint: chainTint)
                             }
                         }
                         .padding(.top, 4)
@@ -392,7 +393,7 @@ struct InviteSignersView: View {
                                     Image(systemName: "checkmark.circle.fill")
                                         .foregroundStyle(HorcruxTheme.successGreen)
                                 }
-                                .glassCard()
+                                .tintedGlassCard(color: chainTint)
                             }
                         }
                     }
@@ -401,7 +402,7 @@ struct InviteSignersView: View {
                     if !thresholdMet {
                         HStack(spacing: 10) {
                             ProgressView()
-                                .tint(HorcruxTheme.accentPurple)
+                                .tint(chainTint)
                             Text(L10n.Signing.waitingForCoSigners)
                                 .font(.subheadline)
                                 .foregroundStyle(HorcruxTheme.subtleText)
@@ -421,7 +422,7 @@ struct InviteSignersView: View {
                         } label: {
                             Text(L10n.Signing.signTransaction)
                         }
-                        .buttonStyle(GradientButtonStyle())
+                        .buttonStyle(GradientButtonStyle(tint: chainTint))
                         .accessibilityHint(L10n.Signing.signHint)
                         .accessibilityIdentifier("invite_signButton")
                     }
@@ -456,21 +457,22 @@ struct InviteSignersView: View {
 private struct SignerSlot: View {
     let filled: Bool
     let isSelf: Bool
+    var tint: Color = HorcruxTheme.accentPurple
 
     var body: some View {
         ZStack {
             Circle()
-                .fill(filled ? HorcruxTheme.accentPurple.opacity(0.2) : Color.white.opacity(0.05))
+                .fill(filled ? tint.opacity(0.2) : Color.white.opacity(0.05))
                 .overlay(
                     Circle().stroke(
-                        filled ? HorcruxTheme.accentPurple : Color.white.opacity(0.15),
+                        filled ? tint : Color.white.opacity(0.15),
                         lineWidth: 1.5
                     )
                 )
                 .frame(width: 36, height: 36)
             Image(systemName: isSelf ? "iphone" : (filled ? "checkmark" : "person"))
                 .font(.caption.weight(.semibold))
-                .foregroundStyle(filled ? HorcruxTheme.accentPurple : HorcruxTheme.subtleText)
+                .foregroundStyle(filled ? tint : HorcruxTheme.subtleText)
         }
     }
 }
