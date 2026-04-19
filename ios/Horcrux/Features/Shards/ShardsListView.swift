@@ -221,7 +221,7 @@ struct ShardAccountDetailView: View {
                             }
                             .padding(.vertical, 10)
                             if wallet.id != account.wallets.last?.id {
-                                Divider().background(Color.white.opacity(0.06))
+                                Divider().background(HorcruxTheme.hairline)
                             }
                         }
                     }

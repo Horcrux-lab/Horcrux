@@ -13,6 +13,7 @@ enum HorcruxTheme {
     static let darkNavy  = Color(red: 0.07, green: 0.09, blue: 0.15)       // #111827
     static let cardSurface = Color(red: 0.10, green: 0.12, blue: 0.20)     // #1A1F33
     static let cardBorder = Color.white.opacity(0.08)
+    static let hairline = Color.white.opacity(0.06)                        // divider lines on dark surfaces
     static let subtleText = Color.white.opacity(0.5)
 
     // Accents

@@ -327,7 +327,7 @@ struct TransactionDetailView: View {
 
                     VStack(spacing: 0) {
                         detailRow(L10n.TxDetail.chain, value: transaction.chain.rawValue)
-                        Divider().background(Color.white.opacity(0.06))
+                        Divider().background(HorcruxTheme.hairline)
 
                         VStack(alignment: .leading, spacing: 4) {
                             Text(L10n.TxDetail.from)
@@ -339,7 +339,7 @@ struct TransactionDetailView: View {
                                 .textSelection(.enabled)
                         }
                         .padding(.vertical, 10)
-                        Divider().background(Color.white.opacity(0.06))
+                        Divider().background(HorcruxTheme.hairline)
 
                         VStack(alignment: .leading, spacing: 4) {
                             Text(L10n.TxDetail.to)
@@ -353,15 +353,15 @@ struct TransactionDetailView: View {
                         .padding(.vertical, 10)
 
                         if let fee = transaction.fee {
-                            Divider().background(Color.white.opacity(0.06))
+                            Divider().background(HorcruxTheme.hairline)
                             detailRow(L10n.TxDetail.fee, value: fee)
                         }
 
-                        Divider().background(Color.white.opacity(0.06))
+                        Divider().background(HorcruxTheme.hairline)
                         detailRow(L10n.TxDetail.signed, value: transaction.createdAt.formatted(date: .abbreviated, time: .standard))
 
                         if let broadcastAt = transaction.broadcastAt {
-                            Divider().background(Color.white.opacity(0.06))
+                            Divider().background(HorcruxTheme.hairline)
                             detailRow(L10n.TxDetail.broadcast, value: broadcastAt.formatted(date: .abbreviated, time: .standard))
                         }
                     }

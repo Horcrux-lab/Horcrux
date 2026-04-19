@@ -287,19 +287,33 @@ struct VaultEmptyState: View {
     let icon: String
     let title: String
     let subtitle: String
-    var iconSize: CGFloat = 56
+    var iconSize: CGFloat = 96
 
     var body: some View {
-        VStack(spacing: 16) {
-            Image(systemName: icon)
-                .font(.system(size: iconSize, weight: .thin))
-                .foregroundStyle(
-                    LinearGradient(
-                        colors: [HorcruxTheme.accentPurple.opacity(0.6), HorcruxTheme.accentBlue.opacity(0.3)],
-                        startPoint: .top,
-                        endPoint: .bottom
+        VStack(spacing: 20) {
+            ZStack {
+                Circle()
+                    .fill(
+                        RadialGradient(
+                            colors: [HorcruxTheme.accentPurple.opacity(0.35), .clear],
+                            center: .center,
+                            startRadius: iconSize * 0.3,
+                            endRadius: iconSize * 1.3
+                        )
                     )
-                )
+                    .frame(width: iconSize * 2.2, height: iconSize * 2.2)
+
+                Image(systemName: icon)
+                    .font(.system(size: iconSize, weight: .regular))
+                    .foregroundStyle(
+                        LinearGradient(
+                            colors: [HorcruxTheme.accentPurple, HorcruxTheme.accentCyan],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
+                    .shadow(color: HorcruxTheme.accentPurple.opacity(0.4), radius: 18, y: 6)
+            }
 
             VStack(spacing: 6) {
                 Text(title)

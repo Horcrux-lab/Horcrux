@@ -130,7 +130,7 @@ struct SettingsView: View {
                                     .padding(12)
                                     .background(
                                         RoundedRectangle(cornerRadius: 10)
-                                            .fill(Color.white.opacity(0.06))
+                                            .fill(HorcruxTheme.hairline)
                                             .overlay(RoundedRectangle(cornerRadius: 10).stroke(Color.white.opacity(0.1), lineWidth: 1))
                                     )
                                     .foregroundStyle(.white)
@@ -308,7 +308,7 @@ struct SettingsView: View {
                                     .padding(12)
                                     .background(
                                         RoundedRectangle(cornerRadius: 10)
-                                            .fill(Color.white.opacity(0.06))
+                                            .fill(HorcruxTheme.hairline)
                                             .overlay(RoundedRectangle(cornerRadius: 10).stroke(Color.white.opacity(0.1), lineWidth: 1))
                                     )
                                     .foregroundStyle(.white)
@@ -344,13 +344,13 @@ struct SettingsView: View {
 
                         VStack(spacing: 0) {
                             aboutRow(L10n.Settings.version, value: "0.2.0")
-                            Divider().background(Color.white.opacity(0.06))
+                            Divider().background(HorcruxTheme.hairline)
                             aboutRow(L10n.Settings.coreLibrary, value: "horcrux-core (Rust)")
-                            Divider().background(Color.white.opacity(0.06))
+                            Divider().background(HorcruxTheme.hairline)
                             aboutRow(L10n.Settings.mpcProtocols, value: "CGGMP21 + FROST")
-                            Divider().background(Color.white.opacity(0.06))
+                            Divider().background(HorcruxTheme.hairline)
                             aboutRow(L10n.Settings.e2eEncryption, value: "Noise Protocol")
-                            Divider().background(Color.white.opacity(0.06))
+                            Divider().background(HorcruxTheme.hairline)
                             HStack {
                                 Text(L10n.Settings.secureEnclave)
                                     .font(.subheadline)
@@ -375,7 +375,7 @@ struct SettingsView: View {
                                 }
                             }
                             .padding(.vertical, 10)
-                            Divider().background(Color.white.opacity(0.06))
+                            Divider().background(HorcruxTheme.hairline)
                             NavigationLink {
                                 LicensesView()
                             } label: {

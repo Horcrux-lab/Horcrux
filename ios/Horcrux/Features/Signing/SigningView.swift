@@ -729,12 +729,10 @@ struct SigningCompleteView: View {
                         dismiss()
                     } label: {
                         Label(L10n.Signing.saveForLater, systemImage: "clock.arrow.circlepath")
+                            .font(.footnote.weight(.medium))
+                            .foregroundStyle(HorcruxTheme.subtleText)
                             .frame(maxWidth: .infinity)
-                            .font(.subheadline)
-                            .foregroundStyle(.white)
-                            .padding(.vertical, 10)
-                            .background(HorcruxTheme.cardSurface, in: Capsule())
-                            .overlay(Capsule().strokeBorder(.white.opacity(0.15), lineWidth: 1))
+                            .padding(.vertical, 8)
                     }
                     .padding(.horizontal)
                     .accessibilityHint(L10n.Signing.saveForLaterHint)

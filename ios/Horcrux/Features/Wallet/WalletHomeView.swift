@@ -743,7 +743,7 @@ struct WalletDetailView: View {
                                     }
                                     .padding(.vertical, 10)
                                     if tb.id != tokenBalances.last?.id {
-                                        Divider().background(Color.white.opacity(0.06))
+                                        Divider().background(HorcruxTheme.hairline)
                                     }
                                 }
                             }
@@ -781,7 +781,7 @@ struct WalletDetailView: View {
                                 }
                                 .padding(.vertical, 8)
                                 if tx.id != recentTxs.last?.id {
-                                    Divider().background(Color.white.opacity(0.06))
+                                    Divider().background(HorcruxTheme.hairline)
                                 }
                             }
                         }
@@ -807,11 +807,11 @@ struct WalletDetailView: View {
 
                     VStack(spacing: 0) {
                         detailRow(L10n.WalletDetail.chain, value: wallet.chain.rawValue)
-                        Divider().background(Color.white.opacity(0.06))
+                        Divider().background(HorcruxTheme.hairline)
                         detailRow(L10n.WalletDetail.threshold, value: L10n.WalletDetail.thresholdValue(Int(wallet.threshold), Int(wallet.totalParties)))
-                        Divider().background(Color.white.opacity(0.06))
+                        Divider().background(HorcruxTheme.hairline)
                         detailRow(L10n.WalletDetail.yourShard, value: L10n.WalletDetail.shardNumber(Int(wallet.partyIndex)))
-                        Divider().background(Color.white.opacity(0.06))
+                        Divider().background(HorcruxTheme.hairline)
                         detailRow(L10n.WalletDetail.created, value: wallet.createdAt.formatted(date: .abbreviated, time: .shortened))
                     }
                     .glassCard()
