@@ -271,19 +271,16 @@ struct OnboardingView: View {
                     .multilineTextAlignment(.center)
             }
 
-            PinDotsField(pin: $pin, length: 6, autoSubmit: false)
-                .padding(.vertical, 8)
-                .accessibilityLabel(L10n.Onboarding.createPin)
-                .accessibilityHint(L10n.Onboarding.createPinHint)
-                .accessibilityIdentifier("onboarding_createPinField")
-
-            Button(L10n.Common.next) {
-                withAnimation(.spring(response: 0.5)) { step = .confirmPin }
-            }
-            .buttonStyle(GradientButtonStyle(isEnabled: pin.count >= 6))
-            .disabled(pin.count < 6)
-            .accessibilityHint(L10n.Onboarding.nextHint)
-            .accessibilityIdentifier("onboarding_nextButton")
+            PinDotsField(
+                pin: $pin,
+                length: 6,
+                autoSubmit: true,
+                onComplete: { withAnimation(.spring(response: 0.5)) { step = .confirmPin } }
+            )
+            .padding(.vertical, 8)
+            .accessibilityLabel(L10n.Onboarding.createPin)
+            .accessibilityHint(L10n.Onboarding.createPinHint)
+            .accessibilityIdentifier("onboarding_createPinField")
         }
         .transition(.asymmetric(insertion: .move(edge: .trailing).combined(with: .opacity), removal: .move(edge: .leading).combined(with: .opacity)))
     }
@@ -308,13 +305,18 @@ struct OnboardingView: View {
                     .multilineTextAlignment(.center)
             }
 
-            PinDotsField(pin: $confirmPin, length: 6, autoSubmit: false)
-                .padding(.vertical, 8)
-                .accessibilityLabel(L10n.Onboarding.confirmPin)
-                .accessibilityHint(L10n.Onboarding.confirmPinHint)
-                .accessibilityIdentifier("onboarding_confirmPinField")
+            PinDotsField(
+                pin: $confirmPin,
+                length: 6,
+                autoSubmit: true,
+                onComplete: finishOnboarding
+            )
+            .padding(.vertical, 8)
+            .accessibilityLabel(L10n.Onboarding.confirmPin)
+            .accessibilityHint(L10n.Onboarding.confirmPinHint)
+            .accessibilityIdentifier("onboarding_confirmPinField")
 
-            if !confirmPin.isEmpty && confirmPin != pin {
+            if !confirmPin.isEmpty && confirmPin.count == 6 && confirmPin != pin {
                 HStack(spacing: 6) {
                     Image(systemName: "exclamationmark.triangle.fill")
                         .font(.caption2)
@@ -324,21 +326,21 @@ struct OnboardingView: View {
                 .foregroundStyle(HorcruxTheme.dangerRed)
                 .transition(.opacity.combined(with: .scale(scale: 0.9)))
             }
-
-            Button(L10n.Onboarding.createWallet) {
-                guard pin == confirmPin else { return }
-                try? appState.setPin(pin)
-                appState.isUnlocked = true
-                #if !targetEnvironment(simulator)
-                Task { await NotificationManager.shared.requestAuthorization() }
-                #endif
-            }
-            .buttonStyle(GradientButtonStyle(isEnabled: confirmPin.count >= 6 && pin == confirmPin))
-            .disabled(confirmPin.count < 6 || pin != confirmPin)
-            .accessibilityHint(L10n.Onboarding.createWalletHint)
-            .accessibilityIdentifier("onboarding_createWalletButton")
         }
         .transition(.asymmetric(insertion: .move(edge: .trailing).combined(with: .opacity), removal: .move(edge: .leading).combined(with: .opacity)))
+    }
+
+    private func finishOnboarding() {
+        guard pin == confirmPin else {
+            Haptics.error()
+            confirmPin = ""
+            return
+        }
+        try? appState.setPin(pin)
+        appState.isUnlocked = true
+        #if !targetEnvironment(simulator)
+        Task { await NotificationManager.shared.requestAuthorization() }
+        #endif
     }
 }
 
@@ -385,13 +387,6 @@ struct LockScreenView: View {
                     .font(.subheadline)
                     .foregroundStyle(HorcruxTheme.subtleText)
 
-                PinDotsField(pin: $pin, length: 6, autoSubmit: true, onComplete: unlock)
-                    .offset(x: shakeOffset)
-                    .padding(.vertical, 4)
-                    .accessibilityLabel(L10n.Common.pin)
-                    .accessibilityHint(L10n.LockScreen.pinHint)
-                    .accessibilityIdentifier("lockScreen_pinField")
-
                 if let errorMessage {
                     HStack(spacing: 6) {
                         Image(systemName: "exclamationmark.triangle.fill")
@@ -403,35 +398,33 @@ struct LockScreenView: View {
                     .transition(.opacity)
                 }
 
-                Button(L10n.LockScreen.unlock) { unlock() }
-                    .buttonStyle(GradientButtonStyle(isEnabled: pin.count >= 6))
-                    .disabled(pin.count < 6)
-                    .padding(.horizontal, 32)
-                    .accessibilityLabel(L10n.LockScreen.unlock)
-                    .accessibilityHint(L10n.LockScreen.unlockHint)
-                    .accessibilityIdentifier("lockScreen_unlockButton")
-
-                if UserDefaults.standard.bool(forKey: "biometricEnabled"),
-                   BiometricAuth.shared.availableType != .none {
-                    Button {
-                        unlockBiometric()
-                    } label: {
-                        HStack(spacing: 8) {
-                            Image(systemName: "faceid")
-                                .font(.title3)
-                            Text(L10n.LockScreen.useFaceID)
-                                .font(.subheadline.weight(.medium))
-                        }
-                        .foregroundStyle(HorcruxTheme.accentPurple)
-                    }
-                    .accessibilityLabel(L10n.LockScreen.useFaceID)
-                    .accessibilityHint(L10n.LockScreen.unlockBiometricHint)
-                    .accessibilityIdentifier("lockScreen_biometricButton")
-                }
+                PinDotsField(
+                    pin: $pin,
+                    length: 6,
+                    autoSubmit: true,
+                    onComplete: unlock,
+                    biometricIcon: bioIconName,
+                    onBiometric: bioIconName == nil ? nil : unlockBiometric,
+                    dotsShakeOffset: shakeOffset
+                )
+                .padding(.vertical, 4)
+                .accessibilityLabel(L10n.Common.pin)
+                .accessibilityHint(L10n.LockScreen.pinHint)
+                .accessibilityIdentifier("lockScreen_pinField")
 
                 Spacer()
             }
             .padding(.horizontal, 32)
+        }
+    }
+
+    /// Face ID / Touch ID icon for the keypad, if enabled and available.
+    private var bioIconName: String? {
+        guard UserDefaults.standard.bool(forKey: "biometricEnabled") else { return nil }
+        switch BiometricAuth.shared.availableType {
+        case .faceID: return "faceid"
+        case .touchID: return "touchid"
+        case .none: return nil
         }
     }
 

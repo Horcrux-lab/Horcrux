@@ -109,40 +109,113 @@ struct PINDotsView: View {
     }
 }
 
-/// Unified PIN input: 6 dots visible, SecureField invisible but functional.
-/// Tapping the dot row focuses the field. Optionally auto-submits at `length`.
-/// Matches iOS-native passcode UX (Coinbase / Rainbow pattern).
+/// Unified PIN dots + numeric keypad. 6 dots fill as the user taps digits,
+/// delete shrinks, auto-submits when full length reached. No system keyboard —
+/// 100% visible and discoverable.
 struct PinDotsField: View {
     @Binding var pin: String
     var length: Int = 6
     var autoSubmit: Bool = true
     var onComplete: () -> Void = {}
-    @FocusState private var focused: Bool
+    var biometricIcon: String? = nil
+    var onBiometric: (() -> Void)? = nil
+    var dotsShakeOffset: CGFloat = 0
 
     var body: some View {
-        ZStack {
-            // Invisible input receiving keyboard
-            SecureField("", text: $pin)
-                .keyboardType(.numberPad)
-                .textContentType(.oneTimeCode)
-                .focused($focused)
-                .frame(width: 1, height: 1)
-                .opacity(0.01)
-                .onChange(of: pin) { _, newValue in
-                    let digits = newValue.filter(\.isNumber)
-                    let clipped = String(digits.prefix(length))
-                    if clipped != newValue { pin = clipped; return }
-                    if autoSubmit && clipped.count == length {
-                        onComplete()
+        VStack(spacing: 28) {
+            PINDotsView(length: length, filled: min(pin.count, length))
+                .offset(x: dotsShakeOffset)
+
+            PinKeypad(
+                pin: $pin,
+                length: length,
+                onComplete: { if autoSubmit { onComplete() } },
+                biometricIcon: biometricIcon,
+                onBiometric: onBiometric
+            )
+        }
+    }
+}
+
+/// Self-contained numeric keypad for PIN entry. Rows 1-3, then 4-6, 7-9,
+/// `bio?` · 0 · ⌫. Tapping a digit appends (up to `length`), `⌫` deletes
+/// one char. Auto-submits via `onComplete` when `length` reached.
+///
+/// Using this avoids the iOS system keyboard (which covers half the screen
+/// and ships its own number row layout) and keeps PIN entry fully visible
+/// and discoverable on the locked screen.
+struct PinKeypad: View {
+    @Binding var pin: String
+    var length: Int = 6
+    var onComplete: () -> Void = {}
+    var biometricIcon: String? = nil
+    var onBiometric: (() -> Void)? = nil
+
+    private let digitRows: [[String]] = [
+        ["1", "2", "3"],
+        ["4", "5", "6"],
+        ["7", "8", "9"]
+    ]
+
+    var body: some View {
+        VStack(spacing: 16) {
+            ForEach(digitRows, id: \.self) { row in
+                HStack(spacing: 24) {
+                    ForEach(row, id: \.self) { digit in
+                        keyButton(label: digit) { append(digit) }
                     }
                 }
-
-            // Visible dots — tappable to focus
-            PINDotsView(length: length, filled: min(pin.count, length))
-                .contentShape(Rectangle())
-                .onTapGesture { focused = true }
+            }
+            HStack(spacing: 24) {
+                if let icon = biometricIcon, let action = onBiometric {
+                    keyButton(icon: icon, accessibility: L10n.LockScreen.useFaceID, action: action)
+                } else {
+                    Color.clear.frame(width: 72, height: 72)
+                }
+                keyButton(label: "0") { append("0") }
+                keyButton(icon: "delete.left", accessibility: "Delete", disabled: pin.isEmpty) {
+                    if !pin.isEmpty {
+                        pin.removeLast()
+                        Haptics.selection()
+                    }
+                }
+            }
         }
-        .onAppear { focused = true }
+    }
+
+    private func append(_ digit: String) {
+        guard pin.count < length else { return }
+        pin.append(digit)
+        Haptics.selection()
+        if pin.count == length {
+            onComplete()
+        }
+    }
+
+    @ViewBuilder
+    private func keyButton(label: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Text(label)
+                .font(.system(size: 30, weight: .regular, design: .rounded))
+                .foregroundStyle(.white)
+                .frame(width: 72, height: 72)
+                .background(Circle().fill(Color.white.opacity(0.08)))
+                .overlay(Circle().stroke(Color.white.opacity(0.12), lineWidth: 1))
+        }
+        .accessibilityLabel(label)
+    }
+
+    @ViewBuilder
+    private func keyButton(icon: String, accessibility: String, disabled: Bool = false, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Image(systemName: icon)
+                .font(.system(size: 24, weight: .medium))
+                .foregroundStyle(disabled ? Color.white.opacity(0.2) : .white)
+                .frame(width: 72, height: 72)
+                .contentShape(Circle())
+        }
+        .disabled(disabled)
+        .accessibilityLabel(accessibility)
     }
 }
 
@@ -370,11 +443,6 @@ struct PinUnlockSheet: View {
                         .multilineTextAlignment(.center)
                 }
 
-                PinDotsField(pin: $pin, length: 6, autoSubmit: true, onComplete: submit)
-                    .offset(x: shakeOffset)
-                    .accessibilityLabel(L10n.Common.pin)
-                    .accessibilityIdentifier("pinUnlockSheet_pinField")
-
                 if let errorMessage {
                     HStack(spacing: 6) {
                         Image(systemName: "exclamationmark.triangle.fill")
@@ -386,11 +454,15 @@ struct PinUnlockSheet: View {
                     .transition(.opacity)
                 }
 
-                Button(L10n.LockScreen.unlock) { submit() }
-                    .buttonStyle(GradientButtonStyle(isEnabled: pin.count >= 6))
-                    .disabled(pin.count < 6)
-                    .padding(.horizontal, 32)
-                    .accessibilityIdentifier("pinUnlockSheet_unlockButton")
+                PinDotsField(
+                    pin: $pin,
+                    length: 6,
+                    autoSubmit: true,
+                    onComplete: submit,
+                    dotsShakeOffset: shakeOffset
+                )
+                .accessibilityLabel(L10n.Common.pin)
+                .accessibilityIdentifier("pinUnlockSheet_pinField")
 
                 Button(L10n.Common.cancel) { dismiss() }
                     .foregroundStyle(HorcruxTheme.subtleText)
