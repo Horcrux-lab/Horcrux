@@ -737,11 +737,17 @@ struct WalletRow: View {
                         .font(.subheadline.bold().monospacedDigit())
                         .foregroundStyle(isZeroBalance ? HorcruxTheme.subtleText : .white)
                         .accessibilityLabel("Balance: \(balance)")
-                    if let fiat = fiatEstimate(from: balance) {
-                        Text(fiat)
-                            .font(.caption2.monospacedDigit())
-                            .foregroundStyle(HorcruxTheme.subtleText)
-                            .opacity(isZeroBalance ? 0.7 : 1.0)
+                    HStack(spacing: 6) {
+                        if let fiat = fiatEstimate(from: balance) {
+                            Text(fiat)
+                                .font(.caption2.monospacedDigit())
+                                .foregroundStyle(HorcruxTheme.subtleText)
+                                .opacity(isZeroBalance ? 0.7 : 1.0)
+                        }
+                        if let change = priceService.change24h(symbol: wallet.chain.symbol) {
+                            PriceChangeBadge(percent: change)
+                                .opacity(isZeroBalance ? 0.6 : 1.0)
+                        }
                     }
                 } else {
                     Text(wallet.chain.symbol)

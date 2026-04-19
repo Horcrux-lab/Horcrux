@@ -31,6 +31,48 @@ struct ProgressRing: View {
     }
 }
 
+/// Compact 24h percent-change pill. Green for gains, red for losses,
+/// neutral gray when change is within ±0.05% (effectively flat).
+/// Uses monospaced digits so columns don't jitter between refreshes.
+struct PriceChangeBadge: View {
+    let percent: Double
+
+    private var color: Color {
+        if percent > 0.05 { return HorcruxTheme.successGreen }
+        if percent < -0.05 { return .red }
+        return HorcruxTheme.subtleText
+    }
+
+    private var arrow: String {
+        if percent > 0.05 { return "arrow.up" }
+        if percent < -0.05 { return "arrow.down" }
+        return "minus"
+    }
+
+    private var text: String {
+        let abs = Swift.abs(percent)
+        let formatted = String(format: "%.2f%%", abs)
+        return formatted
+    }
+
+    var body: some View {
+        HStack(spacing: 2) {
+            Image(systemName: arrow)
+                .font(.system(size: 8, weight: .bold))
+            Text(text)
+                .font(.caption2.bold().monospacedDigit())
+        }
+        .foregroundStyle(color)
+        .padding(.horizontal, 6)
+        .padding(.vertical, 2)
+        .background(
+            Capsule()
+                .fill(color.opacity(0.15))
+        )
+        .accessibilityLabel("24 hour change \(percent >= 0 ? "up" : "down") \(text)")
+    }
+}
+
 /// Badge showing t-of-n threshold.
 struct ShardStatusBadge: View {
     let threshold: UInt16
