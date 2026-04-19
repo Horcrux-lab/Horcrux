@@ -63,20 +63,10 @@ struct WalletHomeView: View {
             .toolbarColorScheme(.dark, for: .navigationBar)
             .toolbar {
                 ToolbarItem(placement: .primaryAction) {
-                    if walletStore.wallets.isEmpty {
-                        Button {
-                            showCreateShard = true
-                        } label: {
-                            Image(systemName: "plus")
-                                .font(.body.weight(.semibold))
-                                .foregroundStyle(HorcruxTheme.accentPurple)
-                                .frame(width: 32, height: 32)
-                                .background(HorcruxTheme.accentPurple.opacity(0.15), in: Circle())
-                        }
-                        .accessibilityLabel(L10n.WalletHome.createNewWallet)
-                        .accessibilityHint(L10n.WalletHome.opensCreationFlow)
-                        .accessibilityIdentifier("walletHome_createButton")
-                    }
+                    // Top-right + is only shown when the user already has
+                    // wallets; in empty state the centered primary CTA is
+                    // the single source of truth (avoids 3x redundant CTAs).
+                    EmptyView()
                 }
             }
             .sheet(isPresented: $showCreateShard) {

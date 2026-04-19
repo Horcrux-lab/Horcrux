@@ -55,6 +55,7 @@ struct ContentView: View {
 }
 
 struct MainTabView: View {
+    @EnvironmentObject private var walletStore: WalletStore
     @State private var selectedTab = 0
 
     var body: some View {
@@ -66,12 +67,17 @@ struct MainTabView: View {
                 }
                 .tag(0)
 
-            ShardsListView()
-                .tabItem {
-                    Image(systemName: selectedTab == 1 ? "shield.lefthalf.filled" : "shield")
-                    Text(L10n.Tab.shards)
-                }
-                .tag(1)
+            // Devices tab is only meaningful once there are wallets — it
+            // lists per-wallet shard devices. Hiding it in the empty state
+            // keeps the user's focus on the single primary action.
+            if !walletStore.wallets.isEmpty {
+                ShardsListView()
+                    .tabItem {
+                        Image(systemName: selectedTab == 1 ? "shield.lefthalf.filled" : "shield")
+                        Text(L10n.Tab.shards)
+                    }
+                    .tag(1)
+            }
 
             SettingsView()
                 .tabItem {

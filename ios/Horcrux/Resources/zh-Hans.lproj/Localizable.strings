@@ -22,7 +22,7 @@
 
 /* Tabs */
 "tab.wallet" = "钱包";
-"tab.shards" = "分片";
+"tab.shards" = "设备";
 "tab.settings" = "设置";
 
 /* Onboarding */
@@ -271,7 +271,7 @@
 "scanner.scanningHint" = "将二维码放入框内进行扫描";
 
 /* Shards */
-"shards.title" = "分片";
+"shards.title" = "设备";
 "shards.noShards" = "暂无分片";
 "shards.noShardsDescription" = "创建钱包以生成您的第一个密钥分片。";
 "shards.importShard" = "导入分片";

@@ -22,7 +22,7 @@
 
 /* Tabs */
 "tab.wallet" = "Wallet";
-"tab.shards" = "Shards";
+"tab.shards" = "Devices";
 "tab.settings" = "Settings";
 
 /* Onboarding */
@@ -271,7 +271,7 @@
 "scanner.scanningHint" = "Position a QR code within this frame to scan";
 
 /* Shards */
-"shards.title" = "Shards";
+"shards.title" = "Devices";
 "shards.noShards" = "No Shards";
 "shards.noShardsDescription" = "Create a wallet to generate your first key shard.";
 "shards.importShard" = "Import Shard";
