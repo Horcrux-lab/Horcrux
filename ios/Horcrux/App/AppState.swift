@@ -520,6 +520,18 @@ enum Chain: String, Codable, CaseIterable, Identifiable {
 
     var id: String { rawValue }
 
+    /// User-facing name used in row labels. Short enough to fit on a
+    /// single line next to a 44pt icon plus a balance column; differs
+    /// from `rawValue` (which is the Codable persistence key) so
+    /// renaming for UX does not invalidate stored wallets/backups.
+    var displayName: String {
+        switch self {
+        case .bnb: return "BNB Chain"
+        case .arbitrum: return "Arbitrum"
+        default: return rawValue
+        }
+    }
+
     /// All EVM-family chains share the same secp256k1 derivation and EIP-55
     /// address format; only chainId, RPC endpoint and explorer differ.
     var isEVM: Bool {

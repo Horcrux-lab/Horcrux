@@ -803,9 +803,11 @@ struct WalletRow: View {
                 .accessibilityHidden(true)
 
             VStack(alignment: .leading, spacing: 4) {
-                Text(wallet.chain.rawValue)
+                Text(wallet.chain.displayName)
                     .font(.headline)
                     .foregroundStyle(isZeroBalance ? HorcruxTheme.subtleText : .white)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.85)
 
                 if !hideAddress {
                     Text(shortAddress(wallet.address))
@@ -813,6 +815,7 @@ struct WalletRow: View {
                         .foregroundStyle(HorcruxTheme.subtleText)
                         .monospaced()
                         .opacity(isZeroBalance ? 0.7 : 1.0)
+                        .lineLimit(1)
                 }
             }
 
@@ -826,6 +829,7 @@ struct WalletRow: View {
                     Text(balance)
                         .font(.subheadline.bold().monospacedDigit())
                         .foregroundStyle(isZeroBalance ? HorcruxTheme.subtleText : .white)
+                        .lineLimit(1)
                         .accessibilityLabel("Balance: \(balance)")
                     HStack(spacing: 6) {
                         if let fiat = fiatEstimate(from: balance) {
@@ -833,10 +837,12 @@ struct WalletRow: View {
                                 .font(.caption2.monospacedDigit())
                                 .foregroundStyle(HorcruxTheme.subtleText)
                                 .opacity(isZeroBalance ? 0.7 : 1.0)
+                                .lineLimit(1)
                         }
                         if let change = priceService.change24h(symbol: wallet.chain.symbol) {
                             PriceChangeBadge(percent: change)
                                 .opacity(isZeroBalance ? 0.6 : 1.0)
+                                .fixedSize()
                         }
                     }
                 } else {
