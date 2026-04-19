@@ -115,19 +115,22 @@ struct OnboardingView: View {
                 valuePropPage(
                     icon: "shield.lefthalf.filled",
                     title: L10n.OnboardingCards.card1Title,
-                    subtitle: L10n.OnboardingCards.card1Subtitle
+                    subtitle: L10n.OnboardingCards.card1Subtitle,
+                    orbitStates: [.active, .active, .active]
                 )
             case .valueProp2:
                 valuePropPage(
                     icon: "iphone.and.arrow.forward",
                     title: L10n.OnboardingCards.card2Title,
-                    subtitle: L10n.OnboardingCards.card2Subtitle
+                    subtitle: L10n.OnboardingCards.card2Subtitle,
+                    orbitStates: [.active, .active, .active, .active]
                 )
             case .valueProp3:
                 valuePropPage(
-                    icon: "arrow.triangle.2.circlepath.circle.fill",
+                    icon: "key.horizontal.fill",
                     title: L10n.OnboardingCards.card3Title,
-                    subtitle: L10n.OnboardingCards.card3Subtitle
+                    subtitle: L10n.OnboardingCards.card3Subtitle,
+                    orbitStates: [.active, .failed, .active]
                 )
             case .createPin:
                 createPinContent
@@ -187,12 +190,44 @@ struct OnboardingView: View {
     }
 
     @ViewBuilder
-    private func valuePropPage(icon: String, title: String, subtitle: String) -> some View {
+    private func valuePropPage(
+        icon: String,
+        title: String,
+        subtitle: String,
+        orbitStates: [ShardOrbit.DotState]
+    ) -> some View {
         VStack(spacing: 32) {
-            Image(systemName: icon)
-                .font(.system(size: 64, weight: .thin))
-                .foregroundStyle(HorcruxTheme.shieldGradient)
-                .shadow(color: HorcruxTheme.accentPurple.opacity(0.4), radius: 10)
+            // MPC mental-model hero: orbiting shard dots around a centered
+            // glyph. Visually prepares the user for the exact same motif
+            // they'll see during their first DKG ceremony and every signing
+            // afterwards — onboarding → first real use shares one language.
+            ZStack {
+                // Soft radial wash so the orbit reads even over dark bg.
+                Circle()
+                    .fill(
+                        RadialGradient(
+                            colors: [HorcruxTheme.accentPurple.opacity(0.22), .clear],
+                            center: .center,
+                            startRadius: 4,
+                            endRadius: 90
+                        )
+                    )
+                    .frame(width: 180, height: 180)
+
+                ShardOrbit(
+                    total: orbitStates.count,
+                    states: orbitStates,
+                    radius: 64,
+                    tint: HorcruxTheme.accentPurple,
+                    dotSize: 14
+                )
+
+                Image(systemName: icon)
+                    .font(.system(size: 44, weight: .regular))
+                    .foregroundStyle(HorcruxTheme.shieldGradient)
+                    .shadow(color: HorcruxTheme.accentPurple.opacity(0.45), radius: 8)
+            }
+            .frame(height: 180)
 
             VStack(spacing: 12) {
                 Text(title)
@@ -219,6 +254,7 @@ struct OnboardingView: View {
                     default: break
                     }
                 }
+                Haptics.selection()
             }
             .buttonStyle(GradientButtonStyle())
         }
