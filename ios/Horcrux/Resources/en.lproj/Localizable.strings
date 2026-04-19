@@ -628,6 +628,8 @@
 "createShard.scanHint" = "Let the other device scan to quickly enter the room code";
 "createShard.roomCodeEphemeralHint" = "This code is only valid for this ceremony.";
 "createShard.roomCodeCopied" = "Copied";
+"createShard.pasteRoomCodeA11y" = "Paste room code";
+"createShard.roomCodeCreatorHint" = "A fresh room code will be shown on the next step when you invite joiners.";
 "createShard.roomCodeInvalid" = "Room code should be 3 words separated by hyphens";
 "createShard.scanRoomTitle" = "Scan room code";
 "createShard.explainerNoMnemonicTitle" = "No seed phrase";

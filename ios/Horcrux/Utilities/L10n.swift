@@ -319,6 +319,8 @@ enum L10n {
         static let scanRoomTitle = NSLocalizedString("createShard.scanRoomTitle", comment: "")
         static let roomCodeEphemeralHint = NSLocalizedString("createShard.roomCodeEphemeralHint", comment: "")
         static let roomCodeCopied = NSLocalizedString("createShard.roomCodeCopied", comment: "")
+        static let pasteRoomCodeA11y = NSLocalizedString("createShard.pasteRoomCodeA11y", comment: "")
+        static let roomCodeCreatorHint = NSLocalizedString("createShard.roomCodeCreatorHint", comment: "")
 
         // MPC explainer sheet
         static let explainerNoMnemonicTitle = NSLocalizedString("createShard.explainerNoMnemonicTitle", comment: "")

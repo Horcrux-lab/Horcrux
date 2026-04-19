@@ -77,7 +77,6 @@ struct ConfigureView: View {
     @State private var showQRScanner = false
     @State private var showNofNConfirm = false
     @State private var acknowledgedNofN = false
-    @State private var copiedFeedback = false
 
     var body: some View {
         Form {
@@ -330,73 +329,54 @@ struct ConfigureView: View {
                     .foregroundStyle(.secondary)
                     .padding(.top, 4)
 
-                HStack {
-                    TextField(L10n.CreateShard.roomCodePlaceholder, text: $viewModel.roomCode)
-                        .font(.system(.body, design: .monospaced))
-                        .autocorrectionDisabled()
-                        .textInputAutocapitalization(.never)
-                        .accessibilityIdentifier("configure_roomCodeField")
-                        .onChange(of: viewModel.roomCode) { _, newValue in
-                            let normalized = RoomCode.normalize(newValue)
-                            if normalized != newValue {
-                                viewModel.roomCode = normalized
-                            }
-                        }
-                    Button {
-                        viewModel.roomCode = RoomCode.generate()
-                        Haptics.selection()
-                    } label: {
-                        Image(systemName: "arrow.triangle.2.circlepath")
-                    }
-                    .buttonStyle(.bordered)
-                    .accessibilityLabel(L10n.CreateShard.regenRoomCodeA11y)
-
-                    Button {
-                        showQRScanner = true
-                    } label: {
-                        Image(systemName: "qrcode.viewfinder")
-                    }
-                    .buttonStyle(.bordered)
-                    .accessibilityLabel(L10n.CreateShard.scanRoomA11y)
-                    .accessibilityIdentifier("configure_scanRoomCodeButton")
-
-                    Button {
-                        SecureClipboard.copy(viewModel.roomCode)
-                        Haptics.success()
-                        withAnimation { copiedFeedback = true }
-                        Task {
-                            try? await Task.sleep(nanoseconds: 1_500_000_000)
-                            await MainActor.run { withAnimation { copiedFeedback = false } }
-                        }
-                    } label: {
-                        Image(systemName: copiedFeedback ? "checkmark" : "doc.on.doc")
-                            .foregroundStyle(copiedFeedback ? HorcruxTheme.successGreen : HorcruxTheme.accentCyan)
-                    }
-                    .buttonStyle(.bordered)
-                    .disabled(viewModel.roomCode.isEmpty)
-                    .accessibilityLabel(L10n.CreateShard.copyRoomCodeA11y)
-                }
-
-                if RoomCode.isValid(viewModel.roomCode) {
-                    HStack {
-                        Spacer()
-                        RoomCodeQRView(code: viewModel.roomCode)
-                            .frame(width: 140, height: 140)
-                        Spacer()
-                    }
-                    .padding(.top, 4)
-                    Text(L10n.CreateShard.scanHint)
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
-                        .frame(maxWidth: .infinity, alignment: .center)
-                    Text(L10n.CreateShard.roomCodeEphemeralHint)
+                if viewModel.role == .create {
+                    Text(L10n.CreateShard.roomCodeCreatorHint)
                         .font(.caption2)
                         .foregroundStyle(.tertiary)
-                        .frame(maxWidth: .infinity, alignment: .center)
-                } else if !viewModel.roomCode.isEmpty {
-                    Text(L10n.CreateShard.roomCodeInvalid)
-                        .font(.caption2)
-                        .foregroundStyle(HorcruxTheme.warningAmber)
+                } else {
+                    HStack {
+                        TextField(L10n.CreateShard.roomCodePlaceholder, text: $viewModel.roomCode)
+                            .font(.system(.body, design: .monospaced))
+                            .autocorrectionDisabled()
+                            .textInputAutocapitalization(.never)
+                            .accessibilityIdentifier("configure_roomCodeField")
+                            .onChange(of: viewModel.roomCode) { _, newValue in
+                                let normalized = RoomCode.normalize(newValue)
+                                if normalized != newValue {
+                                    viewModel.roomCode = normalized
+                                }
+                            }
+                        Button {
+                            showQRScanner = true
+                        } label: {
+                            Image(systemName: "qrcode.viewfinder")
+                        }
+                        .buttonStyle(.bordered)
+                        .accessibilityLabel(L10n.CreateShard.scanRoomA11y)
+                        .accessibilityIdentifier("configure_scanRoomCodeButton")
+
+                        Button {
+                            if let pasted = UIPasteboard.general.string {
+                                let normalized = RoomCode.normalize(pasted)
+                                viewModel.roomCode = normalized
+                                Haptics.success()
+                            } else {
+                                Haptics.warning()
+                            }
+                        } label: {
+                            Image(systemName: "doc.on.clipboard")
+                                .foregroundStyle(HorcruxTheme.accentCyan)
+                        }
+                        .buttonStyle(.bordered)
+                        .accessibilityLabel(L10n.CreateShard.pasteRoomCodeA11y)
+                        .accessibilityIdentifier("configure_pasteRoomCodeButton")
+                    }
+
+                    if !viewModel.roomCode.isEmpty && !RoomCode.isValid(viewModel.roomCode) {
+                        Text(L10n.CreateShard.roomCodeInvalid)
+                            .font(.caption2)
+                            .foregroundStyle(HorcruxTheme.warningAmber)
+                    }
                 }
             }
         }
