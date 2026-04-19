@@ -26,6 +26,14 @@ struct HorcruxApp: App {
             }
         }
 
+        // Register default preferences so keys read via UserDefaults.bool(forKey:)
+        // match the @AppStorage defaults declared in SettingsView before the user
+        // visits Settings. Without this, biometric unlock stays hidden on first
+        // launch because the raw key is never written.
+        UserDefaults.standard.register(defaults: [
+            "biometricEnabled": true
+        ])
+
         // Anti-debug: deny attachment + detect (release builds only)
         AntiDebug.denyDebuggerAttach()
 

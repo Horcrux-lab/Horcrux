@@ -416,6 +416,13 @@ struct LockScreenView: View {
             }
             .padding(.horizontal, 32)
         }
+        .task {
+            // Auto-prompt biometric once per lock screen appearance, like native
+            // wallets / Apple Pay. User can cancel and fall back to the PIN pad.
+            guard !attemptedBiometric else { return }
+            attemptedBiometric = true
+            await tryBiometricUnlock()
+        }
     }
 
     /// Face ID / Touch ID icon for the keypad, if enabled and available.
