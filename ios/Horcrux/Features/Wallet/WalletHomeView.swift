@@ -349,7 +349,7 @@ struct WalletHomeView: View {
                         WalletRow(
                             wallet: wallet,
                             showThresholdBadge: group.wallets.count == 1 && walletGroups.count == 1,
-                            hideAddress: wallet.chain.isEVM && evmAddress != nil
+                            hideAddress: false
                         )
                     }
                     .accessibilityLabel("\(wallet.name), \(wallet.chain.rawValue) wallet")
