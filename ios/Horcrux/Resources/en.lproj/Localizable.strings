@@ -56,7 +56,7 @@
 "lockScreen.biometricUnavailable" = "Biometric unlock isn't available — please enter your PIN.";
 
 /* Wallet Home */
-"walletHome.title" = "Horcrux";
+"walletHome.title" = "Wallets";
 "walletHome.noWalletsTitle" = "No Wallets Yet";
 "walletHome.noWalletsSubtitle" = "Create your first MPC wallet by\nsplitting a key across devices.";
 "walletHome.createWallet" = "Create Wallet";
