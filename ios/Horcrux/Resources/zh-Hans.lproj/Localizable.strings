@@ -78,6 +78,9 @@
 "walletHome.security.backupRow" = "生物识别解锁";
 "walletHome.security.backupOn" = "已启用";
 "walletHome.security.backupOff" = "未设置";
+"walletHome.quick.receive" = "收款";
+"walletHome.quick.send" = "发送";
+"walletHome.quick.history" = "记录";
 "walletHome.networkWarning" = "网络警告：%@ 节点不可达";
 "walletHome.loadingBalance" = "正在加载余额";
 "walletHome.showMoreChains" = "显示其他 %d 条链";

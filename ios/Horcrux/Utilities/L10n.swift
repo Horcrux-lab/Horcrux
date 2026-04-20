@@ -149,6 +149,11 @@ enum L10n {
         static let securityBackupOn = NSLocalizedString("walletHome.security.backupOn", comment: "")
         static let securityBackupOff = NSLocalizedString("walletHome.security.backupOff", comment: "")
 
+        // Quick actions row (P2)
+        static let quickReceive = NSLocalizedString("walletHome.quick.receive", comment: "")
+        static let quickSend = NSLocalizedString("walletHome.quick.send", comment: "")
+        static let quickHistory = NSLocalizedString("walletHome.quick.history", comment: "")
+
         static func networkWarning(_ chains: String) -> String {
             String(format: NSLocalizedString("walletHome.networkWarning", comment: ""), chains)
         }
