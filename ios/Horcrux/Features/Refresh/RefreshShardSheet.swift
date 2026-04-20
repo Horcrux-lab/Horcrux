@@ -9,8 +9,6 @@ struct RefreshShardSheet: View {
     @StateObject private var coord: RefreshShardCoordinator
 
     @State private var showPinPrompt = false
-    @State private var pin = ""
-    @State private var pinError: String?
 
     init(wallet: Wallet, appState: AppState) {
         self.wallet = wallet
@@ -43,17 +41,22 @@ struct RefreshShardSheet: View {
                 }
             }
         }
-        .alert(L10n.Refresh.pinTitle, isPresented: $showPinPrompt) {
-            SecureField(L10n.Common.pin, text: $pin)
-                .keyboardType(.numberPad)
-            Button(L10n.Refresh.unlock) { performUnlockAndStart() }
-            Button(L10n.Common.cancel, role: .cancel) { pin = "" }
-        } message: {
-            if let pinError {
-                Text(pinError)
-            } else {
-                Text(L10n.Refresh.pinMessage)
+        .sheet(isPresented: $showPinPrompt) {
+            PinUnlockSheet(
+                title: L10n.Refresh.pinTitle,
+                subtitle: L10n.Refresh.pinMessage
+            ) { pin in
+                guard appState.verifyPin(pin) else {
+                    return L10n.Refresh.pinIncorrect
+                }
+                guard let swk = appState.cachedShardKey() else {
+                    return L10n.Refresh.pinIncorrect
+                }
+                coord.setShardKey(swk)
+                DispatchQueue.main.async { coord.start() }
+                return nil
             }
+            .presentationDetents([.medium, .large])
         }
     }
 
@@ -157,21 +160,4 @@ struct RefreshShardSheet: View {
         }
     }
 
-    private func performUnlockAndStart() {
-        guard appState.verifyPin(pin) else {
-            pinError = L10n.Refresh.pinIncorrect
-            pin = ""
-            showPinPrompt = true
-            return
-        }
-        guard let swk = appState.cachedShardKey() else {
-            pinError = L10n.Refresh.pinIncorrect
-            pin = ""
-            showPinPrompt = true
-            return
-        }
-        coord.setShardKey(swk)
-        pin = ""
-        coord.start()
-    }
 }

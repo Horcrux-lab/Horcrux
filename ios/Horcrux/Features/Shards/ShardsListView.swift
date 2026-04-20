@@ -303,6 +303,7 @@ struct AccountBackupView: View {
     @State private var isExporting = false
     @State private var showFileExporter = false
     @State private var copiedToClipboard = false
+    @State private var showPinSheet = false
 
     private var backupFilename: String {
         let fmt = DateFormatter()
@@ -358,6 +359,26 @@ struct AccountBackupView: View {
                     viewModel.error = err.localizedDescription
                 }
             }
+            .sheet(isPresented: $showPinSheet) {
+                PinUnlockSheet(
+                    title: L10n.ShardBackup.sheetNavTitle,
+                    subtitle: RecoveryKeyManager.isProvisioned
+                        ? L10n.ShardBackup.pinFooterRkReady
+                        : L10n.ShardBackup.pinFooterExportEncrypts
+                ) { entered in
+                    guard appState.verifyPin(entered) else {
+                        return L10n.ShardsVM.pinWrong
+                    }
+                    pin = entered
+                    DispatchQueue.main.async {
+                        isExporting = true
+                        viewModel.backupAccount(accountId: account.id, pin: entered)
+                        isExporting = false
+                    }
+                    return nil
+                }
+                .presentationDetents([.medium, .large])
+            }
         }
     }
 
@@ -394,25 +415,19 @@ struct AccountBackupView: View {
         //    path didn't populate the shard key) — we need PIN to decrypt
         //    the device-resident shard.
         // 2. RK isn't yet provisioned on this device (rare first-run race).
-        if needsPin || !rkReady {
-            Section {
-                SecureField(L10n.ShardBackup.enterPin, text: $pin)
-                    .keyboardType(.numberPad)
-            } header: {
-                Text(rkReady ? L10n.ShardBackup.pinHeaderUnlockShard : L10n.ShardBackup.pinHeaderBackupPassword)
-            } footer: {
-                Text(rkReady
-                     ? L10n.ShardBackup.pinFooterRkReady
-                     : L10n.ShardBackup.pinFooterExportEncrypts)
-                    .font(.caption)
-            }
-        }
+        // When required, we collect it via PinUnlockSheet (custom keypad)
+        // rather than a system-keyboard SecureField so the UX matches the
+        // lock screen.
 
         Section {
             Button {
-                isExporting = true
-                viewModel.backupAccount(accountId: account.id, pin: pin)
-                isExporting = false
+                if needsPin || !rkReady {
+                    showPinSheet = true
+                } else {
+                    isExporting = true
+                    viewModel.backupAccount(accountId: account.id, pin: "")
+                    isExporting = false
+                }
             } label: {
                 if isExporting {
                     ProgressView().frame(maxWidth: .infinity)
@@ -422,13 +437,7 @@ struct AccountBackupView: View {
                 }
             }
             .buttonStyle(.borderedProminent)
-            .disabled(exportDisabled(rkReady: rkReady))
         }
-    }
-
-    private func exportDisabled(rkReady: Bool) -> Bool {
-        if rkReady && !needsPin { return false }
-        return pin.count < 6
     }
 
     @ViewBuilder
@@ -524,13 +533,9 @@ struct AccountImportView: View {
     @State private var importError: String?
     @State private var isImporting = false
     @State private var importSuccess = false
+    @State private var showPinSheet = false
 
     private var needsPin: Bool { appState.cachedShardKey() == nil }
-
-    private func importDisabled(usesRK: Bool) -> Bool {
-        if usesRK && !needsPin { return false }
-        return pin.count < 6
-    }
 
     var body: some View {
         NavigationStack {
@@ -563,6 +568,20 @@ struct AccountImportView: View {
             ) { handleFileImport($0) }
             .sheet(isPresented: $showQRScanner) {
                 QRScannerSheet { scanned in handleScannedData(scanned) }
+            }
+            .sheet(isPresented: $showPinSheet) {
+                PinUnlockSheet(
+                    title: L10n.ShardBackup.devicePin,
+                    subtitle: L10n.ShardImport.pinEncryptsBackup
+                ) { entered in
+                    guard appState.verifyPin(entered) else {
+                        return L10n.ShardsVM.pinWrong
+                    }
+                    pin = entered
+                    DispatchQueue.main.async { performImport(pin: entered) }
+                    return nil
+                }
+                .presentationDetents([.medium, .large])
             }
         }
     }
@@ -622,20 +641,28 @@ struct AccountImportView: View {
 
         if !usesRK || needsPin {
             Section {
-                SecureField(L10n.ShardImport.enterDevicePin, text: $pin)
-                    .keyboardType(.numberPad)
-                Text(usesRK
-                     ? L10n.ShardImport.pinStillNeededForLocal
-                     : L10n.ShardImport.pinEncryptsBackup)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                Label {
+                    Text(usesRK
+                         ? L10n.ShardImport.pinStillNeededForLocal
+                         : L10n.ShardImport.pinEncryptsBackup)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                } icon: {
+                    Image(systemName: "lock.fill").foregroundStyle(.secondary)
+                }
             } header: {
                 Text(L10n.ShardBackup.devicePin)
             }
         }
 
         Section {
-            Button { performImport() } label: {
+            Button {
+                if !usesRK || needsPin {
+                    showPinSheet = true
+                } else {
+                    performImport(pin: "")
+                }
+            } label: {
                 if isImporting {
                     ProgressView().frame(maxWidth: .infinity)
                 } else {
@@ -643,7 +670,7 @@ struct AccountImportView: View {
                 }
             }
             .buttonStyle(.borderedProminent)
-            .disabled(importDisabled(usesRK: usesRK) || isImporting)
+            .disabled(isImporting)
         }
 
         Section {
@@ -724,7 +751,7 @@ struct AccountImportView: View {
         importError = nil
     }
 
-    private func performImport() {
+    private func performImport(pin: String) {
         guard let data = importData else { return }
         isImporting = true
         importError = nil
@@ -751,9 +778,10 @@ struct DeleteAccountConfirmView: View {
     @State private var ackBackup: Bool = false
     @State private var ackLoss: Bool = false
     @State private var errorMessage: String?
+    @State private var showPinSheet: Bool = false
 
-    private var canDelete: Bool {
-        pin.count >= 4 && ackBackup && ackLoss
+    private var canConfirm: Bool {
+        ackBackup && ackLoss
     }
 
     var body: some View {
@@ -786,13 +814,6 @@ struct DeleteAccountConfirmView: View {
                         .font(.footnote)
                 }
 
-                Section(L10n.Shards.deleteEnterPin) {
-                    SecureField(L10n.Common.pin, text: $pin)
-                        .keyboardType(.numberPad)
-                        .font(.title3.monospacedDigit())
-                        .multilineTextAlignment(.center)
-                }
-
                 if let errorMessage {
                     Section {
                         Label(errorMessage, systemImage: "xmark.octagon.fill")
@@ -803,7 +824,7 @@ struct DeleteAccountConfirmView: View {
 
                 Section {
                     Button(role: .destructive) {
-                        handleDelete()
+                        showPinSheet = true
                     } label: {
                         HStack {
                             Spacer()
@@ -812,7 +833,7 @@ struct DeleteAccountConfirmView: View {
                             Spacer()
                         }
                     }
-                    .disabled(!canDelete)
+                    .disabled(!canConfirm)
                 }
             }
             .navigationTitle(L10n.Shards.deleteTitle)
@@ -822,15 +843,25 @@ struct DeleteAccountConfirmView: View {
                     Button(L10n.Common.cancel) { dismiss() }
                 }
             }
+            .sheet(isPresented: $showPinSheet) {
+                PinUnlockSheet(
+                    title: L10n.Shards.deleteEnterPin,
+                    subtitle: L10n.Shards.deleteIrreversible
+                ) { entered in
+                    guard appState.verifyPin(entered) else {
+                        return L10n.Shards.pinWrongRetry
+                    }
+                    pin = entered
+                    DispatchQueue.main.async { handleDelete() }
+                    return nil
+                }
+                .presentationDetents([.medium, .large])
+            }
         }
     }
 
     private func handleDelete() {
-        guard appState.verifyPin(pin) else {
-            errorMessage = L10n.Shards.pinWrongRetry
-            pin = ""
-            return
-        }
+        // PIN already verified in PinUnlockSheet closure; proceed to delete.
         viewModel.deleteAccount(accountId: account.id)
         dismiss()
         // Defer slightly so the sheet-dismiss animation doesn't fight the

@@ -967,9 +967,7 @@ struct DKGCompleteView: View {
     @EnvironmentObject private var appState: AppState
     @ObservedObject var viewModel: CreateShardViewModel
     let dismiss: DismissAction
-    @State private var pin = ""
     @State private var showPinPrompt = false
-    @State private var pinError: String?
     @State private var showBackupGate = false
     @State private var showSkipBackupWarn = false
     @State private var acknowledgedBackup = false
@@ -1056,31 +1054,24 @@ struct DKGCompleteView: View {
             .accessibilityIdentifier("dkgComplete_saveButton")
         }
         .padding()
-        .alert(L10n.DKG.enterPinEncrypt, isPresented: $showPinPrompt) {
-            SecureField(L10n.Common.pin, text: $pin)
-                .keyboardType(.numberPad)
-            Button(L10n.DKG.encryptSave) {
-                guard appState.verifyPin(pin) else {
-                    pinError = L10n.DKG.incorrectPin
-                    return
+        .sheet(isPresented: $showPinPrompt) {
+            PinUnlockSheet(
+                title: L10n.DKG.enterPinEncrypt,
+                subtitle: L10n.DKG.pinNeededEncrypt
+            ) { entered in
+                guard appState.verifyPin(entered) else {
+                    return L10n.DKG.incorrectPin
                 }
                 do {
-                    try viewModel.saveWallet(to: appState, pin: pin)
-                    pin = ""
-                    // Gate dismissal on backup acknowledgement
-                    showBackupGate = true
+                    try viewModel.saveWallet(to: appState, pin: entered)
+                    DispatchQueue.main.async { showBackupGate = true }
+                    return nil
                 } catch {
-                    pin = ""
-                    saveError = error.localizedDescription
+                    DispatchQueue.main.async { saveError = error.localizedDescription }
+                    return L10n.DKG.incorrectPin
                 }
             }
-            Button(L10n.Common.cancel, role: .cancel) { pin = "" }
-        } message: {
-            if let pinError {
-                Text(pinError)
-            } else {
-                Text(L10n.DKG.pinNeededEncrypt)
-            }
+            .presentationDetents([.medium, .large])
         }
         .sheet(isPresented: $showBackupGate) {
             BackupGateSheet(

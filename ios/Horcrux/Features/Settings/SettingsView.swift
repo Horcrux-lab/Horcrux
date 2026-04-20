@@ -528,58 +528,152 @@ struct TransportSettingsView: View {
 struct ChangePinView: View {
     @EnvironmentObject private var appState: AppState
     @Environment(\.dismiss) private var dismiss
+
+    private enum Step { case current, new, confirm }
+
+    @State private var step: Step = .current
     @State private var currentPin = ""
     @State private var newPin = ""
     @State private var confirmPin = ""
     @State private var errorMessage: String?
+    @State private var shakeOffset: CGFloat = 0
+
+    private var stepTitle: String {
+        switch step {
+        case .current: return L10n.ChangePin.currentPin
+        case .new: return L10n.ChangePin.newPin
+        case .confirm: return L10n.ChangePin.confirmNewPin
+        }
+    }
+
+    private var stepSubtitle: String {
+        switch step {
+        case .current: return L10n.ChangePin.submitHint
+        case .new: return L10n.ChangePin.title
+        case .confirm: return L10n.ChangePin.confirmNewPin
+        }
+    }
+
+    private var activePin: Binding<String> {
+        switch step {
+        case .current: return $currentPin
+        case .new: return $newPin
+        case .confirm: return $confirmPin
+        }
+    }
 
     var body: some View {
         NavigationStack {
-            Form {
-                SecureField(L10n.ChangePin.currentPin, text: $currentPin)
-                    .keyboardType(.numberPad)
-                    .accessibilityLabel(L10n.ChangePin.currentPin)
-                    .accessibilityIdentifier("changePin_currentField")
-                SecureField(L10n.ChangePin.newPin, text: $newPin)
-                    .keyboardType(.numberPad)
-                    .accessibilityLabel(L10n.ChangePin.newPin)
-                    .accessibilityIdentifier("changePin_newField")
+            ZStack {
+                HorcruxTheme.backgroundGradient.ignoresSafeArea()
 
-                if !newPin.isEmpty {
-                    PinStrengthIndicator(pin: newPin)
-                }
+                VStack(spacing: 24) {
+                    Spacer()
 
-                SecureField(L10n.ChangePin.confirmNewPin, text: $confirmPin)
-                    .keyboardType(.numberPad)
-                    .accessibilityLabel(L10n.ChangePin.confirmNewPin)
-                    .accessibilityIdentifier("changePin_confirmField")
+                    AnimatedShieldLogo(size: 48)
 
-                if let errorMessage {
-                    Text(errorMessage)
+                    VStack(spacing: 6) {
+                        Text(stepTitle)
+                            .font(.title2.weight(.bold))
+                            .foregroundStyle(.white)
+                            .multilineTextAlignment(.center)
+                        Text(L10n.ChangePin.title)
+                            .font(.subheadline)
+                            .foregroundStyle(HorcruxTheme.subtleText)
+                    }
+
+                    // Step indicator: three dots so users know where they
+                    // are in the current → new → confirm wizard.
+                    HStack(spacing: 8) {
+                        ForEach(0..<3) { idx in
+                            Circle()
+                                .fill(stepIndex >= idx ? HorcruxTheme.accentPurple : Color.white.opacity(0.15))
+                                .frame(width: 6, height: 6)
+                        }
+                    }
+
+                    if let errorMessage {
+                        HStack(spacing: 6) {
+                            Image(systemName: "exclamationmark.triangle.fill")
+                                .font(.caption2)
+                            Text(errorMessage).font(.caption)
+                        }
                         .foregroundStyle(HorcruxTheme.dangerRed)
-                        .font(.caption)
-                }
+                        .transition(.opacity)
+                    }
 
-                Button(L10n.ChangePin.submit) {
-                    changePin()
+                    if step == .new && !newPin.isEmpty {
+                        PinStrengthIndicator(pin: newPin)
+                            .padding(.horizontal, 32)
+                    }
+
+                    PinDotsField(
+                        pin: activePin,
+                        length: 6,
+                        autoSubmit: true,
+                        onComplete: advance,
+                        dotsShakeOffset: shakeOffset
+                    )
+                    .accessibilityIdentifier("changePin_pinField_\(step)")
+
+                    Spacer()
                 }
-                .disabled(newPin.count < 4 || newPin != confirmPin || currentPin.isEmpty)
-                .accessibilityHint(L10n.ChangePin.submitHint)
-                .accessibilityIdentifier("changePin_submitButton")
+                .padding(.horizontal, 32)
             }
+            .preferredColorScheme(.dark)
             .navigationTitle(L10n.ChangePin.title)
+            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button(L10n.Common.cancel) { dismiss() }
                 }
             }
-            .vaultForm()
         }
     }
 
-    private func changePin() {
+    private var stepIndex: Int {
+        switch step {
+        case .current: return 0
+        case .new: return 1
+        case .confirm: return 2
+        }
+    }
+
+    private func advance() {
+        switch step {
+        case .current:
+            // Pre-verify current PIN before letting user pick a new one,
+            // so we fail fast instead of at the final submit.
+            guard appState.verifyPin(currentPin) else {
+                errorMessage = L10n.ChangePin.incorrectCurrent
+                currentPin = ""
+                Haptics.error()
+                triggerShake()
+                return
+            }
+            errorMessage = nil
+            step = .new
+        case .new:
+            guard newPin.count >= 4 else {
+                errorMessage = L10n.ChangePin.dontMatch
+                newPin = ""
+                Haptics.error()
+                triggerShake()
+                return
+            }
+            errorMessage = nil
+            step = .confirm
+        case .confirm:
+            submit()
+        }
+    }
+
+    private func submit() {
         guard newPin == confirmPin else {
             errorMessage = L10n.ChangePin.dontMatch
+            confirmPin = ""
+            Haptics.error()
+            triggerShake()
             return
         }
         do {
@@ -593,9 +687,25 @@ struct ChangePinView: View {
         } catch AppError.invalidPin {
             errorMessage = L10n.ChangePin.incorrectCurrent
             Haptics.error()
+            currentPin = ""
+            newPin = ""
+            confirmPin = ""
+            step = .current
+            triggerShake()
         } catch {
             errorMessage = L10n.ChangePin.saveFailed
             Haptics.error()
+            triggerShake()
+        }
+    }
+
+    private func triggerShake() {
+        withAnimation(.default) { shakeOffset = -12 }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.08) {
+            withAnimation(.default) { shakeOffset = 12 }
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.16) {
+            withAnimation(.spring(response: 0.2)) { shakeOffset = 0 }
         }
     }
 }
