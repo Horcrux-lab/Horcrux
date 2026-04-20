@@ -11,6 +11,12 @@ struct RefreshShardSheet: View {
     @State private var showPinPrompt = false
     @State private var showLongWaitHint = false
 
+    /// Live timer + pool snapshot for the running-phase remaining label.
+    /// Snapshot at ceremony start so later pool consumption doesn't flip
+    /// the estimate mid-run.
+    @State private var refreshElapsedSeconds: Int = 0
+    @State private var refreshPrimePoolReady: Bool = false
+
     /// Transports to use for bringing the two devices into the same room.
     /// Mirrors the DKG flow: BLE + Wi-Fi LAN work out-of-the-box on the
     /// same network, Relay is the cross-network fallback (requires a
@@ -147,11 +153,29 @@ struct RefreshShardSheet: View {
                     value: Double(coord.roundsCompleted),
                     total: Double(coord.approxTotalRounds)
                 )
-                Text(L10n.Refresh.runningRound(coord.roundsCompleted, coord.approxTotalRounds))
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                HStack {
+                    Text(L10n.Refresh.runningRound(coord.roundsCompleted, coord.approxTotalRounds))
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Spacer()
+                    Text(refreshRemainingLabel)
+                        .font(.caption.monospacedDigit())
+                        .foregroundStyle(.tertiary)
+                }
             }
             .padding(.horizontal)
+            .task(id: String(describing: coord.phase)) {
+                refreshElapsedSeconds = 0
+                refreshPrimePoolReady = DkgEstimate.primePoolReady(
+                    for: Int(wallet.totalParties)
+                )
+                while !Task.isCancelled {
+                    try? await Task.sleep(nanoseconds: 1_000_000_000)
+                    if case .running = coord.phase {
+                        refreshElapsedSeconds += 1
+                    } else { break }
+                }
+            }
         case .persisting:
             statusRow(icon: "lock.rotation", text: L10n.Refresh.persisting, tint: .blue)
         case .complete:
@@ -184,6 +208,20 @@ struct RefreshShardSheet: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding()
         .background(RoundedRectangle(cornerRadius: 12).fill(.ultraThinMaterial))
+    }
+
+    /// Dynamic estimate derived from wallet party count + pool readiness
+    /// snapshot. Counts down in real time; once the estimate is exceeded
+    /// we fall back to the generic "wrapping up" string rather than lying
+    /// with "0s" while CGGMP21 is still finalising.
+    private var refreshRemainingLabel: String {
+        let total = DkgEstimate.refreshSeconds(
+            totalParties: Int(wallet.totalParties),
+            primePoolReady: refreshPrimePoolReady
+        )
+        let remaining = total - refreshElapsedSeconds
+        if remaining > 0 { return "~\(remaining)s" }
+        return L10n.DKG.wrappingUp
     }
 
     /// Transport + room-code picker shown before the ceremony starts.

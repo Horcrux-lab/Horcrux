@@ -799,13 +799,11 @@ struct DKGProgressView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private var estimatedTotal: Int {
-        // secp256k1 DKG (CGGMP21) requires generating a 2048-bit Paillier
-        // safe prime, which is probabilistic. On iOS the GMP assembly is
-        // disabled for cross-compilation reasons (see Cargo.toml patch),
-        // so we fall back to portable C — 5-10× slower than desktop.
-        // Real-world p50 ≈ 60s, p95 ≈ 180s on device; simulator can be
-        // even slower. Ed25519 (FROST) doesn't need Paillier primes at all.
-        viewModel.selectedCurve == .ed25519 ? 15 : 120
+        DkgEstimate.dkgSeconds(
+            curve: viewModel.selectedCurve,
+            totalParties: viewModel.totalParties,
+            primePoolReady: DkgEstimate.primePoolReady(for: viewModel.totalParties)
+        )
     }
 
     /// Show a slow-path disclosure after we've exceeded the estimate.
