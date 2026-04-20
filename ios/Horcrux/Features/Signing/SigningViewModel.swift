@@ -170,6 +170,11 @@ final class SigningViewModel: ObservableObject {
     @Published var estimatedGas: String = "—"
     @Published var estimatedFee: String = "—"
     @Published var isEstimatingGas = false
+    /// Human-readable reason the current compose state can't be sent.
+    /// Surfaced in `SigningView` under the amount field so the user
+    /// sees "insufficient balance" *before* trying to sign, instead of
+    /// losing the MPC race to a post-signing broadcast rejection.
+    @Published var composeBlocker: String? = nil
 
     // Broadcast
     @Published var broadcastStatus: String?
@@ -186,6 +191,20 @@ final class SigningViewModel: ObservableObject {
     /// post-signing step can splice in (y_parity, r, s) and broadcast.
     private var pendingEvmRawData: Data?
     private var pendingEvmGas: BlockchainService.EvmGasEstimate?
+
+    /// Authoritative tx params shared by every participant.
+    ///
+    /// - On the **initiator** side this is populated by
+    ///   `preresolveTxParams()` right before broadcasting `SignBeginDTO`;
+    ///   `computeMessageHash` then reads from it instead of re-querying
+    ///   the RPC.
+    /// - On the **cosigner** side it's populated by the `SignBeginDTO`
+    ///   handler in `awaitInitiatorStart` before `startSigning()` runs.
+    ///
+    /// Both sides reading from the **same** DTO guarantees identical
+    /// nonce/gas/tx bytes → identical sighash → MPC signature that
+    /// actually verifies on-chain.
+    private var authoritativeTx: AuthoritativeTxParams?
 
     /// For real Solana signing: holds the serialized transfer message
     /// (which is identical to the sign payload) so we can prepend the
@@ -363,6 +382,7 @@ final class SigningViewModel: ObservableObject {
                         estimatedFee = "≈ \(feeDisplay.estimatedFee)"
                         isEstimatingGas = false
                         self.pendingEvmGas = estimate
+                        self.composeBlocker = nil
                         SecureLog.info("[estimateGas] EVM ok gasLimit=\(estimate.gasLimit) fee=\(feeDisplay.estimatedFee)")
                     }
                 } else {
@@ -446,6 +466,15 @@ final class SigningViewModel: ObservableObject {
                 await MainActor.run {
                     estimatedFee = L10n.Signing.unableToEstimate
                     isEstimatingGas = false
+                    // Classify the most common failure. The exact RPC
+                    // error surface varies by provider; match on
+                    // substrings rather than types for resilience.
+                    let lower = error.localizedDescription.lowercased()
+                    if lower.contains("insufficient funds") || lower.contains("insufficient balance") {
+                        self.composeBlocker = L10n.Signing.insufficientBalance
+                    } else {
+                        self.composeBlocker = L10n.Signing.cannotEstimateFee
+                    }
                     SecureLog.error("[estimateGas] failed: \(error.localizedDescription)")
                 }
             }
@@ -492,7 +521,14 @@ final class SigningViewModel: ObservableObject {
                 if let begin = try? JSONDecoder().decode(SignBeginDTO.self, from: data),
                    begin.magic == SignBeginDTO.magic,
                    await MainActor.run(body: { begin.sessionId == (self.sessionId ?? self.roomCode) }) {
-                    await MainActor.run { self.startSigning() }
+                    await MainActor.run {
+                        // Stash the authoritative tx params shipped by
+                        // the initiator so our buildSignHash uses the
+                        // exact same nonce/gas/calldata — essential for
+                        // the MPC sighash to match.
+                        self.authoritativeTx = begin.tx
+                        self.startSigning()
+                    }
                     return
                 }
             }
@@ -683,6 +719,16 @@ final class SigningViewModel: ObservableObject {
                 var shardData = try loadKeyShare(deviceKey: deviceKey, swk: swk)
                 defer { shardData.resetBytes(in: 0..<shardData.count) }
 
+                // Pre-resolve authoritative tx parameters exactly once.
+                // The initiator fetches nonce + gas here, stashes them,
+                // and hands them to every cosigner via `SignBeginDTO`.
+                // From this point `computeMessageHash` reads from the
+                // authoritative struct, so no participant ever makes an
+                // independent RPC call and no two participants can drift.
+                if !isCosigner {
+                    try await preresolveTxParams()
+                }
+
                 // Build the transaction hash to sign
                 let messageHash = try await buildSignHash()
 
@@ -692,13 +738,16 @@ final class SigningViewModel: ObservableObject {
                 signingStatusMessage = L10n.Signing.initializingProtocol
                 currentRound = 1
 
-                // Initiator-only handshake: broadcast a `SignBeginDTO` so
-                // every waiting cosigner calls `bridge.startSigning` at
-                // essentially the same moment. The short sleep gives
-                // cosigners time to receive the DTO, subscribe to the MPC
-                // stream and be ready to catch our round-1 output.
+                // Initiator-only handshake: broadcast a `SignBeginDTO`
+                // carrying the authoritative tx params so every waiting
+                // cosigner (a) applies identical nonce/gas and (b) calls
+                // `bridge.startSigning` at essentially the same moment.
+                // The short sleep gives cosigners time to receive the
+                // DTO, subscribe to the MPC stream and be ready to
+                // catch our round-1 output.
                 if !isCosigner, let sid = sessionId,
-                   let payload = try? JSONEncoder().encode(SignBeginDTO(sessionId: sid)) {
+                   let payload = try? JSONEncoder().encode(
+                        SignBeginDTO(sessionId: sid, tx: authoritativeTx)) {
                     try? await peerManager.broadcastMpcMessage(payload)
                     try? await Task.sleep(nanoseconds: 400_000_000)
                 }
@@ -931,6 +980,68 @@ final class SigningViewModel: ObservableObject {
         )
     }
 
+    /// Resolve nonce + gas + value + calldata **once**, stash into
+    /// `authoritativeTx`. Called by the initiator immediately before
+    /// broadcasting `SignBeginDTO`; cosigners skip this and take the
+    /// wire value verbatim.
+    private func preresolveTxParams() async throws {
+        guard wallet.chain.isEVM else {
+            // Non-EVM chains don't share fee/nonce semantics across
+            // participants in the same way; leave authoritativeTx nil.
+            return
+        }
+        guard let networkConfig else { return }
+
+        let (txTo, txValueWei, txData): (String, String, Data) = {
+            if let token = self.selectedToken {
+                let raw = Self.amountToRawUnits(amount, decimals: Int(token.decimals))
+                let data = Self.erc20TransferCalldata(to: recipientAddress, amountRaw: raw)
+                return (token.id, "0", data)
+            }
+            return (recipientAddress, ethToWei(amount), Data())
+        }()
+
+        let chainId: UInt64 = {
+            if wallet.chain == .ethereum { return networkConfig.evmChainId }
+            return wallet.chain.defaultEVMNetwork?.rawValue ?? networkConfig.evmChainId
+        }()
+        let rpc = networkConfig.rpcURL(for: wallet.chain)
+
+        let rpcNonce: UInt64 = (try? await blockchainService?.ethNonce(
+            address: wallet.address, rpcURL: rpc)) ?? 0
+        let nonce = PendingNonceTracker.shared.nextNonce(
+            chainId: chainId, address: wallet.address, rpcNonce: rpcNonce
+        )
+        PendingNonceTracker.shared.record(
+            chainId: chainId, address: wallet.address, nonce: nonce
+        )
+
+        let gas = self.pendingEvmGas
+        let gasLimit: UInt64 = gas?.gasLimit ?? UInt64(estimatedGas) ?? 21000
+        let tier = self.feeTier
+        let maxFee: String
+        let maxPriority: String
+        if tier == .custom, let gwei = Double(self.customGasPriceGwei), gwei > 0 {
+            let weiStr = String(UInt64(gwei * 1e9))
+            maxFee = weiStr
+            maxPriority = weiStr
+        } else {
+            maxFee = Self.scaleDecimalWei(gas?.maxFeePerGas ?? "0", by: tier.multiplier)
+            maxPriority = Self.scaleDecimalWei(gas?.maxPriorityFeePerGas ?? "0", by: tier.multiplier)
+        }
+
+        self.authoritativeTx = AuthoritativeTxParams(
+            chainId: chainId,
+            nonce: nonce,
+            gasLimit: gasLimit,
+            maxFeePerGasWei: maxFee,
+            maxPriorityFeePerGasWei: maxPriority,
+            to: txTo,
+            valueWei: txValueWei,
+            dataHex: txData.map { String(format: "%02x", $0) }.joined()
+        )
+    }
+
     private func buildSignHash() async throws -> Data {
         guard let networkConfig else {
             // Fallback: hash a placeholder
@@ -938,51 +1049,69 @@ final class SigningViewModel: ObservableObject {
         }
 
         if wallet.chain.isEVM {
-            // Build real EIP-1559 sign hash via Rust FFI. Use the gas
-            // estimate cached during fee preview; re-fetch nonce right
-            // before signing to avoid races.
+            // Build real EIP-1559 sign hash via Rust FFI.
+            //
+            // IMPORTANT: Every participant MUST hash the byte-identical
+            // transaction envelope for the MPC signature to be valid.
+            // If `authoritativeTx` is already populated — either we are
+            // the initiator after `preresolveTxParams()` or we are a
+            // cosigner whose `SignBeginDTO` listener stashed the wire
+            // values — use those verbatim. Falling back to local RPC
+            // here would let nonce or gas drift between sides.
+            let auth = self.authoritativeTx
             let (txTo, txValueWei, txData): (String, String, Data) = {
+                if let a = auth {
+                    let bytes = Self.hexToData(a.dataHex) ?? Data()
+                    return (a.to, a.valueWei, bytes)
+                }
                 if let token = self.selectedToken {
                     let raw = Self.amountToRawUnits(amount, decimals: Int(token.decimals))
                     let data = Self.erc20TransferCalldata(to: recipientAddress, amountRaw: raw)
                     return (token.id, "0", data)
-                } else {
-                    return (recipientAddress, ethToWei(amount), Data())
                 }
+                return (recipientAddress, ethToWei(amount), Data())
             }()
-            let chainId: UInt64 = {
+            let chainId: UInt64 = auth?.chainId ?? {
                 if wallet.chain == .ethereum { return networkConfig.evmChainId }
                 return wallet.chain.defaultEVMNetwork?.rawValue ?? networkConfig.evmChainId
             }()
             let rpc = networkConfig.rpcURL(for: wallet.chain)
 
-            // Fresh nonce right before we sign, bumped past any locally-known pending.
-            let rpcNonce: UInt64 = (try? await blockchainService?.ethNonce(
-                address: wallet.address, rpcURL: rpc)) ?? 0
-            let nonce = PendingNonceTracker.shared.nextNonce(
-                chainId: chainId, address: wallet.address, rpcNonce: rpcNonce
-            )
-            PendingNonceTracker.shared.record(
-                chainId: chainId, address: wallet.address, nonce: nonce
-            )
+            let nonce: UInt64
+            if let n = auth?.nonce {
+                nonce = n
+            } else {
+                // Legacy path (no DTO yet, or non-EVM initiator we
+                // haven't refactored): re-query nonce here.
+                let rpcNonce: UInt64 = (try? await blockchainService?.ethNonce(
+                    address: wallet.address, rpcURL: rpc)) ?? 0
+                nonce = PendingNonceTracker.shared.nextNonce(
+                    chainId: chainId, address: wallet.address, rpcNonce: rpcNonce
+                )
+                PendingNonceTracker.shared.record(
+                    chainId: chainId, address: wallet.address, nonce: nonce
+                )
+            }
 
-            // Reuse cached gas estimate if present, otherwise fall back to
-            // minimal sensible defaults so signing doesn't crash.
-            let gas = self.pendingEvmGas
-            let gasLimit: UInt64 = gas?.gasLimit ?? UInt64(estimatedGas) ?? 21000
-            let tier = self.feeTier
-            // For `.custom`, a non-empty gwei input overrides both maxFee and
-            // tip (we use the same value for simplicity — user signalled a
-            // flat price). Otherwise scale the network-suggested values.
+            let gasLimit: UInt64
             let maxFee: String
             let maxPriority: String
-            if tier == .custom, let gwei = Double(self.customGasPriceGwei), gwei > 0 {
-                let weiStr = String(UInt64(gwei * 1e9))
-                maxFee = weiStr
-                maxPriority = weiStr
+            if let a = auth {
+                gasLimit = a.gasLimit ?? 21000
+                maxFee = a.maxFeePerGasWei
+                maxPriority = a.maxPriorityFeePerGasWei
             } else {
-                maxFee = Self.scaleDecimalWei(gas?.maxFeePerGas ?? "0", by: tier.multiplier)
-                maxPriority = Self.scaleDecimalWei(gas?.maxPriorityFeePerGas ?? "0", by: tier.multiplier)
+                let gas = self.pendingEvmGas
+                gasLimit = gas?.gasLimit ?? UInt64(estimatedGas) ?? 21000
+                let tier = self.feeTier
+                if tier == .custom, let gwei = Double(self.customGasPriceGwei), gwei > 0 {
+                    let weiStr = String(UInt64(gwei * 1e9))
+                    maxFee = weiStr
+                    maxPriority = weiStr
+                } else {
+                    maxFee = Self.scaleDecimalWei(gas?.maxFeePerGas ?? "0", by: tier.multiplier)
+                    maxPriority = Self.scaleDecimalWei(gas?.maxPriorityFeePerGas ?? "0", by: tier.multiplier)
+                }
             }
 
             let params = FfiEvmTxParams(

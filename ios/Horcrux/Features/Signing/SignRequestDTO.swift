@@ -42,6 +42,14 @@ struct SignPresenceDTO: Codable {
 /// participant has already subscribed to the MPC message stream before
 /// any FROST/CGGMP21 protocol bytes are sent — otherwise the first
 /// messages would be dropped by peers who haven't subscribed yet.
+///
+/// **Also carries the authoritative transaction parameters.** The
+/// initiator resolves nonce / gas / fees exactly once; every cosigner
+/// uses these verbatim instead of re-querying their own RPC. Without
+/// this the two sides could diverge on nonce or gas and end up hashing
+/// different transactions → the MPC protocol runs to completion but
+/// produces an unusable signature (or hangs when the bridge detects
+/// inconsistent inputs).
 struct SignBeginDTO: Codable {
     static let magic = "HSG-v1"
     let magic: String
@@ -50,10 +58,41 @@ struct SignBeginDTO: Codable {
     /// different concurrent ceremony from starting this one.
     let sessionId: String
 
-    init(sessionId: String) {
+    /// Authoritative tx params. Optional for backwards compat with
+    /// older peers (pre-dev.88); when nil, cosigner falls back to the
+    /// legacy "recompute locally" path.
+    let tx: AuthoritativeTxParams?
+
+    init(sessionId: String, tx: AuthoritativeTxParams? = nil) {
         self.magic = Self.magic
         self.sessionId = sessionId
+        self.tx = tx
     }
+}
+
+/// Fully-resolved transaction inputs. Initiator fills these right
+/// before `bridge.startSigning`; cosigners apply them verbatim before
+/// their own `buildSignHash` runs.
+///
+/// All gas/value fields are **decimal strings in wei / base units**,
+/// never scientific notation, never pre-scaled — the wire is the
+/// canonical representation so a re-parse on the other side can't
+/// round-trip differently.
+struct AuthoritativeTxParams: Codable {
+    /// EVM chainId. Ignored for non-EVM chains (bitcoin, solana, etc.).
+    let chainId: UInt64?
+    let nonce: UInt64?
+    let gasLimit: UInt64?
+    /// Decimal-string wei. Empty string = "leave defaults" (non-EVM).
+    let maxFeePerGasWei: String
+    let maxPriorityFeePerGasWei: String
+    /// Canonical recipient / amount pair. `to` is either the native
+    /// destination (for coin transfer) or the token contract (for
+    /// ERC-20 transfers — the actual recipient lives in `dataHex`).
+    let to: String
+    let valueWei: String
+    /// Hex-encoded calldata (no `0x` prefix). Empty for native coin tx.
+    let dataHex: String
 }
 
 struct SignRequestDTO: Codable {

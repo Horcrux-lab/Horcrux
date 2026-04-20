@@ -258,6 +258,8 @@
 "signing.estFee" = "Est. Fee";
 "signing.fee" = "Fee";
 "signing.unableToEstimate" = "Unable to estimate";
+"signing.insufficientBalance" = "Insufficient balance for this transaction";
+"signing.cannotEstimateFee" = "Cannot estimate fee — check network or recipient";
 "signing.nextInviteCoSigners" = "Next: Invite Co-Signers";
 "signing.inviteHint" = "Proceed to invite co-signers for this transaction";
 

@@ -258,6 +258,8 @@
 "signing.estFee" = "预估手续费";
 "signing.fee" = "手续费";
 "signing.unableToEstimate" = "无法估算";
+"signing.insufficientBalance" = "余额不足，无法支付此笔交易";
+"signing.cannotEstimateFee" = "无法估算手续费，请检查网络或收款地址";
 "signing.nextInviteCoSigners" = "下一步：邀请共签方";
 "signing.inviteHint" = "继续邀请共签方参与此交易";
 

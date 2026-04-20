@@ -293,6 +293,17 @@ struct ComposeTransactionView: View {
                     } else {
                         LabeledContent(L10n.Signing.estFee, value: viewModel.estimatedFee)
                     }
+                    if let blocker = viewModel.composeBlocker {
+                        HStack(alignment: .top, spacing: 8) {
+                            Image(systemName: "exclamationmark.triangle.fill")
+                                .foregroundStyle(HorcruxTheme.warningAmber)
+                            Text(blocker)
+                                .font(.caption)
+                                .foregroundStyle(HorcruxTheme.warningAmber)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                        .padding(.vertical, 4)
+                    }
                 }
                 .darkListRow()
             }
@@ -306,10 +317,10 @@ struct ComposeTransactionView: View {
                         .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(GradientButtonStyle(
-                    isEnabled: !(viewModel.recipientAddress.isEmpty || viewModel.amount.isEmpty || addressError != nil),
+                    isEnabled: !(viewModel.recipientAddress.isEmpty || viewModel.amount.isEmpty || addressError != nil || viewModel.composeBlocker != nil),
                     tint: viewModel.wallet.chain.color
                 ))
-                .disabled(viewModel.recipientAddress.isEmpty || viewModel.amount.isEmpty || addressError != nil)
+                .disabled(viewModel.recipientAddress.isEmpty || viewModel.amount.isEmpty || addressError != nil || viewModel.composeBlocker != nil)
                 .accessibilityHint(L10n.Signing.inviteHint)
                 .accessibilityIdentifier("compose_nextButton")
             }

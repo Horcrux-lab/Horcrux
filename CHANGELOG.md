@@ -5,6 +5,21 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.0-dev.88] - 2026-04-20
+
+### Fixed
+
+- **iOS**: **共签双方 nonce/gas 各算一份，可能导致 sighash 不一致**——即便 MPC 协议跑完，产出的签名对不上 chain，交易直接被拒；若两端参数差异过大 bridge 还可能卡住（疑似 R1 0 responses 的潜在成因）。
+  修法：扩展 `SignBeginDTO` 携带一组 `AuthoritativeTxParams`（chainId / nonce / gasLimit / maxFeePerGas / maxPriorityFeePerGas / to / valueWei / dataHex）。初始方在 `bridge.startSigning` 前调用新的 `preresolveTxParams()` 一次性从 RPC 取值 + 记录到 `PendingNonceTracker`，写入 `authoritativeTx` 字段并广播；共签方的 begin-listener 落地为自己的 `authoritativeTx`，`computeMessageHash` EVM 分支优先读共享值，保证两端 hash 同源。向后兼容：cosigner 若收到旧版无 `tx` 字段的 Begin，仍走本地重算路径。
+
+### Added
+
+- **iOS**: **compose 阶段 gas/余额预检**。RPC estimateGas 失败时按错误关键字分类：含 `insufficient funds/balance` → "余额不足，无法支付此笔交易"；其他 → "无法估算手续费"。文案显示在金额块下方警告行，并 disable "下一步" 按钮，避免用户走完 MPC 才知道签名没用。新增 `composeBlocker` published 字段、`signing.insufficientBalance` / `signing.cannotEstimateFee` 本地化。
+
+### Deferred
+
+- **P0-2 initiator-side 附近设备主动邀请**：需要新增 LAN 级邀请协议 + cosigner 端自动弹 JoinSigningView 的路径（类似 `horcrux://join` deep link），属独立 feature，留待 dev.89+。
+
 ## [0.3.0-dev.87] - 2026-04-20
 
 ### Fixed
