@@ -477,6 +477,19 @@
 "nodeSettings.useAlchemyFor" = "为 %@ 使用 Alchemy";
 "nodeSettings.etherscanKeySection" = "Etherscan API 密钥";
 "nodeSettings.etherscanKeyLabel" = "Etherscan V2 多链密钥（可选，存入 Keychain）。用于跨链同步 EVM 交易历史。";
+"nodeSettings.etherscanKeyHelp" = "未填写时，交易历史会走公共限流接口，可能较慢或偶尔缺失。https://etherscan.io/myapikey 免费申请。";
+"nodeSettings.readOnlyTag" = "仅只读";
+"nodeSettings.readOnlyNote" = "当前版本此链不支持签名，仅用于余额查询。";
+"nodeSettings.importExportSection" = "导入 / 导出配置";
+"nodeSettings.exportConfig" = "导出为 JSON";
+"nodeSettings.importConfig" = "从 JSON 导入";
+"nodeSettings.importPasteTitle" = "粘贴 JSON 配置";
+"nodeSettings.importPastePlaceholder" = "将导出的 JSON 粘贴到此处…";
+"nodeSettings.importPreviewTitle" = "确认覆盖以下字段？";
+"nodeSettings.importApply" = "应用";
+"nodeSettings.importParseFailed" = "JSON 解析失败，请检查格式。";
+"nodeSettings.importNoChanges" = "与当前配置一致，无需导入。";
+"nodeSettings.exportNote" = "导出内容仅包含 URL 与网络选择，不包含 API 密钥。";
 
 /* Node Status */
 "nodeStatus.notChecked" = "未检查";

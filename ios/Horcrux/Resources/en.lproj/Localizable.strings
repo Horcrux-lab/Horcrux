@@ -477,6 +477,19 @@
 "nodeSettings.useAlchemyFor" = "Use Alchemy for %@";
 "nodeSettings.etherscanKeySection" = "Etherscan API key";
 "nodeSettings.etherscanKeyLabel" = "Etherscan V2 multichain key (optional, stored in Keychain). Used for EVM transaction history sync on all chains.";
+"nodeSettings.etherscanKeyHelp" = "Without a key, history uses a rate-limited public endpoint and may be slow or incomplete. Get a free key at https://etherscan.io/myapikey.";
+"nodeSettings.readOnlyTag" = "Read-only";
+"nodeSettings.readOnlyNote" = "Signing is not supported for this chain in the current build — balances only.";
+"nodeSettings.importExportSection" = "Import / Export";
+"nodeSettings.exportConfig" = "Export as JSON";
+"nodeSettings.importConfig" = "Import from JSON";
+"nodeSettings.importPasteTitle" = "Paste JSON config";
+"nodeSettings.importPastePlaceholder" = "Paste exported JSON here…";
+"nodeSettings.importPreviewTitle" = "Overwrite the following fields?";
+"nodeSettings.importApply" = "Apply";
+"nodeSettings.importParseFailed" = "Could not parse JSON. Check the format.";
+"nodeSettings.importNoChanges" = "Already matches current settings. Nothing to import.";
+"nodeSettings.exportNote" = "Export includes URLs and network selectors only — API keys are never exported.";
 
 /* Node Status */
 "nodeStatus.notChecked" = "Not checked";

@@ -858,6 +858,12 @@ struct BlockchainNodeSettingsView: View {
     @ObservedObject private var config = NetworkConfig.shared
     @ObservedObject private var health = NodeHealthStore.shared
     @State private var showResetConfirm = false
+    @State private var showImportSheet = false
+    @State private var showExportSheet = false
+    @State private var importPasteText: String = ""
+    @State private var importPreview: RPCConfigSnapshot? = nil
+    @State private var importError: String? = nil
+    @State private var exportJSON: String = ""
 
     var body: some View {
         Form {
@@ -950,6 +956,20 @@ struct BlockchainNodeSettingsView: View {
                     }
                 }
 
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(L10n.NodeSettings.etherscanKeyLabel)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    SecureField(L10n.NodeSettings.pasteKeyPlaceholder, text: $config.etherscanAPIKey)
+                        .font(.system(.body, design: .monospaced))
+                        .autocorrectionDisabled()
+                        .textInputAutocapitalization(.never)
+                        .accessibilityIdentifier("nodeSettings_etherscanKey")
+                    Text(L10n.NodeSettings.etherscanKeyHelp)
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
+
                 NodeStatusRow(chain: .ethereum)
             }
 
@@ -974,7 +994,7 @@ struct BlockchainNodeSettingsView: View {
                 NodeStatusRow(chain: .bitcoin)
             }
 
-            Section(L10n.NodeSettings.litecoinSection) {
+            Section {
                 VStack(alignment: .leading, spacing: 4) {
                     Text(L10n.NodeSettings.restAPIURL)
                         .font(.caption)
@@ -993,6 +1013,10 @@ struct BlockchainNodeSettingsView: View {
                 }
 
                 NodeStatusRow(chain: .litecoin)
+            } header: {
+                ReadOnlySectionHeader(title: L10n.NodeSettings.litecoinSection)
+            } footer: {
+                Text(L10n.NodeSettings.readOnlyNote)
             }
 
             Section(L10n.NodeSettings.solana) {
@@ -1033,7 +1057,7 @@ struct BlockchainNodeSettingsView: View {
                 NodeStatusRow(chain: .solana)
             }
 
-            Section(L10n.NodeSettings.tronSection) {
+            Section {
                 VStack(alignment: .leading, spacing: 4) {
                     Text(L10n.NodeSettings.restAPIURL)
                         .font(.caption)
@@ -1052,19 +1076,30 @@ struct BlockchainNodeSettingsView: View {
                 }
 
                 NodeStatusRow(chain: .tron)
+            } header: {
+                ReadOnlySectionHeader(title: L10n.NodeSettings.tronSection)
+            } footer: {
+                Text(L10n.NodeSettings.readOnlyNote)
             }
 
-            Section(L10n.NodeSettings.etherscanKeySection) {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(L10n.NodeSettings.etherscanKeyLabel)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                    SecureField(L10n.NodeSettings.pasteKeyPlaceholder, text: $config.etherscanAPIKey)
-                        .font(.system(.body, design: .monospaced))
-                        .autocorrectionDisabled()
-                        .textInputAutocapitalization(.never)
-                        .accessibilityIdentifier("nodeSettings_etherscanKey")
+            Section(L10n.NodeSettings.importExportSection) {
+                Button {
+                    exportJSON = RPCConfigSnapshot(from: config).jsonString() ?? ""
+                    showExportSheet = true
+                } label: {
+                    Label(L10n.NodeSettings.exportConfig, systemImage: "square.and.arrow.up")
                 }
+                Button {
+                    importPasteText = ""
+                    importPreview = nil
+                    importError = nil
+                    showImportSheet = true
+                } label: {
+                    Label(L10n.NodeSettings.importConfig, systemImage: "square.and.arrow.down")
+                }
+                Text(L10n.NodeSettings.exportNote)
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
             }
 
             Section {
@@ -1090,6 +1125,20 @@ struct BlockchainNodeSettingsView: View {
             Button(L10n.Common.cancel, role: .cancel) {}
         } message: {
             Text(L10n.NodeSettings.resetMessage)
+        }
+        .sheet(isPresented: $showExportSheet) {
+            RPCConfigExportSheet(json: exportJSON)
+        }
+        .sheet(isPresented: $showImportSheet) {
+            RPCConfigImportSheet(
+                pasteText: $importPasteText,
+                preview: $importPreview,
+                error: $importError,
+                onApply: { snapshot in
+                    snapshot.apply(to: config)
+                    showImportSheet = false
+                }
+            )
         }
     }
 
@@ -1564,6 +1613,233 @@ struct ReplaceDeviceInfoView: View {
                 Text(title).font(.subheadline.weight(.semibold))
                 Text(body).font(.caption).foregroundStyle(.secondary)
             }
+        }
+    }
+}
+
+// MARK: - Read-only chain section header
+
+private struct ReadOnlySectionHeader: View {
+    let title: String
+    var body: some View {
+        HStack(spacing: 6) {
+            Text(title)
+            Text(L10n.NodeSettings.readOnlyTag)
+                .font(.caption2.weight(.semibold))
+                .padding(.horizontal, 6)
+                .padding(.vertical, 2)
+                .background(
+                    Capsule().fill(Color.secondary.opacity(0.18))
+                )
+                .foregroundStyle(.secondary)
+        }
+    }
+}
+
+// MARK: - RPC config import/export
+
+/// A JSON-serializable snapshot of the user-editable RPC settings.
+/// Intentionally omits API keys so exports are safe to share for debugging.
+struct RPCConfigSnapshot: Codable, Equatable {
+    var ethereumRPC: String
+    var bitcoinAPI: String
+    var litecoinAPI: String
+    var solanaRPC: String
+    var tronAPI: String
+    var evmChainId: UInt64
+    var btcTestnet: Bool
+    var solDevnet: Bool
+
+    init(from config: NetworkConfig) {
+        self.ethereumRPC = config.ethereumRPC
+        self.bitcoinAPI = config.bitcoinAPI
+        self.litecoinAPI = config.litecoinAPI
+        self.solanaRPC = config.solanaRPC
+        self.tronAPI = config.tronAPI
+        self.evmChainId = config.evmChainId
+        self.btcTestnet = config.btcTestnet
+        self.solDevnet = config.solDevnet
+    }
+
+    func jsonString() -> String? {
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+        guard let data = try? encoder.encode(self) else { return nil }
+        return String(data: data, encoding: .utf8)
+    }
+
+    static func decode(_ text: String) -> RPCConfigSnapshot? {
+        guard let data = text.data(using: .utf8) else { return nil }
+        return try? JSONDecoder().decode(RPCConfigSnapshot.self, from: data)
+    }
+
+    func apply(to config: NetworkConfig) {
+        if config.ethereumRPC != ethereumRPC { config.ethereumRPC = ethereumRPC }
+        if config.bitcoinAPI != bitcoinAPI { config.bitcoinAPI = bitcoinAPI }
+        if config.litecoinAPI != litecoinAPI { config.litecoinAPI = litecoinAPI }
+        if config.solanaRPC != solanaRPC { config.solanaRPC = solanaRPC }
+        if config.tronAPI != tronAPI { config.tronAPI = tronAPI }
+        if config.evmChainId != evmChainId { config.evmChainId = evmChainId }
+        if config.btcTestnet != btcTestnet { config.btcTestnet = btcTestnet }
+        if config.solDevnet != solDevnet { config.solDevnet = solDevnet }
+    }
+
+    /// Human-readable per-field diff against the live config. Empty = no changes.
+    func diffRows(against config: NetworkConfig) -> [(String, String, String)] {
+        var rows: [(String, String, String)] = []
+        func add(_ label: String, _ before: String, _ after: String) {
+            if before != after { rows.append((label, before, after)) }
+        }
+        add("Ethereum RPC", config.ethereumRPC, ethereumRPC)
+        add("Bitcoin API", config.bitcoinAPI, bitcoinAPI)
+        add("Litecoin API", config.litecoinAPI, litecoinAPI)
+        add("Solana RPC", config.solanaRPC, solanaRPC)
+        add("Tron API", config.tronAPI, tronAPI)
+        add("EVM Chain ID", String(config.evmChainId), String(evmChainId))
+        add("BTC Testnet", config.btcTestnet ? "on" : "off", btcTestnet ? "on" : "off")
+        add("SOL Devnet", config.solDevnet ? "on" : "off", solDevnet ? "on" : "off")
+        return rows
+    }
+}
+
+private struct RPCConfigExportSheet: View {
+    @Environment(\.dismiss) private var dismiss
+    let json: String
+    @State private var copied = false
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 12) {
+                    Text(L10n.NodeSettings.exportNote)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Text(json)
+                        .font(.system(.footnote, design: .monospaced))
+                        .textSelection(.enabled)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(10)
+                        .background(RoundedRectangle(cornerRadius: 8).fill(Color.secondary.opacity(0.08)))
+                }
+                .padding()
+            }
+            .navigationTitle(L10n.NodeSettings.exportConfig)
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button(L10n.Common.close) { dismiss() }
+                }
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button {
+                        UIPasteboard.general.string = json
+                        copied = true
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) { copied = false }
+                    } label: {
+                        Label(copied ? L10n.Common.copied : L10n.Common.copy,
+                              systemImage: copied ? "checkmark" : "doc.on.doc")
+                    }
+                }
+            }
+        }
+    }
+}
+
+private struct RPCConfigImportSheet: View {
+    @ObservedObject private var config = NetworkConfig.shared
+    @Environment(\.dismiss) private var dismiss
+    @Binding var pasteText: String
+    @Binding var preview: RPCConfigSnapshot?
+    @Binding var error: String?
+    var onApply: (RPCConfigSnapshot) -> Void
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section(L10n.NodeSettings.importPasteTitle) {
+                    TextEditor(text: $pasteText)
+                        .font(.system(.footnote, design: .monospaced))
+                        .frame(minHeight: 140)
+                        .onChange(of: pasteText) { _, newValue in
+                            parse(newValue)
+                        }
+                    if pasteText.isEmpty {
+                        Text(L10n.NodeSettings.importPastePlaceholder)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    Button {
+                        if let s = UIPasteboard.general.string { pasteText = s }
+                    } label: {
+                        Label(L10n.Common.copy + " ← " + "Clipboard",
+                              systemImage: "doc.on.clipboard")
+                    }
+                }
+
+                if let err = error {
+                    Section {
+                        Label(err, systemImage: "exclamationmark.triangle.fill")
+                            .foregroundStyle(HorcruxTheme.dangerRed)
+                            .font(.footnote)
+                    }
+                }
+
+                if let snap = preview {
+                    let rows = snap.diffRows(against: config)
+                    Section(L10n.NodeSettings.importPreviewTitle) {
+                        if rows.isEmpty {
+                            Text(L10n.NodeSettings.importNoChanges)
+                                .font(.footnote)
+                                .foregroundStyle(.secondary)
+                        } else {
+                            ForEach(Array(rows.enumerated()), id: \.offset) { _, row in
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(row.0).font(.caption.weight(.semibold))
+                                    HStack(alignment: .top, spacing: 6) {
+                                        Text(row.1)
+                                            .font(.system(.caption, design: .monospaced))
+                                            .strikethrough()
+                                            .foregroundStyle(.secondary)
+                                        Image(systemName: "arrow.right")
+                                            .font(.caption2)
+                                            .foregroundStyle(.secondary)
+                                        Text(row.2)
+                                            .font(.system(.caption, design: .monospaced))
+                                            .foregroundStyle(HorcruxTheme.successGreen)
+                                    }
+                                }
+                                .padding(.vertical, 2)
+                            }
+                        }
+                    }
+                }
+            }
+            .navigationTitle(L10n.NodeSettings.importConfig)
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button(L10n.Common.cancel) { dismiss() }
+                }
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button(L10n.NodeSettings.importApply) {
+                        if let snap = preview { onApply(snap) }
+                    }
+                    .disabled(preview == nil || (preview?.diffRows(against: config).isEmpty ?? true))
+                }
+            }
+        }
+    }
+
+    private func parse(_ text: String) {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else {
+            preview = nil; error = nil; return
+        }
+        if let snap = RPCConfigSnapshot.decode(trimmed) {
+            preview = snap
+            error = nil
+        } else {
+            preview = nil
+            error = L10n.NodeSettings.importParseFailed
         }
     }
 }
