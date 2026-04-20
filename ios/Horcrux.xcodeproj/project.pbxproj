@@ -43,6 +43,7 @@
 		C3D4E5F6A7B8C9D0E1F2A3B4 /* ColdSigningView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D4E5F6A7B8C9D0E1F2A3B4C5 /* ColdSigningView.swift */; };
 		E5F6A7B8C9D0E1F2A3B4C5D6 /* ColdSigningCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = F6A7B8C9D0E1F2A3B4C5D6E7 /* ColdSigningCoordinator.swift */; };
 		A1B2C3D4E5F6A7B8C9D0E1F4 /* RefreshShardCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1C2D3E4F5A6B7C8D9E0F1A2 /* RefreshShardCoordinator.swift */; };
+		A1B2C3D4E5F6A7B8C9D0E1FA /* RefreshTracker.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1C2D3E4F5A6B7C8D9E0F1AA /* RefreshTracker.swift */; };
 		A1B2C3D4E5F6A7B8C9D0E1F5 /* RefreshShardSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1C2D3E4F5A6B7C8D9E0F1A3 /* RefreshShardSheet.swift */; };
 		379BE3A131F9CE4A70AA1923 /* PendingBroadcastQueueTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2F2D677F4FC0A239EA253203 /* PendingBroadcastQueueTests.swift */; };
 		37C641C45ADB6ABE3721EB1F /* TransactionConfirmationPoller.swift in Sources */ = {isa = PBXBuildFile; fileRef = 95C0DF3FB32992A358342714 /* TransactionConfirmationPoller.swift */; };
@@ -183,6 +184,7 @@
 		D4E5F6A7B8C9D0E1F2A3B4C5 /* ColdSigningView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ColdSigningView.swift; sourceTree = "<group>"; };
 		F6A7B8C9D0E1F2A3B4C5D6E7 /* ColdSigningCoordinator.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ColdSigningCoordinator.swift; sourceTree = "<group>"; };
 		B1C2D3E4F5A6B7C8D9E0F1A2 /* RefreshShardCoordinator.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = RefreshShardCoordinator.swift; sourceTree = "<group>"; };
+		B1C2D3E4F5A6B7C8D9E0F1AA /* RefreshTracker.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = RefreshTracker.swift; sourceTree = "<group>"; };
 		B1C2D3E4F5A6B7C8D9E0F1A3 /* RefreshShardSheet.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = RefreshShardSheet.swift; sourceTree = "<group>"; };
 		71C26970D9D9C110CD5AFF06 /* AddressValidator.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AddressValidator.swift; sourceTree = "<group>"; };
 		85DE3C5A10CCE0DB2B96E51A /* AddressFormatter.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AddressFormatter.swift; sourceTree = "<group>"; };
@@ -501,6 +503,7 @@
 			children = (
 				B1C2D3E4F5A6B7C8D9E0F1A2 /* RefreshShardCoordinator.swift */,
 				B1C2D3E4F5A6B7C8D9E0F1A3 /* RefreshShardSheet.swift */,
+				B1C2D3E4F5A6B7C8D9E0F1AA /* RefreshTracker.swift */,
 			);
 			path = Refresh;
 			sourceTree = "<group>";
@@ -744,6 +747,7 @@
 				C3D4E5F6A7B8C9D0E1F2A3B4 /* ColdSigningView.swift in Sources */,
 				E5F6A7B8C9D0E1F2A3B4C5D6 /* ColdSigningCoordinator.swift in Sources */,
 				A1B2C3D4E5F6A7B8C9D0E1F4 /* RefreshShardCoordinator.swift in Sources */,
+				A1B2C3D4E5F6A7B8C9D0E1FA /* RefreshTracker.swift in Sources */,
 				A1B2C3D4E5F6A7B8C9D0E1F5 /* RefreshShardSheet.swift in Sources */,
 				E85D8AFAAED7835EB9BA6C5F /* SigningViewModel.swift in Sources */,
 				06556B994EE86463923812D0 /* TransportProtocol.swift in Sources */,

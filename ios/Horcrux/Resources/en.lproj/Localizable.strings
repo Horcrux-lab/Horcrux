@@ -483,8 +483,8 @@
 "settings.biometricSignHint" = "Require Face ID / Touch ID before broadcasting transactions";
 "settings.officialRelay" = "Official Relay";
 "settings.customRelay" = "Custom";
-"settings.replaceDevice" = "Replace Device / Refresh Shards";
-"settings.replaceDeviceSubtitle" = "Replace a lost or damaged device";
+"settings.replaceDevice" = "Rotate Shards";
+"settings.replaceDeviceSubtitle" = "Periodic key refresh — same wallet address";
 "settings.hardwareWallet" = "Hardware Wallet Support";
 "settings.comingSoon" = "Coming Soon";
 "settings.language" = "Language";
@@ -822,19 +822,22 @@
 "settingsR.pinMedium" = "Medium";
 "settingsR.pinStrong" = "Strong";
 "settingsR.pinVeryStrong" = "Very strong";
-"settingsR.replaceTitle" = "Replace device / refresh shards";
-"settingsR.replaceIntro" = "If a device participating in this wallet was lost, replaced, or sold, complete the steps below soon to prevent the old shard from being abused.";
-"settingsR.step1Title" = "Install Horcrux on the new device";
-"settingsR.step1Body" = "Keep the same wallet name and get ready to join a new DKG.";
-"settingsR.step2Title" = "Re-run DKG with the remaining trusted devices";
-"settingsR.step2Body" = "Choose the same threshold and chains as the old wallet and create a new one.";
-"settingsR.step3Title" = "Move assets from the old wallet to the new one";
-"settingsR.step3Body" = "You can still sign once with the t-of-n remaining trusted devices.";
-"settingsR.step4Title" = "Delete the old wallet's shard";
-"settingsR.step4Body" = "Go to the Shards page, open the old wallet, tap Delete and confirm with your PIN.";
+"settingsR.replaceTitle" = "Rotate your MPC shards";
+"settingsR.replaceIntro" = "Rotate the cryptographic key shares held by each device while keeping the same wallet address. Both devices must be online for the ceremony (~5–10 seconds). Use this as periodic hygiene or after any event that could have exposed a share.";
+"settingsR.step1Title" = "Make sure both devices are online";
+"settingsR.step1Body" = "Open Horcrux on every party device and confirm the pairing code matches. Rotation needs every participant in attendance.";
+"settingsR.step2Title" = "Tap Start Rotation below";
+"settingsR.step2Body" = "Verify your PIN to unlock the existing shard, then both phones run a fresh CGGMP21 key-refresh round over the relay.";
+"settingsR.step3Title" = "Both Keychain entries atomically swap";
+"settingsR.step3Body" = "Old shards are overwritten in-place on all devices; the derived wallet address is preserved. No asset migration is required.";
+"settingsR.step4Title" = "Done — you're back to full entropy";
+"settingsR.step4Body" = "Any attacker who previously gleaned a partial share can no longer combine it with the new shares. Plan the next rotation in ~90 days.";
 "settingsR.comingSoon" = "Coming soon";
 "settingsR.refreshShardsComingSoon" = "True \"shard refresh\" (same public key / address, only rotate underlying key shares) will arrive once the Rust layer exposes the CGGMP21 refresh primitive — no asset migration required.";
-"settingsR.replaceNavTitle" = "Replace device";
+"settingsR.replaceNavTitle" = "Rotate Shards";
+"settingsR.rotateExplanationTitle" = "Why rotate?";
+"settingsR.rotateExplanationBody" = "MPC shards are strongest when freshly randomised. Rotation refreshes every device's share against new entropy without changing your wallet address — no token transfers, no new backup files. Recommended every 90 days, or immediately after any device loan / inspection.";
+"settingsR.lostDeviceSectionTitle" = "If a device was actually lost";
 "settingsR.hwWalletSubtitle" = "Ledger / Trezor as a shard (planned)";
 
 // dev.48 — Signing residual + Onboarding + ShardsVM + BackupCrypto + ColdSign err + Receive + CustomTokens
@@ -933,3 +936,9 @@
 "refresh.unlock" = "Unlock & Refresh";
 "refresh.entryPoint" = "Refresh Shards Now";
 "refresh.entryPointSubtitle" = "Re-randomise both shards (address unchanged)";
+
+"rotate.nudgeTitle" = "Time to rotate your shards";
+"rotate.nudgeBodyNever" = "This wallet has never been refreshed. A periodic rotation keeps each device's share at full entropy.";
+"rotate.nudgeBodyDays" = "Last rotation was %d days ago. A periodic refresh keeps each share at full entropy.";
+"rotate.nudgeCTA" = "Rotate now";
+"rotate.nudgeDismiss" = "Later";

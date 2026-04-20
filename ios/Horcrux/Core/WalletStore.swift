@@ -114,6 +114,7 @@ final class WalletStore: ObservableObject {
             try? keychain.delete(key: "shard_\(wallet.accountId)")
         }
         wallets = []
+        RefreshTracker.wipeAll()
         save()
     }
 

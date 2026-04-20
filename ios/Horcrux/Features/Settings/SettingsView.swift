@@ -1061,12 +1061,23 @@ struct ReplaceDeviceInfoView: View {
                     .font(.callout)
                     .foregroundStyle(.secondary)
 
-                VStack(alignment: .leading, spacing: 12) {
-                    stepRow(index: 1, title: L10n.SettingsResidual.step1Title, body: L10n.SettingsResidual.step1Body)
-                    stepRow(index: 2, title: L10n.SettingsResidual.step2Title, body: L10n.SettingsResidual.step2Body)
-                    stepRow(index: 3, title: L10n.SettingsResidual.step3Title, body: L10n.SettingsResidual.step3Body)
-                    stepRow(index: 4, title: L10n.SettingsResidual.step4Title, body: L10n.SettingsResidual.step4Body)
+                VStack(alignment: .leading, spacing: 6) {
+                    Label {
+                        Text(L10n.SettingsResidual.rotateExplanationTitle).font(.subheadline.weight(.semibold))
+                    } icon: {
+                        Image(systemName: "sparkle").foregroundStyle(HorcruxTheme.accentCyan)
+                    }
+                    Text(L10n.SettingsResidual.rotateExplanationBody)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                 }
+                .padding(12)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(RoundedRectangle(cornerRadius: 12).fill(HorcruxTheme.accentCyan.opacity(0.06)))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12)
+                        .stroke(HorcruxTheme.accentCyan.opacity(0.25), lineWidth: 1)
+                )
 
                 if let w = refreshable {
                     VStack(alignment: .leading, spacing: 8) {
@@ -1105,6 +1116,13 @@ struct ReplaceDeviceInfoView: View {
                     }
                     .padding(12)
                     .background(RoundedRectangle(cornerRadius: 12).fill(HorcruxTheme.warningAmber.opacity(0.1)))
+                }
+
+                VStack(alignment: .leading, spacing: 12) {
+                    stepRow(index: 1, title: L10n.SettingsResidual.step1Title, body: L10n.SettingsResidual.step1Body)
+                    stepRow(index: 2, title: L10n.SettingsResidual.step2Title, body: L10n.SettingsResidual.step2Body)
+                    stepRow(index: 3, title: L10n.SettingsResidual.step3Title, body: L10n.SettingsResidual.step3Body)
+                    stepRow(index: 4, title: L10n.SettingsResidual.step4Title, body: L10n.SettingsResidual.step4Body)
                 }
             }
             .padding()

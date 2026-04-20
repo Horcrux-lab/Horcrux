@@ -1166,6 +1166,19 @@ extension L10n {
         static let comingSoon = NSLocalizedString("settingsR.comingSoon", comment: "")
         static let refreshShardsComingSoon = NSLocalizedString("settingsR.refreshShardsComingSoon", comment: "")
         static let replaceNavTitle = NSLocalizedString("settingsR.replaceNavTitle", comment: "")
+        static let rotateExplanationTitle = NSLocalizedString("settingsR.rotateExplanationTitle", comment: "")
+        static let rotateExplanationBody = NSLocalizedString("settingsR.rotateExplanationBody", comment: "")
+        static let lostDeviceSectionTitle = NSLocalizedString("settingsR.lostDeviceSectionTitle", comment: "")
+    }
+
+    enum Rotate {
+        static let nudgeTitle = NSLocalizedString("rotate.nudgeTitle", comment: "")
+        static let nudgeBodyNever = NSLocalizedString("rotate.nudgeBodyNever", comment: "")
+        static func nudgeBodyDays(_ days: Int) -> String {
+            String(format: NSLocalizedString("rotate.nudgeBodyDays", comment: ""), days)
+        }
+        static let nudgeCTA = NSLocalizedString("rotate.nudgeCTA", comment: "")
+        static let nudgeDismiss = NSLocalizedString("rotate.nudgeDismiss", comment: "")
     }
 
     // MARK: - dev.48 additions

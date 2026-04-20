@@ -21,6 +21,8 @@ struct WalletHomeView: View {
     @State private var receiveWallet: Wallet?
     @State private var offlineBannerExpanded = false
     @State private var lastReachabilityCheck: Date?
+    @State private var rotationTarget: Wallet?
+    @State private var rotationNudgeDismissedAt: Date?
 
     var body: some View {
         NavigationStack {
@@ -86,6 +88,10 @@ struct WalletHomeView: View {
             .sheet(item: $receiveWallet) { wallet in
                 ReceiveView(wallet: wallet)
             }
+            .sheet(item: $rotationTarget) { wallet in
+                RefreshShardSheet(wallet: wallet, appState: appState)
+                    .environmentObject(appState)
+            }
             .task {
                 networkReachable = await NetworkStatus.shared.checkAll(config: appState.networkConfig)
                 lastReachabilityCheck = Date()
@@ -146,6 +152,84 @@ struct WalletHomeView: View {
         return "Checked \(formatter.localizedString(for: date, relativeTo: Date()))"
     }
 
+    /// First refreshable wallet (n-of-n CGGMP21 ECDSA) whose last rotation
+    /// exceeds the recommended interval. Mirrors the filter in
+    /// `ReplaceDeviceInfoView.refreshable` so the Rotate Shards entry point
+    /// in Settings and this nudge stay consistent.
+    private var staleWallet: Wallet? {
+        walletStore.wallets.first { w in
+            w.threshold == w.totalParties &&
+            w.chain.curveType == .secp256k1 &&
+            !w.hidden &&
+            RefreshTracker.needsRotation(accountId: w.accountId, walletCreatedAt: w.createdAt)
+        }
+    }
+
+    /// Days since last rotation, or nil if never rotated. Used purely for
+    /// the nudge copy — the actual "is it stale?" gate is in
+    /// `RefreshTracker.needsRotation`.
+    private func daysSinceRotation(_ wallet: Wallet) -> Int? {
+        guard let last = RefreshTracker.lastRefresh(accountId: wallet.accountId) else { return nil }
+        return Calendar.current.dateComponents([.day], from: last, to: Date()).day
+    }
+
+    @ViewBuilder
+    private var rotationNudge: some View {
+        // Session-local snooze: once dismissed, hide for 24h so the nudge
+        // isn't a persistent eyesore; the next launch will re-surface it.
+        let snoozed = rotationNudgeDismissedAt.map { Date().timeIntervalSince($0) < 24 * 3600 } ?? false
+        if let w = staleWallet, !snoozed {
+            HStack(alignment: .top, spacing: 12) {
+                Image(systemName: "arrow.triangle.2.circlepath.circle.fill")
+                    .font(.title3)
+                    .foregroundStyle(HorcruxTheme.accentCyan)
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(L10n.Rotate.nudgeTitle)
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(.white)
+                    Text(daysSinceRotation(w).map { L10n.Rotate.nudgeBodyDays($0) } ?? L10n.Rotate.nudgeBodyNever)
+                        .font(.caption)
+                        .foregroundStyle(.white.opacity(0.75))
+                        .fixedSize(horizontal: false, vertical: true)
+
+                    HStack(spacing: 12) {
+                        Button {
+                            rotationTarget = w
+                        } label: {
+                            Text(L10n.Rotate.nudgeCTA)
+                                .font(.caption.weight(.semibold))
+                                .padding(.horizontal, 12)
+                                .padding(.vertical, 6)
+                                .background(Capsule().fill(HorcruxTheme.accentCyan))
+                                .foregroundStyle(.black)
+                        }
+                        .accessibilityIdentifier("walletHome_rotateNudgeCTA")
+
+                        Button {
+                            withAnimation { rotationNudgeDismissedAt = Date() }
+                        } label: {
+                            Text(L10n.Rotate.nudgeDismiss)
+                                .font(.caption)
+                                .foregroundStyle(.white.opacity(0.6))
+                        }
+                    }
+                    .padding(.top, 4)
+                }
+                Spacer(minLength: 0)
+            }
+            .padding(12)
+            .background(
+                RoundedRectangle(cornerRadius: 12)
+                    .fill(HorcruxTheme.accentCyan.opacity(0.12))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 12)
+                    .stroke(HorcruxTheme.accentCyan.opacity(0.35), lineWidth: 1)
+            )
+        }
+    }
+
     private var emptyState: some View {
         VStack(spacing: 24) {
             offlineBanner
@@ -193,6 +277,8 @@ struct WalletHomeView: View {
             LazyVStack(spacing: 12) {
                 offlineBanner
                     .padding(.top, 4)
+
+                rotationNudge
 
                 // Portfolio summary (IA: root → chain → asset)
                 PortfolioSummaryCard(wallets: walletStore.wallets.filter { !$0.hidden })

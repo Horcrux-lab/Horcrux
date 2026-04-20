@@ -227,6 +227,8 @@ final class RefreshShardCoordinator: ObservableObject {
             // the old or the new ciphertext fully intact — never a torn write.
             try walletStore.storeKeyShare(payload, accountId: wallet.accountId)
 
+            RefreshTracker.recordRefresh(accountId: wallet.accountId)
+
             bridge.removeSession(sessionId: sessionId!)
             sessionId = nil
             await MainActor.run {
