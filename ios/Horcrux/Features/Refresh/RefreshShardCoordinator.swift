@@ -37,10 +37,26 @@ final class RefreshShardCoordinator: ObservableObject {
     private var refreshTask: Task<Void, Never>?
     /// Holder of the in-flight Shard Wrap Key. Zeroed on completion.
     private var swk: Data?
+    private var cancellables = Set<AnyCancellable>()
 
     init(wallet: Wallet, appState: AppState) {
         self.wallet = wallet
         self.appState = appState
+
+        // Auto-advance from .waitingForPeer → .running as soon as the
+        // peer count meets the threshold. Without this the user would
+        // have to tap "Start" a second time after their partner joins.
+        appState.peerManager.$connectedPeers
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] peers in
+                guard let self else { return }
+                guard self.phase == .waitingForPeer else { return }
+                let needed = Int(self.wallet.totalParties) - 1
+                if peers.count >= needed, self.swk != nil {
+                    self.start()
+                }
+            }
+            .store(in: &cancellables)
     }
 
     /// Inject the unwrapped SWK before calling `start()`. The sheet pulls it

@@ -957,6 +957,9 @@
 "refresh.waitingPeer" = "Waiting for the other device to join the room…";
 "refresh.waitingPeerHintTitle" = "Need the other device too";
 "refresh.waitingPeerHintBody" = "Open Horcrux on your other shard device and tap Rotate on the same shard. Rotation runs cooperatively across both devices.";
+"refresh.connectTitle" = "Connect both devices";
+"refresh.connectHint" = "Pick at least one transport. Bluetooth and Wi-Fi LAN need both phones nearby / on the same network. Relay works across networks but needs a shared 6-char room code.";
+"refresh.roomCodeHint" = "Both devices must enter the same code.";
 "refresh.runningRound" = "Refreshing shard… round %d / %d";
 "refresh.persisting" = "Saving the new shard securely…";
 "refresh.complete" = "Shard refreshed. Wallet address unchanged.";

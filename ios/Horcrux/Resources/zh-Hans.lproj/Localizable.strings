@@ -958,6 +958,9 @@
 "refresh.waitingPeer" = "等待另一台设备加入房间…";
 "refresh.waitingPeerHintTitle" = "另一台设备也需参与";
 "refresh.waitingPeerHintBody" = "请在持有同一分片的另一台设备上打开 Horcrux，并对同一分片点击「立即轮换」。轮换需要两台设备同时在线配合完成。";
+"refresh.connectTitle" = "连接两台设备";
+"refresh.connectHint" = "至少选择一种传输方式。蓝牙与 Wi‑Fi LAN 要求两台手机靠近 / 同一网络；中继 (Relay) 可跨网络，但两台设备需输入相同的 6 位房间码。";
+"refresh.roomCodeHint" = "两台设备必须输入相同的房间码。";
 "refresh.runningRound" = "正在刷新分片… 第 %d / %d 轮";
 "refresh.persisting" = "正在安全保存新分片…";
 "refresh.complete" = "分片刷新完成，钱包地址保持不变。";

@@ -1320,6 +1320,9 @@ extension L10n {
         static let waitingPeer = NSLocalizedString("refresh.waitingPeer", comment: "")
         static let waitingPeerHintTitle = NSLocalizedString("refresh.waitingPeerHintTitle", comment: "")
         static let waitingPeerHintBody = NSLocalizedString("refresh.waitingPeerHintBody", comment: "")
+        static let connectTitle = NSLocalizedString("refresh.connectTitle", comment: "")
+        static let connectHint = NSLocalizedString("refresh.connectHint", comment: "")
+        static let roomCodeHint = NSLocalizedString("refresh.roomCodeHint", comment: "")
         static func runningRound(_ done: Int, _ total: Int) -> String {
             String(format: NSLocalizedString("refresh.runningRound", comment: ""), done, total)
         }

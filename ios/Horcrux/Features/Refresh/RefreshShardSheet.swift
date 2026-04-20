@@ -10,7 +10,16 @@ struct RefreshShardSheet: View {
 
     @State private var showPinPrompt = false
     @State private var showLongWaitHint = false
-    @State private var waitStartedAt: Date?
+
+    /// Transports to use for bringing the two devices into the same room.
+    /// Mirrors the DKG flow: BLE + Wi-Fi LAN work out-of-the-box on the
+    /// same network, Relay is the cross-network fallback (requires a
+    /// shared 6-char room code the user types on both devices).
+    @State private var selectedTransports: Set<TransportType> = [.ble, .wifiLAN]
+    @State private var roomCode: String = ""
+    /// Tracks whether we've already fired `startDiscovery` so re-renders
+    /// don't double-announce (which can cause duplicate room presence).
+    @State private var discoveryStarted = false
 
     init(wallet: Wallet, appState: AppState) {
         self.wallet = wallet
@@ -92,7 +101,10 @@ struct RefreshShardSheet: View {
     private var phaseBody: some View {
         switch coord.phase {
         case .idle:
-            statusRow(icon: "lock.shield", text: L10n.Refresh.idle, tint: .secondary)
+            VStack(spacing: 16) {
+                statusRow(icon: "lock.shield", text: L10n.Refresh.idle, tint: .secondary)
+                connectForm
+            }
         case .waitingForPeer:
             VStack(spacing: 12) {
                 statusRow(icon: "antenna.radiowaves.left.and.right",
@@ -174,11 +186,106 @@ struct RefreshShardSheet: View {
         .background(RoundedRectangle(cornerRadius: 12).fill(.ultraThinMaterial))
     }
 
+    /// Transport + room-code picker shown before the ceremony starts.
+    /// Mirrors the Create Shard / Join flow so both devices can bring
+    /// themselves into the same room before hitting "Start now".
+    @ViewBuilder
+    private var connectForm: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text(L10n.Refresh.connectTitle)
+                .font(.subheadline.weight(.semibold))
+
+            Text(L10n.Refresh.connectHint)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+
+            ForEach(TransportType.allCases) { t in
+                Toggle(isOn: Binding(
+                    get: { selectedTransports.contains(t) },
+                    set: { on in
+                        if on { selectedTransports.insert(t) }
+                        else { selectedTransports.remove(t) }
+                    }
+                )) {
+                    Label(t.rawValue, systemImage: t.iconName)
+                        .font(.subheadline)
+                }
+            }
+
+            if selectedTransports.contains(.relay) {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text(L10n.CreateShard.roomCodeLabel)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    HStack {
+                        TextField(L10n.CreateShard.roomCodePlaceholder, text: $roomCode)
+                            .font(.system(.body, design: .monospaced))
+                            .autocorrectionDisabled()
+                            .textInputAutocapitalization(.never)
+                            .onChange(of: roomCode) { _, newValue in
+                                let normalized = RoomCode.normalize(newValue)
+                                if normalized != newValue { roomCode = normalized }
+                            }
+                        Button {
+                            if let pasted = UIPasteboard.general.string {
+                                roomCode = RoomCode.normalize(pasted)
+                                Haptics.success()
+                            } else {
+                                Haptics.warning()
+                            }
+                        } label: {
+                            Image(systemName: "doc.on.clipboard")
+                                .foregroundStyle(HorcruxTheme.accentCyan)
+                        }
+                        .buttonStyle(.bordered)
+                    }
+                    if !roomCode.isEmpty && !RoomCode.isValid(roomCode) {
+                        Text(L10n.CreateShard.roomCodeInvalid)
+                            .font(.caption2)
+                            .foregroundStyle(HorcruxTheme.warningAmber)
+                    }
+                    Text(L10n.Refresh.roomCodeHint)
+                        .font(.caption2)
+                        .foregroundStyle(.tertiary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .padding(.top, 4)
+            }
+        }
+        .padding()
+        .background(RoundedRectangle(cornerRadius: 12).fill(.ultraThinMaterial))
+    }
+
+    /// True once the user has configured a valid transport combo.
+    private var canStartRotation: Bool {
+        guard !selectedTransports.isEmpty else { return false }
+        if selectedTransports.contains(.relay) && !RoomCode.isValid(roomCode) {
+            return false
+        }
+        return true
+    }
+
+    /// Kick off PeerManager discovery for the transports the user picked.
+    /// Idempotent — safe to call on every Start tap.
+    private func beginDiscoveryIfNeeded() {
+        guard !discoveryStarted else { return }
+        discoveryStarted = true
+        appState.peerManager.startDiscovery(transports: selectedTransports)
+        if selectedTransports.contains(.relay) && RoomCode.isValid(roomCode) {
+            Task {
+                try? await appState.peerManager.joinRelayRoom(roomId: roomCode)
+                appState.peerManager.relay.startDiscovery()
+            }
+        }
+    }
+
     @ViewBuilder
     private var buttons: some View {
         switch coord.phase {
         case .idle, .waitingForPeer, .error:
             Button {
+                beginDiscoveryIfNeeded()
                 if let swk = appState.cachedShardKey() {
                     coord.setShardKey(swk)
                     coord.start()
@@ -191,6 +298,7 @@ struct RefreshShardSheet: View {
                     .font(.headline)
             }
             .buttonStyle(.borderedProminent)
+            .disabled(coord.phase == .idle && !canStartRotation)
         case .running, .persisting:
             ProgressView().frame(maxWidth: .infinity)
         case .complete:
