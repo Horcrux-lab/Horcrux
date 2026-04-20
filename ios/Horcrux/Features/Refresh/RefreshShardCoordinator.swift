@@ -213,7 +213,12 @@ final class RefreshShardCoordinator: ObservableObject {
         defer { rebroadcast.cancel() }
 
         // 4. Round loop.
-        var seenMessages: Set<String> = []
+        // We dedup by raw payload bytes — the refresh protocol ships
+        // every wire message with `round: 0`, so a (from,round,to)
+        // tuple false-matches successive rounds as duplicates. The
+        // underlying CGGMP21 payload bytes are distinct across rounds,
+        // so hashing them is both safe and correct.
+        var seenPayloads: Set<Data> = []
         do {
             for await (_, data) in stream {
                 if Task.isCancelled { return }
@@ -227,16 +232,16 @@ final class RefreshShardCoordinator: ObservableObject {
                 }
                 let inbound = dto.toFfi()
                 guard inbound.sessionId == sessionId else { continue }
-                let key = "\(inbound.fromParty)-\(inbound.round)-\(inbound.toParty)"
-                if seenMessages.contains(key) { continue }
-                seenMessages.insert(key)
+                if seenPayloads.contains(inbound.payload) { continue }
+                seenPayloads.insert(inbound.payload)
 
                 // First real round message from the partner — we can
                 // stop spamming our initial broadcast.
                 rebroadcast.cancel()
 
-                NSLog("[Refresh] inbound from party=\(inbound.fromParty) round=\(inbound.round)")
+                NSLog("[Refresh] inbound from party=\(inbound.fromParty) round=\(inbound.round) payload=\(inbound.payload.count)B")
                 let responses = try bridge.handleMessage(inbound)
+                NSLog("[Refresh]   handleMessage returned \(responses.count) responses")
                 await MainActor.run {
                     self.roundsCompleted = min(self.roundsCompleted + 1, self.approxTotalRounds)
                 }
