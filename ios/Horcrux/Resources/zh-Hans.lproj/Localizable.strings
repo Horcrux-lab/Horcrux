@@ -490,6 +490,11 @@
 "nodeSettings.importParseFailed" = "JSON 解析失败，请检查格式。";
 "nodeSettings.importNoChanges" = "与当前配置一致，无需导入。";
 "nodeSettings.exportNote" = "导出内容仅包含 URL 与网络选择，不包含 API 密钥。";
+"nodeSettings.wssURLLabel" = "WebSocket 端点（可选，wss://）";
+"nodeSettings.wssHint" = "用于付费节点的推送订阅（Alchemy、Helius 等）。留空即禁用。";
+"nodeSettings.wssTest" = "测试连接";
+"nodeSettings.wssTesting" = "连接中…";
+"nodeSettings.wssOK" = "WebSocket 可用（%dms）";
 
 /* Node Status */
 "nodeStatus.notChecked" = "未检查";

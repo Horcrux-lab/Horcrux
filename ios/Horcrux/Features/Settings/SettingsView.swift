@@ -970,6 +970,8 @@ struct BlockchainNodeSettingsView: View {
                         .foregroundStyle(.secondary)
                 }
 
+                WSSField(url: $config.ethereumWSS, kind: .evm)
+
                 NodeStatusRow(chain: .ethereum)
             }
 
@@ -1053,6 +1055,8 @@ struct BlockchainNodeSettingsView: View {
                         .font(.caption)
                     }
                 }
+
+                WSSField(url: $config.solanaWSS, kind: .solana)
 
                 NodeStatusRow(chain: .solana)
             }
@@ -1663,6 +1667,8 @@ struct RPCConfigSnapshot: Codable, Equatable {
     var evmChainId: UInt64
     var btcTestnet: Bool
     var solDevnet: Bool
+    var ethereumWSS: String?
+    var solanaWSS: String?
 
     init(from config: NetworkConfig) {
         self.ethereumRPC = config.ethereumRPC
@@ -1673,6 +1679,8 @@ struct RPCConfigSnapshot: Codable, Equatable {
         self.evmChainId = config.evmChainId
         self.btcTestnet = config.btcTestnet
         self.solDevnet = config.solDevnet
+        self.ethereumWSS = config.ethereumWSS
+        self.solanaWSS = config.solanaWSS
     }
 
     func jsonString() -> String? {
@@ -1696,6 +1704,10 @@ struct RPCConfigSnapshot: Codable, Equatable {
         if config.evmChainId != evmChainId { config.evmChainId = evmChainId }
         if config.btcTestnet != btcTestnet { config.btcTestnet = btcTestnet }
         if config.solDevnet != solDevnet { config.solDevnet = solDevnet }
+        let incomingEthWSS = ethereumWSS ?? ""
+        if config.ethereumWSS != incomingEthWSS { config.ethereumWSS = incomingEthWSS }
+        let incomingSolWSS = solanaWSS ?? ""
+        if config.solanaWSS != incomingSolWSS { config.solanaWSS = incomingSolWSS }
     }
 
     /// Human-readable per-field diff against the live config. Empty = no changes.
@@ -1712,6 +1724,8 @@ struct RPCConfigSnapshot: Codable, Equatable {
         add("EVM Chain ID", String(config.evmChainId), String(evmChainId))
         add("BTC Testnet", config.btcTestnet ? "on" : "off", btcTestnet ? "on" : "off")
         add("SOL Devnet", config.solDevnet ? "on" : "off", solDevnet ? "on" : "off")
+        add("Ethereum WSS", config.ethereumWSS, ethereumWSS ?? "")
+        add("Solana WSS", config.solanaWSS, solanaWSS ?? "")
         return rows
     }
 }
@@ -1894,5 +1908,89 @@ private struct LatencySparkline: View {
         if ms < 300 { return HorcruxTheme.successGreen }
         if ms < 1000 { return HorcruxTheme.warningAmber }
         return HorcruxTheme.dangerRed
+    }
+}
+
+// MARK: - Optional WebSocket field
+
+/// Per-chain `wss://` input plus a manual "Test connection" button.
+///
+/// We deliberately don't auto-probe WebSockets because paid providers
+/// bill subscriptions differently from HTTP reads — hammering `wss`
+/// on every page open could eat a user's quota. The user explicitly
+/// taps Test when they want verification.
+private struct WSSField: View {
+    @Binding var url: String
+    let kind: WebSocketProbe.Kind
+
+    @State private var probing = false
+    @State private var resultText: String?
+    @State private var resultOK: Bool = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(L10n.NodeSettings.wssURLLabel)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            TextField(placeholder, text: $url)
+                .font(.system(.body, design: .monospaced))
+                .autocorrectionDisabled()
+                .textInputAutocapitalization(.never)
+                .onChange(of: url) { _, _ in
+                    // Any edit invalidates the last probe result.
+                    resultText = nil
+                }
+            if url.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                Text(L10n.NodeSettings.wssHint)
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            } else {
+                HStack(spacing: 8) {
+                    Button {
+                        Task { await runProbe() }
+                    } label: {
+                        if probing {
+                            HStack(spacing: 4) {
+                                ProgressView().controlSize(.mini)
+                                Text(L10n.NodeSettings.wssTesting)
+                            }
+                        } else {
+                            Label(L10n.NodeSettings.wssTest, systemImage: "bolt.horizontal.circle")
+                        }
+                    }
+                    .disabled(probing)
+                    .font(.caption)
+                    .buttonStyle(.bordered)
+
+                    if let text = resultText {
+                        Text(text)
+                            .font(.caption2)
+                            .foregroundStyle(resultOK ? HorcruxTheme.successGreen : HorcruxTheme.dangerRed)
+                    }
+                }
+            }
+        }
+    }
+
+    private var placeholder: String {
+        switch kind {
+        case .evm: return "wss://eth-mainnet.g.alchemy.com/v2/{KEY}"
+        case .solana: return "wss://mainnet.helius-rpc.com/?api-key={KEY}"
+        }
+    }
+
+    private func runProbe() async {
+        probing = true
+        resultText = nil
+        let result = await WebSocketProbe.probe(urlString: url, kind: kind)
+        probing = false
+        switch result {
+        case .success(let ms):
+            resultOK = true
+            resultText = L10n.NodeSettings.wssOK(ms)
+        case .failure(let err):
+            resultOK = false
+            resultText = err.localizedDescription
+        }
     }
 }

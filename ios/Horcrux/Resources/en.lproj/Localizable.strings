@@ -490,6 +490,11 @@
 "nodeSettings.importParseFailed" = "Could not parse JSON. Check the format.";
 "nodeSettings.importNoChanges" = "Already matches current settings. Nothing to import.";
 "nodeSettings.exportNote" = "Export includes URLs and network selectors only — API keys are never exported.";
+"nodeSettings.wssURLLabel" = "WebSocket endpoint (optional, wss://)";
+"nodeSettings.wssHint" = "For push subscriptions on paid nodes (Alchemy, Helius, etc.). Leave empty to disable.";
+"nodeSettings.wssTest" = "Test connection";
+"nodeSettings.wssTesting" = "Connecting…";
+"nodeSettings.wssOK" = "WebSocket OK (%dms)";
 
 /* Node Status */
 "nodeStatus.notChecked" = "Not checked";

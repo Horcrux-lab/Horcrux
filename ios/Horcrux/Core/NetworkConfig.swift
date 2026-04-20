@@ -96,6 +96,21 @@ final class NetworkConfig: ObservableObject, @unchecked Sendable {
         didSet { saveKeychain(etherscanAPIKey, forKey: Keys.etherscanKey) }
     }
 
+    /// Optional WebSocket endpoint for the selected EVM chain. Paid
+    /// providers (Alchemy, Infura, QuickNode) expose `wss://` alongside
+    /// `https://`. We don't auto-subscribe — the field is manually
+    /// testable and reserved for future push-based features. Empty
+    /// string = not configured.
+    @Published var ethereumWSS: String {
+        didSet { save(ethereumWSS, forKey: Keys.ethereumWSS) }
+    }
+
+    /// Optional WebSocket endpoint for Solana. Helius / QuickNode both
+    /// support `wss://`. Same semantics as `ethereumWSS`.
+    @Published var solanaWSS: String {
+        didSet { save(solanaWSS, forKey: Keys.solanaWSS) }
+    }
+
     private init() {
         let ud = UserDefaults.standard
         Self.migrateDeadEndpoints(ud)
@@ -114,6 +129,8 @@ final class NetworkConfig: ObservableObject, @unchecked Sendable {
         self.alchemyAPIKey = Self.loadKeychainString(key: Keys.alchemyKey)
         self.heliusAPIKey = Self.loadKeychainString(key: Keys.heliusKey)
         self.etherscanAPIKey = Self.loadKeychainString(key: Keys.etherscanKey)
+        self.ethereumWSS = ud.string(forKey: Keys.ethereumWSS) ?? ""
+        self.solanaWSS = ud.string(forKey: Keys.solanaWSS) ?? ""
     }
 
     func rpcURL(for chain: Chain) -> String {
@@ -546,6 +563,8 @@ private extension NetworkConfig {
         static let alchemyKey = "com.horcrux.rpc.alchemyAPIKey"
         static let heliusKey = "com.horcrux.rpc.heliusAPIKey"
         static let etherscanKey = "com.horcrux.rpc.etherscanAPIKey"
+        static let ethereumWSS = "com.horcrux.rpc.ethereumWSS"
+        static let solanaWSS = "com.horcrux.rpc.solanaWSS"
     }
 
     enum Defaults {
@@ -1165,5 +1184,112 @@ extension NodeHealthSnapshot {
         if seconds < 3600 { return L10n.NodeStatus.minutesAgo(seconds / 60) }
         if seconds < 86_400 { return L10n.NodeStatus.hoursAgo(seconds / 3600) }
         return L10n.NodeStatus.daysAgo(seconds / 86_400)
+    }
+}
+
+// MARK: - WebSocket probe
+
+/// Lightweight one-shot probe for `wss://` endpoints used in Settings.
+///
+/// We deliberately don't keep a long-lived WS connection — the wallet's
+/// read path is still HTTP-based. The probe exists so users who paste a
+/// paid commercial endpoint (Alchemy / Infura / Helius) can verify it's
+/// actually reachable + authenticates + speaks the expected protocol,
+/// before paying for it in real usage.
+///
+/// Flow: connect → send one `newHeads` / `slotSubscribe` RPC → wait for
+/// either the ack or the first push → return success/failure → close.
+enum WebSocketProbe {
+    enum ProbeError: Error, LocalizedError {
+        case invalidURL
+        case wrongScheme
+        case timeout
+        case handshake(String)
+        case badResponse(String)
+
+        var errorDescription: String? {
+            switch self {
+            case .invalidURL: return "Invalid URL"
+            case .wrongScheme: return "URL must start with ws:// or wss://"
+            case .timeout: return "Timed out waiting for response"
+            case .handshake(let m): return m
+            case .badResponse(let m): return m
+            }
+        }
+    }
+
+    /// Probe a WebSocket endpoint. `kind` picks the subscription command
+    /// so we give the server a realistic payload rather than just TCP
+    /// handshake. Returns round-trip latency in ms on success.
+    enum Kind { case evm, solana }
+
+    static func probe(urlString: String, kind: Kind, timeoutSeconds: TimeInterval = 6) async -> Result<Int, ProbeError> {
+        let trimmed = urlString.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return .failure(.invalidURL) }
+        guard trimmed.hasPrefix("wss://") || trimmed.hasPrefix("ws://") else {
+            return .failure(.wrongScheme)
+        }
+        guard let url = URL(string: trimmed) else { return .failure(.invalidURL) }
+
+        let session = URLSession(configuration: .ephemeral)
+        let task = session.webSocketTask(with: url)
+        task.resume()
+        let start = Date()
+
+        let payload: String
+        switch kind {
+        case .evm:
+            payload = #"{"jsonrpc":"2.0","id":1,"method":"eth_subscribe","params":["newHeads"]}"#
+        case .solana:
+            payload = #"{"jsonrpc":"2.0","id":1,"method":"slotSubscribe"}"#
+        }
+
+        do {
+            try await task.send(.string(payload))
+        } catch {
+            task.cancel(with: .goingAway, reason: nil)
+            return .failure(.handshake(error.localizedDescription))
+        }
+
+        // Race: first message or timeout. Whichever wins, we cancel.
+        let result = await withTaskGroup(of: Result<Int, ProbeError>.self) { group -> Result<Int, ProbeError> in
+            group.addTask {
+                do {
+                    let msg = try await task.receive()
+                    let body: String
+                    switch msg {
+                    case .string(let s): body = s
+                    case .data(let d): body = String(data: d, encoding: .utf8) ?? ""
+                    @unknown default: body = ""
+                    }
+                    // Any of: subscription ack (has "result"), a push
+                    // (has "method":"eth_subscription"/"slotNotification"),
+                    // or an error envelope. We treat anything containing
+                    // `"jsonrpc"` as a valid RPC response; anything else
+                    // is considered a handshake-level failure.
+                    guard body.contains("\"jsonrpc\"") else {
+                        return .failure(.badResponse(String(body.prefix(120))))
+                    }
+                    if body.contains("\"error\"") {
+                        return .failure(.badResponse(String(body.prefix(120))))
+                    }
+                    let ms = Int(Date().timeIntervalSince(start) * 1000)
+                    return .success(ms)
+                } catch {
+                    return .failure(.handshake(error.localizedDescription))
+                }
+            }
+            group.addTask {
+                try? await Task.sleep(nanoseconds: UInt64(timeoutSeconds * 1_000_000_000))
+                return .failure(.timeout)
+            }
+            let first = await group.next() ?? .failure(.timeout)
+            group.cancelAll()
+            return first
+        }
+
+        task.cancel(with: .goingAway, reason: nil)
+        session.invalidateAndCancel()
+        return result
     }
 }

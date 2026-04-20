@@ -994,6 +994,13 @@ enum L10n {
         static let importParseFailed = NSLocalizedString("nodeSettings.importParseFailed", comment: "")
         static let importNoChanges = NSLocalizedString("nodeSettings.importNoChanges", comment: "")
         static let exportNote = NSLocalizedString("nodeSettings.exportNote", comment: "")
+        static let wssURLLabel = NSLocalizedString("nodeSettings.wssURLLabel", comment: "")
+        static let wssHint = NSLocalizedString("nodeSettings.wssHint", comment: "")
+        static let wssTest = NSLocalizedString("nodeSettings.wssTest", comment: "")
+        static let wssTesting = NSLocalizedString("nodeSettings.wssTesting", comment: "")
+        static func wssOK(_ ms: Int) -> String {
+            String(format: NSLocalizedString("nodeSettings.wssOK", comment: ""), ms)
+        }
 
         static func useAlchemyFor(_ name: String) -> String {
             String(format: NSLocalizedString("nodeSettings.useAlchemyFor", comment: ""), name)
