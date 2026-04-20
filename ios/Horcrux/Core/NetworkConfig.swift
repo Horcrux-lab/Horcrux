@@ -98,6 +98,7 @@ final class NetworkConfig: ObservableObject, @unchecked Sendable {
 
     private init() {
         let ud = UserDefaults.standard
+        Self.migrateDeadEndpoints(ud)
         self.ethereumRPC = ud.string(forKey: Keys.ethereumRPC) ?? Defaults.ethereumRPC
         self.bitcoinAPI = ud.string(forKey: Keys.bitcoinAPI) ?? Defaults.bitcoinAPI
         self.litecoinAPI = ud.string(forKey: Keys.litecoinAPI) ?? Defaults.litecoinAPI
@@ -233,6 +234,28 @@ final class NetworkConfig: ObservableObject, @unchecked Sendable {
         solanaRPC = (solDevnet ? SolanaNetwork.devnet : SolanaNetwork.mainnet).defaultRPC
     }
 
+    /// One-shot migration of explicitly-dead public RPC endpoints that
+    /// were shipped as defaults in earlier builds. A stored value that
+    /// equals one of these gets reset so the user falls through to the
+    /// current default on next launch, without clobbering any URL the
+    /// user has deliberately customised.
+    ///
+    /// Only endpoints that are **confirmed 100% dead** (API disabled,
+    /// "tenant disabled", etc.) go here — merely slow or rate-limited
+    /// endpoints should be left alone so users who selected them on
+    /// purpose are not second-guessed.
+    private static func migrateDeadEndpoints(_ ud: UserDefaults) {
+        let deadEthereum: Set<String> = [
+            "https://polygon-rpc.com",                 // "tenant disabled"
+            "https://eth-sepolia.public.blastapi.io",  // "Blast API is no longer available"
+        ]
+        if let stored = ud.string(forKey: Keys.ethereumRPC),
+           deadEthereum.contains(stored)
+        {
+            ud.removeObject(forKey: Keys.ethereumRPC)
+        }
+    }
+
     // MARK: - URL validation
 
     struct URLValidation {
@@ -298,9 +321,14 @@ enum EVMNetwork: UInt64, CaseIterable, Identifiable {
 
     var defaultRPC: String {
         switch self {
-        case .mainnet: return "https://eth.llamarpc.com"
-        case .sepolia: return "https://eth-sepolia.public.blastapi.io"
-        case .polygon: return "https://polygon-rpc.com"
+        // llama / blastapi / polygon-rpc.com have all had regional outages
+        // or "tenant disabled" errors (observed Apr 2026). PublicNode runs
+        // a well-distributed anycast fleet and is the most reliable free
+        // option across chains, so we standardise on it for the chains
+        // where it exists.
+        case .mainnet: return "https://ethereum-rpc.publicnode.com"
+        case .sepolia: return "https://ethereum-sepolia-rpc.publicnode.com"
+        case .polygon: return "https://polygon-bor-rpc.publicnode.com"
         case .arbitrumOne: return "https://arb1.arbitrum.io/rpc"
         case .base: return "https://mainnet.base.org"
         case .optimism: return "https://mainnet.optimism.io"
@@ -327,9 +355,13 @@ enum EVMNetwork: UInt64, CaseIterable, Identifiable {
 enum BitcoinNetwork {
     case mainnet, testnet
     var defaultAPI: String {
+        // mempool.space runs the same esplora REST API as blockstream.info
+        // and has better global CDN coverage — blockstream has had CN/SEA
+        // reachability issues. AddressFormatter already links to mempool
+        // for the web explorer, so the two now agree.
         switch self {
-        case .mainnet: return "https://blockstream.info/api"
-        case .testnet: return "https://blockstream.info/testnet/api"
+        case .mainnet: return "https://mempool.space/api"
+        case .testnet: return "https://mempool.space/testnet/api"
         }
     }
 }
@@ -338,7 +370,11 @@ enum SolanaNetwork {
     case mainnet, devnet
     var defaultRPC: String {
         switch self {
-        case .mainnet: return "https://api.mainnet-beta.solana.com"
+        // api.mainnet-beta.solana.com is the canonical Solana Labs endpoint
+        // but aggressively rate-limits and has regional reachability issues.
+        // PublicNode provides a free, CDN-fronted alternative. Devnet stays
+        // on the labs endpoint — PublicNode does not expose devnet.
+        case .mainnet: return "https://solana-rpc.publicnode.com"
         case .devnet: return "https://api.devnet.solana.com"
         }
     }
