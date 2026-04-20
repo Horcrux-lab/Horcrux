@@ -107,6 +107,8 @@ struct ShardsListView: View {
     private var accountList: some View {
         ScrollView {
             LazyVStack(spacing: 12) {
+                SecurityHealthCard()
+
                 ForEach(ShardAccount.group(walletStore.wallets)) { account in
                     NavigationLink {
                         ShardAccountDetailView(account: account, viewModel: viewModel)

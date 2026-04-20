@@ -25,6 +25,7 @@
 		07F1DBBA780D85A37E6222E4 /* TransactionStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3CDB13C07B9797F06F91A090 /* TransactionStoreTests.swift */; };
 		15A5B160337F5ACA4625D4C0 /* WiFiLANTransport.swift in Sources */ = {isa = PBXBuildFile; fileRef = B557F92FAAF7C0F38B2CC6C6 /* WiFiLANTransport.swift */; };
 		1929C70C2E419C8D2D7A499C /* ShardsListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F01AE22958DB93BC491B9519 /* ShardsListView.swift */; };
+		SHC1D0FFEEBADF00DCAFE0003 /* SecurityHealthCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = SHC2D0FFEEBADF00DCAFE0004 /* SecurityHealthCard.swift */; };
 		1A286F0E6C2F3FD1B7669F57 /* HorcruxBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = 85CA60ED6C18A20962BDD93C /* HorcruxBridge.swift */; };
 		1C0A4D5253866D6797062EE3 /* ReceiveView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 042FDE7F9766BA35BE6DF66A /* ReceiveView.swift */; };
 		1C55BB47CC7E7965FE69F31C /* AntiDebug.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D47DFFE366A125359462514 /* AntiDebug.swift */; };
@@ -244,6 +245,7 @@
 		ECD46EFA897275FDEA93B9F9 /* SecureClipboard.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SecureClipboard.swift; sourceTree = "<group>"; };
 		EFB2C38A7575A1CCFC326596 /* CertificatePinnerTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HorcruxTests/CertificatePinnerTests.swift; sourceTree = SOURCE_ROOT; };
 		F01AE22958DB93BC491B9519 /* ShardsListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShardsListView.swift; sourceTree = "<group>"; };
+		SHC2D0FFEEBADF00DCAFE0004 /* SecurityHealthCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SecurityHealthCard.swift; sourceTree = "<group>"; };
 		F6233B6902699404F7105153 /* PinHashTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HorcruxTests/PinHashTests.swift; sourceTree = SOURCE_ROOT; };
 		F8D5302000BBC22EADA2A1F6 /* HorcruxApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HorcruxApp.swift; sourceTree = "<group>"; };
 		FC6695ABD2E5D63B03476E9E /* QRScannerView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = QRScannerView.swift; sourceTree = "<group>"; };
@@ -321,6 +323,7 @@
 			isa = PBXGroup;
 			children = (
 				F01AE22958DB93BC491B9519 /* ShardsListView.swift */,
+				SHC2D0FFEEBADF00DCAFE0004 /* SecurityHealthCard.swift */,
 				18E722F82F4851FF4C37CDA4 /* ShardsViewModel.swift */,
 			);
 			path = Shards;
@@ -751,6 +754,7 @@
 				CB59CE6C90D457018B221099 /* SettingsView.swift in Sources */,
 				763E14B79CE17C11290CBAB9 /* AddressBookView.swift in Sources */,
 				1929C70C2E419C8D2D7A499C /* ShardsListView.swift in Sources */,
+				SHC1D0FFEEBADF00DCAFE0003 /* SecurityHealthCard.swift in Sources */,
 				4B7B6F204D8AFDEB4EACE5EB /* ShardsViewModel.swift in Sources */,
 				88380DABC0637076A7B84583 /* SigningView.swift in Sources */,
 				C3D4E5F6A7B8C9D0E1F2A3B4 /* ColdSigningView.swift in Sources */,
