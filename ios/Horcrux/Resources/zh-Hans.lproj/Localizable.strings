@@ -265,6 +265,8 @@
 "signing.inviteCoSigners" = "邀请共签方";
 "signing.needMoreSigners" = "还需 %d 个签名者";
 "signing.waitingForCoSigners" = "等待共签方加入…";
+"signing.joiningRoom" = "正在加入中继房间…";
+"signing.shareRoomCodeHint" = "把这组房间码分享给你的共签方，他们在 Horcrux 里输入或扫码即可加入本次签名会话。";
 "signing.signTransaction" = "签署交易";
 "signing.signHint" = "输入 PIN 并与共签方一起签署交易";
 "signing.enterPinDecrypt" = "输入 PIN 以解密分片";

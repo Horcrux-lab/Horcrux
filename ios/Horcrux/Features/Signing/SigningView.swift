@@ -1,4 +1,5 @@
 import SwiftUI
+import CoreImage.CIFilterBuiltins
 
 /// Transaction signing flow — invites co-signers and tracks progress.
 struct SigningView: View {
@@ -299,7 +300,7 @@ struct ComposeTransactionView: View {
             Section {
                 Button {
                     viewModel.estimateGas()
-                    viewModel.step = .invite
+                    viewModel.prepareInvite()
                 } label: {
                     Text(L10n.Signing.nextInviteCoSigners)
                         .frame(maxWidth: .infinity)
@@ -400,6 +401,42 @@ struct InviteSignersView: View {
                     .padding(.top, 16)
 
                     TransactionPreviewCard(viewModel: viewModel)
+
+                    // Invite card: shows the 3-word room code + QR + copy
+                    // so co-signers can join the same relay room. Solo
+                    // wallets (threshold == 1) skip this entirely.
+                    if peersNeeded > 0 && !viewModel.roomCode.isEmpty {
+                        VStack(alignment: .leading, spacing: 10) {
+                            VaultSectionHeader(L10n.Signing.inviteCoSigners, icon: "qrcode")
+                            SigningRoomCodeCard(code: viewModel.roomCode)
+                            if let err = viewModel.roomJoinError {
+                                HStack(spacing: 8) {
+                                    Image(systemName: "exclamationmark.triangle.fill")
+                                        .foregroundStyle(HorcruxTheme.warningAmber)
+                                    Text(err)
+                                        .font(.caption)
+                                        .foregroundStyle(HorcruxTheme.subtleText)
+                                    Spacer()
+                                    Button(L10n.Common.retry) {
+                                        viewModel.retryJoinRoom()
+                                    }
+                                    .buttonStyle(.bordered)
+                                    .controlSize(.small)
+                                }
+                            } else if !viewModel.roomJoined {
+                                HStack(spacing: 8) {
+                                    ProgressView().scaleEffect(0.7)
+                                    Text(L10n.Signing.joiningRoom)
+                                        .font(.caption)
+                                        .foregroundStyle(HorcruxTheme.subtleText)
+                                }
+                            } else {
+                                Text(L10n.Signing.shareRoomCodeHint)
+                                    .font(.caption)
+                                    .foregroundStyle(HorcruxTheme.subtleText)
+                            }
+                        }
+                    }
 
                     // Joined peers list
                     if !viewModel.joinedSigners.isEmpty {
@@ -1229,6 +1266,128 @@ struct TransactionPreviewCard: View {
                     Text("\(beforeUSD) → \(afterUSD)")
                         .font(.caption2)
                         .foregroundStyle(.secondary)
+                }
+            }
+        }
+    }
+}
+
+/// Share card for the 3-word signing room code. Mirrors the pattern used
+/// in DKG/refresh flows: copy-to-clipboard button + tap-to-expand QR so a
+/// co-signer can scan instead of typing.
+private struct SigningRoomCodeCard: View {
+    let code: String
+    @State private var copied = false
+    @State private var expanded = false
+
+    var body: some View {
+        HStack(spacing: 12) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text(L10n.CreateShard.roomCodeLabel)
+                    .font(.caption)
+                    .foregroundStyle(HorcruxTheme.subtleText)
+                Text(code)
+                    .font(.system(.title3, design: .monospaced).weight(.semibold))
+                    .foregroundStyle(.white)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
+            }
+            Spacer()
+            Button {
+                SecureClipboard.copy(code)
+                Haptics.success()
+                withAnimation { copied = true }
+                Task {
+                    try? await Task.sleep(nanoseconds: 1_500_000_000)
+                    await MainActor.run { withAnimation { copied = false } }
+                }
+            } label: {
+                Image(systemName: copied ? "checkmark" : "doc.on.doc")
+                    .font(.body.weight(.semibold))
+                    .foregroundStyle(copied ? HorcruxTheme.successGreen : HorcruxTheme.accentCyan)
+                    .frame(width: 36, height: 36)
+                    .background(Circle().fill(Color.white.opacity(0.06)))
+            }
+            .accessibilityLabel(L10n.CreateShard.copyRoomCode)
+            Button {
+                expanded = true
+            } label: {
+                SigningRoomCodeQR(code: code)
+                    .frame(width: 44, height: 44)
+                    .padding(4)
+                    .background(RoundedRectangle(cornerRadius: 8).fill(Color.white))
+            }
+            .accessibilityLabel(L10n.CreateShard.showQR)
+        }
+        .padding(14)
+        .background(
+            RoundedRectangle(cornerRadius: 14)
+                .fill(Color.white.opacity(0.05))
+                .overlay(RoundedRectangle(cornerRadius: 14).stroke(HorcruxTheme.hairline, lineWidth: 1))
+        )
+        .sheet(isPresented: $expanded) {
+            SigningRoomCodeExpandedSheet(code: code)
+                .presentationDetents([.medium])
+        }
+    }
+}
+
+private struct SigningRoomCodeQR: View {
+    let code: String
+    var body: some View {
+        if let img = Self.generate(code) {
+            Image(uiImage: img)
+                .interpolation(.none)
+                .resizable()
+                .aspectRatio(contentMode: .fit)
+        } else {
+            Image(systemName: "qrcode")
+                .foregroundStyle(.black)
+        }
+    }
+
+    private static func generate(_ text: String) -> UIImage? {
+        let data = Data("horcrux-room:\(text)".utf8)
+        guard let filter = CIFilter(name: "CIQRCodeGenerator") else { return nil }
+        filter.setValue(data, forKey: "inputMessage")
+        filter.setValue("M", forKey: "inputCorrectionLevel")
+        guard let ci = filter.outputImage?.transformed(by: CGAffineTransform(scaleX: 8, y: 8)),
+              let cg = CIContext().createCGImage(ci, from: ci.extent) else { return nil }
+        return UIImage(cgImage: cg)
+    }
+}
+
+private struct SigningRoomCodeExpandedSheet: View {
+    let code: String
+    @Environment(\.dismiss) private var dismiss
+    var body: some View {
+        NavigationStack {
+            ZStack {
+                HorcruxTheme.backgroundGradient.ignoresSafeArea()
+                VStack(spacing: 20) {
+                    Text(L10n.CreateShard.roomCodeLabel)
+                        .font(.caption)
+                        .foregroundStyle(HorcruxTheme.subtleText)
+                    Text(code)
+                        .font(.system(.title, design: .monospaced).weight(.semibold))
+                        .foregroundStyle(.white)
+                    SigningRoomCodeQR(code: code)
+                        .frame(width: 240, height: 240)
+                        .padding(10)
+                        .background(RoundedRectangle(cornerRadius: 14).fill(Color.white))
+                    Text(L10n.Signing.shareRoomCodeHint)
+                        .font(.footnote)
+                        .foregroundStyle(HorcruxTheme.subtleText)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal, 24)
+                }
+                .padding()
+            }
+            .navigationTitle(L10n.Signing.inviteCoSigners)
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button(L10n.Common.done) { dismiss() }
                 }
             }
         }

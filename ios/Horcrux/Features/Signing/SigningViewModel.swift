@@ -108,6 +108,16 @@ final class SigningViewModel: ObservableObject {
 
     // Signing
     @Published var joinedSigners: [Peer] = []
+    /// Three-word room code shared with co-signers to join this MPC session.
+    /// Generated lazily when user advances to the invite step. Also used
+    /// verbatim as the MPC `sessionId` so every participant derives the same
+    /// session key; co-signers join the same relay room via `joinRelayRoom`.
+    @Published var roomCode: String = ""
+    /// True once we've called `peerManager.joinRelayRoom` with `roomCode`.
+    /// Drives UI hints ("waiting for co-signers to join…" vs retry prompt).
+    @Published var roomJoined: Bool = false
+    /// Non-nil if joining the relay failed; shown in invite UI with a retry.
+    @Published var roomJoinError: String?
     @Published var signingProgress: Double = 0
     @Published var signingStatusMessage: String = ""
     @Published var currentRound: Int = 0
@@ -419,6 +429,49 @@ final class SigningViewModel: ObservableObject {
         signingShardKey = swk
     }
 
+    /// Move from the compose step to the invite step. Generates a fresh
+    /// three-word `roomCode`, joins the relay room so co-signers with the
+    /// same code can connect, and pins that code as the MPC `sessionId`.
+    /// Safe to call multiple times — on retry we reuse the existing code.
+    func prepareInvite() {
+        if roomCode.isEmpty {
+            roomCode = RoomCode.generate()
+        }
+        // MPC sessionId == relay room code; peers on the same relay room
+        // feed messages into the same bridge session.
+        sessionId = roomCode
+        roomJoinError = nil
+        step = .invite
+
+        // Join the relay room in the background so peers who enter the
+        // same code can discover us. Bonjour/LAN peers are already
+        // published via PeerManager observers regardless.
+        guard let peerManager, !roomJoined else { return }
+        let code = roomCode
+        Task { [weak self] in
+            do {
+                try await peerManager.joinRelayRoom(roomId: code)
+                await MainActor.run {
+                    self?.roomJoined = true
+                    SecureLog.info("[signing] joined relay room \(code)")
+                }
+            } catch {
+                await MainActor.run {
+                    self?.roomJoinError = error.localizedDescription
+                    SecureLog.error("[signing] joinRelayRoom failed: \(error.localizedDescription)")
+                }
+            }
+        }
+    }
+
+    /// Retry relay room join after a failure. UI binds to this from the
+    /// invite step when `roomJoinError != nil`.
+    func retryJoinRoom() {
+        roomJoined = false
+        roomJoinError = nil
+        prepareInvite()
+    }
+
     func startSigning() {
         // Block on jailbroken devices
         if SecurityEnvironment.isCompromised {
@@ -433,7 +486,12 @@ final class SigningViewModel: ObservableObject {
         }
 
         step = .signing
-        sessionId = UUID().uuidString
+        // sessionId was pinned by prepareInvite() to match roomCode so all
+        // participants share the same MPC session. Fall back to a fresh
+        // UUID only if someone bypassed prepareInvite (defensive).
+        if sessionId == nil || sessionId?.isEmpty == true {
+            sessionId = roomCode.isEmpty ? UUID().uuidString : roomCode
+        }
         signingStartedAt = Date()
         // Initialize each joined peer as "waiting" — flips to "signing" on first message,
         // and to "done" when the ceremony completes.

@@ -557,6 +557,8 @@ enum L10n {
         static let inviteHint = NSLocalizedString("signing.inviteHint", comment: "")
         static let inviteCoSigners = NSLocalizedString("signing.inviteCoSigners", comment: "")
         static let waitingForCoSigners = NSLocalizedString("signing.waitingForCoSigners", comment: "")
+        static let joiningRoom = NSLocalizedString("signing.joiningRoom", comment: "")
+        static let shareRoomCodeHint = NSLocalizedString("signing.shareRoomCodeHint", comment: "")
         static let signTransaction = NSLocalizedString("signing.signTransaction", comment: "")
         static let signHint = NSLocalizedString("signing.signHint", comment: "")
         static let enterPinDecrypt = NSLocalizedString("signing.enterPinDecrypt", comment: "")

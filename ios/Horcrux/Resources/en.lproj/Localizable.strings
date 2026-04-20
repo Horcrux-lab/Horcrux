@@ -265,6 +265,8 @@
 "signing.inviteCoSigners" = "Invite Co-Signers";
 "signing.needMoreSigners" = "Need %d more signer(s)";
 "signing.waitingForCoSigners" = "Waiting for co-signers to join…";
+"signing.joiningRoom" = "Joining relay room…";
+"signing.shareRoomCodeHint" = "Share this room code with your co-signers. They enter or scan it in Horcrux to join this signing session.";
 "signing.signTransaction" = "Sign Transaction";
 "signing.signHint" = "Enter your PIN and sign the transaction with co-signers";
 "signing.enterPinDecrypt" = "Enter PIN to decrypt shard";

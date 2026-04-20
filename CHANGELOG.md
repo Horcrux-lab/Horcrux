@@ -5,6 +5,21 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.0-dev.77] - 2026-04-20
+
+### Added
+
+- **iOS**: 热签名**房间码邀请 UI**（发起方侧）。此前 `InviteSignersView` 只显示一个"等待共签方加入…"的转圈，既不生成也不显示房间码，也不加入中继房间——多方热签名事实上无法从 UI 发起。本版在进入邀请步骤时：
+  - `SigningViewModel.prepareInvite()` 生成三词房间码（`RoomCode.generate()`），把它同时作为 MPC `sessionId` 和中继 `roomId` 使用，保证所有参与方落在同一会话；
+  - 自动调用 `peerManager.joinRelayRoom(roomId:)`，失败时给出错误提示 + 重试按钮；
+  - 邀请卡片复用 DKG/refresh 风格：明文房间码 + 复制按钮 + 轻点展开二维码（`CIQRCodeGenerator`，`horcrux-room:<code>` 载荷）。
+  - 加入中继前显示"正在加入中继房间…"，加入成功后显示"把这组房间码分享给你的共签方…"。
+- **iOS**: `estimateGas()` 全链路 `SecureLog` 埋点（入口参数、early-return 分支、EVM 成功值、RPC 失败原因），便于诊断 dev.76 仍偶发的 "—" 显示问题。
+
+### Notes
+
+- 共签方侧目前仍依赖既有的"已连接对端"自动列表——即**已经**通过 DKG/refresh 保持连接的设备会自动出现在 `joinedSigners`。真正的共签方"接受签名请求"入口（主屏幕进入 + 扫码/输入房间码 + 审阅交易后确认）是下一个里程碑的独立任务，需要新 UI + 新协议消息（`sign_request_announce`）。
+
 ## [0.3.0-dev.76] - 2026-04-20
 
 ### Fixed
