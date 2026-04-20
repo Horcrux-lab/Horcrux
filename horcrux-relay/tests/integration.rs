@@ -179,16 +179,20 @@ async fn test_not_found_returns_404() {
 async fn test_ws_plain_get_rejected() {
     let app = test_app();
 
-    // A plain GET (not a WebSocket upgrade) to /ws/{room_id} is not handled
-    // by the WebSocketUpgrade extractor and falls through to 404.
+    // A plain GET (not a WebSocket upgrade) to /ws/{room_id} matches the
+    // route but the `WebSocketUpgrade` extractor rejects it with 400
+    // because the request is missing the required upgrade headers
+    // (`Connection: Upgrade`, `Upgrade: websocket`, `Sec-WebSocket-Key`).
+    // This is the correct, expected behavior — the endpoint exists but
+    // cannot be used without a proper WS handshake.
     let req = Request::get("/ws/test-room?device_id=dev1")
         .body(Body::empty())
         .unwrap();
     let resp = app.oneshot(req).await.unwrap();
     assert_eq!(
         resp.status(),
-        StatusCode::NOT_FOUND,
-        "plain GET to /ws/ should not match without WS upgrade headers"
+        StatusCode::BAD_REQUEST,
+        "plain GET to /ws/ should be rejected by the WebSocketUpgrade extractor"
     );
 }
 
