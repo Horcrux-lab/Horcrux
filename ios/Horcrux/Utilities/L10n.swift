@@ -173,6 +173,7 @@ enum L10n {
         static let backupEnableFailedGeneric = NSLocalizedString("securityDetail.backup.enableFailedGeneric", comment: "")
         static let backupRelockedTitle = NSLocalizedString("securityDetail.backup.relockedTitle", comment: "")
         static let backupRelockedMsg = NSLocalizedString("securityDetail.backup.relockedMsg", comment: "")
+        static let backupPinFooter = NSLocalizedString("securityDetail.backup.pinFooter", comment: "")
         static let mpcTitle = NSLocalizedString("securityDetail.mpc.title", comment: "")
         static let mpcTip1 = NSLocalizedString("securityDetail.mpc.tip1", comment: "")
         static let mpcTip2 = NSLocalizedString("securityDetail.mpc.tip2", comment: "")

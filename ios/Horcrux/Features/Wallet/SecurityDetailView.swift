@@ -11,6 +11,7 @@ struct SecurityDetailView: View {
     @State private var isEnablingBackup = false
     @State private var backupErrorMessage: String?
     @State private var backupRefreshToken = 0
+    @State private var showBackupPinSheet = false
 
     var body: some View {
         ZStack {
@@ -31,6 +32,26 @@ struct SecurityDetailView: View {
         .sheet(item: $rotationTarget) { w in
             RefreshShardSheet(wallet: w, appState: appState)
                 .environmentObject(appState)
+        }
+        .sheet(isPresented: $showBackupPinSheet) {
+            PinUnlockSheet(
+                title: L10n.SecurityDetail.backupTitle,
+                subtitle: L10n.SecurityDetail.backupPinFooter
+            ) { entered in
+                guard appState.verifyPin(entered) else {
+                    return L10n.ShardsVM.pinWrong
+                }
+                do {
+                    let swk = try SecureKeyVault.unwrapWithPin(entered)
+                    try SecureKeyVault.sealBackupNow(swk: swk)
+                    backupRefreshToken &+= 1
+                    return nil
+                } catch {
+                    SecureLog.error("PIN-path SE backup seal failed: \(error.localizedDescription)")
+                    return "\(L10n.SecurityDetail.backupEnableFailedGeneric)\n\n\(error.localizedDescription)"
+                }
+            }
+            .presentationDetents([.medium, .large])
         }
         .alert(
             backupErrorTitle,
@@ -257,31 +278,34 @@ struct SecurityDetailView: View {
 
     private func enableBiometricBackup() {
         guard !isEnablingBackup else { return }
-        guard let swk = appState.cachedShardKey() else {
-            backupErrorMessage = L10n.SecurityDetail.backupRelockedMsg
-            return
-        }
-        isEnablingBackup = true
-        Task.detached {
-            let result: Result<Void, Error> = {
-                do {
-                    try SecureKeyVault.sealBackupNow(swk: swk)
-                    return .success(())
-                } catch {
-                    return .failure(error)
-                }
-            }()
-            await MainActor.run {
-                isEnablingBackup = false
-                switch result {
-                case .success:
-                    backupRefreshToken &+= 1
-                case .failure(let err):
-                    SecureLog.error("Manual SE backup seal failed: \(err.localizedDescription)")
-                    let detail = err.localizedDescription
-                    backupErrorMessage = "\(L10n.SecurityDetail.backupEnableFailedGeneric)\n\n\(detail)"
+        if let swk = appState.cachedShardKey() {
+            isEnablingBackup = true
+            Task.detached {
+                let result: Result<Void, Error> = {
+                    do {
+                        try SecureKeyVault.sealBackupNow(swk: swk)
+                        return .success(())
+                    } catch {
+                        return .failure(error)
+                    }
+                }()
+                await MainActor.run {
+                    isEnablingBackup = false
+                    switch result {
+                    case .success:
+                        backupRefreshToken &+= 1
+                    case .failure(let err):
+                        SecureLog.error("Manual SE backup seal failed: \(err.localizedDescription)")
+                        let detail = err.localizedDescription
+                        backupErrorMessage = "\(L10n.SecurityDetail.backupEnableFailedGeneric)\n\n\(detail)"
+                    }
                 }
             }
+        } else {
+            // SWK not cached (likely user unlocked via biometric lock screen
+            // but no SE-sealed copy exists, so unwrap never happened). Ask
+            // for the PIN to unwrap + seal in one pass.
+            showBackupPinSheet = true
         }
     }
 

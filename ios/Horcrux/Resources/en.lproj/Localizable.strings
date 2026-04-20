@@ -95,6 +95,7 @@
 "securityDetail.backup.enableFailedGeneric" = "Make sure Face ID / Touch ID is enrolled in system settings, then try again.";
 "securityDetail.backup.relockedTitle" = "Unlock required";
 "securityDetail.backup.relockedMsg" = "The app locked automatically. Return, unlock, then enable the local backup.";
+"securityDetail.backup.pinFooter" = "Enter your PIN to unwrap the shard key and create the Face ID / Touch ID backup.";
 "securityDetail.mpc.title" = "How MPC protects you";
 "securityDetail.mpc.tip1" = "Your private key is never assembled — signatures are computed cooperatively across shards.";
 "securityDetail.mpc.tip2" = "A compromised single device cannot sign alone; an attacker must breach the threshold.";
