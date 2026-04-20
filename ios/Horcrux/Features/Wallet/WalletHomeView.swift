@@ -181,7 +181,7 @@ struct WalletHomeView: View {
                 }
                 .accessibilityIdentifier("walletHome_restoreButton")
             }
-            .padding(.horizontal, 48)
+            .padding(.horizontal, 24)
 
             Spacer()
         }
@@ -1415,6 +1415,8 @@ struct PortfolioSummaryCard: View {
                                 absolute >= 0 ? "+" : "-",
                                 abs(absolute)))
                         .font(.caption.weight(.medium).monospacedDigit())
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.7)
                         .opacity(valueHidden ? 0.0 : 1.0)
                 }
                 .foregroundStyle(percent >= 0 ? HorcruxTheme.successGreen : HorcruxTheme.dangerRed)
