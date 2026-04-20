@@ -5,6 +5,26 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.0-dev.84] - 2026-04-20
+
+### Fixed
+
+- **iOS**: **签名失败 "Not connected to peer"** + 共签方显示 "3/2 加入"。dev.83 把 relay 和 wifi-lan 的 `discoveredPeers` 都 mirror 进 `connectedPeers`，但：
+  1. wifi-lan 为 NWListener 入站连接注册的 `inbound-<endpointId>` 只是"接收侧 stub"，`WiFiLANTransport.connections` 里没对应条目，发送时直接 `throw .notConnected`——但之前 dev.82 的 raw-path 登记也会把它加进 `connectedPeers`，`broadcastMpcMessage` 一遍历就炸。
+  2. 同一台对端会同时出现两次（wifi-lan 出站 + relay），`joinedSigners` 计数直接 ×2（"1 本机 + 2 对端 = 3"）。
+  3. FROST 协议消息被 relay 和 wifi-lan 同时投递两次，bridge 判重后 `handleMessage` 抛 "party N tried to overwrite"。
+  
+  三处修复：
+  - **`PeerManager.broadcastMpcMessage`** 改为容错——逐 peer `try`，只有**全部失败**才向上抛；`inbound-*` stub 直接 skip。
+  - **`PeerManager.handleIncomingMessage`** 的 dev.82 登记分支跳过 `inbound-*` 前缀，不再把只接收的 stub 塞进 `connectedPeers`。
+  - **`SigningViewModel.joinedSigners`** sink 里按 `peer.name` 去重，relay + wifi-lan 同设备只计一次。
+  - **`SigningViewModel.runSigningRounds`** 新增 `(fromParty, round, toParty)` 三元组去重 `seenMessages` 集合，多传输 fan-out 的重复包在进 bridge 前丢弃。
+
+### Technical
+
+- 去重 key 选 `peer.name` 而不是构造 deviceId：SignRequestDTO 里已经带了 `initiatorDeviceName`，其他场景 `UIDevice.current.name` 也有值，命名冲突要两台同名 iPhone 才会发生，远期可以换成 DKG 里分发的 partyId。
+- `NSLog("[PM] broadcastMpc: skipping peer …")` 方便后续排查单 peer 发送失败。
+
 ## [0.3.0-dev.83] - 2026-04-20
 
 ### Fixed

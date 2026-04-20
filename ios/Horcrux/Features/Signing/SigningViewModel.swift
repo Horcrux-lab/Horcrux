@@ -271,11 +271,23 @@ final class SigningViewModel: ObservableObject {
         self.networkConfig = appState.networkConfig
         self.blockchainService = appState.blockchainService
 
-        // Observe connected peers as potential co-signers
+        // Observe connected peers as potential co-signers.
+        // Deduplicate by display name: the same physical device can appear
+        // under two peer.ids when relay + wifi-lan are both active
+        // (different peer.id formats per transport). Collapse on name so
+        // the "N joined" count matches reality.
         appState.peerManager.$connectedPeers
             .receive(on: DispatchQueue.main)
             .sink { [weak self] peers in
-                self?.joinedSigners = peers
+                var seen = Set<String>()
+                var unique: [Peer] = []
+                for peer in peers {
+                    let key = peer.name.isEmpty ? peer.id : peer.name
+                    if seen.insert(key).inserted {
+                        unique.append(peer)
+                    }
+                }
+                self?.joinedSigners = unique
             }
             .store(in: &cancellables)
     }
@@ -744,6 +756,12 @@ final class SigningViewModel: ObservableObject {
                 try await peerManager.broadcastMpcMessage(data)
             }
 
+            // Dedupe identical (fromParty, round) pairs: multi-transport
+            // fan-out (relay + wifi-lan both active) makes the same FROST
+            // message arrive twice, and the bridge rejects the second copy
+            // as "party N tried to overwrite message".
+            var seenMessages = Set<String>()
+
             // Process incoming messages
             for await (peer, data) in mpcStream {
                 // Real per-peer state: first inbound bytes from a peer flips them to .signing.
@@ -776,6 +794,12 @@ final class SigningViewModel: ObservableObject {
                     // to overwrite message".
                     let myPartyIndex = wallet.partyIndex
                     if msg.toParty != 0 && msg.toParty != myPartyIndex {
+                        continue
+                    }
+
+                    // Drop duplicates from multi-transport fan-out.
+                    let key = "\(msg.fromParty)-\(msg.round)-\(msg.toParty)"
+                    if !seenMessages.insert(key).inserted {
                         continue
                     }
 

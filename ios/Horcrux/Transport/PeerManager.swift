@@ -212,11 +212,29 @@ final class PeerManager: ObservableObject {
     /// Broadcast MPC data to all connected peers, with retry on failure.
     func broadcastMpcMessage(_ data: Data) async throws {
         let targets = connectedPeers.isEmpty ? allPeers : connectedPeers
+        var anySent = false
+        var lastError: Error?
         for peer in targets {
-            try await MpcRetryPolicy.withRetry {
-                try await self.sendMpcMessage(data, to: peer)
+            // `inbound-*` wifi-lan peers are receive-only stubs from
+            // accepted NWListener connections — they have no entry in
+            // WiFiLANTransport.connections and sending to them throws
+            // notConnected. The outbound-discovered entry for the same
+            // device already covers the send direction, so skip silently.
+            if peer.channel == "wifi-lan" && peer.id.hasPrefix("inbound-") { continue }
+            do {
+                try await MpcRetryPolicy.withRetry {
+                    try await self.sendMpcMessage(data, to: peer)
+                }
+                anySent = true
+            } catch {
+                NSLog("[PM] broadcastMpc: skipping peer \(peer.channel):\(peer.id.prefix(16)) — \(error.localizedDescription)")
+                lastError = error
             }
         }
+        // Propagate only when EVERY target failed; a partial success is
+        // fine in a multi-transport fan-out where relay + wifi-lan both
+        // carry the same payload.
+        if !anySent, let err = lastError { throw err }
     }
 
     // MARK: - Relay Room
@@ -329,7 +347,13 @@ final class PeerManager: ObservableObject {
             // the Noise handshake, so otherwise they'd never land in
             // `connectedPeers` and `SigningViewModel.joinedSigners` would
             // stay empty despite messages flowing freely.
-            if !connectedPeers.contains(where: { $0.id == peerId }) {
+            // Exclude `inbound-*` wifi-lan stubs: they represent the
+            // accepted-server side of a peer's NWConnection (receive-only,
+            // no send channel), so registering them in connectedPeers
+            // inflates the signer count AND makes broadcasts fail with
+            // notConnected when the sender loop hits the stub.
+            let isInboundStub = message.from.channel == "wifi-lan" && peerId.hasPrefix("inbound-")
+            if !isInboundStub, !connectedPeers.contains(where: { $0.id == peerId }) {
                 connectedPeers.append(message.from)
             }
             NSLog("[PM] handleIncoming: \(message.from.channel) path → yielding \(message.data.count)B to \(mpcMessageContinuations.count) subscriber(s)")
