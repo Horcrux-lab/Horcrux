@@ -118,9 +118,12 @@ struct SecurityDetailView: View {
                 if d >= 180 { worstRotation = max(worstRotation, .risk); stale.append(w) }
                 else if d >= 90 { worstRotation = max(worstRotation, .attention); stale.append(w) }
             } else {
-                // Never rotated — flag as attention only.
-                worstRotation = max(worstRotation, .attention)
-                stale.append(w)
+                // Never rotated — only escalate once the wallet itself is
+                // old enough to warrant rotation. Fresh wallets (< 90d) stay
+                // safe instead of showing a misleading "rotate now" nag.
+                let age = Calendar.current.dateComponents([.day], from: w.createdAt, to: Date()).day ?? 0
+                if age >= 180 { worstRotation = max(worstRotation, .risk); stale.append(w) }
+                else if age >= 90 { worstRotation = max(worstRotation, .attention); stale.append(w) }
             }
         }
         let sealed = SecureKeyVault.hasSESealed
@@ -183,12 +186,21 @@ struct SecurityDetailView: View {
     @ViewBuilder
     private func rotationRow(for acct: ShardAccount) -> some View {
         let representative = acct.wallets.first!
+        let oldestCreatedAt = acct.wallets.map(\.createdAt).min() ?? representative.createdAt
         let last = RefreshTracker.lastRefresh(accountId: acct.id)
         let days = last.map { Calendar.current.dateComponents([.day], from: $0, to: Date()).day ?? 0 }
+        let walletAgeDays = Calendar.current.dateComponents([.day], from: oldestCreatedAt, to: Date()).day ?? 0
         let lvl: Level = {
-            guard let d = days else { return .attention }
-            if d >= 180 { return .risk }
-            if d >= 90 { return .attention }
+            if let d = days {
+                if d >= 180 { return .risk }
+                if d >= 90 { return .attention }
+                return .safe
+            }
+            // Never rotated — only nag once the wallet itself crosses the
+            // 90-day recommended interval. Fresh wallets don't need a
+            // "rotate now" CTA.
+            if walletAgeDays >= 180 { return .risk }
+            if walletAgeDays >= 90 { return .attention }
             return .safe
         }()
         let valueText: String = days.map { L10n.WalletHome.securityRotationAgo($0) } ?? L10n.WalletHome.securityRotationNever
