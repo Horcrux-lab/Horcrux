@@ -115,6 +115,7 @@ final class WalletStore: ObservableObject {
         }
         wallets = []
         RefreshTracker.wipeAll()
+        Task { @MainActor in WalletAvatarStore.shared.wipeAll() }
         save()
     }
 

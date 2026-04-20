@@ -23,6 +23,12 @@ struct WalletHomeView: View {
     @State private var lastReachabilityCheck: Date?
     @State private var rotationTarget: Wallet?
     @State private var rotationNudgeDismissedAt: Date?
+    @State private var avatarEditTarget: AvatarEditTarget?
+
+    private struct AvatarEditTarget: Identifiable {
+        let id: String  // == accountId
+        let label: String
+    }
 
     var body: some View {
         NavigationStack {
@@ -91,6 +97,9 @@ struct WalletHomeView: View {
             .sheet(item: $rotationTarget) { wallet in
                 RefreshShardSheet(wallet: wallet, appState: appState)
                     .environmentObject(appState)
+            }
+            .sheet(item: $avatarEditTarget) { target in
+                WalletAvatarPickerSheet(accountId: target.id, fallbackLabel: target.label)
             }
             .task {
                 networkReachable = await NetworkStatus.shared.checkAll(config: appState.networkConfig)
@@ -399,6 +408,7 @@ struct WalletHomeView: View {
                     label: group.label,
                     threshold: Int(group.wallets.first?.threshold ?? 0),
                     total: Int(group.wallets.first?.totalParties ?? 0),
+                    accountId: group.accountId,
                     sharedAddress: isCollapsed ? nil : evmAddress,
                     isCollapsed: isCollapsible ? isCollapsed : nil,
                     collapsedSummary: isCollapsed ? collapsedSummary(for: group) : nil
@@ -421,8 +431,22 @@ struct WalletHomeView: View {
                     .buttonStyle(.plain)
                     .accessibilityLabel("\(group.label), \(isCollapsed ? L10n.Common.expand : L10n.Common.collapse)")
                     .accessibilityIdentifier("walletHome_groupToggle_\(group.accountId)")
+                    .contextMenu {
+                        Button {
+                            avatarEditTarget = .init(id: group.accountId, label: group.label)
+                        } label: {
+                            Label(L10n.WalletAvatar.editMenu, systemImage: "paintpalette")
+                        }
+                    }
                 } else {
                     header
+                        .contextMenu {
+                            Button {
+                                avatarEditTarget = .init(id: group.accountId, label: group.label)
+                            } label: {
+                                Label(L10n.WalletAvatar.editMenu, systemImage: "paintpalette")
+                            }
+                        }
                 }
             }
 
@@ -746,6 +770,10 @@ struct WalletGroupHeader: View {
     let label: String
     let threshold: Int
     let total: Int
+    /// Stable account identity — used by WalletAvatarView to look up the
+    /// user-chosen emoji/color. Falls back to a deterministic gradient
+    /// monogram when no avatar is set.
+    var accountId: String = ""
     /// Non-nil when every EVM wallet in the group shares the same address;
     /// shown as a copy-able chip so each row doesn't repeat the hex string.
     let sharedAddress: String?
@@ -761,9 +789,13 @@ struct WalletGroupHeader: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 10) {
-                Image(systemName: "key.horizontal.fill")
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(HorcruxTheme.accentPurple)
+                if !accountId.isEmpty {
+                    WalletAvatarView(accountId: accountId, fallbackText: label, size: 32)
+                } else {
+                    Image(systemName: "key.horizontal.fill")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(HorcruxTheme.accentPurple)
+                }
                 Text(label)
                     .font(.headline)
                     .foregroundStyle(.white)

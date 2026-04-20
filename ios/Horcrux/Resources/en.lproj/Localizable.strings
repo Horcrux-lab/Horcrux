@@ -942,3 +942,9 @@
 "rotate.nudgeBodyDays" = "Last rotation was %d days ago. A periodic refresh keeps each share at full entropy.";
 "rotate.nudgeCTA" = "Rotate now";
 "rotate.nudgeDismiss" = "Later";
+
+"walletAvatar.pickerTitle" = "Account icon";
+"walletAvatar.color" = "Color";
+"walletAvatar.icon" = "Icon";
+"walletAvatar.reset" = "Reset";
+"walletAvatar.editMenu" = "Change icon";

@@ -943,3 +943,9 @@
 "rotate.nudgeBodyDays" = "上次轮换已经 %d 天。定期刷新可让每个分片保持满熵。";
 "rotate.nudgeCTA" = "立即轮换";
 "rotate.nudgeDismiss" = "稍后";
+
+"walletAvatar.pickerTitle" = "账户图标";
+"walletAvatar.color" = "颜色";
+"walletAvatar.icon" = "图标";
+"walletAvatar.reset" = "恢复默认";
+"walletAvatar.editMenu" = "更改图标";

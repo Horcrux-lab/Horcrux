@@ -1181,6 +1181,14 @@ extension L10n {
         static let nudgeDismiss = NSLocalizedString("rotate.nudgeDismiss", comment: "")
     }
 
+    enum WalletAvatar {
+        static let pickerTitle = NSLocalizedString("walletAvatar.pickerTitle", comment: "")
+        static let color = NSLocalizedString("walletAvatar.color", comment: "")
+        static let icon = NSLocalizedString("walletAvatar.icon", comment: "")
+        static let reset = NSLocalizedString("walletAvatar.reset", comment: "")
+        static let editMenu = NSLocalizedString("walletAvatar.editMenu", comment: "")
+    }
+
     // MARK: - dev.48 additions
 
     enum SigningExtra {
