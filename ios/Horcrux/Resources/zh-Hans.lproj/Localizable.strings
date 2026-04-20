@@ -518,6 +518,7 @@
 "nodeStatus.networkMismatchExpectedTestnet" = "节点返回的是主网，但当前选择的是测试网";
 "nodeStatus.chainMismatch" = "网络不匹配：期望 %1$@，实际 %2$@";
 "nodeStatus.blockLagWarning" = "落后约 %d 块（参考多源中位数）";
+"nodeStatus.latencyTrend" = "最近延迟趋势";
 "nodeStatus.resetThisChain" = "恢复此链默认";
 "nodeStatus.copyURL" = "复制 URL";
 

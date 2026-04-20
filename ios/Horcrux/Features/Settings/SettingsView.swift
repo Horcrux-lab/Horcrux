@@ -1215,6 +1215,11 @@ struct NodeStatusRow: View {
                                 .font(.caption2)
                                 .foregroundStyle(latencyColor(ms))
                         }
+                        if snap.latencyHistory.count >= 2 {
+                            LatencySparkline(samples: snap.latencyHistory)
+                                .frame(width: 56, height: 14)
+                                .accessibilityLabel(L10n.NodeStatus.latencyTrend)
+                        }
                         if let h = snap.blockHeight {
                             Text(L10n.NodeStatus.blockHeight(h))
                                 .font(.caption2)
@@ -1850,5 +1855,44 @@ private struct RPCConfigImportSheet: View {
             preview = nil
             error = L10n.NodeSettings.importParseFailed
         }
+    }
+}
+
+// MARK: - Latency sparkline
+
+/// Compact inline latency history chart rendered alongside the current
+/// latency label in NodeStatusRow. Helps users spot whether a node is
+/// stable ("flat line at 120ms") or jittery ("spikes to 800ms").
+private struct LatencySparkline: View {
+    let samples: [Int]
+
+    var body: some View {
+        GeometryReader { geo in
+            let maxValue = max((samples.max() ?? 1), 1)
+            let minValue = min((samples.min() ?? 0), maxValue)
+            let range = max(maxValue - minValue, 1)
+            let stepX = samples.count > 1 ? geo.size.width / CGFloat(samples.count - 1) : 0
+
+            Path { path in
+                for (i, v) in samples.enumerated() {
+                    let x = CGFloat(i) * stepX
+                    let normalized = CGFloat(v - minValue) / CGFloat(range)
+                    let y = geo.size.height * (1 - normalized)
+                    if i == 0 {
+                        path.move(to: CGPoint(x: x, y: y))
+                    } else {
+                        path.addLine(to: CGPoint(x: x, y: y))
+                    }
+                }
+            }
+            .stroke(color(for: samples.last ?? 0), lineWidth: 1.2)
+        }
+    }
+
+    /// Colour tip per latest sample — same thresholds as the inline label.
+    private func color(for ms: Int) -> Color {
+        if ms < 300 { return HorcruxTheme.successGreen }
+        if ms < 1000 { return HorcruxTheme.warningAmber }
+        return HorcruxTheme.dangerRed
     }
 }

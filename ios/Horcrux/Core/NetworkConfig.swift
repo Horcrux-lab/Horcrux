@@ -820,6 +820,9 @@ struct NodeHealthSnapshot: Equatable {
     /// Soft warning: the node is reachable and usable for most reads, but
     /// balance/tx history may be stale.
     var lagWarning: String? = nil
+    /// Recent latency samples (newest last, capped at 20). Used by the UI
+    /// to render a mini sparkline so users can spot instability at a glance.
+    var latencyHistory: [Int] = []
 
     var isOk: Bool { if case .ok = status { return true } else { return false } }
     var isFailed: Bool { if case .failed = status { return true } else { return false } }
@@ -887,6 +890,12 @@ final class NodeHealthStore: ObservableObject {
 
         snap.lastCheckedAt = Date()
         snap.latencyMs = elapsedMs
+        // Push into rolling history (keep last 20). Failures still get
+        // recorded so the sparkline shows a spike rather than a gap.
+        snap.latencyHistory.append(elapsedMs)
+        if snap.latencyHistory.count > 20 {
+            snap.latencyHistory.removeFirst(snap.latencyHistory.count - 20)
+        }
         switch result {
         case .success(let height):
             snap.status = .ok
