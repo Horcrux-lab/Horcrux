@@ -262,10 +262,15 @@ final class SigningViewModel: ObservableObject {
 
     /// Estimate gas / fees before signing (called when user fills amount + address).
     func estimateGas() {
+        SecureLog.info("[estimateGas] called recipient='\(recipientAddress.prefix(10))...' amount='\(amount)' chain=\(wallet.chain.rawValue) svc=\(blockchainService != nil) cfg=\(networkConfig != nil)")
         guard !recipientAddress.isEmpty, !amount.isEmpty,
-              let blockchainService, let networkConfig else { return }
+              let blockchainService, let networkConfig else {
+            SecureLog.info("[estimateGas] early-return (empty fields or unbound)")
+            return
+        }
         guard let amountDecimal = Decimal(string: amount), amountDecimal > 0 else {
             errorMessage = "Invalid amount"
+            SecureLog.info("[estimateGas] early-return (bad amount)")
             return
         }
 
@@ -317,6 +322,7 @@ final class SigningViewModel: ObservableObject {
                         estimatedFee = "≈ \(feeDisplay.estimatedFee)"
                         isEstimatingGas = false
                         self.pendingEvmGas = estimate
+                        SecureLog.info("[estimateGas] EVM ok gasLimit=\(estimate.gasLimit) fee=\(feeDisplay.estimatedFee)")
                     }
                 } else {
                     switch wallet.chain {
@@ -399,6 +405,7 @@ final class SigningViewModel: ObservableObject {
                 await MainActor.run {
                     estimatedFee = L10n.Signing.unableToEstimate
                     isEstimatingGas = false
+                    SecureLog.error("[estimateGas] failed: \(error.localizedDescription)")
                 }
             }
         }
