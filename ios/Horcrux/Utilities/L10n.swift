@@ -1028,6 +1028,9 @@ enum L10n {
 
         static let paidProviderPicker = NSLocalizedString("nodeSettings.paidProviderPicker", comment: "")
 
+        static let presetConfirmTitle = NSLocalizedString("nodeSettings.presetConfirmTitle", comment: "")
+        static let presetApply = NSLocalizedString("nodeSettings.presetApply", comment: "")
+
         static func applyProviderFor(_ provider: String, _ chain: String) -> String {
             String(format: NSLocalizedString("nodeSettings.applyProviderFor", comment: ""), provider, chain)
         }

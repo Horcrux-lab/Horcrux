@@ -865,6 +865,7 @@ struct BlockchainNodeSettingsView: View {
     @State private var importError: String? = nil
     @State private var exportJSON: String = ""
     @State private var selectedEVMProvider: PaidEVMProvider = .alchemy
+    @State private var pendingPreset: NetworkPreset?
 
     /// A collapsible single-field provider picker for the EVM key block.
     /// Switching the picker swaps which Keychain field the SecureField
@@ -927,7 +928,8 @@ struct BlockchainNodeSettingsView: View {
                 HStack(spacing: 12) {
                     ForEach(NetworkPreset.all) { preset in
                         Button {
-                            config.applyPreset(preset)
+                            if isCurrentPreset(preset) { return }
+                            pendingPreset = preset
                         } label: {
                             Text(preset.name)
                                 .font(.subheadline.bold())
@@ -949,9 +951,21 @@ struct BlockchainNodeSettingsView: View {
 
             Section(L10n.NodeSettings.ethereumEVM) {
                 VStack(alignment: .leading, spacing: 4) {
-                    Text(L10n.NodeSettings.rpcURL)
+                    HStack(alignment: .firstTextBaseline) {
+                        Text(L10n.NodeSettings.rpcURL)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        Spacer()
+                        Picker(L10n.NodeSettings.networkPicker, selection: $config.evmChainId) {
+                            ForEach(EVMNetwork.allCases) { net in
+                                Text(net.displayName).tag(net.rawValue)
+                            }
+                        }
+                        .pickerStyle(.menu)
+                        .labelsHidden()
                         .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .accessibilityIdentifier("nodeSettings_evmNetworkPicker")
+                    }
                     TextField("https://eth.llamarpc.com", text: $config.ethereumRPC)
                         .font(.system(.body, design: .monospaced))
                         .autocorrectionDisabled()
@@ -961,12 +975,6 @@ struct BlockchainNodeSettingsView: View {
                     ProviderBadge(urlString: config.ethereumRPC)
                     EndpointSwitcher(chain: .ethereum)
                     ChainFieldActions(chain: .ethereum)
-                }
-
-                Picker(L10n.NodeSettings.networkPicker, selection: $config.evmChainId) {
-                    ForEach(EVMNetwork.allCases) { net in
-                        Text(net.displayName).tag(net.rawValue)
-                    }
                 }
 
                 VStack(alignment: .leading, spacing: 8) {
@@ -1185,6 +1193,20 @@ struct BlockchainNodeSettingsView: View {
             // a no-op when another refresh is already in flight.
             await health.refreshAll(config: config)
         }
+        .alert(L10n.NodeSettings.presetConfirmTitle, isPresented: Binding(
+            get: { pendingPreset != nil },
+            set: { if !$0 { pendingPreset = nil } }
+        )) {
+            Button(L10n.NodeSettings.presetApply) {
+                if let p = pendingPreset { config.applyPreset(p) }
+                pendingPreset = nil
+            }
+            Button(L10n.Common.cancel, role: .cancel) { pendingPreset = nil }
+        } message: {
+            if let p = pendingPreset {
+                Text(presetPreviewMessage(p))
+            }
+        }
         .alert(L10n.NodeSettings.resetConfirmTitle, isPresented: $showResetConfirm) {
             Button(L10n.NodeSettings.reset, role: .destructive) { config.resetToDefaults() }
             Button(L10n.Common.cancel, role: .cancel) {}
@@ -1214,6 +1236,10 @@ struct BlockchainNodeSettingsView: View {
         config.evmChainId == preset.evmChainId &&
         config.btcTestnet == preset.btcTestnet &&
         config.solDevnet == preset.solDevnet
+    }
+
+    private func presetPreviewMessage(_ p: NetworkPreset) -> String {
+        "ETH · \(p.ethereumRPC)\nBTC · \(p.bitcoinAPI)\nSOL · \(p.solanaRPC)"
     }
 
     private var healthRollupColor: Color {
