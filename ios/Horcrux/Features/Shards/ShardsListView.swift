@@ -129,44 +129,137 @@ struct ShardsListView: View {
 struct ShardAccountRow: View {
     let account: ShardAccount
 
+    /// Unique chains on this account, preserving the input sort order
+    /// (wallets are already sorted by chain.rawValue).
+    private var uniqueChains: [Chain] {
+        var seen = Set<Chain>()
+        var out: [Chain] = []
+        for w in account.wallets where !seen.contains(w.chain) {
+            seen.insert(w.chain)
+            out.append(w.chain)
+        }
+        return out
+    }
+
     var body: some View {
-        HStack(spacing: 14) {
-            Image(systemName: "shield.lefthalf.filled")
-                .font(.title2)
-                .foregroundStyle(HorcruxTheme.shieldGradient)
-                .shadow(color: HorcruxTheme.accentPurple.opacity(0.3), radius: 4)
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 12) {
+                Image(systemName: "shield.lefthalf.filled")
+                    .font(.title2)
+                    .foregroundStyle(HorcruxTheme.shieldGradient)
+                    .shadow(color: HorcruxTheme.accentPurple.opacity(0.3), radius: 4)
 
-            VStack(alignment: .leading, spacing: 6) {
-                Text(account.name)
-                    .font(.headline)
-                    .foregroundStyle(.white)
-                    .lineLimit(1)
-
-                HStack(spacing: 6) {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(account.name)
+                        .font(.headline)
+                        .foregroundStyle(.white)
+                        .lineLimit(1)
                     Text(L10n.Shards.myShardFraction(Int(account.partyIndex), Int(account.totalParties)))
                         .font(.caption)
                         .foregroundStyle(HorcruxTheme.subtleText)
-                    Text("·")
-                        .font(.caption)
-                        .foregroundStyle(HorcruxTheme.subtleText.opacity(0.5))
-                    Text(account.wallets.map(\.chain.symbol).joined(separator: " · "))
-                        .font(.caption.weight(.medium))
-                        .foregroundStyle(HorcruxTheme.accentPurple)
                 }
-            }
 
-            Spacer()
+                Spacer()
 
-            VStack(alignment: .trailing, spacing: 6) {
                 ShardStatusBadge(threshold: account.threshold, total: account.totalParties)
+
+                Image(systemName: "chevron.right")
+                    .font(.caption)
+                    .foregroundStyle(HorcruxTheme.subtleText)
             }
 
-            Image(systemName: "chevron.right")
-                .font(.caption)
-                .foregroundStyle(HorcruxTheme.subtleText)
+            ChainChipWrap(chains: uniqueChains)
         }
         .padding(.vertical, 12)
+        .padding(.horizontal, 4)
         .glassCard()
+    }
+}
+
+/// Wrapping flow of chain short-code chips. Shows up to 8 inline, then
+/// a "+N" overflow pill so cards never balloon past two rows.
+private struct ChainChipWrap: View {
+    let chains: [Chain]
+    private let maxInline = 8
+
+    var body: some View {
+        let visible = Array(chains.prefix(maxInline))
+        let overflow = max(0, chains.count - maxInline)
+
+        FlowHStack(spacing: 6, rowSpacing: 6) {
+            ForEach(visible, id: \.self) { chain in
+                Text(chain.shortCode)
+                    .font(.caption2.weight(.semibold))
+                    .padding(.horizontal, 7)
+                    .padding(.vertical, 3)
+                    .foregroundStyle(HorcruxTheme.accentPurple)
+                    .background(
+                        Capsule()
+                            .fill(HorcruxTheme.accentPurple.opacity(0.12))
+                            .overlay(Capsule().stroke(HorcruxTheme.accentPurple.opacity(0.25), lineWidth: 0.5))
+                    )
+            }
+            if overflow > 0 {
+                Text("+\(overflow)")
+                    .font(.caption2.weight(.semibold))
+                    .padding(.horizontal, 7)
+                    .padding(.vertical, 3)
+                    .foregroundStyle(HorcruxTheme.subtleText)
+                    .background(
+                        Capsule()
+                            .fill(Color.white.opacity(0.06))
+                            .overlay(Capsule().stroke(Color.white.opacity(0.1), lineWidth: 0.5))
+                    )
+            }
+        }
+    }
+}
+
+/// Minimal wrapping HStack that flows children onto new rows when they
+/// exceed the container width. Uses iOS 16 `Layout`.
+private struct FlowHStack: Layout {
+    var spacing: CGFloat = 6
+    var rowSpacing: CGFloat = 6
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        let maxWidth = proposal.width ?? .infinity
+        var x: CGFloat = 0
+        var y: CGFloat = 0
+        var rowHeight: CGFloat = 0
+        var totalWidth: CGFloat = 0
+
+        for subview in subviews {
+            let size = subview.sizeThatFits(.unspecified)
+            if x + size.width > maxWidth, x > 0 {
+                totalWidth = max(totalWidth, x - spacing)
+                y += rowHeight + rowSpacing
+                x = 0
+                rowHeight = 0
+            }
+            x += size.width + spacing
+            rowHeight = max(rowHeight, size.height)
+        }
+        totalWidth = max(totalWidth, x - spacing)
+        return CGSize(width: totalWidth, height: y + rowHeight)
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        let maxWidth = bounds.width
+        var x: CGFloat = bounds.minX
+        var y: CGFloat = bounds.minY
+        var rowHeight: CGFloat = 0
+
+        for subview in subviews {
+            let size = subview.sizeThatFits(.unspecified)
+            if x + size.width > bounds.minX + maxWidth, x > bounds.minX {
+                y += rowHeight + rowSpacing
+                x = bounds.minX
+                rowHeight = 0
+            }
+            subview.place(at: CGPoint(x: x, y: y), proposal: ProposedViewSize(width: size.width, height: size.height))
+            x += size.width + spacing
+            rowHeight = max(rowHeight, size.height)
+        }
     }
 }
 

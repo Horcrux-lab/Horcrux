@@ -532,6 +532,28 @@ enum Chain: String, Codable, CaseIterable, Identifiable {
         }
     }
 
+    /// Unique 3–4 char chain code used in compact chip lists where
+    /// `symbol` would collide across EVM L2s (all return "ETH"). Stable
+    /// enough to show on a card without localising.
+    var shortCode: String {
+        switch self {
+        case .ethereum: return "ETH"
+        case .bnb: return "BNB"
+        case .polygon: return "POL"
+        case .arbitrum: return "ARB"
+        case .base: return "BASE"
+        case .avalanche: return "AVAX"
+        case .optimism: return "OP"
+        case .zksync: return "ZKS"
+        case .linea: return "LNA"
+        case .scroll: return "SCR"
+        case .bitcoin: return "BTC"
+        case .litecoin: return "LTC"
+        case .solana: return "SOL"
+        case .tron: return "TRX"
+        }
+    }
+
     /// All EVM-family chains share the same secp256k1 derivation and EIP-55
     /// address format; only chainId, RPC endpoint and explorer differ.
     var isEVM: Bool {
