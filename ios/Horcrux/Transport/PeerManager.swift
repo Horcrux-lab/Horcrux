@@ -184,7 +184,16 @@ final class PeerManager: ObservableObject {
         let channel = channelForPeer(peer)
         try await channel.connect(to: peer)
 
-        try await performNoiseHandshake(with: peer, asInitiator: true)
+        // Noise handshake is only meaningful on transports that run the
+        // full E2E channel (BLE, wifi-direct). Relay and wifi-lan use
+        // raw MPC framing — the peer's receive path goes straight to
+        // `handleIncomingMessage`'s raw branch with no handshake reply,
+        // so starting one here leaves a half-initialized channel in
+        // `noiseChannels[peer.id]` and every subsequent send then
+        // throws `HandshakeIncomplete`.
+        if peer.channel == "ble" || peer.channel == "wifi-direct" {
+            try await performNoiseHandshake(with: peer, asInitiator: true)
+        }
     }
 
     // MARK: - Sending (encrypted)

@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.0-dev.85] - 2026-04-20
+
+### Fixed
+
+- **iOS**: **签名卡在 R1/4，共签方列表里对端显示红叉 ❌**。dev.84 加了 per-peer 容错后 bug 从崩溃变成静默卡住。日志里每次 send 都打 `broadcastMpc: skipping peer wifi-lan:iPhone… — Horcrux.FfiE2eError.HandshakeIncomplete`。
+  根因：`PeerManager.connect(to:)` 不分传输一律调 `performNoiseHandshake(asInitiator: true)`。对 wifi-lan 来说，本端往对端 NWConnection 写了一个 Noise init 消息，但对端的 inbound 走的是 `handleIncomingMessage` 的 raw 分支（`handleHandshakeMessage` 根本不会被调到），于是握手响应永远到不了，`noiseChannels[peer.id]` 停在半初始化状态；之后 `sendMpcMessage` 看到 noise 条目优先走加密路径，`noise.seal` 抛 `HandshakeIncomplete`。
+  修复：`connect(to:)` 只对 ble / wifi-direct 做 Noise 握手；relay / wifi-lan 这两种本地可信传输直接跳过，`sendMpcMessage` 自然落到 raw 分支。
+
+### Technical
+
+- `peerStates[peer.id] == .failed` 的 ❌ 渲染只是表象——underlying 是所有 send 都被 skip 了，接收端没收到任何对己方的 response，也就永远停留在"等待"状态，UI 把对端标红。修好握手即可恢复。
+
 ## [0.3.0-dev.84] - 2026-04-20
 
 ### Fixed
