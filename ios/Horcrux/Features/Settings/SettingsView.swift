@@ -976,6 +976,82 @@ struct BlockchainNodeSettingsView: View {
                 }
 
                 VStack(alignment: .leading, spacing: 4) {
+                    Text(L10n.NodeSettings.ankrKeyLabel)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    SecureField(L10n.NodeSettings.pasteKeyPlaceholder, text: $config.ankrAPIKey)
+                        .font(.system(.body, design: .monospaced))
+                        .autocorrectionDisabled()
+                        .textInputAutocapitalization(.never)
+                        .accessibilityIdentifier("nodeSettings_ankrKey")
+                    if !config.ankrAPIKey.isEmpty,
+                       let net = EVMNetwork(rawValue: config.evmChainId),
+                       let tmpl = RPCProviderTemplate.ankr(evm: net) {
+                        Button(L10n.NodeSettings.useAnkrFor(net.displayName)) {
+                            config.ethereumRPC = tmpl
+                        }
+                        .font(.caption)
+                    }
+                }
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(L10n.NodeSettings.blockpiKeyLabel)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    SecureField(L10n.NodeSettings.pasteKeyPlaceholder, text: $config.blockpiAPIKey)
+                        .font(.system(.body, design: .monospaced))
+                        .autocorrectionDisabled()
+                        .textInputAutocapitalization(.never)
+                        .accessibilityIdentifier("nodeSettings_blockpiKey")
+                    if !config.blockpiAPIKey.isEmpty,
+                       let net = EVMNetwork(rawValue: config.evmChainId),
+                       let tmpl = RPCProviderTemplate.blockpi(evm: net) {
+                        Button(L10n.NodeSettings.useBlockPIFor(net.displayName)) {
+                            config.ethereumRPC = tmpl
+                        }
+                        .font(.caption)
+                    }
+                }
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(L10n.NodeSettings.drpcKeyLabel)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    SecureField(L10n.NodeSettings.pasteKeyPlaceholder, text: $config.drpcAPIKey)
+                        .font(.system(.body, design: .monospaced))
+                        .autocorrectionDisabled()
+                        .textInputAutocapitalization(.never)
+                        .accessibilityIdentifier("nodeSettings_drpcKey")
+                    if !config.drpcAPIKey.isEmpty,
+                       let net = EVMNetwork(rawValue: config.evmChainId),
+                       let tmpl = RPCProviderTemplate.drpc(evm: net) {
+                        Button(L10n.NodeSettings.usedRPCFor(net.displayName)) {
+                            config.ethereumRPC = tmpl
+                        }
+                        .font(.caption)
+                    }
+                }
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(L10n.NodeSettings.nodeRealKeyLabel)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    SecureField(L10n.NodeSettings.pasteKeyPlaceholder, text: $config.nodeRealAPIKey)
+                        .font(.system(.body, design: .monospaced))
+                        .autocorrectionDisabled()
+                        .textInputAutocapitalization(.never)
+                        .accessibilityIdentifier("nodeSettings_nodeRealKey")
+                    if !config.nodeRealAPIKey.isEmpty,
+                       let net = EVMNetwork(rawValue: config.evmChainId),
+                       let tmpl = RPCProviderTemplate.nodeReal(evm: net) {
+                        Button(L10n.NodeSettings.useNodeRealFor(net.displayName)) {
+                            config.ethereumRPC = tmpl
+                        }
+                        .font(.caption)
+                    }
+                }
+
+                VStack(alignment: .leading, spacing: 4) {
                     Text(L10n.NodeSettings.etherscanKeyLabel)
                         .font(.caption)
                         .foregroundStyle(.secondary)

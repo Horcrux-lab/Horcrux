@@ -977,6 +977,10 @@ enum L10n {
         static let signingUnsupportedNote = NSLocalizedString("nodeSettings.signingUnsupportedNote", comment: "")
         static let alchemyKeyLabel = NSLocalizedString("nodeSettings.alchemyKeyLabel", comment: "")
         static let infuraKeyLabel = NSLocalizedString("nodeSettings.infuraKeyLabel", comment: "")
+        static let ankrKeyLabel = NSLocalizedString("nodeSettings.ankrKeyLabel", comment: "")
+        static let blockpiKeyLabel = NSLocalizedString("nodeSettings.blockpiKeyLabel", comment: "")
+        static let drpcKeyLabel = NSLocalizedString("nodeSettings.drpcKeyLabel", comment: "")
+        static let nodeRealKeyLabel = NSLocalizedString("nodeSettings.nodeRealKeyLabel", comment: "")
         static let heliusKeyLabel = NSLocalizedString("nodeSettings.heliusKeyLabel", comment: "")
         static let pasteKeyPlaceholder = NSLocalizedString("nodeSettings.pasteKeyPlaceholder", comment: "")
         static let useHelius = NSLocalizedString("nodeSettings.useHelius", comment: "")
@@ -1008,6 +1012,18 @@ enum L10n {
         }
         static func useInfuraFor(_ name: String) -> String {
             String(format: NSLocalizedString("nodeSettings.useInfuraFor", comment: ""), name)
+        }
+        static func useAnkrFor(_ name: String) -> String {
+            String(format: NSLocalizedString("nodeSettings.useAnkrFor", comment: ""), name)
+        }
+        static func useBlockPIFor(_ name: String) -> String {
+            String(format: NSLocalizedString("nodeSettings.useBlockPIFor", comment: ""), name)
+        }
+        static func usedRPCFor(_ name: String) -> String {
+            String(format: NSLocalizedString("nodeSettings.usedRPCFor", comment: ""), name)
+        }
+        static func useNodeRealFor(_ name: String) -> String {
+            String(format: NSLocalizedString("nodeSettings.useNodeRealFor", comment: ""), name)
         }
     }
 

@@ -107,6 +107,47 @@ final class NetworkConfig: ObservableObject, @unchecked Sendable {
         }
     }
 
+    /// Ankr Premium API key. Used when the URL host contains `ankr.com`
+    /// and the `{KEY}` placeholder. Ankr charges per-RPC-unit and covers
+    /// both EVM and Solana under one key.
+    @Published var ankrAPIKey: String {
+        didSet {
+            saveKeychain(ankrAPIKey, forKey: Keys.ankrKey)
+            invalidateBalances()
+        }
+    }
+
+    /// BlockPI API key. Used when the URL host contains `blockpi.network`
+    /// and the `{KEY}` placeholder. BlockPI charges per request and is
+    /// popular with users in Asia for its low latency.
+    @Published var blockpiAPIKey: String {
+        didSet {
+            saveKeychain(blockpiAPIKey, forKey: Keys.blockpiKey)
+            invalidateBalances()
+        }
+    }
+
+    /// dRPC API key (aka `dkey`). Used with the `lb.drpc.org` load-balancer
+    /// URL + `{KEY}` placeholder. dRPC is a decentralised RPC aggregator —
+    /// the free tier is usable but paying users get priority routing and
+    /// higher rate limits.
+    @Published var drpcAPIKey: String {
+        didSet {
+            saveKeychain(drpcAPIKey, forKey: Keys.drpcKey)
+            invalidateBalances()
+        }
+    }
+
+    /// NodeReal MegaNode API key. Primarily used for BNB Smart Chain and
+    /// opBNB where it's the dominant provider. Format substitutes `{KEY}`
+    /// into the URL path.
+    @Published var nodeRealAPIKey: String {
+        didSet {
+            saveKeychain(nodeRealAPIKey, forKey: Keys.nodeRealKey)
+            invalidateBalances()
+        }
+    }
+
     /// Optional WebSocket endpoint for the selected EVM chain. Paid
     /// providers (Alchemy, Infura, QuickNode) expose `wss://` alongside
     /// `https://`. We don't auto-subscribe — the field is manually
@@ -141,6 +182,10 @@ final class NetworkConfig: ObservableObject, @unchecked Sendable {
         self.heliusAPIKey = Self.loadKeychainString(key: Keys.heliusKey)
         self.etherscanAPIKey = Self.loadKeychainString(key: Keys.etherscanKey)
         self.infuraAPIKey = Self.loadKeychainString(key: Keys.infuraKey)
+        self.ankrAPIKey = Self.loadKeychainString(key: Keys.ankrKey)
+        self.blockpiAPIKey = Self.loadKeychainString(key: Keys.blockpiKey)
+        self.drpcAPIKey = Self.loadKeychainString(key: Keys.drpcKey)
+        self.nodeRealAPIKey = Self.loadKeychainString(key: Keys.nodeRealKey)
         self.ethereumWSS = ud.string(forKey: Keys.ethereumWSS) ?? ""
         self.solanaWSS = ud.string(forKey: Keys.solanaWSS) ?? ""
     }
@@ -228,6 +273,14 @@ final class NetworkConfig: ObservableObject, @unchecked Sendable {
         if chain.isEVM {
             if host.contains("infura.io") {
                 key = infuraAPIKey
+            } else if host.contains("ankr.com") {
+                key = ankrAPIKey
+            } else if host.contains("blockpi.network") {
+                key = blockpiAPIKey
+            } else if host.contains("drpc.org") {
+                key = drpcAPIKey
+            } else if host.contains("nodereal.io") {
+                key = nodeRealAPIKey
             } else {
                 // Alchemy is the default EVM key slot; also covers bare
                 // template URLs that users haven't pointed at a specific
@@ -236,7 +289,10 @@ final class NetworkConfig: ObservableObject, @unchecked Sendable {
             }
         } else {
             switch chain {
-            case .solana: key = heliusAPIKey
+            case .solana:
+                if host.contains("ankr.com") { key = ankrAPIKey }
+                else if host.contains("drpc.org") { key = drpcAPIKey }
+                else { key = heliusAPIKey }
             default: key = ""
             }
         }
@@ -587,6 +643,10 @@ private extension NetworkConfig {
         static let heliusKey = "com.horcrux.rpc.heliusAPIKey"
         static let etherscanKey = "com.horcrux.rpc.etherscanAPIKey"
         static let infuraKey = "com.horcrux.rpc.infuraAPIKey"
+        static let ankrKey = "com.horcrux.rpc.ankrAPIKey"
+        static let blockpiKey = "com.horcrux.rpc.blockpiAPIKey"
+        static let drpcKey = "com.horcrux.rpc.drpcAPIKey"
+        static let nodeRealKey = "com.horcrux.rpc.nodeRealAPIKey"
         static let ethereumWSS = "com.horcrux.rpc.ethereumWSS"
         static let solanaWSS = "com.horcrux.rpc.solanaWSS"
     }
@@ -649,6 +709,91 @@ enum RPCProviderTemplate {
         case .scroll: return nil
         }
     }
+
+    /// Ankr Premium EVM template. `{KEY}` is appended as the path suffix;
+    /// without a key the same URL works as the public endpoint.
+    static func ankr(evm: EVMNetwork) -> String? {
+        let chain: String
+        switch evm {
+        case .mainnet: chain = "eth"
+        case .sepolia: chain = "eth_sepolia"
+        case .polygon: chain = "polygon"
+        case .arbitrumOne: chain = "arbitrum"
+        case .optimism: chain = "optimism"
+        case .base: chain = "base"
+        case .avalanche: chain = "avalanche"
+        case .bnb: chain = "bsc"
+        case .zkSyncEra: chain = "zksync_era"
+        case .linea: chain = "linea"
+        case .scroll: chain = "scroll"
+        }
+        return "https://rpc.ankr.com/\(chain)/{KEY}"
+    }
+
+    /// Ankr Premium Solana template.
+    static func ankrSolana() -> String {
+        "https://rpc.ankr.com/solana/{KEY}"
+    }
+
+    /// BlockPI EVM template. `{KEY}` is appended as the path suffix.
+    /// BlockPI does not support Sepolia under the same pattern.
+    static func blockpi(evm: EVMNetwork) -> String? {
+        let chain: String
+        switch evm {
+        case .mainnet: chain = "ethereum"
+        case .polygon: chain = "polygon"
+        case .arbitrumOne: chain = "arbitrum"
+        case .optimism: chain = "optimism"
+        case .base: chain = "base"
+        case .avalanche: chain = "avalanche"
+        case .bnb: chain = "bsc"
+        case .zkSyncEra: chain = "zksync"
+        case .linea: chain = "linea"
+        case .scroll: chain = "scroll"
+        case .sepolia: return nil
+        }
+        return "https://\(chain).blockpi.network/v1/rpc/{KEY}"
+    }
+
+    /// dRPC load-balancer template. `{KEY}` is the user's `dkey`; the free
+    /// tier works without it but is rate-limited.
+    static func drpc(evm: EVMNetwork) -> String? {
+        let network: String
+        switch evm {
+        case .mainnet: network = "ethereum"
+        case .sepolia: network = "sepolia"
+        case .polygon: network = "polygon"
+        case .arbitrumOne: network = "arbitrum"
+        case .optimism: network = "optimism"
+        case .base: network = "base"
+        case .avalanche: network = "avalanche"
+        case .bnb: network = "bsc"
+        case .zkSyncEra: network = "zksync"
+        case .linea: network = "linea"
+        case .scroll: network = "scroll"
+        }
+        return "https://lb.drpc.org/ogrpc?network=\(network)&dkey={KEY}"
+    }
+
+    static func drpcSolana() -> String {
+        "https://lb.drpc.org/ogrpc?network=solana&dkey={KEY}"
+    }
+
+    /// NodeReal MegaNode template. NodeReal's coverage is strongest on BNB
+    /// Smart Chain, opBNB and a handful of L2s; returns `nil` for chains
+    /// where NodeReal doesn't offer a first-party endpoint.
+    static func nodeReal(evm: EVMNetwork) -> String? {
+        switch evm {
+        case .mainnet: return "https://eth-mainnet.nodereal.io/v1/{KEY}"
+        case .bnb: return "https://bsc-mainnet.nodereal.io/v1/{KEY}"
+        case .polygon: return "https://polygon-mainnet.nodereal.io/v1/{KEY}"
+        case .arbitrumOne: return "https://open-platform.nodereal.io/{KEY}/arbitrum-nitro/"
+        case .optimism: return "https://opt-mainnet.nodereal.io/v1/{KEY}"
+        case .base: return "https://base-mainnet.nodereal.io/v1/{KEY}"
+        case .avalanche: return "https://avalanche-mainnet.nodereal.io/v1/{KEY}"
+        case .sepolia, .zkSyncEra, .linea, .scroll: return nil
+        }
+    }
 }
 
 // MARK: - Provider identification
@@ -656,7 +801,7 @@ enum RPCProviderTemplate {
 /// Recognises the provider behind an RPC URL so the UI can show a "Alchemy"
 /// or "PublicNode (公共)" tag. Used purely for display — never for routing.
 enum RPCProvider {
-    case publicNode, alchemy, helius, infura, quickNode, blockstream, mempoolSpace, llamaNodes,
+    case publicNode, alchemy, helius, infura, quickNode, blockPI, nodeReal, blockstream, mempoolSpace, llamaNodes,
          ankr, tronGrid, dRPC, baseOrg, optimismIO, bnbChain, litecoinSpace,
          avaxNetwork, zksync, linea, scroll, solanaLabs, unknown
 
@@ -668,6 +813,8 @@ enum RPCProvider {
         case .helius: return "Helius"
         case .infura: return "Infura"
         case .quickNode: return "QuickNode"
+        case .blockPI: return "BlockPI"
+        case .nodeReal: return "NodeReal"
         case .blockstream: return "Blockstream"
         case .mempoolSpace: return "mempool.space"
         case .llamaNodes: return "LlamaNodes"
@@ -691,7 +838,7 @@ enum RPCProvider {
     /// visitor IPs. Drives the "公共" tag and the privacy-warning tooltip.
     var isPublic: Bool {
         switch self {
-        case .alchemy, .helius, .infura, .quickNode: return false
+        case .alchemy, .helius, .infura, .quickNode, .blockPI, .nodeReal: return false
         default: return true
         }
     }
@@ -700,7 +847,7 @@ enum RPCProvider {
     /// unknown providers.
     var tag: String {
         switch self {
-        case .alchemy, .helius, .infura, .quickNode: return "付费"
+        case .alchemy, .helius, .infura, .quickNode, .blockPI, .nodeReal: return "付费"
         case .unknown: return ""
         default: return "公共"
         }
@@ -713,6 +860,8 @@ enum RPCProvider {
         if host.contains("helius-rpc.com") || host.contains("helius.xyz") { return .helius }
         if host.contains("infura.io") { return .infura }
         if host.contains("quiknode.pro") || host.contains("quicknode.com") { return .quickNode }
+        if host.contains("blockpi.network") { return .blockPI }
+        if host.contains("nodereal.io") { return .nodeReal }
         if host.contains("blockstream.info") { return .blockstream }
         if host.contains("mempool.space") { return .mempoolSpace }
         if host.contains("llamarpc.com") || host.contains("llamanodes.com") { return .llamaNodes }
