@@ -921,8 +921,10 @@ struct WalletDetailView: View {
                             .accessibilityLabel(L10n.WalletHome.loadingBalance)
                     } else if let balance {
                         Text(balance)
-                            .font(.system(size: 32, weight: .bold, design: .rounded).monospacedDigit())
+                            .font(.system(size: 44, weight: .bold, design: .rounded).monospacedDigit())
                             .foregroundStyle(.white)
+                            .minimumScaleFactor(0.55)
+                            .lineLimit(1)
                             .accessibilityLabel("Balance: \(balance)")
                             .accessibilityIdentifier("walletDetail_balance")
 
@@ -1393,14 +1395,16 @@ struct PortfolioSummaryCard: View {
             }
             HStack(alignment: .firstTextBaseline) {
                 Text(valueHidden ? "••••••" : totalFiatString)
-                    .font(.system(size: 32, weight: .bold, design: .rounded).monospacedDigit())
+                    .font(.system(size: 44, weight: .bold, design: .rounded).monospacedDigit())
                     .foregroundStyle(.white)
                     .contentTransition(.numericText())
-                Spacer(minLength: 8)
-                Sparkline(values: portfolioSparkline, height: 36)
-                    .frame(maxWidth: 110)
-                    .opacity(valueHidden ? 0.25 : 1.0)
+                    .minimumScaleFactor(0.55)
+                    .lineLimit(1)
+                Spacer(minLength: 0)
             }
+            Sparkline(values: portfolioSparkline, height: 32)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .opacity(valueHidden ? 0.25 : 1.0)
             if let (percent, absolute) = total24hChange() {
                 HStack(spacing: 6) {
                     Image(systemName: percent >= 0 ? "arrow.up.right" : "arrow.down.right")
