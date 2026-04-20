@@ -46,17 +46,34 @@ final class RefreshShardCoordinator: ObservableObject {
         // Auto-advance from .waitingForPeer → .running as soon as the
         // peer count meets the threshold. Without this the user would
         // have to tap "Start" a second time after their partner joins.
-        appState.peerManager.$connectedPeers
+        //
+        // We observe BOTH connectedPeers (Noise-encrypted channels like
+        // BLE / Wi-Fi Direct) AND allPeers (local-trusted transports
+        // like Wi-Fi LAN / Relay, which never populate connectedPeers).
+        // `broadcastMpcMessage` falls back to allPeers when connected
+        // is empty, so gating on connected alone would make those
+        // transports wait forever.
+        Publishers.CombineLatest(
+            appState.peerManager.$connectedPeers,
+            appState.peerManager.$allPeers
+        )
             .receive(on: DispatchQueue.main)
-            .sink { [weak self] peers in
+            .sink { [weak self] _, _ in
                 guard let self else { return }
                 guard self.phase == .waitingForPeer else { return }
-                let needed = Int(self.wallet.totalParties) - 1
-                if peers.count >= needed, self.swk != nil {
+                if self.hasEnoughPeers, self.swk != nil {
                     self.start()
                 }
             }
             .store(in: &cancellables)
+    }
+
+    /// Effective reachable-peer count across all transports. Matches the
+    /// fallback rule used by `PeerManager.broadcastMpcMessage`.
+    private var hasEnoughPeers: Bool {
+        let pm = appState.peerManager
+        let effective = pm.connectedPeers.isEmpty ? pm.allPeers.count : pm.connectedPeers.count
+        return effective >= Int(wallet.totalParties) - 1
     }
 
     /// Inject the unwrapped SWK before calling `start()`. The sheet pulls it
@@ -84,7 +101,7 @@ final class RefreshShardCoordinator: ObservableObject {
             phase = .error(L10n.Refresh.errorNonNofN)
             return
         }
-        guard appState.peerManager.connectedPeers.count >= Int(wallet.totalParties) - 1 else {
+        guard hasEnoughPeers else {
             phase = .waitingForPeer
             return
         }
