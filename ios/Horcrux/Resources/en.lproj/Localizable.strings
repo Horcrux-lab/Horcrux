@@ -274,6 +274,8 @@
 "signing.roomCodeExpired" = "Room code expired";
 "signing.roomCodeRegenerate" = "New code";
 "signing.roomCodeValidFor" = "Valid for %@";
+"signing.roomCodeCopied" = "Room code copied";
+"signing.lastSignedWith" = "Last signed with %@";
 "signing.waitingTroubleshootTitle" = "Still no co-signer?";
 "signing.waitingCheckCode" = "Confirm the co-signer typed the same three words in the same order.";
 "signing.waitingCheckRelay" = "Both sides are on the \"Relay\" channel — the relay server must be reachable from both networks (corporate Wi-Fi / VPN can block it).";

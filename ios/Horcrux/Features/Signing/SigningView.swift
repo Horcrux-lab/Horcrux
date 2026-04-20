@@ -511,6 +511,31 @@ struct InviteSignersView: View {
                         }
                     }
 
+                    // "Last signed with" hint. Shows once no peers have
+                    // joined yet so the initiator has a mental confirmation
+                    // target ("yes, waiting for Alice's iPhone"). Disappears
+                    // as soon as someone actually joins — at that point the
+                    // cosigners list + fingerprint do the verification job.
+                    if viewModel.joinedSigners.isEmpty,
+                       let recent = RecentCoSignersStore.shared.mostRecent(for: viewModel.wallet.id) {
+                        HStack(spacing: 8) {
+                            Image(systemName: "clock.arrow.circlepath")
+                                .foregroundStyle(HorcruxTheme.accentCyan)
+                            Text(L10n.Signing.lastSignedWith(recent.name))
+                                .font(.caption)
+                                .foregroundStyle(HorcruxTheme.subtleText)
+                                .lineLimit(1)
+                                .truncationMode(.middle)
+                            Spacer()
+                        }
+                        .padding(10)
+                        .background(
+                            RoundedRectangle(cornerRadius: 10)
+                                .fill(Color.white.opacity(0.04))
+                                .overlay(RoundedRectangle(cornerRadius: 10).stroke(HorcruxTheme.hairline, lineWidth: 1))
+                        )
+                    }
+
                     // Joined peers list
                     if !viewModel.joinedSigners.isEmpty {
                         VStack(alignment: .leading, spacing: 8) {
@@ -1607,7 +1632,7 @@ private struct SigningRoomCodeCard: View {
             }
             Spacer()
             Button {
-                SecureClipboard.copy(code)
+                SecureClipboard.copy(code, toast: L10n.Signing.roomCodeCopied)
                 Haptics.success()
                 withAnimation { copied = true }
                 Task {

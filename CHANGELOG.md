@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.0-dev.93] - 2026-04-20
+
+### Added
+
+- **iOS (Signing)**: **"上次签名对端" 记忆 + 房间码复制 toast + 换码时主动释放中继房间**。
+  - 新增 `RecentCoSignersStore`（`ios/Horcrux/Core/RecentCoSignersStore.swift`）：按 `(walletId, peer.id)` 维度记录最近 5 位共签人，JSON 存 UserDefaults。签名成功那一刻在 `SigningViewModel` 最终分支里批量写入。
+  - invite 界面"没人加入"的空窗期显示小提示：`上次与「某某设备」签名` + 时钟图标，给发起方一个心理对齐目标；一旦真有 peer 加入就让位给 cosigners 列表 + 指纹。
+  - 房间码复制按钮现在显示房间码专属 toast（`房间码已复制` / `Room code copied`）而非通用"已复制"，和 dev.91/92 的可换码叙事更连贯。
+  - **工程债清理**：`RelayTransport.leaveRoom()` 显式关闭 WebSocket + 清 state；`PeerManager.leaveRelayRoom()` 暴露它；`regenerateRoomCode()` 换新码前先释放旧房间，中继 server 侧可立即回收而不必等空闲 GC。
+
 ## [0.3.0-dev.92] - 2026-04-20
 
 ### Added

@@ -18,6 +18,7 @@
 		B1A2C3D4E5F6000000000001 /* BalanceCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1A2C3D4E5F6000000000002 /* BalanceCache.swift */; };
 		C2D3E4F500000001A0000001 /* TronAddress.swift in Sources */ = {isa = PBXBuildFile; fileRef = C2D3E4F500000001A0000002 /* TronAddress.swift */; };
 		D37A9AF8A4624B971FFAE188 /* AddressBook.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8C97796FFFAABDFCD418E7D7 /* AddressBook.swift */; };
+		5CAF90401C34753976CA1199 /* RecentCoSignersStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6C5C58C2757B5C52B54EC43B /* RecentCoSignersStore.swift */; };
 		D460D2E954132338FD6F7901 /* ENSResolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = 99F429C0ADA329B2E7CD4AC4 /* ENSResolver.swift */; };
 		FBAECAADBB1F5AD0828F0FEE /* Haptics.swift in Sources */ = {isa = PBXBuildFile; fileRef = A9E22485814B645E0AE85424 /* Haptics.swift */; };
 		238403E234A05B718E1877B5 /* CopyFeedback.swift in Sources */ = {isa = PBXBuildFile; fileRef = 416143CC9CEBC002AB85278E /* CopyFeedback.swift */; };
@@ -210,6 +211,7 @@
 		B1A2C3D4E5F6000000000002 /* BalanceCache.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = BalanceCache.swift; sourceTree = "<group>"; };
 		C2D3E4F500000001A0000002 /* TronAddress.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TronAddress.swift; sourceTree = "<group>"; };
 		8C97796FFFAABDFCD418E7D7 /* AddressBook.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AddressBook.swift; sourceTree = "<group>"; };
+		6C5C58C2757B5C52B54EC43B /* RecentCoSignersStore.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = RecentCoSignersStore.swift; sourceTree = "<group>"; };
 		99F429C0ADA329B2E7CD4AC4 /* ENSResolver.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ENSResolver.swift; sourceTree = "<group>"; };
 		A9E22485814B645E0AE85424 /* Haptics.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Haptics.swift; sourceTree = "<group>"; };
 		416143CC9CEBC002AB85278E /* CopyFeedback.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CopyFeedback.swift; sourceTree = "<group>"; };
@@ -557,6 +559,7 @@
 				B1A2C3D4E5F6000000000002 /* BalanceCache.swift */,
 				C2D3E4F500000001A0000002 /* TronAddress.swift */,
 				8C97796FFFAABDFCD418E7D7 /* AddressBook.swift */,
+				6C5C58C2757B5C52B54EC43B /* RecentCoSignersStore.swift */,
 				99F429C0ADA329B2E7CD4AC4 /* ENSResolver.swift */,
 				A9E22485814B645E0AE85424 /* Haptics.swift */,
 				416143CC9CEBC002AB85278E /* CopyFeedback.swift */,
@@ -801,6 +804,7 @@
 				B1A2C3D4E5F6000000000001 /* BalanceCache.swift in Sources */,
 				C2D3E4F500000001A0000001 /* TronAddress.swift in Sources */,
 				D37A9AF8A4624B971FFAE188 /* AddressBook.swift in Sources */,
+				5CAF90401C34753976CA1199 /* RecentCoSignersStore.swift in Sources */,
 				D460D2E954132338FD6F7901 /* ENSResolver.swift in Sources */,
 				FBAECAADBB1F5AD0828F0FEE /* Haptics.swift in Sources */,
 				238403E234A05B718E1877B5 /* CopyFeedback.swift in Sources */,

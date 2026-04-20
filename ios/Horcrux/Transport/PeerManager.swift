@@ -252,6 +252,14 @@ final class PeerManager: ObservableObject {
         try await relay.joinRoom(roomId: roomId, token: token)
     }
 
+    /// Tear down the current relay room connection. Prompt release so
+    /// the server-side room shrinks immediately rather than waiting on
+    /// its idle-GC timer. Callers: `SigningViewModel.regenerateRoomCode`
+    /// before minting a fresh code.
+    func leaveRelayRoom() {
+        relay.leaveRoom()
+    }
+
     // MARK: - Private
 
     private func channelForPeer(_ peer: Peer) -> TransportChannel {

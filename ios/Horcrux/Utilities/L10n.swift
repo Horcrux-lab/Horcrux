@@ -603,6 +603,10 @@ enum L10n {
         static func roomCodeValidFor(_ countdown: String) -> String {
             String(format: NSLocalizedString("signing.roomCodeValidFor", comment: ""), countdown)
         }
+        static let roomCodeCopied = NSLocalizedString("signing.roomCodeCopied", comment: "")
+        static func lastSignedWith(_ name: String) -> String {
+            String(format: NSLocalizedString("signing.lastSignedWith", comment: ""), name)
+        }
         static let waitingTroubleshootTitle = NSLocalizedString("signing.waitingTroubleshootTitle", comment: "")
         static let waitingCheckCode = NSLocalizedString("signing.waitingCheckCode", comment: "")
         static let waitingCheckRelay = NSLocalizedString("signing.waitingCheckRelay", comment: "")

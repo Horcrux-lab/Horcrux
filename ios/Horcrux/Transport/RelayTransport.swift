@@ -101,6 +101,18 @@ final class RelayTransport: NSObject, TransportChannel, ObservableObject {
         // In relay mode, connection is implicit via room membership
     }
 
+    /// Close the current WebSocket and reset room state so the relay
+    /// side can GC the room immediately instead of waiting on idle
+    /// timeout. Safe to call when not connected — no-op in that case.
+    /// Used when rotating the room code (see `SigningViewModel.regenerateRoomCode`).
+    func leaveRoom() {
+        webSocket?.cancel(with: .normalClosure, reason: nil)
+        webSocket = nil
+        isConnected = false
+        roomId = nil
+        discoveredPeers.removeAll()
+    }
+
     func disconnect(from peer: Peer) {
         webSocket?.cancel(with: .normalClosure, reason: nil)
         isConnected = false

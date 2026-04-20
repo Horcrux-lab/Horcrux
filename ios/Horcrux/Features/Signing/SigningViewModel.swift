@@ -665,6 +665,10 @@ final class SigningViewModel: ObservableObject {
     func regenerateRoomCode() {
         announceTask?.cancel()
         announceTask = nil
+        // Close the old relay room immediately so the server can GC it
+        // rather than waiting on its idle timer. Best-effort: if the
+        // peer manager is nil (never connected) we skip.
+        peerManager?.leaveRelayRoom()
         roomCode = RoomCode.generate()
         sessionId = roomCode
         roomCodeExpiresAt = Date().addingTimeInterval(Self.roomCodeTTL)
@@ -1138,6 +1142,20 @@ final class SigningViewModel: ObservableObject {
                         // once the final combined signature is produced.
                         for key in peerStates.keys { peerStates[key] = .done }
                         bridge.removeSession(sessionId: sessionId!)
+                        // Remember who we just signed with so the next
+                        // invite screen can surface "Last signed with
+                        // XX" and skip the name-guessing step.
+                        let walletId = wallet.id
+                        let signers = joinedSigners
+                        Task { @MainActor in
+                            for peer in signers {
+                                RecentCoSignersStore.shared.record(
+                                    peerId: peer.id,
+                                    name: peer.name,
+                                    walletId: walletId
+                                )
+                            }
+                        }
                         Haptics.success()
                         step = .complete
                         return
