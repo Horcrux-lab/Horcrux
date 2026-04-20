@@ -140,11 +140,23 @@ fn make_keygen_driver(
     let eid = ExecutionId::new(eid_bytes);
     let rng: &'static mut OsRng = Box::leak(Box::new(OsRng));
 
-    let sm = cggmp21::keygen::<Secp256k1>(eid, i, n)
-        .set_threshold(t)
-        .into_state_machine(rng);
-
-    Ok(Box::new(SmDriver { sm }))
+    // CRITICAL: cggmp21 0.6 only supports `key_refresh` for non-threshold
+    // (additive, `vss_setup = None`) shares — its invariant is
+    // `sum(public_shares) == shared_public_key`, which a VSS share does NOT
+    // satisfy. When `t == n` the two schemes are semantically equivalent
+    // (every signer is always required), so we take the non-threshold path
+    // so that proactive share rotation works. Only genuine t < n wallets
+    // still produce VSS shares — those cannot be refreshed with upstream
+    // cggmp21 and must block that UI flow in `EcdsaRefreshSession::new`.
+    if t >= n {
+        let sm = cggmp21::keygen::<Secp256k1>(eid, i, n).into_state_machine(rng);
+        Ok(Box::new(SmDriver { sm }))
+    } else {
+        let sm = cggmp21::keygen::<Secp256k1>(eid, i, n)
+            .set_threshold(t)
+            .into_state_machine(rng);
+        Ok(Box::new(SmDriver { sm }))
+    }
 }
 
 fn make_auxinfo_driver(i: u16, n: u16, session_id: &str) -> Result<Box<dyn AnyDriver>, MpcError> {

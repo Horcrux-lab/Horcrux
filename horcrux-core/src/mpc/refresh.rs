@@ -92,6 +92,19 @@ impl EcdsaRefreshSession {
         let aux_info: AuxInfo<SecurityLevel128> = serde_json::from_slice(&shard.aux_info)
             .map_err(|e| MpcError::InvalidConfig(format!("deserialize aux_info: {e}")))?;
 
+        // cggmp21 v0.6 `key_refresh` is only sound for additive (non-VSS)
+        // shares — see horcrux-core/src/mpc/ecdsa.rs::make_keygen_driver for
+        // the detailed rationale. Refuse up-front instead of running a
+        // ceremony that will abort on the final invariant check with a
+        // "public_shares.sum() != shared_public_key" error.
+        if incomplete.vss_setup.is_some() {
+            return Err(MpcError::InvalidConfig(
+                "refresh not supported for legacy VSS key share: this wallet was created before \
+                 proactive share rotation was available. Recreate the wallet to enable refresh."
+                    .into(),
+            ));
+        }
+
         let old_public_key = incomplete.shared_public_key;
 
         let key_share = KeyShare::from_parts((incomplete, aux_info))
