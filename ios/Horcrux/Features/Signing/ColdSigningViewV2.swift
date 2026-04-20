@@ -1,77 +1,40 @@
 import SwiftUI
 import CoreImage
 
-/// 冷签名（离线 QR 链式签名）入口 — 2-of-2 专用。
+/// View for the v2 (≥3 parties) cold-signing ceremony. Drives
+/// `ColdSigningCoordinatorV2`. See that file for protocol details.
 ///
-/// dev.50 起同时支持 **initiator / cosigner** 两种角色：两台设备上都
-/// 打开本视图，一台选「发起方」、一台选「协签方」，通过 4 张二维码
-/// 轮流交换即可完成签名，全程飞行模式、无任何网络。
-///
-/// 设计目标：在不信任任何中继、不暴露任何网络请求的前提下，
-/// 仍能完成阈值签名 —— 适用于高价值 / 受监控环境下的冷钱包。
-struct ColdSigningView: View {
+/// Currently labelled "experimental" in the UI because this path has
+/// only been exercised by the state-machine logic; the 3-device live
+/// dress rehearsal is still pending. Do not remove the beta badge
+/// until at least one 3-of-3 ETH tx has been signed end-to-end.
+struct ColdSigningViewV2: View {
     let wallet: Wallet
-    /// Initiator 必填；cosigner 会等 invite QR 里的 hash 到达。
     let messageHash: Data?
     let shardData: Data
-    /// 预设角色。为 nil 时先弹出角色选择页，让用户决定。
-    let initialRole: ColdSigningCoordinator.Role?
-    private let bridge: HorcruxBridge
+    let initialRole: ColdSigningCoordinatorV2.Role?
 
-    @EnvironmentObject private var appState: AppState
-    @StateObject private var coordinator: ColdSigningCoordinator
+    @StateObject private var coordinator: ColdSigningCoordinatorV2
     @Environment(\.dismiss) private var dismiss
 
     @State private var showingScanner = false
-    @State private var pickedRole: ColdSigningCoordinator.Role?
-
-    /// dev.73 — route ≥3-party wallets through the v2 coordinator. The
-    /// old 2-of-2 state machine is kept intact below because the v1
-    /// choreography is much tighter (4 QRs, no peer round-robin) and
-    /// has been battle-tested across several releases.
-    private var useV2: Bool {
-        wallet.threshold > 2 || wallet.totalParties > 2
-    }
-
-    /// Map v1 → v2 role enum when dispatching.
-    private var v2InitialRole: ColdSigningCoordinatorV2.Role? {
-        switch initialRole {
-        case .initiator: return .initiator
-        case .cosigner: return .cosigner
-        case .none: return nil
-        }
-    }
+    @State private var pickedRole: ColdSigningCoordinatorV2.Role?
 
     init(
         wallet: Wallet,
         messageHash: Data?,
         shardData: Data,
         bridge: HorcruxBridge,
-        initialRole: ColdSigningCoordinator.Role? = nil
+        initialRole: ColdSigningCoordinatorV2.Role? = nil
     ) {
         self.wallet = wallet
         self.messageHash = messageHash
         self.shardData = shardData
         self.initialRole = initialRole
-        self.bridge = bridge
-        _coordinator = StateObject(wrappedValue: ColdSigningCoordinator(bridge: bridge))
+        _coordinator = StateObject(wrappedValue: ColdSigningCoordinatorV2(bridge: bridge))
     }
 
     var body: some View {
-        if useV2 {
-            ColdSigningViewV2(
-                wallet: wallet,
-                messageHash: messageHash,
-                shardData: shardData,
-                bridge: bridge,
-                initialRole: v2InitialRole
-            )
-        } else {
-            legacyBody
-        }
-    }
-
-    private var legacyBody: some View {
         NavigationStack {
             Group {
                 if pickedRole == nil {
@@ -81,11 +44,18 @@ struct ColdSigningView: View {
                 }
             }
             .padding()
-            .navigationTitle(L10n.ColdSign.title)
+            .navigationTitle(L10n.ColdSignV2.title)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button(L10n.Common.close) { dismiss() }
+                }
+                ToolbarItem(placement: .principal) {
+                    Text(L10n.ColdSignV2.experimentalBadge)
+                        .font(.caption2.weight(.bold))
+                        .padding(.horizontal, 6).padding(.vertical, 2)
+                        .background(Capsule().fill(.orange.opacity(0.2)))
+                        .foregroundStyle(.orange)
                 }
             }
             .sheet(isPresented: $showingScanner) {
@@ -95,8 +65,6 @@ struct ColdSigningView: View {
                 }
             }
             .onAppear {
-                // A caller that knows the role up-front (e.g. a signing
-                // flow that already chose initiator) can skip the picker.
                 if pickedRole == nil, let r = initialRole {
                     start(as: r)
                 }
@@ -114,6 +82,10 @@ struct ColdSigningView: View {
             Text(L10n.ColdSign.rolePrompt)
                 .font(.headline)
                 .multilineTextAlignment(.center)
+            Text(L10n.ColdSignV2.intro)
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
 
             VStack(spacing: 12) {
                 roleCard(
@@ -129,7 +101,6 @@ struct ColdSigningView: View {
                     systemImage: "qrcode.viewfinder"
                 ) { start(as: .cosigner) }
             }
-
             Spacer()
         }
     }
@@ -165,7 +136,7 @@ struct ColdSigningView: View {
         .disabled(!enabled)
     }
 
-    private func start(as role: ColdSigningCoordinator.Role) {
+    private func start(as role: ColdSigningCoordinatorV2.Role) {
         pickedRole = role
         do {
             switch role {
@@ -173,19 +144,19 @@ struct ColdSigningView: View {
                 guard let msg = messageHash else {
                     throw ColdSigningCoordinator.ColdError.noSignatureProduced
                 }
+                // For MVP, assume all parties participate (t == n-of-n).
+                let participants: [UInt16] = (1...wallet.totalParties).map { UInt16($0) }
                 try coordinator.startAsInitiator(
                     wallet: wallet,
                     messageHash: msg,
-                    shardData: shardData
+                    shardData: shardData,
+                    participants: participants
                 )
             case .cosigner:
-                try coordinator.startAsCosigner(
-                    wallet: wallet,
-                    shardData: shardData
-                )
+                try coordinator.startAsCosigner(wallet: wallet, shardData: shardData)
             }
         } catch {
-            SecureLog.error("Cold signing init failed: \(error.localizedDescription)")
+            SecureLog.error("Cold v2 init failed: \(error.localizedDescription)")
         }
     }
 
@@ -197,56 +168,35 @@ struct ColdSigningView: View {
             Divider()
             content
             Spacer()
-            footerActions
+            footer
         }
     }
-
-    // MARK: - Subviews
 
     private var header: some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack {
                 Image(systemName: "antenna.radiowaves.left.and.right.slash")
                     .foregroundStyle(.orange)
-                Text(L10n.ColdSign.offlineMode)
-                    .font(.headline)
+                Text(L10n.ColdSign.offlineMode).font(.headline)
                 Spacer()
-                Text(stepLabel)
+                Text(coordinator.stepDescription)
                     .font(.caption)
                     .foregroundStyle(.secondary)
+                    .lineLimit(2)
+                    .multilineTextAlignment(.trailing)
             }
-            Text(L10n.ColdSign.intro)
+            Text(L10n.ColdSignV2.intro)
                 .font(.footnote)
                 .foregroundStyle(.secondary)
-        }
-    }
-
-    private var stepLabel: String {
-        switch coordinator.phase {
-        case .idle: return L10n.ColdSign.stepPrep
-        // initiator
-        case .showingInvite: return L10n.ColdSign.step1of4
-        case .awaitingRound1: return L10n.ColdSign.step2of4
-        case .showingRound2: return L10n.ColdSign.step3of4
-        case .awaitingRound2: return L10n.ColdSign.step4of4
-        // cosigner
-        case .awaitingInvite: return L10n.ColdSign.cosignerStep1of3
-        case .showingCosignerRound1: return L10n.ColdSign.cosignerStep2of3
-        case .awaitingInitiatorRound2: return L10n.ColdSign.cosignerStep2of3
-        case .showingCosignerRound2: return L10n.ColdSign.cosignerStep3of3
-        case .complete: return L10n.ColdSign.stepComplete
-        case .failed: return L10n.ColdSign.stepFailed
         }
     }
 
     @ViewBuilder
     private var content: some View {
         switch coordinator.phase {
-        case .showingInvite, .showingRound2,
-             .showingCosignerRound1, .showingCosignerRound2:
+        case .showing:
             qrDisplay
-        case .awaitingRound1, .awaitingRound2,
-             .awaitingInvite, .awaitingInitiatorRound2:
+        case .awaitingScan:
             scannerPrompt
         case .complete:
             completeView
@@ -272,15 +222,9 @@ struct ColdSigningView: View {
             } else {
                 Text(L10n.ColdSign.generatingQR).foregroundStyle(.secondary)
             }
-            Text(qrGuidance)
-                .font(.footnote)
-                .foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
         }
     }
 
-    // Coordinator already emits a base64 blob; hand it straight to the
-    // CIFilter so we don't re-encode (which would bloat the QR).
     private func generateRawQR(base64Bytes: Data) -> CGImage? {
         guard let filter = CIFilter(name: "CIQRCodeGenerator") else { return nil }
         filter.setValue(base64Bytes, forKey: "inputMessage")
@@ -290,27 +234,12 @@ struct ColdSigningView: View {
         return CIContext().createCGImage(scaled, from: scaled.extent)
     }
 
-    private var qrGuidance: String {
-        switch coordinator.phase {
-        case .showingInvite:
-            return L10n.ColdSign.guideInvite
-        case .showingRound2:
-            return L10n.ColdSign.guideRound2
-        case .showingCosignerRound1:
-            return L10n.ColdSign.guideCosignerRound1
-        case .showingCosignerRound2:
-            return L10n.ColdSign.guideCosignerRound2
-        default:
-            return ""
-        }
-    }
-
     private var scannerPrompt: some View {
         VStack(spacing: 16) {
             Image(systemName: "qrcode.viewfinder")
                 .font(.system(size: 72))
                 .foregroundStyle(.tint)
-            Text(scannerGuidance)
+            Text(coordinator.stepDescription)
                 .multilineTextAlignment(.center)
             Button {
                 showingScanner = true
@@ -323,26 +252,13 @@ struct ColdSigningView: View {
         }
     }
 
-    private var scannerGuidance: String {
-        switch coordinator.phase {
-        case .awaitingRound1: return L10n.ColdSign.promptRound1
-        case .awaitingRound2: return L10n.ColdSign.promptRound2
-        case .awaitingInvite: return L10n.ColdSign.promptInvite
-        case .awaitingInitiatorRound2: return L10n.ColdSign.promptInitiatorRound2
-        default: return ""
-        }
-    }
-
     private var completeView: some View {
         VStack(spacing: 12) {
             Image(systemName: "checkmark.seal.fill")
                 .font(.system(size: 64))
                 .foregroundStyle(.green)
-            Text(coordinator.role == .cosigner
-                 ? L10n.ColdSign.cosignerComplete
-                 : L10n.ColdSign.signSuccess)
+            Text(L10n.ColdSignV2.signatureReady)
                 .font(.title3.weight(.semibold))
-                .multilineTextAlignment(.center)
             if let sig = coordinator.finalSignature {
                 Text(L10n.ColdSign.sigLength(sig.count))
                     .font(.caption)
@@ -353,12 +269,6 @@ struct ColdSigningView: View {
                     Label(L10n.ColdSign.copyHex, systemImage: "doc.on.doc")
                 }
                 .buttonStyle(.bordered)
-            }
-            if coordinator.role == .initiator {
-                Text(L10n.ColdSign.sendBack)
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
-                    .multilineTextAlignment(.center)
             }
         }
     }
@@ -374,10 +284,9 @@ struct ColdSigningView: View {
     }
 
     @ViewBuilder
-    private var footerActions: some View {
+    private var footer: some View {
         switch coordinator.phase {
-        case .showingInvite, .showingRound2,
-             .showingCosignerRound1, .showingCosignerRound2:
+        case .showing:
             Button(L10n.ColdSign.readyToScan) {
                 coordinator.readyToScan()
             }

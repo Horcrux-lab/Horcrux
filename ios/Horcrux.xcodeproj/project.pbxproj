@@ -45,6 +45,8 @@
 		A1B2C3D4E5F6A7B8C9D0E1F3 /* HorcruxAppIntents.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2C3D4E5F6A7B8C9D0E1F2A3 /* HorcruxAppIntents.swift */; };
 		C3D4E5F6A7B8C9D0E1F2A3B4 /* ColdSigningView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D4E5F6A7B8C9D0E1F2A3B4C5 /* ColdSigningView.swift */; };
 		E5F6A7B8C9D0E1F2A3B4C5D6 /* ColdSigningCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = F6A7B8C9D0E1F2A3B4C5D6E7 /* ColdSigningCoordinator.swift */; };
+		C01D537301F2A3B4C5D6E7F8 /* ColdSigningCoordinatorV2.swift in Sources */ = {isa = PBXBuildFile; fileRef = C01D537201F2A3B4C5D6E7F8 /* ColdSigningCoordinatorV2.swift */; };
+		C01D537301F2A3B4C5D6E7F9 /* ColdSigningViewV2.swift in Sources */ = {isa = PBXBuildFile; fileRef = C01D537201F2A3B4C5D6E7F9 /* ColdSigningViewV2.swift */; };
 		A1B2C3D4E5F6A7B8C9D0E1F4 /* RefreshShardCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1C2D3E4F5A6B7C8D9E0F1A2 /* RefreshShardCoordinator.swift */; };
 		A1B2C3D4E5F6A7B8C9D0E1FA /* RefreshTracker.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1C2D3E4F5A6B7C8D9E0F1AA /* RefreshTracker.swift */; };
 		A1B2C3D4E5F6A7B8C9D0E1F5 /* RefreshShardSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1C2D3E4F5A6B7C8D9E0F1A3 /* RefreshShardSheet.swift */; };
@@ -188,6 +190,8 @@
 		B2C3D4E5F6A7B8C9D0E1F2A3 /* HorcruxAppIntents.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HorcruxAppIntents.swift; sourceTree = "<group>"; };
 		D4E5F6A7B8C9D0E1F2A3B4C5 /* ColdSigningView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ColdSigningView.swift; sourceTree = "<group>"; };
 		F6A7B8C9D0E1F2A3B4C5D6E7 /* ColdSigningCoordinator.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ColdSigningCoordinator.swift; sourceTree = "<group>"; };
+		C01D537201F2A3B4C5D6E7F8 /* ColdSigningCoordinatorV2.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ColdSigningCoordinatorV2.swift; sourceTree = "<group>"; };
+		C01D537201F2A3B4C5D6E7F9 /* ColdSigningViewV2.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ColdSigningViewV2.swift; sourceTree = "<group>"; };
 		B1C2D3E4F5A6B7C8D9E0F1A2 /* RefreshShardCoordinator.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = RefreshShardCoordinator.swift; sourceTree = "<group>"; };
 		B1C2D3E4F5A6B7C8D9E0F1AA /* RefreshTracker.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = RefreshTracker.swift; sourceTree = "<group>"; };
 		B1C2D3E4F5A6B7C8D9E0F1A3 /* RefreshShardSheet.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = RefreshShardSheet.swift; sourceTree = "<group>"; };
@@ -507,6 +511,8 @@
 				FC6695ABD2E5D63B03476E9E /* QRScannerView.swift */,
 				D4E5F6A7B8C9D0E1F2A3B4C5 /* ColdSigningView.swift */,
 				F6A7B8C9D0E1F2A3B4C5D6E7 /* ColdSigningCoordinator.swift */,
+				C01D537201F2A3B4C5D6E7F8 /* ColdSigningCoordinatorV2.swift */,
+				C01D537201F2A3B4C5D6E7F9 /* ColdSigningViewV2.swift */,
 			);
 			path = Signing;
 			sourceTree = "<group>";
@@ -763,6 +769,8 @@
 				88380DABC0637076A7B84583 /* SigningView.swift in Sources */,
 				C3D4E5F6A7B8C9D0E1F2A3B4 /* ColdSigningView.swift in Sources */,
 				E5F6A7B8C9D0E1F2A3B4C5D6 /* ColdSigningCoordinator.swift in Sources */,
+				C01D537301F2A3B4C5D6E7F8 /* ColdSigningCoordinatorV2.swift in Sources */,
+				C01D537301F2A3B4C5D6E7F9 /* ColdSigningViewV2.swift in Sources */,
 				A1B2C3D4E5F6A7B8C9D0E1F4 /* RefreshShardCoordinator.swift in Sources */,
 				A1B2C3D4E5F6A7B8C9D0E1FA /* RefreshTracker.swift in Sources */,
 				A1B2C3D4E5F6A7B8C9D0E1F5 /* RefreshShardSheet.swift in Sources */,

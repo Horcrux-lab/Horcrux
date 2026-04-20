@@ -1052,3 +1052,13 @@
 "walletAvatar.icon" = "图标";
 "walletAvatar.reset" = "恢复默认";
 "walletAvatar.editMenu" = "更改图标";
+
+// dev.73 — v2 multi-party cold signing
+"coldSignV2.title" = "多方冷签名（实验性）";
+"coldSignV2.experimental" = "实验性";
+"coldSignV2.waitingInvite" = "等待扫描发起方的邀请二维码…";
+"coldSignV2.signatureReady" = "已完成 · 签名已生成";
+"coldSignV2.cosignerHasSignature" = "本机已聚合完整签名，继续回传给发起方。";
+"coldSignV2.intro" = "n 方轮流展示 / 扫描二维码，全程离线。请保持设备顺序一致，中途丢码需重开。";
+"coldSignV2.showToPeer" = "向设备 %1$@ 展示 · 第 %2$d 步";
+"coldSignV2.scanFromPeer" = "扫描设备 %@ 的二维码";

@@ -5,11 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.3.0-dev.72] - 2026-04-20
+## [0.3.0-dev.73] - 2026-04-20
+
+### Added
+
+- **iOS**: **多方冷签名 v2（beta）**。`totalParties ≥ 3` 的钱包进入冷签名时自动路由到新的 `ColdSigningCoordinatorV2` + `ColdSigningViewV2`，使用星型拓扑 + 批量 payload。发起方做中枢，每张 QR 打包当前持有者寄给某个 peer 的所有 `FfiMpcMessage`；CGGMP21 后端无需改动（路由复用已有的 `toParty` 过滤）。v1 2-of-2 路径保持不动，仍由原 `ColdSigningCoordinator` 承担。带 "Beta" 徽章，尚未做 3-台模拟器端到端 dress rehearsal，生产使用前请先对一笔 3-of-3 ETH 转账做活线演练。
+
+### Fixed
+
+- **Relay tests**: `test_ws_plain_get_rejected` 原先断言 404，但 axum 的 `WebSocketUpgrade` extractor 缺失 upgrade headers 时返回的是 400 Bad Request。修正断言 + 注释。
 
 ### Security
 
-- **Relay**: Refuse to boot when `/admin/rooms` + `/metrics` would be exposed without authentication. If `RELAY_ADMIN_TOKEN` is unset AND the bind host is non-loopback (not `127.0.0.1`/`::1`/`localhost`), the server now returns `ConfigError::AdminEndpointsExposed` on startup instead of printing a warning and happily serving. Operators can set `RELAY_ALLOW_UNAUTHENTICATED_ADMIN=1` to restore the old behavior for niche use cases (e.g. admin endpoints already gated at the firewall). The prior "warn and boot" path was quietly exposing admin APIs on any production deploy that forgot to set the env var.
+- **Relay**: `validate()` 在 `RELAY_ADMIN_TOKEN` 未设置且 bind 在非 loopback 主机时拒绝启动，避免 `/admin/rooms` + `/metrics` 被公开访问。可用 `RELAY_ALLOW_UNAUTHENTICATED_ADMIN=1` 显式覆盖。loopback bind（127.0.0.1/::1/localhost）仍 warn-and-boot。
 
 ## [0.3.0-dev.70] - 2026-04-20
 

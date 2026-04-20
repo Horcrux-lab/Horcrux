@@ -1051,3 +1051,13 @@
 "walletAvatar.icon" = "Icon";
 "walletAvatar.reset" = "Reset";
 "walletAvatar.editMenu" = "Change icon";
+
+// dev.73 — v2 multi-party cold signing
+"coldSignV2.title" = "Multi-party cold signing (beta)";
+"coldSignV2.experimental" = "Beta";
+"coldSignV2.waitingInvite" = "Waiting to scan the initiator's invite QR…";
+"coldSignV2.signatureReady" = "Done · signature produced";
+"coldSignV2.cosignerHasSignature" = "Local signature is complete — still send this QR so the initiator can finalize.";
+"coldSignV2.intro" = "n devices take turns showing / scanning QR codes, entirely offline. Keep device order consistent; a dropped scan means restarting the ceremony.";
+"coldSignV2.showToPeer" = "Show to Device %1$@ · step %2$d";
+"coldSignV2.scanFromPeer" = "Scan Device %@'s QR";

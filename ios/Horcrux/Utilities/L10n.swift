@@ -1260,6 +1260,23 @@ enum L10n {
         static let cosignerStep3of3 = NSLocalizedString("coldSign.step.cosigner3of3", comment: "")
         static let cosignerComplete = NSLocalizedString("coldSign.cosigner.complete", comment: "")
     }
+
+    // dev.73 — v2 multi-party ceremony strings
+    enum ColdSignV2 {
+        static let title = NSLocalizedString("coldSignV2.title", comment: "")
+        static let experimentalBadge = NSLocalizedString("coldSignV2.experimental", comment: "")
+        static let waitingInvite = NSLocalizedString("coldSignV2.waitingInvite", comment: "")
+        static let signatureReady = NSLocalizedString("coldSignV2.signatureReady", comment: "")
+        static let cosignerHasSignature = NSLocalizedString("coldSignV2.cosignerHasSignature", comment: "")
+        static let intro = NSLocalizedString("coldSignV2.intro", comment: "")
+
+        static func showToPeer(_ peer: String, _ step: Int) -> String {
+            String(format: NSLocalizedString("coldSignV2.showToPeer", comment: ""), peer, step)
+        }
+        static func scanFromPeer(_ peer: String) -> String {
+            String(format: NSLocalizedString("coldSignV2.scanFromPeer", comment: ""), peer)
+        }
+    }
 }
 
 // MARK: - dev.47 (TxHistory + WalletHome residual + Settings residual)
