@@ -500,6 +500,12 @@
 "nodeStatus.errTimeout" = "连接超时";
 "nodeStatus.keyStoredSecurely" = "密钥已加密存储，请求时动态注入";
 "nodeStatus.bakedKeyWarning" = "URL 中似乎内嵌了 API 密钥，建议改用对应的 Key 字段单独存储";
+"nodeStatus.publicPrivacyNote" = "公共 RPC 可能记录你的 IP 与钱包地址的关联，敏感场景请用自己的 Key 或自建节点";
+"nodeStatus.networkMismatchExpectedMainnet" = "节点返回的是测试网，但当前选择的是主网";
+"nodeStatus.networkMismatchExpectedTestnet" = "节点返回的是主网，但当前选择的是测试网";
+"nodeStatus.chainMismatch" = "网络不匹配：期望 %1$@，实际 %2$@";
+"nodeStatus.resetThisChain" = "恢复此链默认";
+"nodeStatus.copyURL" = "复制 URL";
 
 /* Licenses */
 "licenses.title" = "许可";

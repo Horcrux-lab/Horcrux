@@ -921,7 +921,9 @@ struct BlockchainNodeSettingsView: View {
                         .textInputAutocapitalization(.never)
                     URLValidationHint(urlString: config.ethereumRPC)
                     KeySecurityHint(urlString: config.ethereumRPC)
+                    ProviderBadge(urlString: config.ethereumRPC)
                     EndpointSwitcher(chain: .ethereum)
+                    ChainFieldActions(chain: .ethereum)
                 }
 
                 Picker(L10n.NodeSettings.networkPicker, selection: $config.evmChainId) {
@@ -961,7 +963,9 @@ struct BlockchainNodeSettingsView: View {
                         .autocorrectionDisabled()
                         .textInputAutocapitalization(.never)
                     URLValidationHint(urlString: config.bitcoinAPI)
+                    ProviderBadge(urlString: config.bitcoinAPI)
                     EndpointSwitcher(chain: .bitcoin)
+                    ChainFieldActions(chain: .bitcoin)
                 }
 
                 Toggle(L10n.NodeSettings.testnet, isOn: $config.btcTestnet)
@@ -980,7 +984,9 @@ struct BlockchainNodeSettingsView: View {
                         .autocorrectionDisabled()
                         .textInputAutocapitalization(.never)
                     URLValidationHint(urlString: config.litecoinAPI)
+                    ProviderBadge(urlString: config.litecoinAPI)
                     EndpointSwitcher(chain: .litecoin)
+                    ChainFieldActions(chain: .litecoin)
                     Text(L10n.NodeSettings.signingUnsupportedNote)
                         .font(.caption2)
                         .foregroundStyle(.secondary)
@@ -1000,7 +1006,9 @@ struct BlockchainNodeSettingsView: View {
                         .textInputAutocapitalization(.never)
                     URLValidationHint(urlString: config.solanaRPC)
                     KeySecurityHint(urlString: config.solanaRPC)
+                    ProviderBadge(urlString: config.solanaRPC)
                     EndpointSwitcher(chain: .solana)
+                    ChainFieldActions(chain: .solana)
                 }
 
                 Toggle(L10n.NodeSettings.devnet, isOn: $config.solDevnet)
@@ -1035,7 +1043,9 @@ struct BlockchainNodeSettingsView: View {
                         .autocorrectionDisabled()
                         .textInputAutocapitalization(.never)
                     URLValidationHint(urlString: config.tronAPI)
+                    ProviderBadge(urlString: config.tronAPI)
                     EndpointSwitcher(chain: .tron)
+                    ChainFieldActions(chain: .tron)
                     Text(L10n.NodeSettings.signingUnsupportedNote)
                         .font(.caption2)
                         .foregroundStyle(.secondary)
@@ -1168,6 +1178,15 @@ struct NodeStatusRow: View {
                         .font(.caption2)
                         .foregroundStyle(HorcruxTheme.subtleText)
                 }
+                if let warning = snap.mismatchWarning {
+                    HStack(spacing: 6) {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .font(.caption2)
+                        Text(warning).font(.caption2)
+                    }
+                    .foregroundStyle(HorcruxTheme.dangerRed)
+                    .accessibilityLabel(warning)
+                }
             }
         }
         .buttonStyle(.plain)
@@ -1282,6 +1301,77 @@ struct KeySecurityHint: View {
             return true
         }
         return false
+    }
+}
+
+/// Small pill that names the recognised provider behind a URL (e.g. "Alchemy",
+/// "PublicNode · 公共"). Public providers also get a ⓘ tooltip warning about
+/// IP / address correlation.
+struct ProviderBadge: View {
+    let urlString: String
+    @State private var showPrivacyTip = false
+
+    var body: some View {
+        let provider = RPCProvider.identify(urlString)
+        if provider != .unknown {
+            HStack(spacing: 6) {
+                Image(systemName: provider.isPublic ? "globe" : "key.fill")
+                    .font(.caption2)
+                Text(provider.label)
+                    .font(.caption2.weight(.semibold))
+                if !provider.tag.isEmpty {
+                    Text("· \(provider.tag)")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
+                if provider.isPublic {
+                    Button {
+                        showPrivacyTip = true
+                    } label: {
+                        Image(systemName: "info.circle")
+                            .font(.caption2)
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            .foregroundStyle(provider.isPublic ? HorcruxTheme.subtleText : HorcruxTheme.accentCyan)
+            .alert(L10n.NodeStatus.publicPrivacyNote, isPresented: $showPrivacyTip) {
+                Button(L10n.Common.ok, role: .cancel) {}
+            }
+        }
+    }
+}
+
+/// Per-chain footer with "Copy URL" and "Reset this chain" actions. Placed
+/// below the RPC URL field so users can quickly fall back to defaults for a
+/// single chain without running the page-level "reset to defaults".
+struct ChainFieldActions: View {
+    let chain: Chain
+    @ObservedObject private var config = NetworkConfig.shared
+
+    var body: some View {
+        HStack(spacing: 12) {
+            if let url = config.fieldValue(for: chain), !url.isEmpty {
+                Button {
+                    UIPasteboard.general.string = url
+                } label: {
+                    Label(L10n.NodeStatus.copyURL, systemImage: "doc.on.doc")
+                        .font(.caption2)
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(HorcruxTheme.accentCyan)
+            }
+            Spacer()
+            Button {
+                config.resetField(for: chain)
+            } label: {
+                Label(L10n.NodeStatus.resetThisChain, systemImage: "arrow.uturn.backward")
+                    .font(.caption2)
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(HorcruxTheme.subtleText)
+            .accessibilityIdentifier("nodeStatus_resetChain_\(chain.rawValue)")
+        }
     }
 }
 

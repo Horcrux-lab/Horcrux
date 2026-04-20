@@ -313,6 +313,19 @@ actor BlockchainService {
         return hexToDecimal(hex)
     }
 
+    /// Fetch the chain id the remote RPC claims, decoded from its hex-encoded
+    /// `eth_chainId` response. Used by the settings page to catch URL/network
+    /// mismatches (e.g. a Sepolia RPC configured under a Mainnet selector).
+    func ethChainId(rpcURL: String) async throws -> UInt64 {
+        let hex: String = try await ethCall(
+            method: "eth_chainId",
+            params: [] as [String],
+            rpcURL: rpcURL
+        )
+        let stripped = hex.hasPrefix("0x") ? String(hex.dropFirst(2)) : hex
+        return UInt64(stripped, radix: 16) ?? 0
+    }
+
     /// Lightweight Solana health probe. Returns "ok" when the node is healthy.
     func solHealth(rpcURL: String) async throws -> String {
         let result: String = try await solanaCall(

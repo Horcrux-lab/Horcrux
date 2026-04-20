@@ -1003,6 +1003,15 @@ enum L10n {
         static let justNow = NSLocalizedString("nodeStatus.justNow", comment: "")
         static let keyStoredSecurely = NSLocalizedString("nodeStatus.keyStoredSecurely", comment: "")
         static let bakedKeyWarning = NSLocalizedString("nodeStatus.bakedKeyWarning", comment: "")
+        static let publicPrivacyNote = NSLocalizedString("nodeStatus.publicPrivacyNote", comment: "")
+        static let networkMismatchExpectedMainnet = NSLocalizedString("nodeStatus.networkMismatchExpectedMainnet", comment: "")
+        static let networkMismatchExpectedTestnet = NSLocalizedString("nodeStatus.networkMismatchExpectedTestnet", comment: "")
+        static let resetThisChain = NSLocalizedString("nodeStatus.resetThisChain", comment: "")
+        static let copyURL = NSLocalizedString("nodeStatus.copyURL", comment: "")
+
+        static func chainMismatch(_ expected: String, _ actual: String) -> String {
+            String(format: NSLocalizedString("nodeStatus.chainMismatch", comment: ""), expected, actual)
+        }
 
         static func healthySummary(_ ok: Int, _ total: Int) -> String {
             String(format: NSLocalizedString("nodeStatus.healthySummary", comment: ""), ok, total)

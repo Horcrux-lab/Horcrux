@@ -162,6 +162,30 @@ final class NetworkConfig: ObservableObject, @unchecked Sendable {
         }
     }
 
+    /// Reset only this chain's field to its built-in default, leaving the
+    /// other chains (and the EVM / BTC / SOL network selectors) alone.
+    /// Used by the per-section "恢复默认" link.
+    func resetField(for chain: Chain) {
+        switch chain {
+        case .ethereum:
+            if let net = EVMNetwork(rawValue: evmChainId) {
+                ethereumRPC = net.defaultRPC
+            } else {
+                ethereumRPC = Defaults.ethereumRPC
+            }
+        case .bitcoin:
+            bitcoinAPI = (btcTestnet ? BitcoinNetwork.testnet : BitcoinNetwork.mainnet).defaultAPI
+        case .litecoin:
+            litecoinAPI = Defaults.litecoinAPI
+        case .solana:
+            solanaRPC = (solDevnet ? SolanaNetwork.devnet : SolanaNetwork.mainnet).defaultRPC
+        case .tron:
+            tronAPI = Defaults.tronAPI
+        default:
+            break
+        }
+    }
+
     /// Replace `{KEY}` placeholder in a URL template with the per-chain
     /// Keychain-stored API key. Returns the raw URL unchanged if no
     /// placeholder is present or the relevant key is empty.
@@ -564,6 +588,83 @@ enum RPCProviderTemplate {
     }
 }
 
+// MARK: - Provider identification
+
+/// Recognises the provider behind an RPC URL so the UI can show a "Alchemy"
+/// or "PublicNode (公共)" tag. Used purely for display — never for routing.
+enum RPCProvider {
+    case publicNode, alchemy, helius, blockstream, mempoolSpace, llamaNodes,
+         ankr, tronGrid, dRPC, baseOrg, optimismIO, bnbChain, litecoinSpace,
+         avaxNetwork, zksync, linea, scroll, solanaLabs, unknown
+
+    /// Human-readable label, e.g. "PublicNode"
+    var label: String {
+        switch self {
+        case .publicNode: return "PublicNode"
+        case .alchemy: return "Alchemy"
+        case .helius: return "Helius"
+        case .blockstream: return "Blockstream"
+        case .mempoolSpace: return "mempool.space"
+        case .llamaNodes: return "LlamaNodes"
+        case .ankr: return "Ankr"
+        case .tronGrid: return "TronGrid"
+        case .dRPC: return "dRPC"
+        case .baseOrg: return "Base (官方)"
+        case .optimismIO: return "Optimism (官方)"
+        case .bnbChain: return "BNB Chain (官方)"
+        case .litecoinSpace: return "litecoinspace"
+        case .avaxNetwork: return "Avalanche (官方)"
+        case .zksync: return "zkSync (官方)"
+        case .linea: return "Linea (官方)"
+        case .scroll: return "Scroll (官方)"
+        case .solanaLabs: return "Solana Labs"
+        case .unknown: return ""
+        }
+    }
+
+    /// `true` when the provider runs without an API key and is likely to log
+    /// visitor IPs. Drives the "公共" tag and the privacy-warning tooltip.
+    var isPublic: Bool {
+        switch self {
+        case .alchemy, .helius: return false
+        default: return true
+        }
+    }
+
+    /// Short category tag shown next to the provider label. Empty for
+    /// unknown providers.
+    var tag: String {
+        switch self {
+        case .alchemy, .helius: return "付费"
+        case .unknown: return ""
+        default: return "公共"
+        }
+    }
+
+    static func identify(_ urlString: String) -> RPCProvider {
+        guard let host = URL(string: urlString)?.host?.lowercased() else { return .unknown }
+        if host.contains("publicnode.com") { return .publicNode }
+        if host.contains("alchemy.com") { return .alchemy }
+        if host.contains("helius-rpc.com") || host.contains("helius.xyz") { return .helius }
+        if host.contains("blockstream.info") { return .blockstream }
+        if host.contains("mempool.space") { return .mempoolSpace }
+        if host.contains("llamarpc.com") || host.contains("llamanodes.com") { return .llamaNodes }
+        if host.contains("ankr.com") { return .ankr }
+        if host.contains("trongrid.io") || host.contains("tronstack.io") { return .tronGrid }
+        if host.contains("drpc.org") { return .dRPC }
+        if host.contains("base.org") { return .baseOrg }
+        if host.contains("optimism.io") { return .optimismIO }
+        if host.contains("bnbchain.org") || host.contains("defibit.io") { return .bnbChain }
+        if host.contains("litecoinspace.org") { return .litecoinSpace }
+        if host.contains("avax.network") { return .avaxNetwork }
+        if host.contains("zksync.io") { return .zksync }
+        if host.contains("linea.build") { return .linea }
+        if host.contains("scroll.io") { return .scroll }
+        if host.contains("solana.com") { return .solanaLabs }
+        return .unknown
+    }
+}
+
 // MARK: - Fallback RPC endpoints
 
 /// Public fallback endpoints tried in order when the primary fails with a
@@ -709,6 +810,11 @@ struct NodeHealthSnapshot: Equatable {
     var lastOkAt: Date? = nil
     /// Last time any probe (success or failure) was attempted.
     var lastCheckedAt: Date? = nil
+    /// Non-nil when the remote RPC claims a chain id / network that doesn't
+    /// match the user's local selector (e.g. Sepolia URL under Mainnet).
+    /// Treated as a soft warning: the probe can still be `.ok` because the
+    /// RPC is reachable — but the UI should surface a red alert.
+    var mismatchWarning: String? = nil
 
     var isOk: Bool { if case .ok = status { return true } else { return false } }
     var isFailed: Bool { if case .failed = status { return true } else { return false } }
@@ -765,6 +871,7 @@ final class NodeHealthStore: ObservableObject {
     func refresh(chain: Chain, config: NetworkConfig = .shared) async {
         var snap = snapshots[chain] ?? NodeHealthSnapshot()
         snap.status = .checking
+        snap.mismatchWarning = nil
         snapshots[chain] = snap
 
         let start = Date()
@@ -780,6 +887,11 @@ final class NodeHealthStore: ObservableObject {
             snap.blockHeight = height
             snap.lastOkAt = Date()
             UserDefaults.standard.set(snap.lastOkAt!.timeIntervalSince1970, forKey: Self.lastOkKey(for: chain))
+            // After a successful reachability probe, verify the RPC speaks the
+            // network the user thinks it does. For EVM we compare eth_chainId
+            // against the selected chainId; for BTC we infer mainnet/testnet
+            // from the known URL prefix; for Solana we skip (no cheap probe).
+            snap.mismatchWarning = await Self.detectMismatch(chain: chain, url: url, config: config)
         case .failure(let err):
             snap.status = .failed(Self.friendlyError(err))
             snap.blockHeight = nil
@@ -871,6 +983,68 @@ final class NodeHealthStore: ObservableObject {
             }
         } catch {
             return .failure(error)
+        }
+    }
+
+    /// Verifies the RPC endpoint speaks the network the user selected.
+    ///
+    /// EVM: fetches `eth_chainId` and compares to `config.evmChainId`. For
+    /// secondary EVM chains (BNB, Polygon, etc.) compares to the built-in
+    /// `defaultEVMNetwork.rawValue`. A mismatch is serious — sending a tx
+    /// to the wrong chain can cause permanent loss.
+    ///
+    /// BTC / LTC: infers mainnet vs testnet from the URL path (most
+    /// providers include `/testnet/` in the testnet route) and compares to
+    /// `config.btcTestnet`. Falls back to silent pass when the URL pattern
+    /// is unrecognised.
+    ///
+    /// SOL / TRON: no cheap mismatch probe; returns nil.
+    private static func detectMismatch(chain: Chain, url: String, config: NetworkConfig) async -> String? {
+        if chain.isEVM {
+            let expected: UInt64
+            if chain == .ethereum {
+                expected = config.evmChainId
+            } else if let net = chain.defaultEVMNetwork {
+                expected = net.rawValue
+            } else {
+                return nil
+            }
+            do {
+                let actual = try await BlockchainService().ethChainId(rpcURL: url)
+                if actual != 0, actual != expected {
+                    let expectedName = EVMNetwork(rawValue: expected)?.displayName ?? "chain \(expected)"
+                    let actualName = EVMNetwork(rawValue: actual)?.displayName ?? "chain \(actual)"
+                    return L10n.NodeStatus.chainMismatch(expectedName, actualName)
+                }
+            } catch {
+                // Swallow — reachability already passed, so this is likely
+                // an unusual RPC that doesn't implement eth_chainId. Don't
+                // scare the user about it.
+                return nil
+            }
+            return nil
+        }
+        switch chain {
+        case .bitcoin:
+            let lower = url.lowercased()
+            let looksTestnet = lower.contains("/testnet") || lower.contains("testnet.")
+            if looksTestnet != config.btcTestnet {
+                return config.btcTestnet
+                    ? L10n.NodeStatus.networkMismatchExpectedTestnet
+                    : L10n.NodeStatus.networkMismatchExpectedMainnet
+            }
+            return nil
+        case .solana:
+            let lower = url.lowercased()
+            let looksDevnet = lower.contains("devnet") || lower.contains("testnet")
+            if looksDevnet != config.solDevnet {
+                return config.solDevnet
+                    ? L10n.NodeStatus.networkMismatchExpectedTestnet
+                    : L10n.NodeStatus.networkMismatchExpectedMainnet
+            }
+            return nil
+        default:
+            return nil
         }
     }
 }

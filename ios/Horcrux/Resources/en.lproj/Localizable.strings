@@ -500,6 +500,12 @@
 "nodeStatus.errTimeout" = "Timed out";
 "nodeStatus.keyStoredSecurely" = "Key stored encrypted; injected at request time";
 "nodeStatus.bakedKeyWarning" = "URL appears to embed an API key; move it to the dedicated Key field instead";
+"nodeStatus.publicPrivacyNote" = "Public RPCs may log your IP address alongside wallet addresses. For privacy-sensitive flows, use your own API key or a self-hosted node.";
+"nodeStatus.networkMismatchExpectedMainnet" = "Node returned testnet, but you've selected mainnet";
+"nodeStatus.networkMismatchExpectedTestnet" = "Node returned mainnet, but you've selected testnet";
+"nodeStatus.chainMismatch" = "Network mismatch: expected %1$@, got %2$@";
+"nodeStatus.resetThisChain" = "Reset this chain";
+"nodeStatus.copyURL" = "Copy URL";
 
 /* Licenses */
 "licenses.title" = "Licenses";
