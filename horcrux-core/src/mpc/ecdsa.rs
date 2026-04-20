@@ -50,7 +50,7 @@ where
     SM: StateMachine<Output = Result<T, E>>,
     SM::Msg: Serialize + DeserializeOwned,
     T: Serialize,
-    E: std::fmt::Display,
+    E: std::fmt::Display + std::error::Error,
 {
     fn drive(&mut self) -> Result<DriverAction, MpcError> {
         loop {
@@ -68,8 +68,19 @@ where
                     return Ok(DriverAction::NeedMessage);
                 }
                 ProceedResult::Output(result) => {
-                    let success = result
-                        .map_err(|e| MpcError::ProtocolError(format!("protocol error: {e}")))?;
+                    let success = result.map_err(|e| {
+                        // Include the full source chain (alternate display)
+                        // so callers see whether this was a ProtocolAborted,
+                        // an IoError, or an InternalError(Bug) — the bare
+                        // top-level Display just says "failed to complete".
+                        let mut msg = format!("protocol error: {e}");
+                        let mut src: &dyn std::error::Error = &e;
+                        while let Some(inner) = src.source() {
+                            msg.push_str(&format!(" -> {inner}"));
+                            src = inner;
+                        }
+                        MpcError::ProtocolError(msg)
+                    })?;
                     let data = serde_json::to_vec(&success)
                         .map_err(|e| MpcError::ProtocolError(format!("serialize output: {e}")))?;
                     return Ok(DriverAction::Complete(data));
@@ -100,7 +111,12 @@ where
         };
         self.sm
             .received_msg(incoming)
-            .map_err(|_| MpcError::ProtocolError("state machine rejected message".into()))?;
+            .map_err(|_| {
+                MpcError::ProtocolError(format!(
+                    "state machine rejected message from party {sender} (is_broadcast={is_broadcast}, {} bytes)",
+                    data.len()
+                ))
+            })?;
         Ok(())
     }
 }
