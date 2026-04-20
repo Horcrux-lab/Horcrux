@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.0-dev.76] - 2026-04-20
+
+### Fixed
+
+- **iOS**: **真正**修复 EVM 发送页 gas / fee 不显示问题。dev.74 的 `@State Task` + `onChange` 手动 debounce 在某些场景下不触发（怀疑是 `@State Task?` 与 ObservedObject published 属性的交互时序）。改用 SwiftUI 原生的 `.task(id: estimateKey) {…}`，`estimateKey` 由 recipient / amount / feeTier / selectedToken 组合而成；任何一个字段变化都会让 SwiftUI 自动取消上一次并 500ms 后重跑 `estimateGas()`。代码更短、更少状态，且首次进入页面时也会触发一次（空字段被 VM 内部 guard 丢弃，无副作用）。
+
 ## [0.3.0-dev.75] - 2026-04-20
 
 ### Fixed

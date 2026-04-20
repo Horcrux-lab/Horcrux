@@ -71,20 +71,19 @@ struct ComposeTransactionView: View {
     @State private var showQRScanner = false
     @State private var showAddressBook = false
     @State private var ensStatus: String?
-    @State private var estimateDebounce: Task<Void, Never>?
     @StateObject private var priceService = PriceService.shared
 
-    /// Debounced gas / fee estimate trigger. Called on every recipient / amount /
-    /// fee-tier / selected-token change so the user sees a live preview before
-    /// tapping Next. 500ms debounce avoids one RPC call per keystroke.
-    private func scheduleEstimate() {
-        estimateDebounce?.cancel()
-        estimateDebounce = Task { @MainActor in
-            try? await Task.sleep(nanoseconds: 500_000_000)
-            guard !Task.isCancelled else { return }
-            guard addressError == nil else { return }
-            viewModel.estimateGas()
-        }
+    /// A composite key of every field that should trigger a re-estimate.
+    /// When any part changes, `.task(id:)` cancels the in-flight debounce
+    /// and starts a fresh one — SwiftUI handles the cancellation and main
+    /// actor scheduling for us.
+    private var estimateKey: String {
+        [
+            viewModel.recipientAddress,
+            viewModel.amount,
+            viewModel.feeTier.rawValue,
+            viewModel.selectedToken?.id ?? "__native__"
+        ].joined(separator: "|")
     }
 
     private var addressError: String? {
@@ -122,7 +121,6 @@ struct ComposeTransactionView: View {
                             } else {
                                 ensStatus = nil
                             }
-                            scheduleEstimate()
                         }
 
                     Button {
@@ -330,15 +328,16 @@ struct ComposeTransactionView: View {
         }
         .onAppear {
             priceService.refreshIfNeeded()
-            // Pre-populated recipient/amount (e.g. RBF replacement) should show
-            // an estimate immediately without requiring the user to edit a field.
-            if !viewModel.recipientAddress.isEmpty && !viewModel.amount.isEmpty {
-                scheduleEstimate()
-            }
         }
-        .onChange(of: viewModel.amount) { _, _ in scheduleEstimate() }
-        .onChange(of: viewModel.feeTier) { _, _ in scheduleEstimate() }
-        .onChange(of: viewModel.selectedToken?.id) { _, _ in scheduleEstimate() }
+        // SwiftUI-managed debounced estimate: whenever any input changes,
+        // the prior task is cancelled and a fresh one started after 500ms.
+        // `estimateGas()` itself guards on empty recipient/amount, so it's
+        // safe to fire even when fields aren't fully populated.
+        .task(id: estimateKey) {
+            try? await Task.sleep(nanoseconds: 500_000_000)
+            guard !Task.isCancelled else { return }
+            viewModel.estimateGas()
+        }
     }
 
     /// Minimal ENS resolution via public RPC. Queries the ENS registry
