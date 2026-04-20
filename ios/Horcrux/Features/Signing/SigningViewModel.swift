@@ -439,6 +439,49 @@ final class SigningViewModel: ObservableObject {
         signingShardKey = swk
     }
 
+    /// Cosigner-only entry point. Called from `JoinSigningView` after the
+    /// user approves the incoming `SignRequestDTO`. Unlike the initiator,
+    /// the cosigner must NOT immediately call `bridge.startSigning` —
+    /// doing so would emit round-1 messages into a stream that the
+    /// initiator has not yet subscribed to (they are still on the invite
+    /// step waiting for "Start Signing"). Instead we:
+    ///   1. Flip to `.signing` so the progress UI mounts and subscribes.
+    ///   2. Spawn a task that listens for a `SignBeginDTO` from the
+    ///      initiator; on receipt we invoke `startSigning()` locally,
+    ///      which is synchronous with the initiator's own invocation.
+    /// This produces a reliable barrier: both sides call
+    /// `bridge.startSigning` only after every peer is listening, so no
+    /// round-1 message is ever lost.
+    func awaitInitiatorStart() {
+        isCosigner = true
+        step = .signing
+        signingStartedAt = Date()
+        currentRound = 0
+        totalRounds = wallet.chain.curveType == .ed25519 ? 2 : 4
+        signingStatusMessage = L10n.Signing.waitingForInitiator
+
+        guard let peerManager else { return }
+        beginListenerTask?.cancel()
+        beginListenerTask = Task { [weak self] in
+            let (subId, stream) = peerManager.mpcMessageStream()
+            defer { peerManager.unsubscribeMpc(subId) }
+            for await (_, data) in stream {
+                guard let self else { return }
+                if Task.isCancelled { return }
+                if let begin = try? JSONDecoder().decode(SignBeginDTO.self, from: data),
+                   begin.magic == SignBeginDTO.magic,
+                   await MainActor.run(body: { begin.sessionId == (self.sessionId ?? self.roomCode) }) {
+                    await MainActor.run { self.startSigning() }
+                    return
+                }
+            }
+        }
+    }
+    /// True on a cosigner's VM so `startSigning` skips the "broadcast begin"
+    /// handshake (only the initiator sends it).
+    private var isCosigner: Bool = false
+    private var beginListenerTask: Task<Void, Never>?
+
     /// Move from the compose step to the invite step. Generates a fresh
     /// three-word `roomCode`, joins the relay room so co-signers with the
     /// same code can connect, and pins that code as the MPC `sessionId`.
@@ -577,6 +620,11 @@ final class SigningViewModel: ObservableObject {
         // rebroadcasting it during signing would only add relay noise.
         announceTask?.cancel()
         announceTask = nil
+        // We're about to subscribe to the MPC stream ourselves via
+        // runSigningRounds; the cosigner's separate begin-listener is no
+        // longer needed (and would double-subscribe).
+        beginListenerTask?.cancel()
+        beginListenerTask = nil
         // sessionId was pinned by prepareInvite() to match roomCode so all
         // participants share the same MPC session. Fall back to a fresh
         // UUID only if someone bypassed prepareInvite (defensive).
@@ -623,6 +671,17 @@ final class SigningViewModel: ObservableObject {
                 signingStatusMessage = L10n.Signing.initializingProtocol
                 currentRound = 1
 
+                // Initiator-only handshake: broadcast a `SignBeginDTO` so
+                // every waiting cosigner calls `bridge.startSigning` at
+                // essentially the same moment. The short sleep gives
+                // cosigners time to receive the DTO, subscribe to the MPC
+                // stream and be ready to catch our round-1 output.
+                if !isCosigner, let sid = sessionId,
+                   let payload = try? JSONEncoder().encode(SignBeginDTO(sessionId: sid)) {
+                    try? await peerManager.broadcastMpcMessage(payload)
+                    try? await Task.sleep(nanoseconds: 400_000_000)
+                }
+
                 let outgoing = try bridge.startSigning(
                     sessionId: sessionId!,
                     config: config,
@@ -647,6 +706,8 @@ final class SigningViewModel: ObservableObject {
     func cancelSigning() {
         signingTask?.cancel()
         signingTask = nil
+        beginListenerTask?.cancel()
+        beginListenerTask = nil
         if var k = signingShardKey {
             k.resetBytes(in: 0..<k.count)
             signingShardKey = nil

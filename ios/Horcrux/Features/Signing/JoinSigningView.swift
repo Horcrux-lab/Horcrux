@@ -546,11 +546,12 @@ struct JoinSigningView: View {
         vm.bind(to: appState)
         vm.applySignRequest(dto)
         vm.setShardKey(swk)
-        // Skip the invite step — cosigner has already approved the tx and
-        // the relay room is already joined.
-        vm.step = .signing
         phase = .signing(vm)
-        vm.startSigning()
+        // Cosigner path: wait for the initiator's `SignBeginDTO` before
+        // entering MPC. Calling `startSigning()` directly here would emit
+        // our round-1 messages before the initiator has subscribed to
+        // the message stream, so their side would never receive them.
+        vm.awaitInitiatorStart()
     }
 
     private func cleanup() {

@@ -617,6 +617,7 @@ enum L10n {
 
         // Status messages
         static let initializingProtocol = NSLocalizedString("signing.initializingProtocol", comment: "")
+        static let waitingForInitiator = NSLocalizedString("signing.waitingForInitiator", comment: "")
         static let broadcastingNonces = NSLocalizedString("signing.broadcastingNonces", comment: "")
         static let exchangingNonces = NSLocalizedString("signing.exchangingNonces", comment: "")
         static let computingSignatureShares = NSLocalizedString("signing.computingSignatureShares", comment: "")

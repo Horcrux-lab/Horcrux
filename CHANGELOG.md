@@ -5,6 +5,33 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.0-dev.81] - 2026-04-20
+
+### Fixed
+
+- **iOS**: **共签方批准后卡在 R1/4 无限等**（dev.78 引入的协议排序 bug，在 dev.80 两台模拟器联调时现形）：
+  之前共签方在 `JoinSigningView` 点"批准"后立刻 `vm.step = .signing; vm.startSigning()` 本地跑 FROST 第一轮，但发起方此时还在 invite 步骤（等阈值），并没有订阅 MPC 消息流——共签方的 round-1 消息发出去落到空订阅者上被丢掉，之后发起方再点"开始签名"已经晚了，共签方在 3-4 分钟的 slow-signing 警告里干瞪眼，两端都看起来"卡住"。
+  现在加了一次握手：
+  1. 新增 `SignBeginDTO`（magic `HSG-v1`, 只携带 sessionId），作为发起方"我要开始了"的同步 barrier。
+  2. 共签方批准 → `SigningViewModel.awaitInitiatorStart()`：UI 切到 signing 显示"等待发起方开始签名…"，后台订阅 MPC 流专门等 `SignBeginDTO`。
+  3. 发起方点"开始签名" → `startSigning()` 先广播 `SignBeginDTO` → 睡 400ms（给共签方时间收包 + 订阅 MPC 流）→ 再调 `bridge.startSigning` 产出 round-1。
+  两边在同一个 barrier 之后才进入真正的 FROST 协议，round-1 消息不再丢失。
+
+### Technical
+
+- `SigningViewModel` 新增 `isCosigner` / `beginListenerTask` 私有态；`cancelSigning()` 一并取消 listener；`startSigning()` 进入时也会 cancel listener（避免同一个 VM 上双订阅）。
+- `SignBeginDTO` 的 magic 检查 (`HSG-v1`) 防止把 invite 阶段仍在循环广播的 `SignRequestDTO`（`HSQ-v1`）误判为"go"信号——JSON 超集解码能成功，但 magic 字符串不匹配就短路返回。
+- 本地化新增 `signing.waitingForInitiator`（中/英）。
+
+## [0.3.0-dev.80] - 2026-04-20
+
+### Added
+
+- **iOS**: **发起交易时可选择传输方式**（dev.79 的 UX 补完）。邀请步骤的房间码卡片上方新增"传输方式"选择器，两档开关：
+  - **中继服务器**：默认开。走 relay room + 三词房间码，供远程共签方使用。关掉后整个仪式不上中继（隐私模式），房间码卡片同步隐藏。
+  - **同一 Wi-Fi**：默认开。走 Bonjour `_horcrux._tcp`，同一局域网内的共签方直接点设备名加入，省口令、不经服务器。
+  至少保留一个——两个都关会被防御性地重新勾上 relay。用户切换开关会实时触发 `prepareInvite()`，LAN 发现和 relay 入房会按当前集合启动/停止。
+
 ## [0.3.0-dev.79] - 2026-04-20
 
 ### Added

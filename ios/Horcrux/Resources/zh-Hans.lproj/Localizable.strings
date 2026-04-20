@@ -289,6 +289,7 @@
 
 /* Signing Status Messages */
 "signing.initializingProtocol" = "正在初始化签名协议…";
+"signing.waitingForInitiator" = "等待发起方开始签名…";
 "signing.broadcastingNonces" = "正在广播随机数承诺…";
 "signing.exchangingNonces" = "正在交换加密随机数…";
 "signing.computingSignatureShares" = "正在计算签名份额…";

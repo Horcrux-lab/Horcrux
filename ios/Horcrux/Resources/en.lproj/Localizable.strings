@@ -289,6 +289,7 @@
 
 /* Signing Status Messages */
 "signing.initializingProtocol" = "Initializing signing protocol…";
+"signing.waitingForInitiator" = "Waiting for initiator to start…";
 "signing.broadcastingNonces" = "Broadcasting nonce commitments…";
 "signing.exchangingNonces" = "Exchanging encrypted nonces…";
 "signing.computingSignatureShares" = "Computing signature shares…";

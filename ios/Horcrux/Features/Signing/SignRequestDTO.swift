@@ -14,6 +14,27 @@ import Foundation
 /// `magic` field lets the transport layer's decoder distinguish this
 /// from real MPC protocol messages (`MpcMessageDTO`) and room presence
 /// beacons (`RoomPresenceDTO`).
+/// Fired exactly once by the initiator immediately before it calls
+/// `bridge.startSigning` and starts emitting real MPC round-1 messages.
+/// Cosigners hold off on `bridge.startSigning` (and therefore on their
+/// own round-1 emission) until they see this DTO, guaranteeing every
+/// participant has already subscribed to the MPC message stream before
+/// any FROST/CGGMP21 protocol bytes are sent — otherwise the first
+/// messages would be dropped by peers who haven't subscribed yet.
+struct SignBeginDTO: Codable {
+    static let magic = "HSG-v1"
+    let magic: String
+    /// Must match the cosigner's pinned `sessionId` (= room code) for
+    /// them to act on the signal. Prevents a stray begin from a
+    /// different concurrent ceremony from starting this one.
+    let sessionId: String
+
+    init(sessionId: String) {
+        self.magic = Self.magic
+        self.sessionId = sessionId
+    }
+}
+
 struct SignRequestDTO: Codable {
     static let magic = "HSQ-v1"
     let magic: String
