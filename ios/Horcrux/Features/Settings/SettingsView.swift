@@ -1213,13 +1213,15 @@ struct ReplaceDeviceInfoView: View {
     @EnvironmentObject var appState: AppState
     @State private var refreshTarget: Wallet?
 
-    /// First refreshable wallet (n-of-n CGGMP21 ECDSA). Currently 2-of-2 secp256k1.
-    private var refreshable: Wallet? {
-        appState.walletStore.wallets.first { w in
+    /// All refreshable accounts (n-of-n CGGMP21 ECDSA), grouped so a single
+    /// DKG/account shows once even when it spans multiple chains.
+    private var refreshableAccounts: [ShardAccount] {
+        let wallets = appState.walletStore.wallets.filter { w in
             w.threshold == w.totalParties &&
             w.chain.curveType == .secp256k1 &&
             !w.hidden
         }
+        return ShardAccount.group(wallets)
     }
 
     var body: some View {
@@ -1254,7 +1256,7 @@ struct ReplaceDeviceInfoView: View {
                         .stroke(HorcruxTheme.accentCyan.opacity(0.25), lineWidth: 1)
                 )
 
-                if let w = refreshable {
+                if !refreshableAccounts.isEmpty {
                     VStack(alignment: .leading, spacing: 8) {
                         Label {
                             Text(L10n.Refresh.entryPoint).font(.subheadline.weight(.semibold))
@@ -1264,17 +1266,13 @@ struct ReplaceDeviceInfoView: View {
                         Text(L10n.Refresh.entryPointSubtitle)
                             .font(.caption)
                             .foregroundStyle(.secondary)
-                        Button {
-                            refreshTarget = w
-                        } label: {
-                            Text(L10n.Refresh.startButton)
-                                .frame(maxWidth: .infinity)
-                                .font(.subheadline.weight(.semibold))
-                                .padding(.vertical, 6)
+
+                        VStack(spacing: 8) {
+                            ForEach(refreshableAccounts) { acct in
+                                accountRow(for: acct)
+                            }
                         }
-                        .buttonStyle(.borderedProminent)
-                        .tint(HorcruxTheme.accentCyan)
-                        .accessibilityIdentifier("refresh_startButton")
+                        .padding(.top, 4)
                     }
                     .padding(12)
                     .background(RoundedRectangle(cornerRadius: 12).fill(HorcruxTheme.accentCyan.opacity(0.08)))
@@ -1310,6 +1308,40 @@ struct ReplaceDeviceInfoView: View {
             RefreshShardSheet(wallet: wallet, appState: appState)
                 .environmentObject(appState)
         }
+    }
+
+    @ViewBuilder
+    private func accountRow(for acct: ShardAccount) -> some View {
+        let representative = acct.wallets.first!
+        let last = RefreshTracker.lastRefresh(accountId: acct.id)
+        let days = last.map { Calendar.current.dateComponents([.day], from: $0, to: Date()).day ?? 0 }
+        let daysText = days.map { L10n.WalletHome.securityRotationAgo($0) } ?? L10n.WalletHome.securityRotationNever
+        let chainsLabel = acct.wallets.map(\.chain.symbol).joined(separator: " · ")
+
+        HStack(spacing: 10) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(acct.name.isEmpty ? L10n.SecurityDetail.shardGenericName : acct.name)
+                    .font(.subheadline.weight(.medium))
+                    .foregroundStyle(.white)
+                Text("\(chainsLabel) · \(daysText)")
+                    .font(.caption)
+                    .foregroundStyle(.white.opacity(0.6))
+            }
+            Spacer()
+            Button {
+                refreshTarget = representative
+            } label: {
+                Text(L10n.Refresh.startButton)
+                    .font(.caption.weight(.semibold))
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 6)
+                    .background(Capsule().fill(HorcruxTheme.accentCyan))
+                    .foregroundStyle(.black)
+            }
+            .accessibilityIdentifier("refresh_startButton_\(acct.id.prefix(8))")
+        }
+        .padding(10)
+        .background(RoundedRectangle(cornerRadius: 10).fill(Color.white.opacity(0.04)))
     }
 
     private func stepRow(index: Int, title: String, body: String) -> some View {
