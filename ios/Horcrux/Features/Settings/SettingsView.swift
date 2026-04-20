@@ -109,6 +109,7 @@ struct SettingsView: View {
                                 Text(L10n.Settings.customRelay).tag(true)
                             }
                             .pickerStyle(.segmented)
+                            .tint(HorcruxTheme.accentPurple)
                             .onChange(of: useCustomRelay) { _, isCustom in
                                 if !isCustom {
                                     RelayConfig.resetToDefault()
@@ -307,15 +308,15 @@ struct SettingsView: View {
 
                         VStack(spacing: 0) {
                             aboutRow(L10n.Settings.version, value: Self.appVersion)
-                            Divider().background(HorcruxTheme.hairline)
+                            Rectangle().fill(HorcruxTheme.hairline).frame(height: 1)
                             aboutRow(L10n.Settings.coreLibrary, value: "horcrux-core (Rust)")
-                            Divider().background(HorcruxTheme.hairline)
+                            Rectangle().fill(HorcruxTheme.hairline).frame(height: 1)
                             aboutRow(L10n.Settings.mpcProtocols, value: "CGGMP21 + FROST")
-                            Divider().background(HorcruxTheme.hairline)
+                            Rectangle().fill(HorcruxTheme.hairline).frame(height: 1)
                             aboutRow(L10n.Settings.e2eEncryption, value: "Noise Protocol")
-                            Divider().background(HorcruxTheme.hairline)
+                            Rectangle().fill(HorcruxTheme.hairline).frame(height: 1)
                             aboutRow(L10n.Settings.priceDataSources, value: "CoinGecko · Coincap")
-                            Divider().background(HorcruxTheme.hairline)
+                            Rectangle().fill(HorcruxTheme.hairline).frame(height: 1)
                             HStack {
                                 Text(L10n.Settings.secureEnclave)
                                     .font(.subheadline)
@@ -340,7 +341,7 @@ struct SettingsView: View {
                                 }
                             }
                             .padding(.vertical, 10)
-                            Divider().background(HorcruxTheme.hairline)
+                            Rectangle().fill(HorcruxTheme.hairline).frame(height: 1)
                             NavigationLink {
                                 LicensesView()
                             } label: {
