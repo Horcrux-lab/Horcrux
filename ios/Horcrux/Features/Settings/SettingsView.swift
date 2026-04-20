@@ -957,6 +957,25 @@ struct BlockchainNodeSettingsView: View {
                 }
 
                 VStack(alignment: .leading, spacing: 4) {
+                    Text(L10n.NodeSettings.infuraKeyLabel)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    SecureField(L10n.NodeSettings.pasteKeyPlaceholder, text: $config.infuraAPIKey)
+                        .font(.system(.body, design: .monospaced))
+                        .autocorrectionDisabled()
+                        .textInputAutocapitalization(.never)
+                        .accessibilityIdentifier("nodeSettings_infuraKey")
+                    if !config.infuraAPIKey.isEmpty,
+                       let net = EVMNetwork(rawValue: config.evmChainId),
+                       let tmpl = RPCProviderTemplate.infura(evm: net) {
+                        Button(L10n.NodeSettings.useInfuraFor(net.displayName)) {
+                            config.ethereumRPC = tmpl
+                        }
+                        .font(.caption)
+                    }
+                }
+
+                VStack(alignment: .leading, spacing: 4) {
                     Text(L10n.NodeSettings.etherscanKeyLabel)
                         .font(.caption)
                         .foregroundStyle(.secondary)

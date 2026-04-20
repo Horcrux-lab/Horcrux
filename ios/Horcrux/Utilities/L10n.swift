@@ -976,6 +976,7 @@ enum L10n {
         static let tronSection = NSLocalizedString("nodeSettings.tronSection", comment: "")
         static let signingUnsupportedNote = NSLocalizedString("nodeSettings.signingUnsupportedNote", comment: "")
         static let alchemyKeyLabel = NSLocalizedString("nodeSettings.alchemyKeyLabel", comment: "")
+        static let infuraKeyLabel = NSLocalizedString("nodeSettings.infuraKeyLabel", comment: "")
         static let heliusKeyLabel = NSLocalizedString("nodeSettings.heliusKeyLabel", comment: "")
         static let pasteKeyPlaceholder = NSLocalizedString("nodeSettings.pasteKeyPlaceholder", comment: "")
         static let useHelius = NSLocalizedString("nodeSettings.useHelius", comment: "")
@@ -1004,6 +1005,9 @@ enum L10n {
 
         static func useAlchemyFor(_ name: String) -> String {
             String(format: NSLocalizedString("nodeSettings.useAlchemyFor", comment: ""), name)
+        }
+        static func useInfuraFor(_ name: String) -> String {
+            String(format: NSLocalizedString("nodeSettings.useInfuraFor", comment: ""), name)
         }
     }
 

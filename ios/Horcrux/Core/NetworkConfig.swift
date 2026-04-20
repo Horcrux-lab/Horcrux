@@ -96,6 +96,17 @@ final class NetworkConfig: ObservableObject, @unchecked Sendable {
         didSet { saveKeychain(etherscanAPIKey, forKey: Keys.etherscanKey) }
     }
 
+    /// Infura project ID (aka API key). Used when the EVM URL points at an
+    /// `*.infura.io` host containing the `{KEY}` placeholder. Stored in
+    /// Keychain alongside the Alchemy key so users who pay both providers
+    /// can switch between them in-place.
+    @Published var infuraAPIKey: String {
+        didSet {
+            saveKeychain(infuraAPIKey, forKey: Keys.infuraKey)
+            invalidateBalances()
+        }
+    }
+
     /// Optional WebSocket endpoint for the selected EVM chain. Paid
     /// providers (Alchemy, Infura, QuickNode) expose `wss://` alongside
     /// `https://`. We don't auto-subscribe — the field is manually
@@ -129,6 +140,7 @@ final class NetworkConfig: ObservableObject, @unchecked Sendable {
         self.alchemyAPIKey = Self.loadKeychainString(key: Keys.alchemyKey)
         self.heliusAPIKey = Self.loadKeychainString(key: Keys.heliusKey)
         self.etherscanAPIKey = Self.loadKeychainString(key: Keys.etherscanKey)
+        self.infuraAPIKey = Self.loadKeychainString(key: Keys.infuraKey)
         self.ethereumWSS = ud.string(forKey: Keys.ethereumWSS) ?? ""
         self.solanaWSS = ud.string(forKey: Keys.solanaWSS) ?? ""
     }
@@ -203,14 +215,25 @@ final class NetworkConfig: ObservableObject, @unchecked Sendable {
         }
     }
 
-    /// Replace `{KEY}` placeholder in a URL template with the per-chain
-    /// Keychain-stored API key. Returns the raw URL unchanged if no
-    /// placeholder is present or the relevant key is empty.
+    /// Replace `{KEY}` placeholder in a URL template with the appropriate
+    /// per-provider Keychain-stored API key. The provider is picked by URL
+    /// host so a user who stores both Alchemy and Infura keys can freely
+    /// paste either provider's URL and have the substitution route to the
+    /// right key. Returns the raw URL unchanged if no placeholder is
+    /// present, the host is unrecognised, or the relevant key is empty.
     func substituteAPIKey(in url: String, chain: Chain) -> String {
         guard url.contains("{KEY}") else { return url }
+        let host = URL(string: url)?.host?.lowercased() ?? ""
         let key: String
         if chain.isEVM {
-            key = alchemyAPIKey
+            if host.contains("infura.io") {
+                key = infuraAPIKey
+            } else {
+                // Alchemy is the default EVM key slot; also covers bare
+                // template URLs that users haven't pointed at a specific
+                // provider yet.
+                key = alchemyAPIKey
+            }
         } else {
             switch chain {
             case .solana: key = heliusAPIKey
@@ -563,6 +586,7 @@ private extension NetworkConfig {
         static let alchemyKey = "com.horcrux.rpc.alchemyAPIKey"
         static let heliusKey = "com.horcrux.rpc.heliusAPIKey"
         static let etherscanKey = "com.horcrux.rpc.etherscanAPIKey"
+        static let infuraKey = "com.horcrux.rpc.infuraAPIKey"
         static let ethereumWSS = "com.horcrux.rpc.ethereumWSS"
         static let solanaWSS = "com.horcrux.rpc.solanaWSS"
     }
@@ -605,6 +629,26 @@ enum RPCProviderTemplate {
             ? "https://mainnet.helius-rpc.com/?api-key={KEY}"
             : "https://devnet.helius-rpc.com/?api-key={KEY}"
     }
+
+    /// Infura EVM template for the given chain. `{KEY}` is the project ID.
+    /// Infura covers a different set of L2s than Alchemy — notably they
+    /// support Polygon PoS, Arbitrum, Optimism, Base, Linea, zkSync, BNB,
+    /// and Avalanche, but not Scroll or Sepolia under the same host pattern.
+    static func infura(evm: EVMNetwork) -> String? {
+        switch evm {
+        case .mainnet: return "https://mainnet.infura.io/v3/{KEY}"
+        case .sepolia: return "https://sepolia.infura.io/v3/{KEY}"
+        case .polygon: return "https://polygon-mainnet.infura.io/v3/{KEY}"
+        case .arbitrumOne: return "https://arbitrum-mainnet.infura.io/v3/{KEY}"
+        case .optimism: return "https://optimism-mainnet.infura.io/v3/{KEY}"
+        case .base: return "https://base-mainnet.infura.io/v3/{KEY}"
+        case .linea: return "https://linea-mainnet.infura.io/v3/{KEY}"
+        case .avalanche: return "https://avalanche-mainnet.infura.io/v3/{KEY}"
+        case .zkSyncEra: return "https://zksync-mainnet.infura.io/v3/{KEY}"
+        case .bnb: return "https://bnbsmartchain-mainnet.infura.io/v3/{KEY}"
+        case .scroll: return nil
+        }
+    }
 }
 
 // MARK: - Provider identification
@@ -612,7 +656,7 @@ enum RPCProviderTemplate {
 /// Recognises the provider behind an RPC URL so the UI can show a "Alchemy"
 /// or "PublicNode (公共)" tag. Used purely for display — never for routing.
 enum RPCProvider {
-    case publicNode, alchemy, helius, blockstream, mempoolSpace, llamaNodes,
+    case publicNode, alchemy, helius, infura, quickNode, blockstream, mempoolSpace, llamaNodes,
          ankr, tronGrid, dRPC, baseOrg, optimismIO, bnbChain, litecoinSpace,
          avaxNetwork, zksync, linea, scroll, solanaLabs, unknown
 
@@ -622,6 +666,8 @@ enum RPCProvider {
         case .publicNode: return "PublicNode"
         case .alchemy: return "Alchemy"
         case .helius: return "Helius"
+        case .infura: return "Infura"
+        case .quickNode: return "QuickNode"
         case .blockstream: return "Blockstream"
         case .mempoolSpace: return "mempool.space"
         case .llamaNodes: return "LlamaNodes"
@@ -645,7 +691,7 @@ enum RPCProvider {
     /// visitor IPs. Drives the "公共" tag and the privacy-warning tooltip.
     var isPublic: Bool {
         switch self {
-        case .alchemy, .helius: return false
+        case .alchemy, .helius, .infura, .quickNode: return false
         default: return true
         }
     }
@@ -654,7 +700,7 @@ enum RPCProvider {
     /// unknown providers.
     var tag: String {
         switch self {
-        case .alchemy, .helius: return "付费"
+        case .alchemy, .helius, .infura, .quickNode: return "付费"
         case .unknown: return ""
         default: return "公共"
         }
@@ -665,6 +711,8 @@ enum RPCProvider {
         if host.contains("publicnode.com") { return .publicNode }
         if host.contains("alchemy.com") { return .alchemy }
         if host.contains("helius-rpc.com") || host.contains("helius.xyz") { return .helius }
+        if host.contains("infura.io") { return .infura }
+        if host.contains("quiknode.pro") || host.contains("quicknode.com") { return .quickNode }
         if host.contains("blockstream.info") { return .blockstream }
         if host.contains("mempool.space") { return .mempoolSpace }
         if host.contains("llamarpc.com") || host.contains("llamanodes.com") { return .llamaNodes }

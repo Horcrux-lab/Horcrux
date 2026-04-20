@@ -471,10 +471,12 @@
 "nodeSettings.tronSection" = "Tron（只读）";
 "nodeSettings.signingUnsupportedNote" = "暂不支持签名 —— 仅支持查询余额与地址。";
 "nodeSettings.alchemyKeyLabel" = "Alchemy API 密钥（可选，存入 Keychain）";
+"nodeSettings.infuraKeyLabel" = "Infura Project ID（可选，存入 Keychain）";
 "nodeSettings.heliusKeyLabel" = "Helius API 密钥（可选，存入 Keychain）";
 "nodeSettings.pasteKeyPlaceholder" = "粘贴你的密钥";
 "nodeSettings.useHelius" = "使用 Helius";
 "nodeSettings.useAlchemyFor" = "为 %@ 使用 Alchemy";
+"nodeSettings.useInfuraFor" = "为 %@ 使用 Infura";
 "nodeSettings.etherscanKeySection" = "Etherscan API 密钥";
 "nodeSettings.etherscanKeyLabel" = "Etherscan V2 多链密钥（可选，存入 Keychain）。用于跨链同步 EVM 交易历史。";
 "nodeSettings.etherscanKeyHelp" = "未填写时，交易历史会走公共限流接口，可能较慢或偶尔缺失。https://etherscan.io/myapikey 免费申请。";
