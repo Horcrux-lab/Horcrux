@@ -5,6 +5,21 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.0-dev.86] - 2026-04-20
+
+### Fixed
+
+- **iOS**: **签名卡在 R0/4，slow-signing 警告**（dev.84 引入的去重 bug）。日志显示 R1 的 13559B + 21667B 两条 Paillier 消息正常到达对端，但协议不再前进。
+  根因：dev.84 我用 `(fromParty, round, toParty)` 三元组去重，目的是过滤 relay + wifi-lan 双传输带来的重复包。但 **CMP/GG18 每轮本身会产多条不同消息**（Paillier commit + proof 分两条走），它们的 `(from, round, to)` 完全一样——被我的 dedup 无差别丢掉，bridge 只拿到一半 round-1 输入，永远产不出 round-2 输出，两端空转直到 slow-signing 告警。
+  修法：dedup key 换成**消息字节的 SHA-256**。只有真正 byte-for-byte 重复（多传输 fan-out 的副本）会被丢弃；同轮多条 legit 不同消息照常通过。
+- **共签方 UI 仍显示"3/2"**。dev.84 的 name 去重不够：relay 那头拿 UIDevice 名（"iPhone 16"），wifi-lan Bonjour 服务名常被系统附后缀（"iPhone 16 (iPhone)"），字符串不等，过不了 Set 去重。
+  现在 `joinedSigners` sink 在比较前先 regex 剥掉末尾 ` (…)` 括号子串，两种命名规范化成同一个 key。
+
+### Technical
+
+- `import CryptoKit` 到 SigningViewModel 以用 `SHA256.hash`，哈希对比保持 Set 有界（32B/entry）而不是存整条消息。
+- 名字归一化：`replacingOccurrences(..., options: .regularExpression)` 匹配 `\s*\([^)]*\)\s*$`。
+
 ## [0.3.0-dev.85] - 2026-04-20
 
 ### Fixed

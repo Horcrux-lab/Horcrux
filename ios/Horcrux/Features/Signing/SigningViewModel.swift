@@ -1,5 +1,6 @@
 import Foundation
 import Combine
+import CryptoKit
 import UIKit
 
 /// View model for threshold signing ceremony.
@@ -272,17 +273,25 @@ final class SigningViewModel: ObservableObject {
         self.blockchainService = appState.blockchainService
 
         // Observe connected peers as potential co-signers.
-        // Deduplicate by display name: the same physical device can appear
-        // under two peer.ids when relay + wifi-lan are both active
-        // (different peer.id formats per transport). Collapse on name so
-        // the "N joined" count matches reality.
+        // Deduplicate by normalized display name: the same physical
+        // device can appear under two peer.ids when relay + wifi-lan
+        // are both active, and Bonjour often appends a parenthetical
+        // ("iPhone 16 (iPhone)") while the relay announce keeps the
+        // plain UIDevice name ("iPhone 16"). Strip a trailing " (…)"
+        // so both land on the same bucket.
         appState.peerManager.$connectedPeers
             .receive(on: DispatchQueue.main)
             .sink { [weak self] peers in
                 var seen = Set<String>()
                 var unique: [Peer] = []
                 for peer in peers {
-                    let key = peer.name.isEmpty ? peer.id : peer.name
+                    let base = peer.name.isEmpty ? peer.id : peer.name
+                    let normalized = base
+                        .replacingOccurrences(of: #"\s*\([^)]*\)\s*$"#,
+                                              with: "",
+                                              options: .regularExpression)
+                        .trimmingCharacters(in: .whitespaces)
+                    let key = normalized.isEmpty ? base : normalized
                     if seen.insert(key).inserted {
                         unique.append(peer)
                     }
@@ -756,14 +765,21 @@ final class SigningViewModel: ObservableObject {
                 try await peerManager.broadcastMpcMessage(data)
             }
 
-            // Dedupe identical (fromParty, round) pairs: multi-transport
-            // fan-out (relay + wifi-lan both active) makes the same FROST
-            // message arrive twice, and the bridge rejects the second copy
-            // as "party N tried to overwrite message".
-            var seenMessages = Set<String>()
+            // Dedupe EXACT byte-for-byte duplicates (same payload arrived
+            // on relay + wifi-lan). Do NOT dedupe by (fromParty, round)
+            // because CMP/GG18 can emit multiple distinct messages in a
+            // single round (e.g. Paillier commit + proof); those must
+            // all reach the bridge.
+            var seenMessages = Set<Data>()
 
             // Process incoming messages
             for await (peer, data) in mpcStream {
+                // Drop exact-byte duplicates before even decoding. SHA-256
+                // keeps the set bounded in size vs storing raw bytes.
+                let digest = Data(SHA256.hash(data: data))
+                if !seenMessages.insert(digest).inserted {
+                    continue
+                }
                 // Real per-peer state: first inbound bytes from a peer flips them to .signing.
                 if peerStates[peer.id] != .done {
                     peerStates[peer.id] = .signing
@@ -794,12 +810,6 @@ final class SigningViewModel: ObservableObject {
                     // to overwrite message".
                     let myPartyIndex = wallet.partyIndex
                     if msg.toParty != 0 && msg.toParty != myPartyIndex {
-                        continue
-                    }
-
-                    // Drop duplicates from multi-transport fan-out.
-                    let key = "\(msg.fromParty)-\(msg.round)-\(msg.toParty)"
-                    if !seenMessages.insert(key).inserted {
                         continue
                     }
 
