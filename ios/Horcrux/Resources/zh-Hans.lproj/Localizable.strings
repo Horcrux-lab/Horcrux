@@ -482,6 +482,24 @@
 "nodeStatus.notChecked" = "未检查";
 "nodeStatus.connected" = "已连接";
 "nodeStatus.checking" = "检查中…";
+"nodeStatus.checkingAll" = "正在检查所有节点…";
+"nodeStatus.testAll" = "测试全部";
+"nodeStatus.switchEndpoint" = "更换节点";
+"nodeStatus.currentEndpoint" = "当前";
+"nodeStatus.healthySummary" = "%1$d/%2$d 节点正常";
+"nodeStatus.latencyMs" = "%d ms";
+"nodeStatus.blockHeight" = "块 %@";
+"nodeStatus.lastOkPrefix" = "上次可达 %@";
+"nodeStatus.justNow" = "刚刚";
+"nodeStatus.secondsAgo" = "%d 秒前";
+"nodeStatus.minutesAgo" = "%d 分钟前";
+"nodeStatus.hoursAgo" = "%d 小时前";
+"nodeStatus.daysAgo" = "%d 天前";
+"nodeStatus.errNetwork" = "网络中断";
+"nodeStatus.errUnreachable" = "无法连接";
+"nodeStatus.errTimeout" = "连接超时";
+"nodeStatus.keyStoredSecurely" = "密钥已加密存储，请求时动态注入";
+"nodeStatus.bakedKeyWarning" = "URL 中似乎内嵌了 API 密钥，建议改用对应的 Key 字段单独存储";
 
 /* Licenses */
 "licenses.title" = "许可";

@@ -482,6 +482,24 @@
 "nodeStatus.notChecked" = "Not checked";
 "nodeStatus.connected" = "Connected";
 "nodeStatus.checking" = "Checking…";
+"nodeStatus.checkingAll" = "Checking all nodes…";
+"nodeStatus.testAll" = "Test all";
+"nodeStatus.switchEndpoint" = "Switch endpoint";
+"nodeStatus.currentEndpoint" = "Current";
+"nodeStatus.healthySummary" = "%1$d/%2$d nodes OK";
+"nodeStatus.latencyMs" = "%d ms";
+"nodeStatus.blockHeight" = "block %@";
+"nodeStatus.lastOkPrefix" = "Last OK %@";
+"nodeStatus.justNow" = "just now";
+"nodeStatus.secondsAgo" = "%ds ago";
+"nodeStatus.minutesAgo" = "%dm ago";
+"nodeStatus.hoursAgo" = "%dh ago";
+"nodeStatus.daysAgo" = "%dd ago";
+"nodeStatus.errNetwork" = "Network lost";
+"nodeStatus.errUnreachable" = "Unreachable";
+"nodeStatus.errTimeout" = "Timed out";
+"nodeStatus.keyStoredSecurely" = "Key stored encrypted; injected at request time";
+"nodeStatus.bakedKeyWarning" = "URL appears to embed an API key; move it to the dedicated Key field instead";
 
 /* Licenses */
 "licenses.title" = "Licenses";

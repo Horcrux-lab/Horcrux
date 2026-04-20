@@ -14,6 +14,7 @@ struct SettingsView: View {
     @State private var showBiometricDisablePinSheet = false
     @State private var biometricDisableVerified = false
     @State private var relayWarning: String?
+    @ObservedObject private var health = NodeHealthStore.shared
 
 
     private static let relayURLKey = RelayConfig.customURLKey
@@ -112,6 +113,11 @@ struct SettingsView: View {
                             } label: {
                                 HStack {
                                     VaultSettingsRow(icon: "server.rack", iconColor: HorcruxTheme.accentCyan, title: L10n.Settings.rpcEndpoints, subtitle: networkSummary)
+                                    if let dot = nodeHealthDotColor {
+                                        Circle()
+                                            .fill(dot)
+                                            .frame(width: 8, height: 8)
+                                    }
                                     Spacer()
                                     VaultDisclosureIndicator()
                                 }
@@ -493,7 +499,18 @@ struct SettingsView: View {
         }
         parts.append(config.btcTestnet ? "BTC Testnet" : "BTC Mainnet")
         parts.append(config.solDevnet ? "SOL Devnet" : "SOL Mainnet")
+        if health.probedCount > 0 {
+            parts.append(health.summaryText)
+        }
         return parts.joined(separator: " · ")
+    }
+
+    /// Color dot rendered on the RPC entry row to surface failing nodes without
+    /// requiring the user to drill in. Gray = not yet probed this session,
+    /// green = all probed chains OK, red = any failure.
+    private var nodeHealthDotColor: Color? {
+        guard health.probedCount > 0 else { return nil }
+        return health.anyFailed ? HorcruxTheme.dangerRed : HorcruxTheme.successGreen
     }
 
     private var languageSummary: String {
@@ -839,10 +856,36 @@ private struct PinStrengthIndicator: View {
 struct BlockchainNodeSettingsView: View {
     @EnvironmentObject private var appState: AppState
     @ObservedObject private var config = NetworkConfig.shared
+    @ObservedObject private var health = NodeHealthStore.shared
     @State private var showResetConfirm = false
 
     var body: some View {
         Form {
+            Section {
+                HStack(spacing: 10) {
+                    Circle()
+                        .fill(healthRollupColor)
+                        .frame(width: 10, height: 10)
+                    Text(health.summaryText)
+                        .font(.subheadline)
+                    Spacer()
+                    Button {
+                        Task { await health.refreshAll(config: config) }
+                    } label: {
+                        if health.refreshingAll {
+                            ProgressView().scaleEffect(0.8)
+                        } else {
+                            Label(L10n.NodeStatus.testAll, systemImage: "arrow.clockwise")
+                                .font(.caption.weight(.semibold))
+                        }
+                    }
+                    .buttonStyle(.bordered)
+                    .tint(HorcruxTheme.accentCyan)
+                    .disabled(health.refreshingAll)
+                    .accessibilityIdentifier("nodeSettings_testAllButton")
+                }
+            }
+
             Section(L10n.NodeSettings.quickPresets) {
                 HStack(spacing: 12) {
                     ForEach(NetworkPreset.all) { preset in
@@ -877,6 +920,8 @@ struct BlockchainNodeSettingsView: View {
                         .autocorrectionDisabled()
                         .textInputAutocapitalization(.never)
                     URLValidationHint(urlString: config.ethereumRPC)
+                    KeySecurityHint(urlString: config.ethereumRPC)
+                    EndpointSwitcher(chain: .ethereum)
                 }
 
                 Picker(L10n.NodeSettings.networkPicker, selection: $config.evmChainId) {
@@ -916,6 +961,7 @@ struct BlockchainNodeSettingsView: View {
                         .autocorrectionDisabled()
                         .textInputAutocapitalization(.never)
                     URLValidationHint(urlString: config.bitcoinAPI)
+                    EndpointSwitcher(chain: .bitcoin)
                 }
 
                 Toggle(L10n.NodeSettings.testnet, isOn: $config.btcTestnet)
@@ -934,6 +980,7 @@ struct BlockchainNodeSettingsView: View {
                         .autocorrectionDisabled()
                         .textInputAutocapitalization(.never)
                     URLValidationHint(urlString: config.litecoinAPI)
+                    EndpointSwitcher(chain: .litecoin)
                     Text(L10n.NodeSettings.signingUnsupportedNote)
                         .font(.caption2)
                         .foregroundStyle(.secondary)
@@ -952,6 +999,8 @@ struct BlockchainNodeSettingsView: View {
                         .autocorrectionDisabled()
                         .textInputAutocapitalization(.never)
                     URLValidationHint(urlString: config.solanaRPC)
+                    KeySecurityHint(urlString: config.solanaRPC)
+                    EndpointSwitcher(chain: .solana)
                 }
 
                 Toggle(L10n.NodeSettings.devnet, isOn: $config.solDevnet)
@@ -986,6 +1035,7 @@ struct BlockchainNodeSettingsView: View {
                         .autocorrectionDisabled()
                         .textInputAutocapitalization(.never)
                     URLValidationHint(urlString: config.tronAPI)
+                    EndpointSwitcher(chain: .tron)
                     Text(L10n.NodeSettings.signingUnsupportedNote)
                         .font(.caption2)
                         .foregroundStyle(.secondary)
@@ -1019,6 +1069,12 @@ struct BlockchainNodeSettingsView: View {
         .navigationTitle(L10n.NodeSettings.title)
         .navigationBarTitleDisplayMode(.inline)
         .vaultForm()
+        .task {
+            // Auto-probe all endpoints when the page opens so the user sees
+            // current status without needing to tap anything. `refreshAll` is
+            // a no-op when another refresh is already in flight.
+            await health.refreshAll(config: config)
+        }
         .alert(L10n.NodeSettings.resetConfirmTitle, isPresented: $showResetConfirm) {
             Button(L10n.NodeSettings.reset, role: .destructive) { config.resetToDefaults() }
             Button(L10n.Common.cancel, role: .cancel) {}
@@ -1034,6 +1090,13 @@ struct BlockchainNodeSettingsView: View {
         config.evmChainId == preset.evmChainId &&
         config.btcTestnet == preset.btcTestnet &&
         config.solDevnet == preset.solDevnet
+    }
+
+    private var healthRollupColor: Color {
+        if health.refreshingAll { return HorcruxTheme.subtleText }
+        if health.probedCount == 0 { return HorcruxTheme.subtleText }
+        if health.anyFailed { return HorcruxTheme.dangerRed }
+        return HorcruxTheme.successGreen
     }
 }
 
@@ -1057,47 +1120,27 @@ struct URLValidationHint: View {
     }
 }
 
-/// Shows a connectivity indicator for a blockchain node.
+/// Shows a connectivity indicator for a blockchain node, backed by the shared
+/// `NodeHealthStore` so results survive across re-renders and match the rollup
+/// on the Settings entry row. Tapping the row re-probes *this* chain only.
 struct NodeStatusRow: View {
     let chain: Chain
-    @State private var status: NodeStatus = .unknown
-    @State private var checking = false
-
-    enum NodeStatus {
-        case unknown, connected, error(String)
-
-        var color: Color {
-            switch self {
-            case .unknown: return HorcruxTheme.subtleText
-            case .connected: return HorcruxTheme.successGreen
-            case .error: return HorcruxTheme.dangerRed
-            }
-        }
-
-        var label: String {
-            switch self {
-            case .unknown: return L10n.NodeStatus.notChecked
-            case .connected: return L10n.NodeStatus.connected
-            case .error(let msg): return msg
-            }
-        }
-    }
+    @ObservedObject private var health = NodeHealthStore.shared
 
     var body: some View {
-        HStack {
-            Button {
-                checkConnection()
-            } label: {
+        let snap = health.snapshot(for: chain)
+        return Button {
+            Task { await health.refresh(chain: chain) }
+        } label: {
+            VStack(alignment: .leading, spacing: 4) {
                 HStack(spacing: 6) {
-                    if checking {
-                        ProgressView()
-                            .scaleEffect(0.7)
+                    if case .checking = snap.status {
+                        ProgressView().scaleEffect(0.7)
                     } else {
-                        Circle()
-                            .fill(status.color)
+                        Circle().fill(color(for: snap.status))
                             .frame(width: 8, height: 8)
                     }
-                    Text(checking ? L10n.NodeStatus.checking : status.label)
+                    Text(label(for: snap.status))
                         .font(.caption)
                         .foregroundStyle(HorcruxTheme.subtleText)
                     Spacer()
@@ -1105,67 +1148,143 @@ struct NodeStatusRow: View {
                         .font(.caption)
                         .foregroundStyle(HorcruxTheme.accentCyan)
                 }
+                if snap.isOk {
+                    HStack(spacing: 8) {
+                        if let ms = snap.latencyMs {
+                            Label(L10n.NodeStatus.latencyMs(ms), systemImage: "bolt.fill")
+                                .labelStyle(.titleOnly)
+                                .font(.caption2)
+                                .foregroundStyle(latencyColor(ms))
+                        }
+                        if let h = snap.blockHeight {
+                            Text(L10n.NodeStatus.blockHeight(h))
+                                .font(.caption2)
+                                .foregroundStyle(HorcruxTheme.subtleText)
+                        }
+                    }
+                }
+                if let rel = snap.lastOkRelative(), !snap.isOk {
+                    Text(L10n.NodeStatus.lastOkPrefix(rel))
+                        .font(.caption2)
+                        .foregroundStyle(HorcruxTheme.subtleText)
+                }
             }
-            .buttonStyle(.plain)
+        }
+        .buttonStyle(.plain)
+        .accessibilityIdentifier("nodeStatus_\(chain.rawValue)")
+    }
+
+    private func color(for status: NodeHealthSnapshot.Status) -> Color {
+        switch status {
+        case .unknown, .checking: return HorcruxTheme.subtleText
+        case .ok: return HorcruxTheme.successGreen
+        case .failed: return HorcruxTheme.dangerRed
         }
     }
 
-    private func checkConnection() {
-        guard !checking else { return }
-        checking = true
-        let config = NetworkConfig.shared
-        let service = BlockchainService()
+    private func label(for status: NodeHealthSnapshot.Status) -> String {
+        switch status {
+        case .unknown: return L10n.NodeStatus.notChecked
+        case .checking: return L10n.NodeStatus.checking
+        case .ok: return L10n.NodeStatus.connected
+        case .failed(let msg): return msg
+        }
+    }
 
-        Task {
-            do {
-                if chain.isEVM {
-                    _ = try await service.ethBlockNumber(rpcURL: config.rpcURL(for: chain))
-                } else {
-                    switch chain {
-                    case .bitcoin:
-                        let urlString = "\(config.rpcURL(for: .bitcoin))/blocks/tip/hash"
-                        guard let url = URL(string: urlString) else { throw BlockchainError.invalidURL(urlString) }
-                        let (_, response) = try await PinnedURLSession.shared.session.data(from: url)
-                        guard let http = response as? HTTPURLResponse, (200...299).contains(http.statusCode) else {
-                            throw BlockchainError.httpError(statusCode: (response as? HTTPURLResponse)?.statusCode ?? 0)
-                        }
-                    case .litecoin:
-                        let urlString = "\(config.rpcURL(for: .litecoin))/blocks/tip/hash"
-                        guard let url = URL(string: urlString) else { throw BlockchainError.invalidURL(urlString) }
-                        let (_, response) = try await PinnedURLSession.shared.session.data(from: url)
-                        guard let http = response as? HTTPURLResponse, (200...299).contains(http.statusCode) else {
-                            throw BlockchainError.httpError(statusCode: (response as? HTTPURLResponse)?.statusCode ?? 0)
-                        }
-                    case .solana:
-                        _ = try await service.solHealth(rpcURL: config.rpcURL(for: .solana))
-                    case .tron:
-                        let urlString = "\(config.rpcURL(for: .tron))/wallet/getnowblock"
-                        guard let url = URL(string: urlString) else { throw BlockchainError.invalidURL(urlString) }
-                        var req = URLRequest(url: url)
-                        req.httpMethod = "POST"
-                        req.httpBody = Data("{}".utf8)
-                        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
-                        let (_, response) = try await PinnedURLSession.shared.session.data(for: req)
-                        guard let http = response as? HTTPURLResponse, (200...299).contains(http.statusCode) else {
-                            throw BlockchainError.httpError(statusCode: (response as? HTTPURLResponse)?.statusCode ?? 0)
-                        }
-                    default:
-                        break
-                    }
-                }
-                await MainActor.run {
-                    status = .connected
-                    checking = false
-                }
-            } catch {
-                await MainActor.run {
-                    status = .error(error.localizedDescription.prefix(40) + "…")
-                    checking = false
-                }
-            }
+    private func latencyColor(_ ms: Int) -> Color {
+        switch ms {
+        case ..<300: return HorcruxTheme.successGreen
+        case ..<1000: return HorcruxTheme.warningAmber
+        default: return HorcruxTheme.dangerRed
         }
     }
 }
+
+/// Drop-down list of built-in fallback endpoints for a chain. Lets users swap
+/// RPC providers without typing a URL. Pulls candidates from
+/// `RPCFallbacks.endpoints(for:config:)` and filters out the currently active
+/// URL so the menu shows only *alternatives*.
+struct EndpointSwitcher: View {
+    let chain: Chain
+    @ObservedObject private var config = NetworkConfig.shared
+
+    var body: some View {
+        let current = config.rpcURL(for: chain)
+        let candidates = RPCFallbacks.endpoints(for: chain, config: config)
+            .filter { $0 != current && $0 != config.fieldValue(for: chain) }
+        if !candidates.isEmpty {
+            Menu {
+                ForEach(candidates, id: \.self) { url in
+                    Button {
+                        config.setFieldValue(url, for: chain)
+                    } label: {
+                        VStack(alignment: .leading) {
+                            Text(URL(string: url)?.host ?? url)
+                            Text(url).font(.caption2)
+                        }
+                    }
+                }
+            } label: {
+                Label(L10n.NodeStatus.switchEndpoint, systemImage: "arrow.left.arrow.right")
+                    .font(.caption)
+            }
+            .accessibilityIdentifier("nodeStatus_switchEndpoint_\(chain.rawValue)")
+        }
+    }
+}
+
+/// Key-security chip for an RPC URL field.
+///
+/// * Blue "密钥已加密存储" when the URL uses the `{KEY}` placeholder, i.e. the
+///   API key lives in Keychain and is substituted at request time.
+/// * Amber "URL 内嵌密钥" when the URL looks like it contains a raw 20+
+///   character key (common Alchemy/Infura/Helius pattern), nudging the user
+///   to split it out.
+struct KeySecurityHint: View {
+    let urlString: String
+
+    var body: some View {
+        if urlString.contains("{KEY}") {
+            HStack(spacing: 6) {
+                Image(systemName: "lock.shield.fill")
+                    .font(.caption2)
+                Text(L10n.NodeStatus.keyStoredSecurely)
+                    .font(.caption2)
+            }
+            .foregroundStyle(HorcruxTheme.accentCyan)
+        } else if Self.looksLikeBakedKey(urlString) {
+            HStack(spacing: 6) {
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .font(.caption2)
+                Text(L10n.NodeStatus.bakedKeyWarning)
+                    .font(.caption2)
+            }
+            .foregroundStyle(HorcruxTheme.warningAmber)
+        }
+    }
+
+    /// Heuristic: last path segment (or query value) looks like a hex/base64
+    /// secret — length ≥ 20, no slashes, not a known hostname fragment.
+    static func looksLikeBakedKey(_ s: String) -> Bool {
+        guard let url = URL(string: s) else { return false }
+        // Check query first: `?api-key=…`
+        if let q = url.query, let eq = q.range(of: "=") {
+            let val = String(q[eq.upperBound...])
+            if val.count >= 20, val.range(of: #"^[A-Za-z0-9_-]+$"#, options: .regularExpression) != nil {
+                return true
+            }
+        }
+        // Then trailing path segment
+        let comps = url.pathComponents.filter { $0 != "/" }
+        if let last = comps.last, last.count >= 20,
+           last.range(of: #"^[A-Za-z0-9_-]+$"#, options: .regularExpression) != nil,
+           !["rpc", "api", "mainnet", "testnet", "devnet"].contains(last.lowercased()) {
+            return true
+        }
+        return false
+    }
+}
+
 
 struct LicensesView: View {
     var body: some View {

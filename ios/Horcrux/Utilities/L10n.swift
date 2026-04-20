@@ -993,6 +993,48 @@ enum L10n {
         static let notChecked = NSLocalizedString("nodeStatus.notChecked", comment: "")
         static let connected = NSLocalizedString("nodeStatus.connected", comment: "")
         static let checking = NSLocalizedString("nodeStatus.checking", comment: "")
+        static let checkingAll = NSLocalizedString("nodeStatus.checkingAll", comment: "")
+        static let testAll = NSLocalizedString("nodeStatus.testAll", comment: "")
+        static let switchEndpoint = NSLocalizedString("nodeStatus.switchEndpoint", comment: "")
+        static let currentEndpoint = NSLocalizedString("nodeStatus.currentEndpoint", comment: "")
+        static let errNetwork = NSLocalizedString("nodeStatus.errNetwork", comment: "")
+        static let errUnreachable = NSLocalizedString("nodeStatus.errUnreachable", comment: "")
+        static let errTimeout = NSLocalizedString("nodeStatus.errTimeout", comment: "")
+        static let justNow = NSLocalizedString("nodeStatus.justNow", comment: "")
+        static let keyStoredSecurely = NSLocalizedString("nodeStatus.keyStoredSecurely", comment: "")
+        static let bakedKeyWarning = NSLocalizedString("nodeStatus.bakedKeyWarning", comment: "")
+
+        static func healthySummary(_ ok: Int, _ total: Int) -> String {
+            String(format: NSLocalizedString("nodeStatus.healthySummary", comment: ""), ok, total)
+        }
+
+        static func latencyMs(_ ms: Int) -> String {
+            String(format: NSLocalizedString("nodeStatus.latencyMs", comment: ""), ms)
+        }
+
+        static func blockHeight(_ h: UInt64) -> String {
+            String(format: NSLocalizedString("nodeStatus.blockHeight", comment: ""), String(h))
+        }
+
+        static func lastOkPrefix(_ relative: String) -> String {
+            String(format: NSLocalizedString("nodeStatus.lastOkPrefix", comment: ""), relative)
+        }
+
+        static func secondsAgo(_ s: Int) -> String {
+            String(format: NSLocalizedString("nodeStatus.secondsAgo", comment: ""), s)
+        }
+
+        static func minutesAgo(_ m: Int) -> String {
+            String(format: NSLocalizedString("nodeStatus.minutesAgo", comment: ""), m)
+        }
+
+        static func hoursAgo(_ h: Int) -> String {
+            String(format: NSLocalizedString("nodeStatus.hoursAgo", comment: ""), h)
+        }
+
+        static func daysAgo(_ d: Int) -> String {
+            String(format: NSLocalizedString("nodeStatus.daysAgo", comment: ""), d)
+        }
     }
 
     // MARK: - Licenses

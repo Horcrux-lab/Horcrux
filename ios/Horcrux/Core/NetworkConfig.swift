@@ -133,6 +133,35 @@ final class NetworkConfig: ObservableObject, @unchecked Sendable {
         return substituteAPIKey(in: raw, chain: chain)
     }
 
+    /// Raw URL stored for the chain's primary field (before `{KEY}` substitution).
+    /// Used by the settings UI so the "Switch endpoint" menu can compare
+    /// against the exact string the user sees in the TextField. Returns nil
+    /// for chains that don't have a dedicated field (secondary EVM chains).
+    func fieldValue(for chain: Chain) -> String? {
+        switch chain {
+        case .ethereum: return ethereumRPC
+        case .bitcoin: return bitcoinAPI
+        case .litecoin: return litecoinAPI
+        case .solana: return solanaRPC
+        case .tron: return tronAPI
+        default: return nil
+        }
+    }
+
+    /// Set the user-visible URL field for a chain. No-op for chains without
+    /// a dedicated field. Used by the "Switch endpoint" menu to swap providers
+    /// with one tap.
+    func setFieldValue(_ url: String, for chain: Chain) {
+        switch chain {
+        case .ethereum: ethereumRPC = url
+        case .bitcoin: bitcoinAPI = url
+        case .litecoin: litecoinAPI = url
+        case .solana: solanaRPC = url
+        case .tron: tronAPI = url
+        default: break
+        }
+    }
+
     /// Replace `{KEY}` placeholder in a URL template with the per-chain
     /// Keychain-stored API key. Returns the raw URL unchanged if no
     /// placeholder is present or the relevant key is empty.
@@ -661,3 +690,202 @@ enum RPCFallbacks {
     }
 }
 
+import Foundation
+import Combine
+
+/// Per-chain health snapshot captured by `NodeHealthStore`.
+struct NodeHealthSnapshot: Equatable {
+    enum Status: Equatable {
+        case unknown
+        case checking
+        case ok
+        case failed(String)
+    }
+
+    var status: Status = .unknown
+    var latencyMs: Int? = nil
+    var blockHeight: UInt64? = nil
+    /// Last time the node answered a probe successfully.
+    var lastOkAt: Date? = nil
+    /// Last time any probe (success or failure) was attempted.
+    var lastCheckedAt: Date? = nil
+
+    var isOk: Bool { if case .ok = status { return true } else { return false } }
+    var isFailed: Bool { if case .failed = status { return true } else { return false } }
+}
+
+/// App-wide cache of "is this chain's RPC reachable right now?"
+///
+/// Settings auto-refreshes on appear; other places can observe this store to
+/// surface a rollup (e.g. `3/5 节点正常`) without re-probing.
+///
+/// `lastOkAt` is persisted to UserDefaults so a "last reachable 2 hours ago"
+/// label survives relaunches.
+@MainActor
+final class NodeHealthStore: ObservableObject {
+    static let shared = NodeHealthStore()
+
+    @Published private(set) var snapshots: [Chain: NodeHealthSnapshot] = [:]
+    @Published private(set) var refreshingAll: Bool = false
+
+    private init() {
+        for chain in Chain.allCases {
+            var snap = NodeHealthSnapshot()
+            if let ts = UserDefaults.standard.object(forKey: Self.lastOkKey(for: chain)) as? Double {
+                snap.lastOkAt = Date(timeIntervalSince1970: ts)
+            }
+            snapshots[chain] = snap
+        }
+    }
+
+    // MARK: Queries
+
+    /// Number of chains whose most recent probe returned OK.
+    var okCount: Int { snapshots.values.filter(\.isOk).count }
+    /// Number of chains that have at least been probed once this session
+    /// (either ok or failed; unknowns are excluded).
+    var probedCount: Int { snapshots.values.filter { $0.status != .unknown }.count }
+    /// Any chain currently in a failed state.
+    var anyFailed: Bool { snapshots.values.contains(where: { $0.isFailed }) }
+
+    /// "3/5 正常" / "正在检查…" style rollup used by the Settings entry row.
+    var summaryText: String {
+        if refreshingAll { return L10n.NodeStatus.checkingAll }
+        if probedCount == 0 { return L10n.NodeStatus.notChecked }
+        return L10n.NodeStatus.healthySummary(okCount, Chain.allCases.count)
+    }
+
+    func snapshot(for chain: Chain) -> NodeHealthSnapshot {
+        snapshots[chain] ?? NodeHealthSnapshot()
+    }
+
+    // MARK: Probes
+
+    /// Probe a single chain; updates its snapshot in-place.
+    func refresh(chain: Chain, config: NetworkConfig = .shared) async {
+        var snap = snapshots[chain] ?? NodeHealthSnapshot()
+        snap.status = .checking
+        snapshots[chain] = snap
+
+        let start = Date()
+        let url = config.rpcURL(for: chain)
+        let result = await Self.probe(chain: chain, url: url)
+        let elapsedMs = Int(Date().timeIntervalSince(start) * 1000)
+
+        snap.lastCheckedAt = Date()
+        snap.latencyMs = elapsedMs
+        switch result {
+        case .success(let height):
+            snap.status = .ok
+            snap.blockHeight = height
+            snap.lastOkAt = Date()
+            UserDefaults.standard.set(snap.lastOkAt!.timeIntervalSince1970, forKey: Self.lastOkKey(for: chain))
+        case .failure(let err):
+            snap.status = .failed(Self.friendlyError(err))
+            snap.blockHeight = nil
+        }
+        snapshots[chain] = snap
+    }
+
+    /// Probe every chain concurrently.
+    func refreshAll(config: NetworkConfig = .shared) async {
+        guard !refreshingAll else { return }
+        refreshingAll = true
+        await withTaskGroup(of: Void.self) { group in
+            for chain in Chain.allCases {
+                group.addTask { [weak self] in
+                    await self?.refresh(chain: chain, config: config)
+                }
+            }
+        }
+        refreshingAll = false
+    }
+
+    // MARK: Internals
+
+    private static func lastOkKey(for chain: Chain) -> String {
+        "com.horcrux.nodeHealth.lastOk.\(chain.rawValue)"
+    }
+
+    private static func friendlyError(_ err: Error) -> String {
+        let msg = err.localizedDescription
+        // Trim long URLSession messages into a compact label.
+        if msg.contains("network connection was lost") { return L10n.NodeStatus.errNetwork }
+        if msg.contains("could not connect") { return L10n.NodeStatus.errUnreachable }
+        if msg.contains("timed out") { return L10n.NodeStatus.errTimeout }
+        if msg.count > 48 { return String(msg.prefix(48)) + "…" }
+        return msg
+    }
+
+    /// Chain-specific probe. Returns the current tip height on success or
+    /// throws on any transport / protocol error.
+    private static func probe(chain: Chain, url: String) async -> Result<UInt64?, Error> {
+        do {
+            let service = BlockchainService()
+            if chain.isEVM {
+                let dec = try await service.ethBlockNumber(rpcURL: url)
+                return .success(UInt64(dec))
+            }
+            switch chain {
+            case .bitcoin, .litecoin:
+                let tipURL = "\(url)/blocks/tip/height"
+                guard let u = URL(string: tipURL) else {
+                    return .failure(BlockchainError.invalidURL(tipURL))
+                }
+                var req = URLRequest(url: u, timeoutInterval: 5)
+                req.httpMethod = "GET"
+                let (data, response) = try await PinnedURLSession.shared.session.data(for: req)
+                guard let http = response as? HTTPURLResponse, (200...299).contains(http.statusCode) else {
+                    let code = (response as? HTTPURLResponse)?.statusCode ?? 0
+                    return .failure(BlockchainError.httpError(statusCode: code))
+                }
+                let body = String(data: data, encoding: .utf8)?
+                    .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+                return .success(UInt64(body))
+            case .solana:
+                _ = try await service.solHealth(rpcURL: url)
+                return .success(nil)
+            case .tron:
+                let tipURL = "\(url)/wallet/getnowblock"
+                guard let u = URL(string: tipURL) else {
+                    return .failure(BlockchainError.invalidURL(tipURL))
+                }
+                var req = URLRequest(url: u, timeoutInterval: 5)
+                req.httpMethod = "POST"
+                req.httpBody = Data("{}".utf8)
+                req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+                let (data, response) = try await PinnedURLSession.shared.session.data(for: req)
+                guard let http = response as? HTTPURLResponse, (200...299).contains(http.statusCode) else {
+                    let code = (response as? HTTPURLResponse)?.statusCode ?? 0
+                    return .failure(BlockchainError.httpError(statusCode: code))
+                }
+                if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                   let header = json["block_header"] as? [String: Any],
+                   let raw = header["raw_data"] as? [String: Any],
+                   let num = raw["number"] as? UInt64 {
+                    return .success(num)
+                }
+                return .success(nil)
+            default:
+                return .success(nil)
+            }
+        } catch {
+            return .failure(error)
+        }
+    }
+}
+
+// MARK: - Format helpers
+
+extension NodeHealthSnapshot {
+    /// Human-readable "2 分钟前" / "刚刚" style for `lastOkAt`.
+    func lastOkRelative(now: Date = Date()) -> String? {
+        guard let last = lastOkAt else { return nil }
+        let seconds = Int(now.timeIntervalSince(last))
+        if seconds < 5 { return L10n.NodeStatus.justNow }
+        if seconds < 60 { return L10n.NodeStatus.secondsAgo(seconds) }
+        if seconds < 3600 { return L10n.NodeStatus.minutesAgo(seconds / 60) }
+        if seconds < 86_400 { return L10n.NodeStatus.hoursAgo(seconds / 3600) }
+        return L10n.NodeStatus.daysAgo(seconds / 86_400)
+    }
+}
