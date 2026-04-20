@@ -376,6 +376,12 @@
 "settings.wipeConfirmTitle" = "Wipe All Data?";
 "settings.wipeEverything" = "Wipe Everything";
 "settings.wipeMessage" = "This will permanently delete all wallets, key shards, and settings from this device. This cannot be undone.";
+"settings.wipePinTitle" = "Confirm Wipe";
+"settings.wipePinSubtitle" = "Enter your PIN to permanently erase all data on this device.";
+"settings.wipePinWrong" = "Incorrect PIN.";
+"settings.biometricDisableTitle" = "Disable Biometrics";
+"settings.biometricDisableSubtitle" = "Enter your PIN to turn off Face ID / Touch ID unlock.";
+"settings.biometricDisablePinWrong" = "Incorrect PIN.";
 "settings.connected" = "Connected";
 "settings.disconnected" = "Disconnected";
 "settings.relayStatusConnected" = "Relay status: Connected";

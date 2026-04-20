@@ -10,6 +10,9 @@ struct SettingsView: View {
     @State private var relayURL = RelayConfig.effectiveURL
     @State private var showChangePin = false
     @State private var showWipeConfirmation = false
+    @State private var showWipePinSheet = false
+    @State private var showBiometricDisablePinSheet = false
+    @State private var biometricDisableVerified = false
     @State private var relayWarning: String?
 
 
@@ -28,7 +31,29 @@ struct SettingsView: View {
                             HStack {
                                 VaultSettingsRow(icon: "faceid", iconColor: HorcruxTheme.accentPurple, title: L10n.Settings.faceIDTouchID)
                                 Spacer()
-                                Toggle("", isOn: $biometricEnabled)
+                                Toggle("", isOn: Binding(
+                                    get: { biometricEnabled },
+                                    set: { newValue in
+                                        if newValue {
+                                            // Enabling biometric is harmless:
+                                            // the SE-sealed key (if any) is
+                                            // already there; this is purely a
+                                            // UI preference for showing the
+                                            // biometric button on the lock
+                                            // screen.
+                                            biometricEnabled = true
+                                        } else {
+                                            // Disabling is more sensitive: an
+                                            // attacker with a briefly-unlocked
+                                            // phone could hide the biometric
+                                            // button to force a PIN entry
+                                            // that they can shoulder-surf.
+                                            // Gate it behind PIN verification.
+                                            biometricEnabled = false
+                                            showBiometricDisablePinSheet = true
+                                        }
+                                    }
+                                ))
                                     .labelsHidden()
                                     .tint(HorcruxTheme.accentPurple)
                             }
@@ -391,11 +416,51 @@ struct SettingsView: View {
             }
             .alert(L10n.Settings.wipeConfirmTitle, isPresented: $showWipeConfirmation) {
                 Button(L10n.Settings.wipeEverything, role: .destructive) {
-                    appState.wipeAllData()
+                    // Gate the actual wipe behind a PIN sheet. A destructive
+                    // alert alone is too weak for the most destructive action
+                    // in the app — a single shard delete already requires PIN,
+                    // so wiping everything should too.
+                    showWipePinSheet = true
                 }
                 Button(L10n.Common.cancel, role: .cancel) {}
             } message: {
                 Text(L10n.Settings.wipeMessage)
+            }
+            .sheet(isPresented: $showWipePinSheet) {
+                PinUnlockSheet(
+                    title: L10n.Settings.wipePinTitle,
+                    subtitle: L10n.Settings.wipePinSubtitle
+                ) { entered in
+                    guard appState.verifyPin(entered) else {
+                        return L10n.Settings.wipePinWrong
+                    }
+                    DispatchQueue.main.async { appState.wipeAllData() }
+                    return nil
+                }
+                .presentationDetents([.medium, .large])
+            }
+            .sheet(isPresented: $showBiometricDisablePinSheet) {
+                PinUnlockSheet(
+                    title: L10n.Settings.biometricDisableTitle,
+                    subtitle: L10n.Settings.biometricDisableSubtitle
+                ) { entered in
+                    guard appState.verifyPin(entered) else {
+                        return L10n.Settings.biometricDisablePinWrong
+                    }
+                    biometricDisableVerified = true
+                    return nil
+                }
+                .presentationDetents([.medium, .large])
+                .onDisappear {
+                    // If the sheet closed without a successful PIN
+                    // verification, revert the toggle so an attacker with
+                    // a briefly-unlocked phone can't silently hide the
+                    // biometric prompt.
+                    if !biometricDisableVerified {
+                        biometricEnabled = true
+                    }
+                    biometricDisableVerified = false
+                }
             }
             .onAppear {
                 relayURL = RelayConfig.effectiveURL

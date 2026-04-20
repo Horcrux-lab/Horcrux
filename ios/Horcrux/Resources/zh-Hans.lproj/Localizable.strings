@@ -376,6 +376,12 @@
 "settings.wipeConfirmTitle" = "确定清除所有数据？";
 "settings.wipeEverything" = "全部清除";
 "settings.wipeMessage" = "这将永久删除此设备上的所有钱包、密钥分片和设置。此操作不可撤销。";
+"settings.wipePinTitle" = "确认擦除";
+"settings.wipePinSubtitle" = "输入 PIN 以永久清除此设备上的全部数据。";
+"settings.wipePinWrong" = "PIN 错误。";
+"settings.biometricDisableTitle" = "关闭生物识别";
+"settings.biometricDisableSubtitle" = "输入 PIN 以关闭 Face ID / Touch ID 解锁。";
+"settings.biometricDisablePinWrong" = "PIN 错误。";
 "settings.connected" = "已连接";
 "settings.disconnected" = "未连接";
 "settings.relayStatusConnected" = "中继状态：已连接";
