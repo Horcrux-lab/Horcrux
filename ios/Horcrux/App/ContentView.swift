@@ -467,13 +467,22 @@ struct LockScreenView: View {
         }
     }
 
-    /// Face ID / Touch ID icon for the keypad, if enabled and available.
+    /// Face ID / Touch ID icon for the keypad. Shown when the user has enabled
+    /// biometric unlock AND the device advertises biometric support, OR they've
+    /// already sealed an SWK copy via biometric (which means they completed
+    /// biometric setup in-app and should keep that entry point). This is
+    /// deliberately more permissive than `availableType` alone — `LAContext`
+    /// occasionally reports `.none` on simulators and after permission changes
+    /// even when the user previously succeeded with biometric.
     private var bioIconName: String? {
         guard UserDefaults.standard.bool(forKey: "biometricEnabled") else { return nil }
-        switch BiometricAuth.shared.availableType {
+        let type = BiometricAuth.shared.availableType
+        let sealed = SecureKeyVault.hasSESealed
+        guard type != .none || sealed else { return nil }
+        switch type {
         case .faceID: return "faceid"
         case .touchID: return "touchid"
-        case .none: return nil
+        case .none: return "faceid" // sealed but type unknown → best-effort icon
         }
     }
 
@@ -518,7 +527,7 @@ struct LockScreenView: View {
 
     private func tryBiometricUnlock() async {
         guard UserDefaults.standard.bool(forKey: "biometricEnabled") else { return }
-        guard BiometricAuth.shared.availableType != .none else { return }
+        guard BiometricAuth.shared.availableType != .none || SecureKeyVault.hasSESealed else { return }
         let success = await BiometricAuth.shared.authenticate()
         if success {
             // Unwrap the Shard Wrap Key via the SE-sealed copy so the user
@@ -528,6 +537,11 @@ struct LockScreenView: View {
             _ = await appState.unlockShardKeyWithBiometric()
             appState.isUnlocked = true
             Haptics.success()
+        } else if BiometricAuth.shared.availableType == .none {
+            // Biometric not currently usable (not enrolled, permission denied,
+            // or lockout). Surface an actionable hint instead of silently
+            // failing so the user knows to fall back to the PIN.
+            errorMessage = L10n.LockScreen.biometricUnavailable
         }
     }
 }

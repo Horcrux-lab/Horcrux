@@ -53,6 +53,7 @@
 "lockScreen.tooManyAttempts" = "尝试次数过多，请 %d 秒后重试";
 "lockScreen.incorrectPin" = "PIN 错误（剩余 %d 次尝试）";
 "lockScreen.dataWiped" = "PIN 错误次数过多，本设备分片已清除。若其他设备仍持有该钱包分片（≥ 阈值），可在新安装后通过「导入分片」恢复访问。";
+"lockScreen.biometricUnavailable" = "当前无法使用生物识别，请输入 PIN 解锁。";
 
 /* Wallet Home */
 "walletHome.title" = "Horcrux";

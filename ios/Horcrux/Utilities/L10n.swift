@@ -80,6 +80,7 @@ enum L10n {
         static let useFaceID = NSLocalizedString("lockScreen.useFaceID", comment: "")
         static let unlockBiometricHint = NSLocalizedString("lockScreen.unlockBiometricHint", comment: "")
         static let dataWiped = NSLocalizedString("lockScreen.dataWiped", comment: "")
+        static let biometricUnavailable = NSLocalizedString("lockScreen.biometricUnavailable", comment: "")
 
         static func tooManyAttempts(_ seconds: Int) -> String {
             String(format: NSLocalizedString("lockScreen.tooManyAttempts", comment: ""), seconds)

@@ -53,6 +53,7 @@
 "lockScreen.tooManyAttempts" = "Too many attempts. Try again in %ds";
 "lockScreen.incorrectPin" = "Incorrect PIN (%d attempts left)";
 "lockScreen.dataWiped" = "Too many failed PIN attempts — this device's shards have been wiped. If other devices still hold the wallet's shards (≥ threshold), you can recover access by reinstalling and importing a shard backup.";
+"lockScreen.biometricUnavailable" = "Biometric unlock isn't available — please enter your PIN.";
 
 /* Wallet Home */
 "walletHome.title" = "Horcrux";
