@@ -112,7 +112,17 @@ final class RefreshShardCoordinator: ObservableObject {
 
         phase = .running
         roundsCompleted = 0
-        sessionId = "refresh-\(UUID().uuidString)"
+        // Both devices must agree on the same session id for the
+        // ceremony's messages to match their filter. Derive it
+        // deterministically from the account id (= group public key)
+        // so each side independently produces the same value without
+        // needing an extra coordination round. Prefixing keeps this
+        // namespace distinct from any past keygen/signing sessions.
+        let sid = "refresh-\(wallet.accountId)"
+        sessionId = sid
+        // Defensive: clear any leftover session with the same id (from
+        // a previous cancelled attempt on this device) before starting.
+        appState.bridge.removeSession(sessionId: sid)
 
         refreshTask = Task { [weak self] in
             await self?.run()
