@@ -52,6 +52,8 @@ pub enum ConfigError {
     InvalidMaxRooms,
     #[error("ping_interval must be greater than pong_timeout")]
     InvalidPingPongTiming,
+    #[error("RELAY_ADMIN_TOKEN must be set when binding to a non-loopback host ({host}); set RELAY_ALLOW_UNAUTHENTICATED_ADMIN=1 to override")]
+    AdminEndpointsExposed { host: String },
 }
 
 impl Default for RelayConfig {
@@ -179,7 +181,26 @@ impl RelayConfig {
             return Err(ConfigError::InvalidPingPongTiming);
         }
         if self.admin_token.is_none() {
-            tracing::warn!("RELAY_ADMIN_TOKEN not set — admin endpoints are unprotected");
+            // A missing admin token only matters if the relay is reachable
+            // from outside the host. Loopback-only deployments (127.0.0.1,
+            // ::1, localhost) are a dev-convenience case — keep the warn
+            // but boot. Anything else is almost certainly production and
+            // we refuse to expose `/admin/rooms` + `/metrics` publicly
+            // unless the operator opts in explicitly.
+            let loopback_bind = matches!(
+                self.host.as_str(),
+                "127.0.0.1" | "::1" | "localhost"
+            );
+            let override_env = std::env::var("RELAY_ALLOW_UNAUTHENTICATED_ADMIN")
+                .map(|v| v == "1" || v.eq_ignore_ascii_case("true"))
+                .unwrap_or(false);
+            if loopback_bind || override_env {
+                tracing::warn!("RELAY_ADMIN_TOKEN not set — admin endpoints are unprotected");
+            } else {
+                return Err(ConfigError::AdminEndpointsExposed {
+                    host: self.host.clone(),
+                });
+            }
         }
         Ok(())
     }
@@ -190,8 +211,42 @@ mod tests {
     use super::*;
 
     #[test]
-    fn default_config_validates() {
+    fn config_validation_covers_admin_exposure() {
+        // Merge the admin-exposure scenarios into one test so that env
+        // mutation (`RELAY_ALLOW_UNAUTHENTICATED_ADMIN`) is sequential
+        // and cannot race cargo's parallel test runner.
+        unsafe {
+            std::env::remove_var("RELAY_ALLOW_UNAUTHENTICATED_ADMIN");
+        }
+
+        // Default host 0.0.0.0 + no token → refuses.
+        assert!(matches!(
+            RelayConfig::default().validate(),
+            Err(ConfigError::AdminEndpointsExposed { .. })
+        ));
+
+        // Explicit token → OK.
+        let cfg_with_token = RelayConfig {
+            admin_token: Some("dev-token".into()),
+            ..Default::default()
+        };
+        assert!(cfg_with_token.validate().is_ok());
+
+        // Loopback bind, no token → OK (dev convenience, still warns).
+        let cfg_local = RelayConfig {
+            host: "127.0.0.1".into(),
+            ..Default::default()
+        };
+        assert!(cfg_local.validate().is_ok());
+
+        // Explicit override env → OK even on 0.0.0.0 with no token.
+        unsafe {
+            std::env::set_var("RELAY_ALLOW_UNAUTHENTICATED_ADMIN", "1");
+        }
         assert!(RelayConfig::default().validate().is_ok());
+        unsafe {
+            std::env::remove_var("RELAY_ALLOW_UNAUTHENTICATED_ADMIN");
+        }
     }
 
     #[test]
