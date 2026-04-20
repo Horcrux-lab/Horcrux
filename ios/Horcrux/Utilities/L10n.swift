@@ -148,10 +148,29 @@ enum L10n {
         static let securityBackupRow = NSLocalizedString("walletHome.security.backupRow", comment: "")
         static let securityBackupOn = NSLocalizedString("walletHome.security.backupOn", comment: "")
         static let securityBackupOff = NSLocalizedString("walletHome.security.backupOff", comment: "")
+        static let securityViewDetails = NSLocalizedString("walletHome.security.viewDetails", comment: "")
 
         static func networkWarning(_ chains: String) -> String {
             String(format: NSLocalizedString("walletHome.networkWarning", comment: ""), chains)
         }
+    }
+
+    // MARK: - Security Detail (P3)
+
+    enum SecurityDetail {
+        static let title = NSLocalizedString("securityDetail.title", comment: "")
+        static let overallBlurb = NSLocalizedString("securityDetail.overallBlurb", comment: "")
+        static let rotationTitle = NSLocalizedString("securityDetail.rotation.title", comment: "")
+        static let rotationSubtitle = NSLocalizedString("securityDetail.rotation.subtitle", comment: "")
+        static let rotationNone = NSLocalizedString("securityDetail.rotation.none", comment: "")
+        static let backupTitle = NSLocalizedString("securityDetail.backup.title", comment: "")
+        static let backupSubtitle = NSLocalizedString("securityDetail.backup.subtitle", comment: "")
+        static let backupUnavailable = NSLocalizedString("securityDetail.backup.unavailable", comment: "")
+        static let backupHint = NSLocalizedString("securityDetail.backup.hint", comment: "")
+        static let mpcTitle = NSLocalizedString("securityDetail.mpc.title", comment: "")
+        static let mpcTip1 = NSLocalizedString("securityDetail.mpc.tip1", comment: "")
+        static let mpcTip2 = NSLocalizedString("securityDetail.mpc.tip2", comment: "")
+        static let mpcTip3 = NSLocalizedString("securityDetail.mpc.tip3", comment: "")
     }
 
     // MARK: - Pending Broadcast

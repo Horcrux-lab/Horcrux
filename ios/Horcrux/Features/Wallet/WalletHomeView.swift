@@ -335,6 +335,22 @@ struct WalletHomeView: View {
                     valueLevel: health.backupAttention ? .attention : .safe,
                     cta: nil
                 )
+
+                // Footer — tap-through to full security detail
+                NavigationLink {
+                    SecurityDetailView()
+                } label: {
+                    HStack(spacing: 4) {
+                        Spacer()
+                        Text(L10n.WalletHome.securityViewDetails)
+                            .font(.caption.weight(.medium))
+                        Image(systemName: "chevron.right")
+                            .font(.caption2.weight(.semibold))
+                    }
+                    .foregroundStyle(.white.opacity(0.7))
+                    .padding(.top, 2)
+                }
+                .accessibilityIdentifier("walletHome_securityDetails")
             }
             .padding(14)
             .background(

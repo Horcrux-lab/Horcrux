@@ -78,6 +78,21 @@
 "walletHome.security.backupRow" = "生物识别解锁";
 "walletHome.security.backupOn" = "已启用";
 "walletHome.security.backupOff" = "未设置";
+"walletHome.security.viewDetails" = "查看详情";
+
+"securityDetail.title" = "安全";
+"securityDetail.overallBlurb" = "Horcrux 通过 MPC 门限签名保护你的钱包——任何单一设备都不持有完整私钥。请定期轮换分片并启用本地备份。";
+"securityDetail.rotation.title" = "分片轮换";
+"securityDetail.rotation.subtitle" = "建议每 90 天左右轮换一次以刷新密码学材料。轮换不会改变钱包地址。";
+"securityDetail.rotation.none" = "本设备暂无可轮换的钱包。";
+"securityDetail.backup.title" = "本地生物识别备份";
+"securityDetail.backup.subtitle" = "安全隔区封装的备份密钥可让 Face ID / Touch ID 在你忘记 PIN 时恢复本设备上的分片。";
+"securityDetail.backup.unavailable" = "本设备不支持生物识别";
+"securityDetail.backup.hint" = "在「设置」中开启生物识别解锁即可自动创建本地备份。未开启时，丢失 PIN 将永久丢失本设备分片。";
+"securityDetail.mpc.title" = "MPC 如何保护你";
+"securityDetail.mpc.tip1" = "私钥从未被组装——签名通过各分片协作计算。";
+"securityDetail.mpc.tip2" = "单台设备被攻破无法单独签名，攻击者必须突破门限数。";
+"securityDetail.mpc.tip3" = "轮换使旧分片失效，即使历史泄露也会随时间失去作用。";
 "walletHome.networkWarning" = "网络警告：%@ 节点不可达";
 "walletHome.loadingBalance" = "正在加载余额";
 "walletHome.showMoreChains" = "显示其他 %d 条链";

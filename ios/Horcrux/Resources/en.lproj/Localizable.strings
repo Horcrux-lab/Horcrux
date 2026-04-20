@@ -78,6 +78,21 @@
 "walletHome.security.backupRow" = "Biometric unlock";
 "walletHome.security.backupOn" = "Enabled";
 "walletHome.security.backupOff" = "Not set up";
+"walletHome.security.viewDetails" = "View details";
+
+"securityDetail.title" = "Security";
+"securityDetail.overallBlurb" = "Horcrux secures your wallets with MPC threshold signing — no single device holds your private key. Keep your shards rotated and your local backup enabled.";
+"securityDetail.rotation.title" = "Shard rotation";
+"securityDetail.rotation.subtitle" = "Rotate every ~90 days to refresh cryptographic material. Rotation does not change your addresses.";
+"securityDetail.rotation.none" = "No rotatable wallets on this device.";
+"securityDetail.backup.title" = "Local biometric backup";
+"securityDetail.backup.subtitle" = "A Secure Enclave–sealed backup key lets Face ID / Touch ID recover your shard on this device if you forget the PIN.";
+"securityDetail.backup.unavailable" = "Biometric not available on this device";
+"securityDetail.backup.hint" = "Enable biometric unlock in Settings to create a device-local backup. Without it, losing the PIN means permanent loss of this device's shard.";
+"securityDetail.mpc.title" = "How MPC protects you";
+"securityDetail.mpc.tip1" = "Your private key is never assembled — signatures are computed cooperatively across shards.";
+"securityDetail.mpc.tip2" = "A compromised single device cannot sign alone; an attacker must breach the threshold.";
+"securityDetail.mpc.tip3" = "Rotation invalidates old shards, so even a past leak becomes useless over time.";
 "walletHome.networkWarning" = "Network warning: %@ nodes are unreachable";
 "walletHome.loadingBalance" = "Loading balance";
 "walletHome.showMoreChains" = "Show %d more chains";
