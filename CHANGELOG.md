@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.0-dev.74] - 2026-04-20
+
+### Fixed
+
+- **iOS**: EVM 发送页的 gas 上限与预估手续费不再显示为 `—`。`ComposeTransactionView` 现在会在 `onAppear`（RBF 预填场景）以及 recipient / amount / feeTier / selectedToken 变化时通过 500ms debounce 调用 `estimateGas()`，用户填表时就能看到活的 gas limit 和 fee 估算，而不是等到按 Next 才在后台悄悄跑。BTC/LTC/SOL 的 fee 行也一同受益。
+
 ## [0.3.0-dev.73] - 2026-04-20
 
 ### Added

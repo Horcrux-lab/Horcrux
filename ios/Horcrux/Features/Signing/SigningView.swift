@@ -71,7 +71,21 @@ struct ComposeTransactionView: View {
     @State private var showQRScanner = false
     @State private var showAddressBook = false
     @State private var ensStatus: String?
+    @State private var estimateDebounce: Task<Void, Never>?
     @StateObject private var priceService = PriceService.shared
+
+    /// Debounced gas / fee estimate trigger. Called on every recipient / amount /
+    /// fee-tier / selected-token change so the user sees a live preview before
+    /// tapping Next. 500ms debounce avoids one RPC call per keystroke.
+    private func scheduleEstimate() {
+        estimateDebounce?.cancel()
+        estimateDebounce = Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 500_000_000)
+            guard !Task.isCancelled else { return }
+            guard addressError == nil else { return }
+            viewModel.estimateGas()
+        }
+    }
 
     private var addressError: String? {
         guard !viewModel.recipientAddress.isEmpty else { return nil }
@@ -108,6 +122,7 @@ struct ComposeTransactionView: View {
                             } else {
                                 ensStatus = nil
                             }
+                            scheduleEstimate()
                         }
 
                     Button {
@@ -315,7 +330,15 @@ struct ComposeTransactionView: View {
         }
         .onAppear {
             priceService.refreshIfNeeded()
+            // Pre-populated recipient/amount (e.g. RBF replacement) should show
+            // an estimate immediately without requiring the user to edit a field.
+            if !viewModel.recipientAddress.isEmpty && !viewModel.amount.isEmpty {
+                scheduleEstimate()
+            }
         }
+        .onChange(of: viewModel.amount) { _, _ in scheduleEstimate() }
+        .onChange(of: viewModel.feeTier) { _, _ in scheduleEstimate() }
+        .onChange(of: viewModel.selectedToken?.id) { _, _ in scheduleEstimate() }
     }
 
     /// Minimal ENS resolution via public RPC. Queries the ENS registry
