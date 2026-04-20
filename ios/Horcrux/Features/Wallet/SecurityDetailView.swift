@@ -8,6 +8,9 @@ struct SecurityDetailView: View {
     @EnvironmentObject private var appState: AppState
     @EnvironmentObject private var walletStore: WalletStore
     @State private var rotationTarget: Wallet?
+    @State private var isEnablingBackup = false
+    @State private var backupErrorMessage: String?
+    @State private var backupRefreshToken = 0
 
     var body: some View {
         ZStack {
@@ -29,6 +32,21 @@ struct SecurityDetailView: View {
             RefreshShardSheet(wallet: w, appState: appState)
                 .environmentObject(appState)
         }
+        .alert(
+            backupErrorTitle,
+            isPresented: Binding(
+                get: { backupErrorMessage != nil },
+                set: { if !$0 { backupErrorMessage = nil } }
+            ),
+            actions: { Button("OK", role: .cancel) { backupErrorMessage = nil } },
+            message: { Text(backupErrorMessage ?? "") }
+        )
+    }
+
+    private var backupErrorTitle: String {
+        backupErrorMessage == L10n.SecurityDetail.backupRelockedMsg
+            ? L10n.SecurityDetail.backupRelockedTitle
+            : L10n.SecurityDetail.backupEnableFailedTitle
     }
 
     // MARK: - Aggregate
@@ -210,6 +228,59 @@ struct SecurityDetailView: View {
                 .foregroundStyle(.white.opacity(0.6))
                 .fixedSize(horizontal: false, vertical: true)
                 .padding(.horizontal, 4)
+
+            Button {
+                enableBiometricBackup()
+            } label: {
+                HStack {
+                    if isEnablingBackup {
+                        ProgressView().controlSize(.small).tint(.white)
+                        Text(L10n.SecurityDetail.backupEnabling)
+                    } else {
+                        Image(systemName: "faceid")
+                        Text(L10n.SecurityDetail.backupEnable)
+                    }
+                }
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(.white)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 12)
+                .background(
+                    RoundedRectangle(cornerRadius: 10)
+                        .fill(HorcruxTheme.accentCyan.opacity(isEnablingBackup ? 0.4 : 0.7))
+                )
+            }
+            .disabled(isEnablingBackup)
+            .accessibilityIdentifier("securityDetail_enableBiometricBackup")
+        }
+    }
+
+    private func enableBiometricBackup() {
+        guard !isEnablingBackup else { return }
+        guard let swk = appState.cachedShardKey() else {
+            backupErrorMessage = L10n.SecurityDetail.backupRelockedMsg
+            return
+        }
+        isEnablingBackup = true
+        Task.detached {
+            let result: Result<Void, Error> = {
+                do {
+                    try SecureKeyVault.sealBackupNow(swk: swk)
+                    return .success(())
+                } catch {
+                    return .failure(error)
+                }
+            }()
+            await MainActor.run {
+                isEnablingBackup = false
+                switch result {
+                case .success:
+                    backupRefreshToken &+= 1
+                case .failure(let err):
+                    SecureLog.error("Manual SE backup seal failed: \(err.localizedDescription)")
+                    backupErrorMessage = L10n.SecurityDetail.backupEnableFailedGeneric
+                }
+            }
         }
     }
 

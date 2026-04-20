@@ -88,7 +88,13 @@
 "securityDetail.backup.title" = "本地生物识别备份";
 "securityDetail.backup.subtitle" = "安全隔区封装的备份密钥可让 Face ID / Touch ID 在你忘记 PIN 时恢复本设备上的分片。";
 "securityDetail.backup.unavailable" = "本设备不支持生物识别";
-"securityDetail.backup.hint" = "在「设置」中开启生物识别解锁即可自动创建本地备份。未开启时，丢失 PIN 将永久丢失本设备分片。";
+"securityDetail.backup.hint" = "开启后，忘记 PIN 时可用 Face ID / Touch ID 恢复本设备分片。未开启时，丢失 PIN 将永久丢失本设备分片。";
+"securityDetail.backup.enable" = "立即启用";
+"securityDetail.backup.enabling" = "正在启用…";
+"securityDetail.backup.enableFailedTitle" = "启用失败";
+"securityDetail.backup.enableFailedGeneric" = "请确认已在系统设置中登记 Face ID / Touch ID，然后重试。";
+"securityDetail.backup.relockedTitle" = "请先解锁";
+"securityDetail.backup.relockedMsg" = "App 已自动上锁，请返回解锁后再启用本地备份。";
 "securityDetail.mpc.title" = "MPC 如何保护你";
 "securityDetail.mpc.tip1" = "私钥从未被组装——签名通过各分片协作计算。";
 "securityDetail.mpc.tip2" = "单台设备被攻破无法单独签名，攻击者必须突破门限数。";

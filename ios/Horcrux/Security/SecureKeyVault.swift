@@ -132,6 +132,19 @@ enum SecureKeyVault {
         try? storeSealed(swk: swk)
     }
 
+    /// Create the SE-sealed backup copy right now, surfacing any error.
+    /// Used by the Security detail "Enable now" CTA when the silent
+    /// `ensureSealed` path failed on earlier unlocks (e.g. biometric was
+    /// enrolled after onboarding, or SE sealing threw on a prior attempt).
+    /// No-op if the sealed copy already exists.
+    static func sealBackupNow(swk: Data) throws {
+        guard SecureEnclaveManager.shared.isAvailable else {
+            throw VaultError.biometricUnavailable
+        }
+        if hasSESealed { return }
+        try storeSealed(swk: swk)
+    }
+
     // MARK: - Teardown
 
     /// Delete both wraps. Called from `wipeAllData()`.

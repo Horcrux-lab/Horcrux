@@ -88,7 +88,13 @@
 "securityDetail.backup.title" = "Local biometric backup";
 "securityDetail.backup.subtitle" = "A Secure Enclave–sealed backup key lets Face ID / Touch ID recover your shard on this device if you forget the PIN.";
 "securityDetail.backup.unavailable" = "Biometric not available on this device";
-"securityDetail.backup.hint" = "Enable biometric unlock in Settings to create a device-local backup. Without it, losing the PIN means permanent loss of this device's shard.";
+"securityDetail.backup.hint" = "Once enabled, Face ID / Touch ID can recover this device's shard if you forget the PIN. Without it, losing the PIN means permanent loss of this device's shard.";
+"securityDetail.backup.enable" = "Enable now";
+"securityDetail.backup.enabling" = "Enabling…";
+"securityDetail.backup.enableFailedTitle" = "Couldn't enable";
+"securityDetail.backup.enableFailedGeneric" = "Make sure Face ID / Touch ID is enrolled in system settings, then try again.";
+"securityDetail.backup.relockedTitle" = "Unlock required";
+"securityDetail.backup.relockedMsg" = "The app locked automatically. Return, unlock, then enable the local backup.";
 "securityDetail.mpc.title" = "How MPC protects you";
 "securityDetail.mpc.tip1" = "Your private key is never assembled — signatures are computed cooperatively across shards.";
 "securityDetail.mpc.tip2" = "A compromised single device cannot sign alone; an attacker must breach the threshold.";
