@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.0-dev.90] - 2026-04-20
+
+### Added
+
+- **iOS (Security UX)**: **钱包指纹对读验证**——共签方的 review 卡新增 4 项信息：钱包昵称、8-char groupPubKey 指纹、付款全地址（chunked）、ERC-20 合约短哈希；发起方的 invite 界面在至少有 1 个共签方加入后也展示**同一指纹**。双方口头对一下这 8 个十六进制字符，就能确认是同一个钱包/同一笔交易，防御"攻击者知道房间码、但想让你用不同钱包/代币签名"的场景。现有 `Wallet.name` 被尊重，没昵称时 fallback 到链名；`AddressFormatter.chunked` 已有，复用即可。新增 L10n：`joinSigning.walletFingerprint` / `fromAddress` / `tokenContract`，`signing.walletFingerprintLabel`（zh-Hans + en）。
+
 ## [0.3.0-dev.89] - 2026-04-20
 
 ### Fixed

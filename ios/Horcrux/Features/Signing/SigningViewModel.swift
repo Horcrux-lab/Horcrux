@@ -248,6 +248,18 @@ final class SigningViewModel: ObservableObject {
         return AddressFormatter.chunked(canonical)
     }
 
+    /// 8-char hex fingerprint of the wallet's group public key. Shown on
+    /// both the initiator's invite screen and the cosigner's review
+    /// screen; reading them aloud to each other verifies the two sides
+    /// are signing against the same wallet (prevents a same-room-code
+    /// attacker from slipping in a lookalike wallet for signature).
+    var walletFingerprint: String {
+        wallet.groupPublicKey
+            .prefix(4)
+            .map { String(format: "%02x", $0) }
+            .joined()
+    }
+
     var recipientExplorerURL: URL? {
         let canonical = AddressFormatter.canonical(recipientAddress, chain: wallet.chain)
         return AddressFormatter.explorerURL(address: canonical, chain: wallet.chain)

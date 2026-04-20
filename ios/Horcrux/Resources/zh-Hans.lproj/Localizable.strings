@@ -267,6 +267,7 @@
 "signing.inviteCoSigners" = "邀请共签方";
 "signing.needMoreSigners" = "还需 %d 个签名者";
 "signing.waitingForCoSigners" = "等待共签方加入…";
+"signing.walletFingerprintLabel" = "钱包指纹：";
 "signing.waitingTroubleshootTitle" = "仍未有共签方加入？";
 "signing.waitingCheckCode" = "确认共签方输入的房间码与屏幕上的三个单词一致，且顺序相同。";
 "signing.waitingCheckRelay" = "双方都在「中继」通道上——中继服务器需能从双方网络访问（企业网/VPN 可能会屏蔽）。";
@@ -1087,6 +1088,9 @@
 "joinSigning.waitingForRequestHint" = "正在等待发起方广播交易详情…\n请保持此页打开。";
 "joinSigning.reviewTitle" = "审阅签名请求";
 "joinSigning.wallet" = "钱包";
+"joinSigning.walletFingerprint" = "钱包指纹";
+"joinSigning.fromAddress" = "付款地址";
+"joinSigning.tokenContract" = "代币合约";
 "joinSigning.recipient" = "收款地址";
 "joinSigning.amount" = "金额";
 "joinSigning.verifyWarning" = "⚠️ 请线下核对金额与地址——任何一方都无法单独完成签名，但错误的交易一旦门限达成就会广播。";

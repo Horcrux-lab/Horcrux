@@ -271,6 +271,15 @@ struct JoinSigningView: View {
     private func reviewView(dto: SignRequestDTO, wallet: Wallet) -> some View {
         let chainTint = wallet.chain.color
         let tokenSymbol = dto.tokenSymbol ?? wallet.chain.symbol
+        // 8-char fingerprint of the wallet's group public key. Gives the
+        // cosigner a short string to compare out-of-band with the
+        // initiator — protects against a malicious initiator who knows
+        // the room code but is trying to get signatures from the wrong
+        // wallet (would produce a different fingerprint → mismatch).
+        let gpkFingerprint = wallet.groupPublicKey
+            .prefix(4)
+            .map { String(format: "%02x", $0) }
+            .joined()
         return ScrollView {
             VStack(alignment: .leading, spacing: 18) {
                 VStack(alignment: .leading, spacing: 6) {
@@ -283,11 +292,31 @@ struct JoinSigningView: View {
                 }
 
                 VStack(alignment: .leading, spacing: 12) {
+                    // Wallet identity: show the user's own nickname for
+                    // this wallet + short fingerprint so the cosigner
+                    // confirms *which* wallet is signing, not just that
+                    // the address roughly matches.
                     previewRow(label: L10n.JoinSigning.wallet,
-                               value: "\(wallet.chain.displayName) · \(wallet.address.prefix(8))…\(wallet.address.suffix(6))")
-                    previewRow(label: L10n.JoinSigning.recipient,
-                               value: "\(dto.recipient.prefix(10))…\(dto.recipient.suffix(6))",
+                               value: wallet.name.isEmpty
+                                   ? wallet.chain.displayName
+                                   : "\(wallet.name) · \(wallet.chain.displayName)")
+                    previewRow(label: L10n.JoinSigning.walletFingerprint,
+                               value: gpkFingerprint,
                                mono: true)
+                    previewRow(label: L10n.JoinSigning.fromAddress,
+                               value: AddressFormatter.chunked(wallet.address),
+                               mono: true)
+                    previewRow(label: L10n.JoinSigning.recipient,
+                               value: AddressFormatter.chunked(dto.recipient),
+                               mono: true)
+                    // Token contract fingerprint — catches a malicious
+                    // initiator swapping USDC for a fake token with the
+                    // same symbol but a different contract address.
+                    if let contract = dto.tokenContract, !contract.isEmpty {
+                        previewRow(label: L10n.JoinSigning.tokenContract,
+                                   value: "\(contract.prefix(8))…\(contract.suffix(6))",
+                                   mono: true)
+                    }
                     previewRow(label: L10n.JoinSigning.amount,
                                value: "\(dto.amount) \(tokenSymbol)")
                     if let fee = dto.feeDisplay {

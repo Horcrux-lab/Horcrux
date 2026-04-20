@@ -471,6 +471,26 @@ struct InviteSignersView: View {
                     if !viewModel.joinedSigners.isEmpty {
                         VStack(alignment: .leading, spacing: 8) {
                             VaultSectionHeader(L10n.Signing.coSigners, icon: "person.2.fill")
+                            // Wallet-identity fingerprint. The cosigner's
+                            // review screen shows the same 8-char hex;
+                            // reading these two aloud to each other
+                            // confirms they're signing against the
+                            // *same* wallet and not an attacker-supplied
+                            // lookalike. Only shown once at least one
+                            // cosigner is connected — before then there
+                            // is no one to verify with.
+                            HStack(spacing: 6) {
+                                Image(systemName: "checkmark.shield")
+                                    .foregroundStyle(HorcruxTheme.successGreen)
+                                Text(L10n.Signing.walletFingerprintLabel)
+                                    .font(.caption)
+                                    .foregroundStyle(HorcruxTheme.subtleText)
+                                Text(viewModel.walletFingerprint)
+                                    .font(.system(.caption, design: .monospaced).bold())
+                                    .foregroundStyle(.white)
+                                Spacer()
+                            }
+                            .padding(.horizontal, 4)
                             ForEach(viewModel.joinedSigners) { peer in
                                 HStack(spacing: 10) {
                                     Image(systemName: "person.circle.fill")

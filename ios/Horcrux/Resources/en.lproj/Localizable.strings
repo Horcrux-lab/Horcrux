@@ -267,6 +267,7 @@
 "signing.inviteCoSigners" = "Invite Co-Signers";
 "signing.needMoreSigners" = "Need %d more signer(s)";
 "signing.waitingForCoSigners" = "Waiting for co-signers to join…";
+"signing.walletFingerprintLabel" = "Wallet fingerprint:";
 "signing.waitingTroubleshootTitle" = "Still no co-signer?";
 "signing.waitingCheckCode" = "Confirm the co-signer typed the same three words in the same order.";
 "signing.waitingCheckRelay" = "Both sides are on the \"Relay\" channel — the relay server must be reachable from both networks (corporate Wi-Fi / VPN can block it).";
@@ -1086,6 +1087,9 @@
 "joinSigning.waitingForRequestHint" = "Waiting for the initiator to broadcast transaction details…\nKeep this screen open.";
 "joinSigning.reviewTitle" = "Review Signing Request";
 "joinSigning.wallet" = "Wallet";
+"joinSigning.walletFingerprint" = "Fingerprint";
+"joinSigning.fromAddress" = "From";
+"joinSigning.tokenContract" = "Token contract";
 "joinSigning.recipient" = "Recipient";
 "joinSigning.amount" = "Amount";
 "joinSigning.verifyWarning" = "⚠️ Verify amount and address out-of-band. No single party can sign alone, but once threshold is met the tx will broadcast.";
