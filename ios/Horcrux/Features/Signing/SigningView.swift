@@ -402,10 +402,20 @@ struct InviteSignersView: View {
 
                     TransactionPreviewCard(viewModel: viewModel)
 
+                    // Transport selector — lets the user choose how
+                    // cosigners are allowed to attach. At least one
+                    // channel must be selected; if the user deselects
+                    // both we defensively snap relay back on.
+                    if peersNeeded > 0 {
+                        SigningTransportPicker(viewModel: viewModel)
+                    }
+
                     // Invite card: shows the 3-word room code + QR + copy
                     // so co-signers can join the same relay room. Solo
                     // wallets (threshold == 1) skip this entirely.
-                    if peersNeeded > 0 && !viewModel.roomCode.isEmpty {
+                    if peersNeeded > 0
+                        && !viewModel.roomCode.isEmpty
+                        && viewModel.selectedTransports.contains(.relay) {
                         VStack(alignment: .leading, spacing: 10) {
                             VaultSectionHeader(L10n.Signing.inviteCoSigners, icon: "qrcode")
                             SigningRoomCodeCard(code: viewModel.roomCode)
@@ -1269,6 +1279,90 @@ struct TransactionPreviewCard: View {
                 }
             }
         }
+    }
+}
+
+/// Transport-selection card for the signing invite step. Two toggles:
+/// "中继服务器" routes the ceremony through the public relay (works
+/// across networks, requires server reachability) and "同一 Wi-Fi"
+/// advertises via Bonjour on the local network (no relay, no server,
+/// limited to same LAN). At least one must be on — we enforce that
+/// here so the user can't accidentally strand the flow with both off.
+private struct SigningTransportPicker: View {
+    @ObservedObject var viewModel: SigningViewModel
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            VaultSectionHeader(L10n.Signing.transportTitle, icon: "antenna.radiowaves.left.and.right")
+
+            transportToggle(
+                .relay,
+                title: L10n.Signing.transportRelayTitle,
+                subtitle: L10n.Signing.transportRelaySubtitle
+            )
+            transportToggle(
+                .wifiLAN,
+                title: L10n.Signing.transportLANTitle,
+                subtitle: L10n.Signing.transportLANSubtitle
+            )
+
+            if viewModel.selectedTransports.isEmpty {
+                HStack(spacing: 6) {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .foregroundStyle(HorcruxTheme.warningAmber)
+                    Text(L10n.Signing.transportAtLeastOne)
+                        .font(.caption)
+                        .foregroundStyle(HorcruxTheme.warningAmber)
+                }
+            }
+        }
+        .padding(14)
+        .background(
+            RoundedRectangle(cornerRadius: 14)
+                .fill(Color.white.opacity(0.05))
+                .overlay(RoundedRectangle(cornerRadius: 14).stroke(HorcruxTheme.hairline, lineWidth: 1))
+        )
+    }
+
+    @ViewBuilder
+    private func transportToggle(
+        _ type: TransportType,
+        title: String,
+        subtitle: String
+    ) -> some View {
+        Toggle(isOn: Binding(
+            get: { viewModel.selectedTransports.contains(type) },
+            set: { on in
+                var next = viewModel.selectedTransports
+                if on {
+                    next.insert(type)
+                } else {
+                    next.remove(type)
+                }
+                // Defensive: if the user just disabled the last channel,
+                // snap relay back on so the ceremony can still reach a
+                // cosigner. UX-safer than silently accepting an unusable
+                // configuration.
+                if next.isEmpty { next.insert(.relay) }
+                viewModel.selectedTransports = next
+                viewModel.prepareInvite()
+            }
+        )) {
+            VStack(alignment: .leading, spacing: 2) {
+                HStack(spacing: 6) {
+                    Image(systemName: type.iconName)
+                        .foregroundStyle(HorcruxTheme.accentCyan)
+                    Text(title)
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(.white)
+                }
+                Text(subtitle)
+                    .font(.caption)
+                    .foregroundStyle(HorcruxTheme.subtleText)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .tint(HorcruxTheme.accentPurple)
     }
 }
 

@@ -267,6 +267,12 @@
 "signing.waitingForCoSigners" = "Waiting for co-signers to join…";
 "signing.joiningRoom" = "Joining relay room…";
 "signing.shareRoomCodeHint" = "Share this room code with your co-signers. They enter or scan it in Horcrux to join this signing session.";
+"signing.transportTitle" = "Join Method";
+"signing.transportRelayTitle" = "Relay Server";
+"signing.transportRelaySubtitle" = "Works across networks. Co-signers join with a room code via the relay server.";
+"signing.transportLANTitle" = "Same Wi-Fi";
+"signing.transportLANSubtitle" = "No relay, no room code. Only visible to co-signers on the same local network.";
+"signing.transportAtLeastOne" = "At least one method must be enabled";
 "signing.signTransaction" = "Sign Transaction";
 "signing.signHint" = "Enter your PIN and sign the transaction with co-signers";
 "signing.enterPinDecrypt" = "Enter PIN to decrypt shard";

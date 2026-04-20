@@ -267,6 +267,12 @@
 "signing.waitingForCoSigners" = "等待共签方加入…";
 "signing.joiningRoom" = "正在加入中继房间…";
 "signing.shareRoomCodeHint" = "把这组房间码分享给你的共签方，他们在 Horcrux 里输入或扫码即可加入本次签名会话。";
+"signing.transportTitle" = "加入方式";
+"signing.transportRelayTitle" = "中继服务器";
+"signing.transportRelaySubtitle" = "跨网络可达，通过房间码邀请共签方；需连到中继服务器。";
+"signing.transportLANTitle" = "同一 Wi-Fi";
+"signing.transportLANSubtitle" = "免中继、免房间码。只对同局域网内、已发现本机的共签方可见。";
+"signing.transportAtLeastOne" = "至少启用一种加入方式";
 "signing.signTransaction" = "签署交易";
 "signing.signHint" = "输入 PIN 并与共签方一起签署交易";
 "signing.enterPinDecrypt" = "输入 PIN 以解密分片";

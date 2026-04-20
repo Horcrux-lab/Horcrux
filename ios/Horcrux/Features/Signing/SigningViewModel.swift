@@ -119,6 +119,12 @@ final class SigningViewModel: ObservableObject {
     @Published var roomJoined: Bool = false
     /// Non-nil if joining the relay failed; shown in invite UI with a retry.
     @Published var roomJoinError: String?
+    /// User-selected transports to announce the ceremony on. Default is
+    /// relay + LAN, giving both remote and same-network cosigners a way
+    /// to attach. The invite step exposes this as toggles; picking only
+    /// LAN keeps the entire ceremony off the relay (privacy mode), and
+    /// picking only relay avoids broadcasting on the local network.
+    @Published var selectedTransports: Set<TransportType> = [.relay, .wifiLAN]
     @Published var signingProgress: Double = 0
     @Published var signingStatusMessage: String = ""
     @Published var currentRound: Int = 0
@@ -441,22 +447,28 @@ final class SigningViewModel: ObservableObject {
         if roomCode.isEmpty {
             roomCode = RoomCode.generate()
         }
-        // MPC sessionId == relay room code; peers on the same relay room
-        // feed messages into the same bridge session.
+        // MPC sessionId == roomCode regardless of transport — the bridge
+        // keys its session state off this ID on every participant.
         sessionId = roomCode
         roomJoinError = nil
         step = .invite
 
-        // Also become visible on the local network so a cosigner who's
-        // on the same Wi-Fi can join without ever touching the relay.
-        // The MPC layer is transport-agnostic — `broadcastMpcMessage`
-        // reaches every connected peer regardless of whether they
-        // arrived via relay, BLE, or Bonjour.
-        peerManager?.wifiLAN.startDiscovery()
+        // LAN visibility is user-gated: only advertise on Bonjour if
+        // the user actually wants same-network cosigners to see us.
+        if selectedTransports.contains(.wifiLAN) {
+            peerManager?.wifiLAN.startDiscovery()
+        } else {
+            peerManager?.wifiLAN.stopDiscovery()
+        }
 
-        // Join the relay room in the background so peers who enter the
-        // same code can discover us. Bonjour/LAN peers are already
-        // published via PeerManager observers regardless.
+        // Relay is similarly opt-in. Skipping it keeps the ceremony
+        // entirely off the server (LAN-only privacy mode).
+        guard selectedTransports.contains(.relay) else {
+            roomJoined = false
+            startAnnounceLoop()
+            return
+        }
+
         guard let peerManager, !roomJoined else {
             startAnnounceLoop()
             return
