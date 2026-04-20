@@ -210,11 +210,21 @@ enum SecureKeyVault {
         return out
     }
 
-    enum VaultError: Error {
+    enum VaultError: LocalizedError {
         case notProvisioned
         case randomFailed
         case deriveFailed
         case wrapFailed
         case biometricUnavailable
+
+        var errorDescription: String? {
+            switch self {
+            case .notProvisioned:      return "SWK vault not provisioned"
+            case .randomFailed:        return "Failed to generate random key"
+            case .deriveFailed:        return "PBKDF2 key derivation failed"
+            case .wrapFailed:          return "AES-GCM wrap failed"
+            case .biometricUnavailable: return "Secure Enclave not available (simulator without Apple Silicon host, or missing biometric enrolment)"
+            }
+        }
     }
 }

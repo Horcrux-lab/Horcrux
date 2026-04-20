@@ -278,7 +278,8 @@ struct SecurityDetailView: View {
                     backupRefreshToken &+= 1
                 case .failure(let err):
                     SecureLog.error("Manual SE backup seal failed: \(err.localizedDescription)")
-                    backupErrorMessage = L10n.SecurityDetail.backupEnableFailedGeneric
+                    let detail = err.localizedDescription
+                    backupErrorMessage = "\(L10n.SecurityDetail.backupEnableFailedGeneric)\n\n\(detail)"
                 }
             }
         }
