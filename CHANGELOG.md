@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.0-dev.83] - 2026-04-20
+
+### Fixed
+
+- **iOS**: **dev.82 修了一半**——presence ping 那招其实有竞态。共签方 `joinRelayRoom` 之后立刻 `sendPresencePing` 时，自身的 `allPeers` 还没被发起方的 `announce_ack` 填上（WebSocket round-trip 还在路上），`broadcastMpcMessage` 拿到的目标列表为空，ping 就直接丢进虚空了。发起方从未收到任何 inbound → `connectedPeers` 一直空 → joinedSigners = 0 → "开始签名"按钮永不亮。
+  真正的修法是去掉 presence ping 这条绕路——对 relay / wifi-lan 这两种没 Noise 的本地传输，**发现 == MPC 可达**，直接把 `discoveredPeers` 镜像到 `connectedPeers` 即可。`PeerManager.setupTransportObservers()` 里新增 `CombineLatest(wifiLAN, relay)` 的 sink：任何新出现的 peer 立刻追加，任何消失的 relay/wifi-lan peer 立刻移除（保留 BLE/wifi-direct 的 Noise 登记不动）。共签方一入房，两端的 invite 页就同时翻到"1 加入"，不用等任何一条 inbound 消息。
+- `SignPresenceDTO` 的 ping 现在是多余的（discovery observer 已经覆盖它的职责），但保留不删——它对 QR / BLE 路径仍是轻量的"我到了"信标，删掉没收益。
+
+### Technical
+
+- `PeerManager.connectedPeers` 的语义从此**对 relay/wifi-lan 透明**：一上房就满员，一掉线就清除。BLE/wifi-direct 仍走 Noise 握手才进 connectedPeers，两套机制互不干扰（去重 by peer id）。
+- `NSLog("[PM] connectedPeers += …")` 留下来方便下次出问题时 `log show --predicate 'process == "Horcrux"'` 一眼看到拓扑变化。
+
 ## [0.3.0-dev.82] - 2026-04-20
 
 ### Fixed

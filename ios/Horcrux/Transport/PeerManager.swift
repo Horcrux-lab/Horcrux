@@ -254,6 +254,33 @@ final class PeerManager: ObservableObject {
             }
             .assign(to: &$allPeers)
 
+        // Relay / wifi-lan: discovery == MPC reachability (no Noise layer
+        // on these transports). Mirror their discoveredPeers into
+        // `connectedPeers` so `SigningViewModel.joinedSigners` lights up as
+        // soon as a peer joins the room — without waiting for the peer's
+        // first inbound message (which can arrive after a multi-second
+        // race). Deduplicate by peer id so BLE/wifi-direct Noise
+        // registrations are never clobbered.
+        Publishers.CombineLatest(wifiLANPublisher, relayPublisher)
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] wifiLAN, relay in
+                guard let self else { return }
+                let incoming = wifiLAN + relay
+                for peer in incoming {
+                    if !self.connectedPeers.contains(where: { $0.id == peer.id }) {
+                        NSLog("[PM] connectedPeers += \(peer.channel):\(peer.id.prefix(8)) (via discovery)")
+                        self.connectedPeers.append(peer)
+                    }
+                }
+                // Drop relay/wifi-lan entries that are no longer
+                // discovered (peer left the room / stopped advertising).
+                let liveIds = Set(incoming.map { $0.id })
+                self.connectedPeers.removeAll { peer in
+                    (peer.channel == "relay" || peer.channel == "wifi-lan") && !liveIds.contains(peer.id)
+                }
+            }
+            .store(in: &cancellables)
+
         Task { await listenForMessages(from: ble) }
         Task { await listenForMessages(from: wifiDirect) }
         Task { await listenForMessages(from: wifiLAN) }
