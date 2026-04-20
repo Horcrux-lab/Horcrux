@@ -564,7 +564,12 @@ struct PeerDiscoveryView: View {
             // Initiator: keep the room code + QR visible in the waiting room
             // so joiners arriving mid-ceremony can still scan / type the code
             // without forcing the initiator to back out to the configure page.
-            if viewModel.role == .create && RoomCode.isValid(viewModel.roomCode) {
+            // Only the Relay transport actually needs a room code — Wi-Fi LAN,
+            // Wi-Fi Direct and BLE do their own mDNS / radio-level discovery,
+            // so hiding the card there keeps the screen clean.
+            if viewModel.role == .create
+                && viewModel.selectedTransports.contains(.relay)
+                && RoomCode.isValid(viewModel.roomCode) {
                 RoomCodeShareCard(code: viewModel.roomCode)
                     .padding(.horizontal)
             }
