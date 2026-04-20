@@ -118,28 +118,33 @@ struct SecurityDetailView: View {
 
     @ViewBuilder
     private var rotationSection: some View {
+        // Group refreshable wallets by accountId (= same DKG ceremony = same
+        // key share). One rotation ceremony refreshes the whole account, so
+        // we show one row per account instead of per chain.
         let refreshable = walletStore.wallets.filter {
             !$0.hidden && $0.threshold == $0.totalParties && $0.chain.curveType == .secp256k1
         }
+        let accounts = ShardAccount.group(refreshable)
         sectionHeader(
             icon: "arrow.triangle.2.circlepath",
             title: L10n.SecurityDetail.rotationTitle,
             subtitle: L10n.SecurityDetail.rotationSubtitle
         )
-        if refreshable.isEmpty {
+        if accounts.isEmpty {
             infoRow(text: L10n.SecurityDetail.rotationNone)
         } else {
             VStack(spacing: 8) {
-                ForEach(refreshable) { w in
-                    rotationRow(for: w)
+                ForEach(accounts) { acct in
+                    rotationRow(for: acct)
                 }
             }
         }
     }
 
     @ViewBuilder
-    private func rotationRow(for w: Wallet) -> some View {
-        let last = RefreshTracker.lastRefresh(accountId: w.accountId)
+    private func rotationRow(for acct: ShardAccount) -> some View {
+        let representative = acct.wallets.first!
+        let last = RefreshTracker.lastRefresh(accountId: acct.id)
         let days = last.map { Calendar.current.dateComponents([.day], from: $0, to: Date()).day ?? 0 }
         let lvl: Level = {
             guard let d = days else { return .attention }
@@ -148,20 +153,30 @@ struct SecurityDetailView: View {
             return .safe
         }()
         let valueText: String = days.map { L10n.WalletHome.securityRotationAgo($0) } ?? L10n.WalletHome.securityRotationNever
+        let chainList = acct.wallets.map { $0.chain.symbol }.joined(separator: " · ")
 
         HStack(spacing: 10) {
             VStack(alignment: .leading, spacing: 2) {
-                Text(w.name.isEmpty ? w.chain.displayName : w.name)
+                Text(acct.name.isEmpty ? L10n.SecurityDetail.shardGenericName : acct.name)
                     .font(.subheadline.weight(.medium))
                     .foregroundStyle(.white)
-                Text(valueText)
-                    .font(.caption)
-                    .foregroundStyle(lvl == .safe ? .white.opacity(0.6) : lvl.tint)
+                HStack(spacing: 6) {
+                    Text(chainList)
+                        .font(.caption2)
+                        .foregroundStyle(.white.opacity(0.5))
+                        .lineLimit(1)
+                    Text("·")
+                        .font(.caption2)
+                        .foregroundStyle(.white.opacity(0.3))
+                    Text(valueText)
+                        .font(.caption)
+                        .foregroundStyle(lvl == .safe ? .white.opacity(0.6) : lvl.tint)
+                }
             }
             Spacer()
             if lvl != .safe {
                 Button {
-                    rotationTarget = w
+                    rotationTarget = representative
                 } label: {
                     Text(L10n.Rotate.nudgeCTA)
                         .font(.caption.weight(.semibold))

@@ -93,6 +93,7 @@
 "securityDetail.mpc.tip1" = "Your private key is never assembled — signatures are computed cooperatively across shards.";
 "securityDetail.mpc.tip2" = "A compromised single device cannot sign alone; an attacker must breach the threshold.";
 "securityDetail.mpc.tip3" = "Rotation invalidates old shards, so even a past leak becomes useless over time.";
+"securityDetail.shardGenericName" = "Shard";
 "walletHome.networkWarning" = "Network warning: %@ nodes are unreachable";
 "walletHome.loadingBalance" = "Loading balance";
 "walletHome.showMoreChains" = "Show %d more chains";

@@ -171,6 +171,7 @@ enum L10n {
         static let mpcTip1 = NSLocalizedString("securityDetail.mpc.tip1", comment: "")
         static let mpcTip2 = NSLocalizedString("securityDetail.mpc.tip2", comment: "")
         static let mpcTip3 = NSLocalizedString("securityDetail.mpc.tip3", comment: "")
+        static let shardGenericName = NSLocalizedString("securityDetail.shardGenericName", comment: "")
     }
 
     // MARK: - Pending Broadcast

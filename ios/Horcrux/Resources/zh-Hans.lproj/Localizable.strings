@@ -93,6 +93,7 @@
 "securityDetail.mpc.tip1" = "私钥从未被组装——签名通过各分片协作计算。";
 "securityDetail.mpc.tip2" = "单台设备被攻破无法单独签名，攻击者必须突破门限数。";
 "securityDetail.mpc.tip3" = "轮换使旧分片失效，即使历史泄露也会随时间失去作用。";
+"securityDetail.shardGenericName" = "分片";
 "walletHome.networkWarning" = "网络警告：%@ 节点不可达";
 "walletHome.loadingBalance" = "正在加载余额";
 "walletHome.showMoreChains" = "显示其他 %d 条链";
