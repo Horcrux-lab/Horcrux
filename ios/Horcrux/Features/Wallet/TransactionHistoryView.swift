@@ -105,6 +105,12 @@ struct TransactionHistoryView: View {
             defaultFilename: "horcrux-\(wallet.chain.symbol.lowercased())-\(Int(Date().timeIntervalSince1970))"
         ) { _ in }
         .refreshable { await sync() }
+        .task {
+            // Auto-sync on first open so the user sees fresh data without
+            // needing pull-to-refresh. `sync()` is guarded by `isSyncing`,
+            // so subsequent re-entries won't double-fire.
+            await sync()
+        }
         .overlay(alignment: .bottom) {
             if let syncResult {
                 Text(syncResult)

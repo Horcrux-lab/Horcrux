@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.0-dev.75] - 2026-04-20
+
+### Fixed
+
+- **iOS**: 交易历史页首次打开时自动同步一次（`TransactionHistoryView` 原先只有 `refreshable` 下拉刷新，用户点"查看全部历史"进去会先看到陈旧数据直到手动下拉）。沿用既有的 `isSyncing` 去抖，重复进出不会重复拉。
+
 ## [0.3.0-dev.74] - 2026-04-20
 
 ### Fixed
