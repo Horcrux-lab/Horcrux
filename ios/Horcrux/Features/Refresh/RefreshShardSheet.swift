@@ -65,7 +65,7 @@ struct RefreshShardSheet: View {
             Image(systemName: "arrow.triangle.2.circlepath.circle.fill")
                 .font(.system(size: 56))
                 .foregroundStyle(HorcruxTheme.accentCyan)
-            Text(L10n.Refresh.subtitle(wallet.name))
+            Text(L10n.Refresh.subtitle(shardDisplayName))
                 .font(.headline)
                 .multilineTextAlignment(.center)
             Text(L10n.Refresh.explainer)
@@ -74,6 +74,16 @@ struct RefreshShardSheet: View {
                 .multilineTextAlignment(.center)
                 .padding(.horizontal)
         }
+    }
+
+    /// Strip the chain suffix from the wallet name so the header names the
+    /// shard (= DKG account) rather than any single-chain wallet. Rotation
+    /// is account-level: one ceremony refreshes the key share shared by
+    /// every chain derived from it.
+    private var shardDisplayName: String {
+        wallet.name
+            .replacingOccurrences(of: " (\(wallet.chain.rawValue))", with: "")
+            .replacingOccurrences(of: " (\(wallet.chain.symbol))", with: "")
     }
 
     @ViewBuilder
