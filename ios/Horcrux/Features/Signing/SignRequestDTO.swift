@@ -14,6 +14,27 @@ import Foundation
 /// `magic` field lets the transport layer's decoder distinguish this
 /// from real MPC protocol messages (`MpcMessageDTO`) and room presence
 /// beacons (`RoomPresenceDTO`).
+/// Tiny "I'm here" ping sent by a cosigner right after establishing a
+/// LAN (or relay) connection to the initiator. The initiator's
+/// `PeerManager.handleIncomingMessage` adds any peer from which it
+/// receives a message on a trusted local transport to `connectedPeers`
+/// — so this ping is specifically what moves the cosigner out of
+/// "discovered" and into "joined" on the initiator's invite screen.
+/// Without it the initiator would sit in "等待共签方加入" forever
+/// because the announce-beacon traffic is one-way (initiator → peers).
+struct SignPresenceDTO: Codable {
+    static let magic = "HSP-v1"
+    let magic: String
+    let sessionId: String
+    let deviceName: String
+
+    init(sessionId: String, deviceName: String) {
+        self.magic = Self.magic
+        self.sessionId = sessionId
+        self.deviceName = deviceName
+    }
+}
+
 /// Fired exactly once by the initiator immediately before it calls
 /// `bridge.startSigning` and starts emitting real MPC round-1 messages.
 /// Cosigners hold off on `bridge.startSigning` (and therefore on their

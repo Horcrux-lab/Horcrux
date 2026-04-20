@@ -467,6 +467,7 @@ struct JoinSigningView: View {
                     phase = .waiting
                     startListening(expectedCode: code)
                 }
+                await sendPresencePing(sessionId: code)
             } catch {
                 await MainActor.run {
                     phase = .error(error.localizedDescription)
@@ -491,12 +492,28 @@ struct JoinSigningView: View {
                     // initiator's DTO carries the session ID we'll adopt.
                     startListening(expectedCode: nil)
                 }
+                // Without a pre-negotiated session id we can't scope the
+                // ping to one ceremony, so use a wildcard; the initiator
+                // treats any presence ping as "a peer showed up".
+                await sendPresencePing(sessionId: "")
             } catch {
                 await MainActor.run {
                     phase = .error(error.localizedDescription)
                 }
             }
         }
+    }
+
+    /// Fire-and-forget "I'm here" DTO so the initiator's `connectedPeers`
+    /// gets populated and its invite UI moves from "等待共签方加入" to
+    /// "1 加入". Uses `broadcastMpcMessage`, which falls back to
+    /// `allPeers` when `connectedPeers` is empty — so the packet reaches
+    /// the initiator over whichever transport(s) we just joined.
+    private func sendPresencePing(sessionId: String) async {
+        let name = UIDevice.current.name
+        let dto = SignPresenceDTO(sessionId: sessionId, deviceName: name)
+        guard let payload = try? JSONEncoder().encode(dto) else { return }
+        try? await appState.peerManager.broadcastMpcMessage(payload)
     }
 
     private func startListening(expectedCode: String?) {

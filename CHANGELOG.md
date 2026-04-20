@@ -5,6 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.0-dev.82] - 2026-04-20
+
+### Fixed
+
+- **iOS**: **发起方一直显示"等待共签方加入"，即使共签方已经收到 DTO**（dev.78 以来的隐藏 bug）。根因是 `PeerManager.connectedPeers` 只在 Noise 握手完成时追加（`handleHandshakeMessage`），但 wifi-lan / relay 这两种"可信本地传输"走的是 raw-data 路径，从不触发 Noise，所以即使消息一来一回流通，两端的 `connectedPeers` 都永远是空的，`SigningViewModel.joinedSigners` 也就永远是 0，Start Signing 按钮永不可点。
+  修复分两步：
+  1. `PeerManager.handleIncomingMessage` 在 wifi-lan / relay 分支里，收到任何一条来自新 peer 的消息时把发送方加进 `connectedPeers`（去重）。从此"能收到消息" == "已连上"，符合本地传输的语义。
+  2. 光加第 1 步还不够，因为 announce 信标是发起方单向发给所有人的——共签方默不作声时，发起方那头没 inbound 消息可触发。所以新增 `SignPresenceDTO`（magic `HSP-v1`），共签方在 relay 入房或 LAN 连接成功后立刻 `broadcastMpcMessage` 一发 "I'm here" ping；发起方收到这条 ping 就触发第 1 步的登记，invite 页立刻从"等待共签方加入"变成"1 加入"。
+
+### Technical
+
+- `SignPresenceDTO` 结构只包含 `sessionId`、`deviceName` 两字段 + magic。发起方和其他共签方的 listener 见到非 `HSQ-v1` / `HSG-v1` magic 自然忽略，不影响协议流。
+- `JoinSigningView.sendPresencePing(sessionId:)` 在 `joinRoom()`（relay + 房间码路径）和 `connectToNearby(_:)`（LAN 直连路径）两处分别调用，双通道都能让发起方尽快感知到共签方。
+
 ## [0.3.0-dev.81] - 2026-04-20
 
 ### Fixed

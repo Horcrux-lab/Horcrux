@@ -297,7 +297,14 @@ final class PeerManager: ObservableObject {
                 SecureLog.error("Failed to decode envelope from peer \(peerId): \(error.localizedDescription)")
             }
         } else if message.from.channel == "relay" || message.from.channel == "wifi-lan" {
-            // Local transport path: raw MPC data, no noise encryption
+            // Local transport path: raw MPC data, no noise encryption.
+            // Track the sender as connected — these transports don't run
+            // the Noise handshake, so otherwise they'd never land in
+            // `connectedPeers` and `SigningViewModel.joinedSigners` would
+            // stay empty despite messages flowing freely.
+            if !connectedPeers.contains(where: { $0.id == peerId }) {
+                connectedPeers.append(message.from)
+            }
             NSLog("[PM] handleIncoming: \(message.from.channel) path → yielding \(message.data.count)B to \(mpcMessageContinuations.count) subscriber(s)")
             yieldMpc(message.from, message.data)
         } else {
