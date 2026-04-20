@@ -470,6 +470,21 @@ final class CreateShardViewModel: ObservableObject {
                 let msg = dto.toFfi()
                 NSLog("[DKG] Processing msg: from=\(msg.fromParty) to=\(msg.toParty) session=\(msg.sessionId.prefix(8))...")
 
+                // Drop P2P messages addressed to another party. Over a
+                // broadcast relay room every participant sees every
+                // packet — without this filter, party 1 ends up feeding
+                // party 2's ciphertext into its own state machine, which
+                // the GG20 state machine rejects as "party N tried to
+                // overwrite message". `toParty == 0` is the GG20
+                // broadcast convention; everything else must match us.
+                let myPartyIndex = UInt16(self.partyIndex)
+                if msg.toParty != 0 && msg.toParty != myPartyIndex {
+                    NSLog("[DKG] Skipping msg addressed to party \(msg.toParty) (I'm party \(myPartyIndex))")
+                    // Not counted as a round for progress purposes.
+                    msgCount -= 1
+                    return false
+                }
+
                 // Advance the status label BEFORE the (potentially
                 // very long, up to ~90s on secp256k1) Rust computation
                 // so the user sees the right phase ("Paillier keys",

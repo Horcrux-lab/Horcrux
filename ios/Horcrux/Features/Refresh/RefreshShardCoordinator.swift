@@ -232,6 +232,9 @@ final class RefreshShardCoordinator: ObservableObject {
                 }
                 let inbound = dto.toFfi()
                 guard inbound.sessionId == sessionId else { continue }
+                // Drop P2P messages addressed to another party (every
+                // room participant sees every packet on the relay).
+                if inbound.toParty != 0 && inbound.toParty != wallet.partyIndex { continue }
                 if seenPayloads.contains(inbound.payload) { continue }
                 seenPayloads.insert(inbound.payload)
 

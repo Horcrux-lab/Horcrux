@@ -551,6 +551,17 @@ final class SigningViewModel: ObservableObject {
                 }
                 if let dto = decodedDTO {
                     let msg = dto.toFfi()
+
+                    // Drop P2P messages addressed to another party. Over
+                    // a broadcast relay room every participant sees
+                    // every packet. Without this filter the state
+                    // machine rejects foreign traffic as "party N tried
+                    // to overwrite message".
+                    let myPartyIndex = wallet.partyIndex
+                    if msg.toParty != 0 && msg.toParty != myPartyIndex {
+                        continue
+                    }
+
                     let responses = try bridge.handleMessage(msg)
 
                     currentRound = Int(msg.round)
