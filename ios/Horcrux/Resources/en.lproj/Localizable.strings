@@ -1081,3 +1081,7 @@
 "joinSigning.unmatchedBody" = "This device has no MPC account matching the request (group key: %@). Check you're on the right device, or restore the account from backup first.";
 "joinSigning.fromDevice" = "From: %@";
 "joinSigning.homeButton" = "Join Signing";
+"joinSigning.scanButton" = "Scan QR";
+"joinSigning.scannedInvalid" = "The scanned code is not a valid room code.";
+"joinSigning.nearbyDevices" = "Devices on this Wi-Fi";
+"joinSigning.nearbySearching" = "Searching nearby devices…";

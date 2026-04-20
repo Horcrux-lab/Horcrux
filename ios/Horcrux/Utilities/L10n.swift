@@ -47,6 +47,10 @@ enum L10n {
         static let reject = NSLocalizedString("joinSigning.reject", comment: "")
         static let unmatchedTitle = NSLocalizedString("joinSigning.unmatchedTitle", comment: "")
         static let homeButton = NSLocalizedString("joinSigning.homeButton", comment: "")
+        static let scanButton = NSLocalizedString("joinSigning.scanButton", comment: "")
+        static let scannedInvalid = NSLocalizedString("joinSigning.scannedInvalid", comment: "")
+        static let nearbyDevices = NSLocalizedString("joinSigning.nearbyDevices", comment: "")
+        static let nearbySearching = NSLocalizedString("joinSigning.nearbySearching", comment: "")
         static func fromDevice(_ name: String) -> String {
             String(format: NSLocalizedString("joinSigning.fromDevice", comment: ""), name)
         }

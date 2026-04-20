@@ -1082,3 +1082,7 @@
 "joinSigning.unmatchedBody" = "这台设备上没有与该签名请求对应的 MPC 账户（group key: %@）。请确认你在正确的设备上，或先从备份恢复该账户。";
 "joinSigning.fromDevice" = "来自：%@";
 "joinSigning.homeButton" = "加入签名";
+"joinSigning.scanButton" = "扫描二维码";
+"joinSigning.scannedInvalid" = "扫描结果不是有效的房间码";
+"joinSigning.nearbyDevices" = "同一局域网内的设备";
+"joinSigning.nearbySearching" = "正在搜索附近设备…";

@@ -5,6 +5,35 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.0-dev.79] - 2026-04-20
+
+### Added
+
+- **iOS**: **加入签名的三种新姿势**（dev.78 的补完，把签名从"只能手输房间码"扩展成"扫码 / 点链接 / 浏览局域网"）：
+  1. **扫描二维码加入**：`JoinSigningView` 输入框旁新增 "qrcode.viewfinder" 按钮，打开 `QRScannerView`。识别两种载荷：
+     - `horcrux-room:<code>`（`SigningRoomCodeQR` 已生成的格式，复用 `InviteSignersView` 里展示的那张 QR）；
+     - `horcrux://join?session=<code>` 深链格式。
+     扫描成功 → 房间码自动填充 → 自动触发"加入房间"。
+  2. **深链一键加入**：`HorcruxApp.onOpenURL` → `DeepLinkRouter.parseURL` → `.joinSession(sessionId:)` 已有链路，现在 `WalletHomeView` 监听 `deepLinkRouter.pendingLink`，收到 `joinSession` 时自动弹 `JoinSigningView(prefilledCode:)`，用户点一次链接就能进到交易审阅步骤。支持 iMessage / 微信 / 邮件转发 `horcrux://join?session=ABC-DEF-GHI` 链接。
+  3. **局域网直连（Wi-Fi LAN，免中继免房间码）**：
+     - 发起方 `SigningViewModel.prepareInvite()` 除了入 relay room，也调用 `peerManager.wifiLAN.startDiscovery()`，通过 Bonjour `_horcrux._tcp` 在本地网络广播自己。
+     - 共签方 `JoinSigningView` onAppear 同样启动 LAN 发现；输入框下方新增 "同一局域网内的设备" 区域，显示发起方设备名 + "Wi-Fi LAN" 徽标。
+     - 点击设备 → `peerManager.connect(to:)` 走 Noise 握手 → 进入 `.waiting` 状态 → 收到 `SignRequestDTO` beacon → 同样的审阅卡 → 授权签名。
+     - MPC 消息收发层 (`broadcastMpcMessage`) transport-agnostic：无论 relay / LAN / BLE，已连接的 peer 都会收到包。初始化方同时在 relay 和 LAN 上广播，两边任选其一即可。
+     - 安全性：LAN 直连跳过房间码口令，但 `SigningProgressView` 前必须通过**审阅卡 + PIN 解锁**两道闸门，且对方的设备名 + 交易详情都会展示供用户核对；BonjourFake 的攻击者无法伪造一个与你本地钱包 `groupPublicKey` 匹配的 DTO。
+
+### Technical
+
+- `JoinSigningView.startListening` 增加 `expectedCode: String?` 参数。输入房间码走严格匹配（防止串扰），LAN 直连走 nil（信任用户已通过设备名人眼核对 + 审阅卡）。
+- 复用已有 `SignRequestDTO` magic `HSQ-v1`，无协议变更，新老设备混用兼容。
+- `SigningViewModel.prepareInvite()` 现在同时打开 `wifiLAN` 发现以做到同时可达 relay + LAN，两条路并行；断开只停 browsing，已建立连接继续存活到签名结束。
+- 扫描路径解析由 `handleScannedPayload` 统一处理，支持 `horcrux-room:` 前缀 + `horcrux://sign?session=` / `horcrux://join?session=` 两种 URL host。
+
+### Known limitations (unchanged from dev.78)
+
+- `SigningViewModel.startSigning()` participant-index 仍用 offset-based 伪索引，3-of-3+ 需要后续协议把 partyIndex 声明出来。
+- cosigner 仍各自从本地 RPC 取 nonce / gas——下一版把 initiator 侧完整 unsigned tx 塞进 `SignRequestDTO` 彻底消除不一致风险。
+
 ## [0.3.0-dev.78] - 2026-04-20
 
 ### Added

@@ -38,6 +38,17 @@ struct JoinSigningView: View {
     @State private var roomCode: String = ""
     @State private var listenerTask: Task<Void, Never>?
     @State private var showPinSheet = false
+    @State private var showScanner = false
+    @State private var didAutoJoin = false
+
+    /// Optional code to prefill from a deep link (`horcrux://join?session=…`).
+    /// If provided and valid, we auto-click the join button once on appear.
+    let prefilledCode: String?
+
+    init(prefilledCode: String? = nil) {
+        self.prefilledCode = prefilledCode
+        _roomCode = State(initialValue: RoomCode.normalize(prefilledCode ?? ""))
+    }
 
     var body: some View {
         NavigationStack {
@@ -58,7 +69,21 @@ struct JoinSigningView: View {
                     }
                 }
             }
+            .onAppear {
+                // Start LAN discovery so Bonjour-advertised initiators
+                // appear in the nearby list. The user can still type a
+                // room code and use the relay — both paths coexist.
+                appState.peerManager.wifiLAN.startDiscovery()
+                if !didAutoJoin, let code = prefilledCode,
+                   RoomCode.isValid(RoomCode.normalize(code)) {
+                    didAutoJoin = true
+                    joinRoom()
+                }
+            }
             .onDisappear { cleanup() }
+            .sheet(isPresented: $showScanner) {
+                QRScannerView(onScan: handleScannedPayload)
+            }
             .preferredColorScheme(.dark)
         }
     }
@@ -124,6 +149,17 @@ struct JoinSigningView: View {
                             .foregroundStyle(HorcruxTheme.accentCyan)
                     }
                     .buttonStyle(.bordered)
+                    .accessibilityLabel(L10n.CreateShard.copyRoomCode)
+
+                    Button {
+                        showScanner = true
+                    } label: {
+                        Image(systemName: "qrcode.viewfinder")
+                            .foregroundStyle(HorcruxTheme.accentCyan)
+                    }
+                    .buttonStyle(.bordered)
+                    .accessibilityLabel(L10n.JoinSigning.scanButton)
+                    .accessibilityIdentifier("joinSigning_scanButton")
                 }
                 if !roomCode.isEmpty && !RoomCode.isValid(roomCode) {
                     Text(L10n.CreateShard.roomCodeInvalid)
@@ -144,8 +180,66 @@ struct JoinSigningView: View {
             ))
             .disabled(!RoomCode.isValid(roomCode))
 
+            nearbyPeersSection
+
             Spacer()
         }
+    }
+
+    /// Same-LAN discovery: Bonjour-advertised initiators in `.invite`
+    /// step show up here. Tapping connects over Wi-Fi LAN directly
+    /// without needing the relay or a typed room code — the approval
+    /// card still gates the actual signing so a malicious nearby
+    /// device cannot silently start a ceremony.
+    @ViewBuilder
+    private var nearbyPeersSection: some View {
+        let peers = appState.peerManager.wifiLAN.discoveredPeers
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 6) {
+                Image(systemName: "wifi")
+                    .font(.caption)
+                    .foregroundStyle(HorcruxTheme.accentCyan)
+                Text(L10n.JoinSigning.nearbyDevices)
+                    .font(.caption)
+                    .foregroundStyle(HorcruxTheme.subtleText)
+            }
+            if peers.isEmpty {
+                Text(L10n.JoinSigning.nearbySearching)
+                    .font(.footnote)
+                    .foregroundStyle(HorcruxTheme.subtleText.opacity(0.6))
+                    .padding(.vertical, 8)
+            } else {
+                VStack(spacing: 6) {
+                    ForEach(peers, id: \.id) { peer in
+                        Button {
+                            connectToNearby(peer)
+                        } label: {
+                            HStack {
+                                Image(systemName: "iphone")
+                                    .foregroundStyle(HorcruxTheme.accentCyan)
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(peer.name)
+                                        .font(.footnote.weight(.semibold))
+                                        .foregroundStyle(.white)
+                                    Text("Wi-Fi LAN")
+                                        .font(.caption2)
+                                        .foregroundStyle(HorcruxTheme.subtleText)
+                                }
+                                Spacer()
+                                Image(systemName: "chevron.right")
+                                    .font(.caption)
+                                    .foregroundStyle(HorcruxTheme.subtleText)
+                            }
+                            .padding(10)
+                            .background(RoundedRectangle(cornerRadius: 10).fill(Color.white.opacity(0.06)))
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityIdentifier("joinSigning_nearbyPeer_\(peer.id)")
+                    }
+                }
+            }
+        }
+        .padding(.top, 6)
     }
 
     // MARK: - Waiting
@@ -318,6 +412,50 @@ struct JoinSigningView: View {
 
     // MARK: - Actions
 
+    /// Handles a decoded QR payload from `QRScannerView`. Accepts two
+    /// formats symmetrically with what the initiator's invite screen
+    /// produces:
+    ///
+    /// 1. `horcrux-room:<code>` — the plain prefix used by
+    ///    `SigningRoomCodeQR` (compact, high-density QR).
+    /// 2. `horcrux://join?session=<code>` — the deep-link URL that a
+    ///    user might also share via iMessage / email.
+    ///
+    /// Anything else is rejected with a haptic warning; the scanner
+    /// sheet stays dismissed either way so the user can try again
+    /// explicitly.
+    private func handleScannedPayload(_ raw: String) {
+        showScanner = false
+        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        var candidate: String? = nil
+        if trimmed.hasPrefix("horcrux-room:") {
+            candidate = String(trimmed.dropFirst("horcrux-room:".count))
+        } else if let url = URL(string: trimmed),
+                  url.scheme == "horcrux",
+                  url.host == "join" || url.host == "sign",
+                  let items = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems,
+                  let session = items.first(where: { $0.name == "session" })?.value {
+            candidate = session
+        } else {
+            candidate = trimmed
+        }
+
+        guard let raw = candidate else {
+            Haptics.warning()
+            return
+        }
+        let normalized = RoomCode.normalize(raw)
+        guard RoomCode.isValid(normalized) else {
+            Haptics.warning()
+            phase = .error(L10n.JoinSigning.scannedInvalid)
+            return
+        }
+        Haptics.success()
+        roomCode = normalized
+        joinRoom()
+    }
+
     private func joinRoom() {
         let code = roomCode
         phase = .joining
@@ -327,7 +465,7 @@ struct JoinSigningView: View {
                 appState.peerManager.relay.startDiscovery()
                 await MainActor.run {
                     phase = .waiting
-                    startListening(code: code)
+                    startListening(expectedCode: code)
                 }
             } catch {
                 await MainActor.run {
@@ -337,15 +475,45 @@ struct JoinSigningView: View {
         }
     }
 
-    private func startListening(code: String) {
+    /// Join a signing ceremony via a same-LAN peer. No room code is
+    /// required: after the Noise handshake the initiator's periodic
+    /// `SignRequestDTO` beacon reaches us over the direct link, the
+    /// review card still gates approval, and the session ID is taken
+    /// from the DTO — matching the initiator's MPC bridge session.
+    private func connectToNearby(_ peer: Peer) {
+        phase = .joining
+        Task {
+            do {
+                try await appState.peerManager.connect(to: peer)
+                await MainActor.run {
+                    phase = .waiting
+                    // Accept any SignRequestDTO (no code filter) — the
+                    // initiator's DTO carries the session ID we'll adopt.
+                    startListening(expectedCode: nil)
+                }
+            } catch {
+                await MainActor.run {
+                    phase = .error(error.localizedDescription)
+                }
+            }
+        }
+    }
+
+    private func startListening(expectedCode: String?) {
         listenerTask?.cancel()
         let (_, stream) = appState.peerManager.mpcMessageStream()
         listenerTask = Task { [appState] in
             for await (_, data) in stream {
                 if Task.isCancelled { return }
                 guard let dto = try? JSONDecoder().decode(SignRequestDTO.self, from: data),
-                      dto.magic == SignRequestDTO.magic,
-                      dto.sessionId == code else { continue }
+                      dto.magic == SignRequestDTO.magic else { continue }
+                // If the user typed a room code, enforce it so an
+                // unrelated ceremony can't hijack the session. For
+                // LAN-direct joins (no typed code) we trust that the
+                // tapped peer is the intended initiator — the approval
+                // card's device name + out-of-band verification is the
+                // guard.
+                if let expected = expectedCode, dto.sessionId != expected { continue }
                 // Match to a local wallet by groupPublicKey.
                 let chain = Chain(rawValue: dto.chain)
                 let match = appState.walletStore.wallets.first { w in
@@ -388,5 +556,8 @@ struct JoinSigningView: View {
     private func cleanup() {
         listenerTask?.cancel()
         listenerTask = nil
+        // Only the browsing part stops; an already-established LAN
+        // connection stays alive for any in-progress ceremony.
+        appState.peerManager.wifiLAN.stopDiscovery()
     }
 }

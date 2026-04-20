@@ -447,6 +447,13 @@ final class SigningViewModel: ObservableObject {
         roomJoinError = nil
         step = .invite
 
+        // Also become visible on the local network so a cosigner who's
+        // on the same Wi-Fi can join without ever touching the relay.
+        // The MPC layer is transport-agnostic — `broadcastMpcMessage`
+        // reaches every connected peer regardless of whether they
+        // arrived via relay, BLE, or Bonjour.
+        peerManager?.wifiLAN.startDiscovery()
+
         // Join the relay room in the background so peers who enter the
         // same code can discover us. Bonjour/LAN peers are already
         // published via PeerManager observers regardless.

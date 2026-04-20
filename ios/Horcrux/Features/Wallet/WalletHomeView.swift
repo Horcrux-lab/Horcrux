@@ -13,6 +13,11 @@ struct WalletHomeView: View {
     @State private var showCreateShard = false
     @State private var showRestoreSheet = false
     @State private var showJoinSigning = false
+    /// Room code seeded from a deep link (`horcrux://join?session=…`)
+    /// that arrived while we were foregrounded. The sheet is opened with
+    /// this prefilled so the user only needs to tap Approve.
+    @State private var prefillJoinCode: String?
+    @EnvironmentObject private var deepLinkRouter: DeepLinkRouter
     @State private var networkReachable: [Chain: Bool] = [:]
     @State private var expandedGroups: Set<String> = []
     /// Account groups folded by the user (session-local). Collapsed state
@@ -101,8 +106,21 @@ struct WalletHomeView: View {
                 CreateShardFlow()
             }
             .sheet(isPresented: $showJoinSigning) {
-                JoinSigningView()
+                JoinSigningView(prefilledCode: prefillJoinCode)
                     .environmentObject(appState)
+            }
+            .onChange(of: deepLinkRouter.pendingLink) { _, link in
+                guard case let .joinSession(session) = link else { return }
+                prefillJoinCode = session
+                showJoinSigning = true
+                _ = deepLinkRouter.consumePendingLink()
+            }
+            .onAppear {
+                if case let .joinSession(session) = deepLinkRouter.pendingLink {
+                    prefillJoinCode = session
+                    showJoinSigning = true
+                    _ = deepLinkRouter.consumePendingLink()
+                }
             }
             .sheet(isPresented: $showRestoreSheet) {
                 AccountImportView(viewModel: ShardsViewModel())
