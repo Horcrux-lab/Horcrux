@@ -534,6 +534,20 @@ struct InviteSignersView: View {
                                 .fill(Color.white.opacity(0.04))
                                 .overlay(RoundedRectangle(cornerRadius: 10).stroke(HorcruxTheme.hairline, lineWidth: 1))
                         )
+                        // Long-press to forget — useful if the displayed
+                        // "last peer" is stale (device lost, replaced) so
+                        // the hint doesn't mislead the initiator into
+                        // thinking that peer might still dial in.
+                        .contextMenu {
+                            Button(role: .destructive) {
+                                RecentCoSignersStore.shared.forget(
+                                    peerId: recent.id,
+                                    walletId: viewModel.wallet.id
+                                )
+                            } label: {
+                                Label(L10n.Signing.forgetPeer, systemImage: "trash")
+                            }
+                        }
                     }
 
                     // Joined peers list
@@ -1149,6 +1163,30 @@ struct SigningCompleteView: View {
             }
 
             Spacer()
+
+            // "Send again to same recipient" is offered once the tx has
+            // been (a) broadcast successfully OR (b) explicitly saved for
+            // later — in either case the current signed tx is done and
+            // the user might want to fire another transfer to the same
+            // address (e.g. paying the same merchant, recurring transfer).
+            // Gated on `txHash != nil` so it only shows on success, and
+            // on `!isBroadcasting` so we don't let them leave while the
+            // broadcast is in flight.
+            if viewModel.txHash != nil, !viewModel.isBroadcasting {
+                Button {
+                    viewModel.resignToSameRecipient()
+                } label: {
+                    Label(
+                        L10n.Signing.signAgainSameRecipient,
+                        systemImage: "arrow.clockwise"
+                    )
+                    .font(.footnote.weight(.medium))
+                    .foregroundStyle(HorcruxTheme.accentCyan)
+                    .frame(maxWidth: .infinity)
+                }
+                .padding(.horizontal)
+                .accessibilityIdentifier("complete_signAgainButton")
+            }
 
             Button { dismiss() } label: {
                 Text(L10n.Common.done)

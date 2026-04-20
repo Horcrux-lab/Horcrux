@@ -698,6 +698,58 @@ final class SigningViewModel: ObservableObject {
         SecureLog.info("[signing] kicked peer \(peer.id) from ceremony")
     }
 
+    /// Bounce back to `.compose` while preserving the recipient and
+    /// token selection from the just-completed tx, so the user can
+    /// fire off another transfer to the same address without retyping
+    /// it. We reset everything tied to the *previous* ceremony —
+    /// amount (new transfer, new amount), fee estimates (stale),
+    /// session/room/peer state, tx hash, broadcast status, etc. — but
+    /// keep `recipientAddress` + `selectedToken` as a "sticky" pair.
+    ///
+    /// Called from the complete screen's "Sign again" quick-action.
+    func resignToSameRecipient() {
+        // Hold on to what we want to keep before wiping step state.
+        let keepRecipient = recipientAddress
+        let keepToken = selectedToken
+
+        // Tear down ceremony state so the next compose starts clean.
+        announceTask?.cancel()
+        announceTask = nil
+        peerManager?.leaveRelayRoom()
+        presenceListenerTask?.cancel()
+        presenceListenerTask = nil
+        joinedSigners.removeAll()
+        peerPartyIndex.removeAll()
+        kickedPeerIds.removeAll()
+        peerStates.removeAll()
+        peerRounds.removeAll()
+        sessionId = nil
+        roomCode = ""
+        roomJoined = false
+        roomJoinError = nil
+        roomCodeExpiresAt = nil
+        roomCodeExpired = false
+        authoritativeTx = nil
+        txHash = nil
+        broadcastStatus = nil
+        isBroadcasting = false
+        signingProgress = 0
+        signingStatusMessage = ""
+        currentRound = 0
+        errorMessage = ""
+        composeBlocker = nil
+
+        // Amount resets — the user almost certainly wants a different
+        // amount next time. Fee tier stays at whatever they last picked.
+        amount = ""
+        estimatedFee = "—"
+
+        // Restore stickies and return to the compose step.
+        recipientAddress = keepRecipient
+        selectedToken = keepToken
+        step = .compose
+    }
+
     /// Called ~once per second by the invite view's ticker to surface
     /// the "code expired" state. Cheap idempotent operation; we keep
     /// the state-diff check so SwiftUI only re-renders when it flips.

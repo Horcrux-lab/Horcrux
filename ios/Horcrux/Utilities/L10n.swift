@@ -607,6 +607,8 @@ enum L10n {
         static func lastSignedWith(_ name: String) -> String {
             String(format: NSLocalizedString("signing.lastSignedWith", comment: ""), name)
         }
+        static let signAgainSameRecipient = NSLocalizedString("signing.signAgainSameRecipient", comment: "")
+        static let forgetPeer = NSLocalizedString("signing.forgetPeer", comment: "")
         static let waitingTroubleshootTitle = NSLocalizedString("signing.waitingTroubleshootTitle", comment: "")
         static let waitingCheckCode = NSLocalizedString("signing.waitingCheckCode", comment: "")
         static let waitingCheckRelay = NSLocalizedString("signing.waitingCheckRelay", comment: "")

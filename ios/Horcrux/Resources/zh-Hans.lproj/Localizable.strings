@@ -276,6 +276,8 @@
 "signing.roomCodeValidFor" = "有效期剩余 %@";
 "signing.roomCodeCopied" = "房间码已复制";
 "signing.lastSignedWith" = "上次与「%@」签名";
+"signing.signAgainSameRecipient" = "再签一笔给同一收款人";
+"signing.forgetPeer" = "忘记此设备";
 "signing.waitingTroubleshootTitle" = "仍未有共签方加入？";
 "signing.waitingCheckCode" = "确认共签方输入的房间码与屏幕上的三个单词一致，且顺序相同。";
 "signing.waitingCheckRelay" = "双方都在「中继」通道上——中继服务器需能从双方网络访问（企业网/VPN 可能会屏蔽）。";

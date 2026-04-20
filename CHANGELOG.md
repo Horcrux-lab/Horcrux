@@ -5,6 +5,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.0-dev.94] - 2026-04-20
+
+### Added
+
+- **iOS (Signing)**: **签名完成后一键"再签一笔给同一收款人" + 最近对端长按忘记**。
+  - `SigningViewModel.resignToSameRecipient()`：保留 `recipientAddress` + `selectedToken`，清掉 amount / fee / round state / session / 参与方列表，回到 `.compose`。签完立刻还想给同一个地址再打一笔（补齐零头、分批转、测试回路）这种场景过去要重新粘地址、重选代币，现在一键就行。
+  - `SigningCompleteView` 在 Done 按钮前加 "再签一笔给同一收款人"；仅当有 `txHash` 且未 broadcasting 时可点。
+  - invite 界面 "上次签名对端" 提示条加 `.contextMenu`，长按可 `忘记此设备`（调 `RecentCoSignersStore.forget`）——设备换了/丢了时不会误以为对方还会上线。
+
 ## [0.3.0-dev.93] - 2026-04-20
 
 ### Added
