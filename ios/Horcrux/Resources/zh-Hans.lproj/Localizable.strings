@@ -485,6 +485,9 @@
 "nodeSettings.useBlockPIFor" = "为 %@ 使用 BlockPI";
 "nodeSettings.usedRPCFor" = "为 %@ 使用 dRPC";
 "nodeSettings.useNodeRealFor" = "为 %@ 使用 NodeReal";
+"nodeSettings.paidProviderPicker" = "付费服务商";
+"nodeSettings.applyProviderFor" = "为 %2$@ 使用 %1$@";
+"nodeSettings.providerUnsupportedOnChain" = "%1$@ 暂不支持 %2$@";
 "nodeSettings.etherscanKeySection" = "Etherscan API 密钥";
 "nodeSettings.etherscanKeyLabel" = "Etherscan V2 多链密钥（可选，存入 Keychain）。用于跨链同步 EVM 交易历史。";
 "nodeSettings.etherscanKeyHelp" = "未填写时，交易历史会走公共限流接口，可能较慢或偶尔缺失。https://etherscan.io/myapikey 免费申请。";

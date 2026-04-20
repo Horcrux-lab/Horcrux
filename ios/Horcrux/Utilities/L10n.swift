@@ -1025,6 +1025,16 @@ enum L10n {
         static func useNodeRealFor(_ name: String) -> String {
             String(format: NSLocalizedString("nodeSettings.useNodeRealFor", comment: ""), name)
         }
+
+        static let paidProviderPicker = NSLocalizedString("nodeSettings.paidProviderPicker", comment: "")
+
+        static func applyProviderFor(_ provider: String, _ chain: String) -> String {
+            String(format: NSLocalizedString("nodeSettings.applyProviderFor", comment: ""), provider, chain)
+        }
+
+        static func providerUnsupportedOnChain(_ provider: String, _ chain: String) -> String {
+            String(format: NSLocalizedString("nodeSettings.providerUnsupportedOnChain", comment: ""), provider, chain)
+        }
     }
 
     // MARK: - Node Status

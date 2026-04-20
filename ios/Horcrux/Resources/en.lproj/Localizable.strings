@@ -485,6 +485,9 @@
 "nodeSettings.useBlockPIFor" = "Use BlockPI for %@";
 "nodeSettings.usedRPCFor" = "Use dRPC for %@";
 "nodeSettings.useNodeRealFor" = "Use NodeReal for %@";
+"nodeSettings.paidProviderPicker" = "Paid provider";
+"nodeSettings.applyProviderFor" = "Use %1$@ for %2$@";
+"nodeSettings.providerUnsupportedOnChain" = "%1$@ doesn't support %2$@";
 "nodeSettings.etherscanKeySection" = "Etherscan API key";
 "nodeSettings.etherscanKeyLabel" = "Etherscan V2 multichain key (optional, stored in Keychain). Used for EVM transaction history sync on all chains.";
 "nodeSettings.etherscanKeyHelp" = "Without a key, history uses a rate-limited public endpoint and may be slow or incomplete. Get a free key at https://etherscan.io/myapikey.";

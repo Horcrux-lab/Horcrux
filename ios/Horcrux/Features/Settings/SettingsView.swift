@@ -864,6 +864,51 @@ struct BlockchainNodeSettingsView: View {
     @State private var importPreview: RPCConfigSnapshot? = nil
     @State private var importError: String? = nil
     @State private var exportJSON: String = ""
+    @State private var selectedEVMProvider: PaidEVMProvider = .alchemy
+
+    /// A collapsible single-field provider picker for the EVM key block.
+    /// Switching the picker swaps which Keychain field the SecureField
+    /// binds to and which template the "Use" button applies — so the
+    /// section only ever shows one SecureField at a time instead of the
+    /// previous 6 stacked fields.
+    enum PaidEVMProvider: String, CaseIterable, Identifiable {
+        case alchemy, infura, ankr, blockpi, drpc, nodeReal
+
+        var id: String { rawValue }
+
+        var label: String {
+            switch self {
+            case .alchemy: return "Alchemy"
+            case .infura: return "Infura"
+            case .ankr: return "Ankr"
+            case .blockpi: return "BlockPI"
+            case .drpc: return "dRPC"
+            case .nodeReal: return "NodeReal"
+            }
+        }
+
+        func template(for net: EVMNetwork) -> String? {
+            switch self {
+            case .alchemy: return RPCProviderTemplate.alchemy(evm: net)
+            case .infura: return RPCProviderTemplate.infura(evm: net)
+            case .ankr: return RPCProviderTemplate.ankr(evm: net)
+            case .blockpi: return RPCProviderTemplate.blockpi(evm: net)
+            case .drpc: return RPCProviderTemplate.drpc(evm: net)
+            case .nodeReal: return RPCProviderTemplate.nodeReal(evm: net)
+            }
+        }
+    }
+
+    private func keyBinding(for provider: PaidEVMProvider) -> Binding<String> {
+        switch provider {
+        case .alchemy: return $config.alchemyAPIKey
+        case .infura: return $config.infuraAPIKey
+        case .ankr: return $config.ankrAPIKey
+        case .blockpi: return $config.blockpiAPIKey
+        case .drpc: return $config.drpcAPIKey
+        case .nodeReal: return $config.nodeRealAPIKey
+        }
+    }
 
     var body: some View {
         Form {
@@ -875,20 +920,6 @@ struct BlockchainNodeSettingsView: View {
                     Text(health.summaryText)
                         .font(.subheadline)
                     Spacer()
-                    Button {
-                        Task { await health.refreshAll(config: config) }
-                    } label: {
-                        if health.refreshingAll {
-                            ProgressView().scaleEffect(0.8)
-                        } else {
-                            Label(L10n.NodeStatus.testAll, systemImage: "arrow.clockwise")
-                                .font(.caption.weight(.semibold))
-                        }
-                    }
-                    .buttonStyle(.bordered)
-                    .tint(HorcruxTheme.accentCyan)
-                    .disabled(health.refreshingAll)
-                    .accessibilityIdentifier("nodeSettings_testAllButton")
                 }
             }
 
@@ -938,116 +969,33 @@ struct BlockchainNodeSettingsView: View {
                     }
                 }
 
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(L10n.NodeSettings.alchemyKeyLabel)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                    SecureField(L10n.NodeSettings.pasteKeyPlaceholder, text: $config.alchemyAPIKey)
-                        .font(.system(.body, design: .monospaced))
-                        .autocorrectionDisabled()
-                        .textInputAutocapitalization(.never)
-                    if !config.alchemyAPIKey.isEmpty,
-                       let net = EVMNetwork(rawValue: config.evmChainId),
-                       let tmpl = RPCProviderTemplate.alchemy(evm: net) {
-                        Button(L10n.NodeSettings.useAlchemyFor(net.displayName)) {
-                            config.ethereumRPC = tmpl
+                VStack(alignment: .leading, spacing: 8) {
+                    Picker(L10n.NodeSettings.paidProviderPicker, selection: $selectedEVMProvider) {
+                        ForEach(PaidEVMProvider.allCases) { p in
+                            Text(p.label).tag(p)
                         }
-                        .font(.caption)
                     }
-                }
+                    .pickerStyle(.menu)
 
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(L10n.NodeSettings.infuraKeyLabel)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                    SecureField(L10n.NodeSettings.pasteKeyPlaceholder, text: $config.infuraAPIKey)
+                    SecureField(L10n.NodeSettings.pasteKeyPlaceholder,
+                                text: keyBinding(for: selectedEVMProvider))
                         .font(.system(.body, design: .monospaced))
                         .autocorrectionDisabled()
                         .textInputAutocapitalization(.never)
-                        .accessibilityIdentifier("nodeSettings_infuraKey")
-                    if !config.infuraAPIKey.isEmpty,
-                       let net = EVMNetwork(rawValue: config.evmChainId),
-                       let tmpl = RPCProviderTemplate.infura(evm: net) {
-                        Button(L10n.NodeSettings.useInfuraFor(net.displayName)) {
-                            config.ethereumRPC = tmpl
-                        }
-                        .font(.caption)
-                    }
-                }
+                        .accessibilityIdentifier("nodeSettings_paidKey_\(selectedEVMProvider.rawValue)")
 
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(L10n.NodeSettings.ankrKeyLabel)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                    SecureField(L10n.NodeSettings.pasteKeyPlaceholder, text: $config.ankrAPIKey)
-                        .font(.system(.body, design: .monospaced))
-                        .autocorrectionDisabled()
-                        .textInputAutocapitalization(.never)
-                        .accessibilityIdentifier("nodeSettings_ankrKey")
-                    if !config.ankrAPIKey.isEmpty,
+                    if !keyBinding(for: selectedEVMProvider).wrappedValue.isEmpty,
                        let net = EVMNetwork(rawValue: config.evmChainId),
-                       let tmpl = RPCProviderTemplate.ankr(evm: net) {
-                        Button(L10n.NodeSettings.useAnkrFor(net.displayName)) {
+                       let tmpl = selectedEVMProvider.template(for: net) {
+                        Button(L10n.NodeSettings.applyProviderFor(selectedEVMProvider.label, net.displayName)) {
                             config.ethereumRPC = tmpl
                         }
                         .font(.caption)
-                    }
-                }
-
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(L10n.NodeSettings.blockpiKeyLabel)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                    SecureField(L10n.NodeSettings.pasteKeyPlaceholder, text: $config.blockpiAPIKey)
-                        .font(.system(.body, design: .monospaced))
-                        .autocorrectionDisabled()
-                        .textInputAutocapitalization(.never)
-                        .accessibilityIdentifier("nodeSettings_blockpiKey")
-                    if !config.blockpiAPIKey.isEmpty,
-                       let net = EVMNetwork(rawValue: config.evmChainId),
-                       let tmpl = RPCProviderTemplate.blockpi(evm: net) {
-                        Button(L10n.NodeSettings.useBlockPIFor(net.displayName)) {
-                            config.ethereumRPC = tmpl
-                        }
-                        .font(.caption)
-                    }
-                }
-
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(L10n.NodeSettings.drpcKeyLabel)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                    SecureField(L10n.NodeSettings.pasteKeyPlaceholder, text: $config.drpcAPIKey)
-                        .font(.system(.body, design: .monospaced))
-                        .autocorrectionDisabled()
-                        .textInputAutocapitalization(.never)
-                        .accessibilityIdentifier("nodeSettings_drpcKey")
-                    if !config.drpcAPIKey.isEmpty,
-                       let net = EVMNetwork(rawValue: config.evmChainId),
-                       let tmpl = RPCProviderTemplate.drpc(evm: net) {
-                        Button(L10n.NodeSettings.usedRPCFor(net.displayName)) {
-                            config.ethereumRPC = tmpl
-                        }
-                        .font(.caption)
-                    }
-                }
-
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(L10n.NodeSettings.nodeRealKeyLabel)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                    SecureField(L10n.NodeSettings.pasteKeyPlaceholder, text: $config.nodeRealAPIKey)
-                        .font(.system(.body, design: .monospaced))
-                        .autocorrectionDisabled()
-                        .textInputAutocapitalization(.never)
-                        .accessibilityIdentifier("nodeSettings_nodeRealKey")
-                    if !config.nodeRealAPIKey.isEmpty,
-                       let net = EVMNetwork(rawValue: config.evmChainId),
-                       let tmpl = RPCProviderTemplate.nodeReal(evm: net) {
-                        Button(L10n.NodeSettings.useNodeRealFor(net.displayName)) {
-                            config.ethereumRPC = tmpl
-                        }
-                        .font(.caption)
+                    } else if let net = EVMNetwork(rawValue: config.evmChainId),
+                              selectedEVMProvider.template(for: net) == nil {
+                        Text(L10n.NodeSettings.providerUnsupportedOnChain(selectedEVMProvider.label, net.displayName))
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
                     }
                 }
 
@@ -1212,6 +1160,24 @@ struct BlockchainNodeSettingsView: View {
         }
         .navigationTitle(L10n.NodeSettings.title)
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .primaryAction) {
+                Button {
+                    Task { await health.refreshAll(config: config) }
+                } label: {
+                    if health.refreshingAll {
+                        ProgressView().scaleEffect(0.8)
+                    } else {
+                        Image(systemName: "arrow.clockwise")
+                            .font(.body.weight(.semibold))
+                    }
+                }
+                .tint(HorcruxTheme.accentCyan)
+                .disabled(health.refreshingAll)
+                .accessibilityLabel(L10n.NodeStatus.testAll)
+                .accessibilityIdentifier("nodeSettings_testAllButton")
+            }
+        }
         .vaultForm()
         .task {
             // Auto-probe all endpoints when the page opens so the user sees
@@ -1736,6 +1702,9 @@ private struct ReadOnlySectionHeader: View {
     let title: String
     var body: some View {
         HStack(spacing: 6) {
+            Image(systemName: "eye")
+                .font(.caption2)
+                .foregroundStyle(.secondary)
             Text(title)
             Text(L10n.NodeSettings.readOnlyTag)
                 .font(.caption2.weight(.semibold))
