@@ -1059,7 +1059,7 @@ final class SigningViewModel: ObservableObject {
     func broadcastTransaction() {
         guard let blockchainService, let networkConfig, let txHash else { return }
         isBroadcasting = true
-        broadcastStatus = L10n.Signing.broadcastingTo(wallet.chain.rawValue)
+        broadcastStatus = L10n.Signing.broadcastingTo(wallet.chain.displayName)
 
         Task {
             do {
@@ -1155,7 +1155,7 @@ final class SigningViewModel: ObservableObject {
                         }
                     default:
                         await MainActor.run {
-                            broadcastStatus = "Broadcast for \(wallet.chain.rawValue) is not supported yet."
+                            broadcastStatus = "Broadcast for \(wallet.chain.displayName) is not supported yet."
                             isBroadcasting = false
                             Haptics.error()
                         }

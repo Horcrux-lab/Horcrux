@@ -326,7 +326,7 @@ struct TransactionDetailView: View {
                         .padding(.horizontal, 4)
 
                     VStack(spacing: 0) {
-                        detailRow(L10n.TxDetail.chain, value: transaction.chain.rawValue)
+                        detailRow(L10n.TxDetail.chain, value: transaction.chain.displayName)
                         Divider().background(HorcruxTheme.hairline)
 
                         VStack(alignment: .leading, spacing: 4) {

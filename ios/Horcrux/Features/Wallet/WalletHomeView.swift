@@ -352,7 +352,7 @@ struct WalletHomeView: View {
                             hideAddress: false
                         )
                     }
-                    .accessibilityLabel("\(wallet.name), \(wallet.chain.rawValue) wallet")
+                    .accessibilityLabel("\(wallet.name), \(wallet.chain.displayName) wallet")
                     .accessibilityHint(L10n.WalletHome.viewDetailsHint)
                     .accessibilityIdentifier("walletHome_walletRow_\(wallet.id)")
                     .contextMenu {
@@ -1138,7 +1138,7 @@ struct WalletDetailView: View {
                         .padding(.horizontal, 4)
 
                     VStack(spacing: 0) {
-                        detailRow(L10n.WalletDetail.chain, value: wallet.chain.rawValue)
+                        detailRow(L10n.WalletDetail.chain, value: wallet.chain.displayName)
                         Divider().background(HorcruxTheme.hairline)
                         detailRow(L10n.WalletDetail.threshold, value: L10n.WalletDetail.thresholdValue(Int(wallet.threshold), Int(wallet.totalParties)))
                         Divider().background(HorcruxTheme.hairline)
@@ -1648,7 +1648,7 @@ struct PortfolioBreakdownSheet: View {
             HStack(spacing: 10) {
                 ChainIcon(chain: slice.chain, size: 28)
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(slice.chain.rawValue)
+                    Text(slice.chain.displayName)
                         .font(.subheadline.weight(.semibold))
                         .foregroundStyle(.white)
                     Text(CurrencyFormatter.crypto(slice.nativeAmount, symbol: slice.chain.symbol))
@@ -1700,6 +1700,6 @@ struct PortfolioBreakdownSheet: View {
         }
         .tintedGlassCard(color: slice.chain.color, padding: 14)
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("\(slice.chain.rawValue): \(Self.fiatFormatter.string(from: NSNumber(value: slice.usdValue)) ?? ""), \(String(format: "%.1f", pct * 100)) percent of portfolio")
+        .accessibilityLabel("\(slice.chain.displayName): \(Self.fiatFormatter.string(from: NSNumber(value: slice.usdValue)) ?? ""), \(String(format: "%.1f", pct * 100)) percent of portfolio")
     }
 }

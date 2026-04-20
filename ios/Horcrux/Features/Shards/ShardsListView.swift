@@ -210,7 +210,7 @@ struct ShardAccountDetailView: View {
                             HStack(spacing: 12) {
                                 ChainIcon(chain: wallet.chain, size: 28)
                                 VStack(alignment: .leading, spacing: 2) {
-                                    Text(wallet.chain.rawValue)
+                                    Text(wallet.chain.displayName)
                                         .font(.subheadline.weight(.medium))
                                         .foregroundStyle(.white)
                                     Text(shortAddress(wallet.address))
