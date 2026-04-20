@@ -27,11 +27,20 @@ struct SignPresenceDTO: Codable {
     let magic: String
     let sessionId: String
     let deviceName: String
+    /// Cosigner's MPC party index inside the matched wallet, shipped
+    /// so the initiator can map `peer.id → partyIndex` when building
+    /// the `participants` array for `bridge.startSigning`. Optional:
+    /// the first ping is fired before the cosigner has matched a
+    /// wallet (so it doesn't know its own index yet); a second ping
+    /// with this field populated is sent right after the user taps
+    /// "approve". Pre-dev.89 peers omit this field entirely.
+    let partyIndex: UInt16?
 
-    init(sessionId: String, deviceName: String) {
+    init(sessionId: String, deviceName: String, partyIndex: UInt16? = nil) {
         self.magic = Self.magic
         self.sessionId = sessionId
         self.deviceName = deviceName
+        self.partyIndex = partyIndex
     }
 }
 

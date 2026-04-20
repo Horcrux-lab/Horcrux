@@ -376,11 +376,19 @@ struct InviteSignersView: View {
     @EnvironmentObject private var appState: AppState
     @ObservedObject var viewModel: SigningViewModel
     @State private var showPinSheet = false
+    /// Seconds we've been sitting on the invite screen waiting for
+    /// cosigners. Drives the "still waiting?" troubleshooting card
+    /// that appears after `waitHintThreshold` seconds.
+    @State private var waitElapsed: TimeInterval = 0
+    private let waitHintThreshold: TimeInterval = 30
 
     /// How many peers (excluding self) are needed to reach threshold.
     private var peersNeeded: Int { Int(viewModel.wallet.threshold) - 1 }
     private var peersJoined: Int { viewModel.joinedSigners.count }
     private var thresholdMet: Bool { peersJoined >= peersNeeded }
+    private var showTroubleshoot: Bool {
+        !thresholdMet && waitElapsed >= waitHintThreshold
+    }
 
     var body: some View {
         let chainTint = viewModel.wallet.chain.color
@@ -478,16 +486,27 @@ struct InviteSignersView: View {
                         }
                     }
 
-                    // Waiting indicator until threshold met
+                    // Waiting indicator until threshold met. After
+                    // `waitHintThreshold` seconds we expand into a
+                    // troubleshooting card so the user sees actionable
+                    // next steps instead of an indefinite spinner.
                     if !thresholdMet {
-                        HStack(spacing: 10) {
-                            ProgressView()
-                                .tint(chainTint)
-                            Text(L10n.Signing.waitingForCoSigners)
-                                .font(.subheadline)
-                                .foregroundStyle(HorcruxTheme.subtleText)
+                        if showTroubleshoot {
+                            WaitingTroubleshootCard(
+                                hasRelay: viewModel.selectedTransports.contains(.relay),
+                                hasLAN: viewModel.selectedTransports.contains(.wifiLAN),
+                                chainTint: chainTint
+                            )
+                        } else {
+                            HStack(spacing: 10) {
+                                ProgressView()
+                                    .tint(chainTint)
+                                Text(L10n.Signing.waitingForCoSigners)
+                                    .font(.subheadline)
+                                    .foregroundStyle(HorcruxTheme.subtleText)
+                            }
+                            .padding(.vertical, 8)
                         }
-                        .padding(.vertical, 8)
                     }
 
                     if thresholdMet {
@@ -529,6 +548,77 @@ struct InviteSignersView: View {
                 return nil
             }
             .presentationDetents([.medium, .large])
+        }
+        // Drive the "still waiting?" timer. Resets as soon as anyone
+        // joins; only runs while in the invite step and under threshold.
+        .onReceive(
+            Timer.publish(every: 1, on: .main, in: .common).autoconnect()
+        ) { _ in
+            if thresholdMet {
+                waitElapsed = 0
+            } else {
+                waitElapsed += 1
+            }
+        }
+        .onChange(of: viewModel.joinedSigners.count) { _, _ in
+            waitElapsed = 0
+        }
+    }
+}
+
+/// Expanded guidance shown after ~30s of waiting so the user has a
+/// concrete next step instead of an indefinite spinner. Covers the
+/// three most common failure modes: typo in the room code, opposite
+/// cosigner not on the same Wi-Fi (LAN-only mode), and relay-toggle
+/// asymmetry between the two sides.
+private struct WaitingTroubleshootCard: View {
+    let hasRelay: Bool
+    let hasLAN: Bool
+    let chainTint: Color
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 8) {
+                Image(systemName: "clock.badge.questionmark")
+                    .foregroundStyle(HorcruxTheme.warningAmber)
+                Text(L10n.Signing.waitingTroubleshootTitle)
+                    .font(.subheadline.bold())
+                    .foregroundStyle(.white)
+            }
+            TroubleshootRow(text: L10n.Signing.waitingCheckCode)
+            if hasRelay {
+                TroubleshootRow(text: L10n.Signing.waitingCheckRelay)
+            }
+            if hasLAN {
+                TroubleshootRow(text: L10n.Signing.waitingCheckLAN)
+            }
+            if !hasRelay {
+                TroubleshootRow(text: L10n.Signing.waitingEnableRelayHint)
+            }
+        }
+        .padding(14)
+        .background(
+            RoundedRectangle(cornerRadius: 12)
+                .fill(Color.white.opacity(0.04))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12)
+                        .stroke(HorcruxTheme.warningAmber.opacity(0.35),
+                                lineWidth: 1)
+                )
+        )
+    }
+}
+
+private struct TroubleshootRow: View {
+    let text: String
+    var body: some View {
+        HStack(alignment: .top, spacing: 8) {
+            Text("•")
+                .foregroundStyle(HorcruxTheme.warningAmber)
+            Text(text)
+                .font(.caption)
+                .foregroundStyle(HorcruxTheme.subtleText)
+                .fixedSize(horizontal: false, vertical: true)
         }
     }
 }

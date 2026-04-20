@@ -267,6 +267,11 @@
 "signing.inviteCoSigners" = "Invite Co-Signers";
 "signing.needMoreSigners" = "Need %d more signer(s)";
 "signing.waitingForCoSigners" = "Waiting for co-signers to join…";
+"signing.waitingTroubleshootTitle" = "Still no co-signer?";
+"signing.waitingCheckCode" = "Confirm the co-signer typed the same three words in the same order.";
+"signing.waitingCheckRelay" = "Both sides are on the \"Relay\" channel — the relay server must be reachable from both networks (corporate Wi-Fi / VPN can block it).";
+"signing.waitingCheckLAN" = "If \"Same Wi-Fi\" is on, both devices must be on the same wireless network and have local-network permission enabled.";
+"signing.waitingEnableRelayHint" = "LAN-only requires you to be on the same Wi-Fi. If the other device is remote, enable the relay channel too.";
 "signing.joiningRoom" = "Joining relay room…";
 "signing.shareRoomCodeHint" = "Share this room code with your co-signers. They enter or scan it in Horcrux to join this signing session.";
 "signing.transportTitle" = "Join Method";

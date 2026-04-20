@@ -211,6 +211,19 @@ final class SigningViewModel: ObservableObject {
     /// MPC-produced ed25519 signature after signing completes.
     private var pendingSolMessage: Data?
 
+    /// Map of `peer.id → MPC party index`, populated while we're in the
+    /// `.invite` step by listening for `SignPresenceDTO` pings from each
+    /// cosigner right after they approve the request. Used by
+    /// `startSigning` to build a correctly-indexed `participants` list
+    /// (e.g. `[1, 2]` for a 2-of-2 ceremony rather than the old
+    /// `[1, 1]`). Entries for peers that never sent a "confirmed" ping
+    /// (old clients, out-of-order packets) are filled in deterministically
+    /// from the pool of unused party indices before signing starts.
+    private var peerPartyIndex: [String: UInt16] = [:]
+    /// Background task that watches the MPC stream during `.invite` for
+    /// incoming `SignPresenceDTO` packets carrying `partyIndex`.
+    private var presenceListenerTask: Task<Void, Never>?
+
     /// TRON unsigned-tx context: we send `txID` (32-byte hash) to the MPC
     /// round, then replay `rawDataHex` + `rawDataJSON` to TronGrid on
     /// broadcast along with the produced signature.
@@ -552,6 +565,7 @@ final class SigningViewModel: ObservableObject {
         sessionId = roomCode
         roomJoinError = nil
         step = .invite
+        startPresenceListener()
 
         // LAN visibility is user-gated: only advertise on Bonjour if
         // the user actually wants same-network cosigners to see us.
@@ -624,6 +638,34 @@ final class SigningViewModel: ObservableObject {
         }
     }
 
+    /// Subscribe to the MPC stream while still in the invite step and
+    /// harvest every incoming `SignPresenceDTO` into `peerPartyIndex`.
+    /// The mapping is then used by `startSigning()` to build a
+    /// correctly-populated `participants` array.
+    ///
+    /// Cosigners send two presence pings: one on join (no partyIndex
+    /// yet, harmless) and one right after `approve` with partyIndex
+    /// filled. We accept both; only the second populates the map.
+    private func startPresenceListener() {
+        guard let peerManager else { return }
+        presenceListenerTask?.cancel()
+        presenceListenerTask = Task { [weak self] in
+            let (subId, stream) = peerManager.mpcMessageStream()
+            defer { peerManager.unsubscribeMpc(subId) }
+            for await (peer, data) in stream {
+                guard let self else { return }
+                if Task.isCancelled { return }
+                guard let dto = try? JSONDecoder().decode(SignPresenceDTO.self, from: data),
+                      dto.magic == SignPresenceDTO.magic,
+                      let idx = dto.partyIndex else { continue }
+                await MainActor.run {
+                    self.peerPartyIndex[peer.id] = idx
+                    SecureLog.info("[signing] presence: peer=\(peer.id.prefix(8)) party=\(idx)")
+                }
+            }
+        }
+    }
+
     private func buildSignRequestDTO() -> SignRequestDTO {
         let gpkHex = wallet.groupPublicKey.map { String(format: "%02x", $0) }.joined()
         return SignRequestDTO(
@@ -677,6 +719,10 @@ final class SigningViewModel: ObservableObject {
         // rebroadcasting it during signing would only add relay noise.
         announceTask?.cancel()
         announceTask = nil
+        // Presence listener is only useful while we're still in invite;
+        // once signing starts, all further traffic is real MPC bytes.
+        presenceListenerTask?.cancel()
+        presenceListenerTask = nil
         // We're about to subscribe to the MPC stream ourselves via
         // runSigningRounds; the cosigner's separate begin-listener is no
         // longer needed (and would double-subscribe).
@@ -732,8 +778,54 @@ final class SigningViewModel: ObservableObject {
                 // Build the transaction hash to sign
                 let messageHash = try await buildSignHash()
 
-                // Collect participant indices
-                let participants = [wallet.partyIndex] + joinedSigners.prefix(Int(wallet.threshold) - 1).enumerated().map { UInt16($0.offset + 1) }
+                // Collect participant indices.
+                //
+                // Prefer each joined peer's self-reported party index
+                // (received via `SignPresenceDTO` into `peerPartyIndex`);
+                // fall back to the smallest unused index in
+                // `1...totalParties \ {myIndex, already-assigned}` for
+                // peers we never got a partyIndex ping from (old
+                // clients, or packet lost).
+                //
+                // Historical bug: the old code was
+                //   `[wallet.partyIndex] + joinedSigners.prefix(k-1)
+                //      .enumerated().map { UInt16($0.offset + 1) }`
+                // which produced `[1, 1]` whenever the initiator itself
+                // was party 1 and filled cosigner slots starting at 1,
+                // breaking any 2-of-2 ceremony initiated by party 1.
+                let myIndex = wallet.partyIndex
+                let neededCosigners = Int(wallet.threshold) - 1
+                var assigned: Set<UInt16> = [myIndex]
+                var cosignerIndices: [UInt16] = []
+                let joined = Array(joinedSigners.prefix(neededCosigners))
+                var unresolved: [Peer] = []
+                for peer in joined {
+                    if let idx = peerPartyIndex[peer.id],
+                       idx != myIndex,
+                       !assigned.contains(idx),
+                       idx >= 1, idx <= wallet.totalParties {
+                        cosignerIndices.append(idx)
+                        assigned.insert(idx)
+                    } else {
+                        unresolved.append(peer)
+                    }
+                }
+                // Fill any unresolved slots with the smallest unused
+                // indices. Deterministic so both sides agree even if
+                // the ping was dropped.
+                if !unresolved.isEmpty {
+                    var next: UInt16 = 1
+                    for _ in unresolved {
+                        while next <= wallet.totalParties && assigned.contains(next) {
+                            next += 1
+                        }
+                        guard next <= wallet.totalParties else { break }
+                        cosignerIndices.append(next)
+                        assigned.insert(next)
+                    }
+                }
+                let participants = ([myIndex] + cosignerIndices).sorted()
+                SecureLog.info("[signing] participants=\(participants) threshold=\(wallet.threshold)/\(wallet.totalParties) me=\(myIndex)")
 
                 signingStatusMessage = L10n.Signing.initializingProtocol
                 currentRound = 1
@@ -778,6 +870,8 @@ final class SigningViewModel: ObservableObject {
         signingTask = nil
         beginListenerTask?.cancel()
         beginListenerTask = nil
+        presenceListenerTask?.cancel()
+        presenceListenerTask = nil
         if var k = signingShardKey {
             k.resetBytes(in: 0..<k.count)
             signingShardKey = nil

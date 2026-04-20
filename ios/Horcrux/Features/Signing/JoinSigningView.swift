@@ -569,6 +569,25 @@ struct JoinSigningView: View {
         // our round-1 messages before the initiator has subscribed to
         // the message stream, so their side would never receive them.
         vm.awaitInitiatorStart()
+
+        // Fire a second presence ping, this one carrying our `partyIndex`,
+        // so the initiator can map `peer.id → party` when it builds its
+        // `participants` list for `bridge.startSigning`. Without this the
+        // initiator would fall back to "smallest-unused-index" guessing
+        // — fine for 2-of-2 but ambiguous for 3-of-N+.
+        let sessionId = dto.sessionId
+        let name = UIDevice.current.name
+        let partyIndex = wallet.partyIndex
+        Task { [appState] in
+            let confirm = SignPresenceDTO(
+                sessionId: sessionId,
+                deviceName: name,
+                partyIndex: partyIndex
+            )
+            if let payload = try? JSONEncoder().encode(confirm) {
+                try? await appState.peerManager.broadcastMpcMessage(payload)
+            }
+        }
     }
 
     private func cleanup() {

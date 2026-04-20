@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.0-dev.89] - 2026-04-20
+
+### Fixed
+
+- **iOS**: **`participants` 列表在 party-1 发起 2-of-N 时永远是 `[1, 1, 1, ...]`**——bridge.startSigning 收到的 party 索引全是发起方自己的，导致 MPC 协议根本不认识谁是谁。旧代码：`joinedSigners.prefix(k-1).enumerated().map { UInt16($0.offset + 1) }`，每个共签方都被硬编码成 "1, 2, 3..."，完全忽略对方真实的 partyIndex。现在：共签方在 `approve` 之后再发一轮 `SignPresenceDTO`，携带自身 `partyIndex`；发起方在 `.invite` 阶段订阅 MPC 流抓取 presence ping、建立 `peer.id → partyIndex` 映射；`startSigning` 据此构造正确 sorted+dedup 的 `participants`，未收到 presence 的槽位回退到 "最小未用索引" 兜底（保证老客户端仍能工作，并且两端兜底策略一致不会错位）。扩展 `SignPresenceDTO` 新增 optional `partyIndex: UInt16?` 字段，pre-dev.89 对端忽略不影响兼容性。
+
+### Added
+
+- **iOS**: **"等待共签方加入" 超时引导卡**。30 秒仍未凑齐 threshold 时，spinner 替换为带警告边框的 troubleshooting 卡片，列出 3 条最常见的失败排查项：房间码是否一致、中继是否能访问、是否在同一 Wi-Fi；并根据当前 transport 选择动态显示相应项（未开中继的情况会提示开启）。新增 6 个本地化键 `signing.waitingTroubleshootTitle` / `waitingCheckCode` / `waitingCheckRelay` / `waitingCheckLAN` / `waitingEnableRelayHint`，zh-Hans + en 齐全。计时器在 peer 加入时自动重置。
+
 ## [0.3.0-dev.88] - 2026-04-20
 
 ### Fixed

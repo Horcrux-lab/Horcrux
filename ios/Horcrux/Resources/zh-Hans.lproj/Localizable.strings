@@ -267,6 +267,11 @@
 "signing.inviteCoSigners" = "邀请共签方";
 "signing.needMoreSigners" = "还需 %d 个签名者";
 "signing.waitingForCoSigners" = "等待共签方加入…";
+"signing.waitingTroubleshootTitle" = "仍未有共签方加入？";
+"signing.waitingCheckCode" = "确认共签方输入的房间码与屏幕上的三个单词一致，且顺序相同。";
+"signing.waitingCheckRelay" = "双方都在「中继」通道上——中继服务器需能从双方网络访问（企业网/VPN 可能会屏蔽）。";
+"signing.waitingCheckLAN" = "如启用了「同 Wi-Fi」，请确认两台设备处于同一无线网络，并已授权本地网络发现。";
+"signing.waitingEnableRelayHint" = "仅启用局域网时，双方必须同网；若对方不在同一 Wi-Fi，请也开启中继通道。";
 "signing.joiningRoom" = "正在加入中继房间…";
 "signing.shareRoomCodeHint" = "把这组房间码分享给你的共签方，他们在 Horcrux 里输入或扫码即可加入本次签名会话。";
 "signing.transportTitle" = "加入方式";
