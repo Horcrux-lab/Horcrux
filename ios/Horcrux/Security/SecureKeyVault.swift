@@ -138,11 +138,15 @@ enum SecureKeyVault {
     /// enrolled after onboarding, or SE sealing threw on a prior attempt).
     /// No-op if the sealed copy already exists.
     static func sealBackupNow(swk: Data) throws {
+        #if targetEnvironment(simulator)
+        throw VaultError.simulatorUnsupported
+        #else
         guard SecureEnclaveManager.shared.isAvailable else {
             throw VaultError.biometricUnavailable
         }
         if hasSESealed { return }
         try storeSealed(swk: swk)
+        #endif
     }
 
     // MARK: - Teardown
@@ -216,14 +220,16 @@ enum SecureKeyVault {
         case deriveFailed
         case wrapFailed
         case biometricUnavailable
+        case simulatorUnsupported
 
         var errorDescription: String? {
             switch self {
-            case .notProvisioned:      return "SWK vault not provisioned"
-            case .randomFailed:        return "Failed to generate random key"
-            case .deriveFailed:        return "PBKDF2 key derivation failed"
-            case .wrapFailed:          return "AES-GCM wrap failed"
-            case .biometricUnavailable: return "Secure Enclave not available (simulator without Apple Silicon host, or missing biometric enrolment)"
+            case .notProvisioned:       return "SWK vault not provisioned"
+            case .randomFailed:         return "Failed to generate random key"
+            case .deriveFailed:         return "PBKDF2 key derivation failed"
+            case .wrapFailed:           return "AES-GCM wrap failed"
+            case .biometricUnavailable: return "Secure Enclave not available on this device"
+            case .simulatorUnsupported: return "iOS Simulator does not support Secure Enclave biometric sealing. Build to a real device to test biometric backup."
             }
         }
     }
