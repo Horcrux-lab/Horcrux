@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.0-dev.87] - 2026-04-20
+
+### Fixed
+
+- **iOS**: **初始方误丢共签方一半 round-0 消息**。dev.86 新装的 `[signing]` NSLog 把实锤打出来了：
+  - 共签方 (party 2) r=0 发两条给初始方：`13559B (from=2, to=1)` + `21695B (from=2, to=2)`；
+  - 初始方过滤器 `msg.toParty != myPartyIndex` 把第二条（`to=2`，"不是给我 party 1 的"）直接 skip，bridge 只收到一半输入。
+  根因：CMP/GG18 bridge 常用 `toParty == fromParty` 编码"来自 party X 的广播 round output"语义，所有对手方都必须处理，不是字面上的点对点。
+  修法：skip 只在 `toParty != 0 && toParty != 我 && toParty != 发送方` 时触发。自广播放行。
+- 追加三条 `NSLog [signing]` 诊断（rx / dup-drop / skip-p2p / handleMessage from/to/r / produced N responses），以后查 bridge 行为再也不用摸黑。
+
 ## [0.3.0-dev.86] - 2026-04-20
 
 ### Fixed

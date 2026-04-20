@@ -778,8 +778,10 @@ final class SigningViewModel: ObservableObject {
                 // keeps the set bounded in size vs storing raw bytes.
                 let digest = Data(SHA256.hash(data: data))
                 if !seenMessages.insert(digest).inserted {
+                    NSLog("[signing] dup drop from %@ (%dB)", peer.id, data.count)
                     continue
                 }
+                NSLog("[signing] rx from %@ (%dB, unique)", peer.id, data.count)
                 // Real per-peer state: first inbound bytes from a peer flips them to .signing.
                 if peerStates[peer.id] != .done {
                     peerStates[peer.id] = .signing
@@ -803,17 +805,30 @@ final class SigningViewModel: ObservableObject {
                 if let dto = decodedDTO {
                     let msg = dto.toFfi()
 
-                    // Drop P2P messages addressed to another party. Over
-                    // a broadcast relay room every participant sees
-                    // every packet. Without this filter the state
-                    // machine rejects foreign traffic as "party N tried
-                    // to overwrite message".
+                    // Drop P2P messages addressed to a *different* concrete
+                    // party. Over a broadcast relay room every participant
+                    // sees every packet. Without this filter the state
+                    // machine rejects foreign traffic as "party N tried to
+                    // overwrite message".
+                    //
+                    // IMPORTANT: treat `toParty == fromParty` as a
+                    // self-labeled broadcast — CMP/GG18 bridges often tag
+                    // round-output messages this way ("message from party
+                    // X as part of their broadcast round"), and every
+                    // counterparty must process them. Skipping would
+                    // deprive the peer of half of round 1 (Paillier
+                    // commit + proof) and stall the ceremony.
                     let myPartyIndex = wallet.partyIndex
-                    if msg.toParty != 0 && msg.toParty != myPartyIndex {
+                    if msg.toParty != 0
+                        && msg.toParty != myPartyIndex
+                        && msg.toParty != msg.fromParty {
+                        NSLog("[signing] skip p2p to=%d me=%d from=%d r=%d", msg.toParty, myPartyIndex, msg.fromParty, msg.round)
                         continue
                     }
 
+                    NSLog("[signing] handleMessage from=%d to=%d r=%d (%dB)", msg.fromParty, msg.toParty, msg.round, data.count)
                     let responses = try bridge.handleMessage(msg)
+                    NSLog("[signing] bridge produced %d responses", responses.count)
 
                     currentRound = Int(msg.round)
                     signingProgress = Double(currentRound) / Double(totalRounds + 1)
