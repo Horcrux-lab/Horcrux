@@ -153,25 +153,15 @@ struct SecurityDetailView: View {
             return .safe
         }()
         let valueText: String = days.map { L10n.WalletHome.securityRotationAgo($0) } ?? L10n.WalletHome.securityRotationNever
-        let chainList = acct.wallets.map { $0.chain.symbol }.joined(separator: " · ")
 
         HStack(spacing: 10) {
             VStack(alignment: .leading, spacing: 2) {
                 Text(acct.name.isEmpty ? L10n.SecurityDetail.shardGenericName : acct.name)
                     .font(.subheadline.weight(.medium))
                     .foregroundStyle(.white)
-                HStack(spacing: 6) {
-                    Text(chainList)
-                        .font(.caption2)
-                        .foregroundStyle(.white.opacity(0.5))
-                        .lineLimit(1)
-                    Text("·")
-                        .font(.caption2)
-                        .foregroundStyle(.white.opacity(0.3))
-                    Text(valueText)
-                        .font(.caption)
-                        .foregroundStyle(lvl == .safe ? .white.opacity(0.6) : lvl.tint)
-                }
+                Text(valueText)
+                    .font(.caption)
+                    .foregroundStyle(lvl == .safe ? .white.opacity(0.6) : lvl.tint)
             }
             Spacer()
             if lvl != .safe {
