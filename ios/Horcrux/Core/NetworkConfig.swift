@@ -815,6 +815,11 @@ struct NodeHealthSnapshot: Equatable {
     /// Treated as a soft warning: the probe can still be `.ok` because the
     /// RPC is reachable — but the UI should surface a red alert.
     var mismatchWarning: String? = nil
+    /// Non-nil when the user's node is significantly behind the median of
+    /// 2-3 independent reference endpoints (same chain, different providers).
+    /// Soft warning: the node is reachable and usable for most reads, but
+    /// balance/tx history may be stale.
+    var lagWarning: String? = nil
 
     var isOk: Bool { if case .ok = status { return true } else { return false } }
     var isFailed: Bool { if case .failed = status { return true } else { return false } }
@@ -872,6 +877,7 @@ final class NodeHealthStore: ObservableObject {
         var snap = snapshots[chain] ?? NodeHealthSnapshot()
         snap.status = .checking
         snap.mismatchWarning = nil
+        snap.lagWarning = nil
         snapshots[chain] = snap
 
         let start = Date()
@@ -892,6 +898,13 @@ final class NodeHealthStore: ObservableObject {
             // against the selected chainId; for BTC we infer mainnet/testnet
             // from the known URL prefix; for Solana we skip (no cheap probe).
             snap.mismatchWarning = await Self.detectMismatch(chain: chain, url: url, config: config)
+            // Also compare this node's block height against the median of
+            // 2-3 independent reference endpoints. If we're significantly
+            // behind, surface a yellow warning — the node is still usable
+            // for reads but balance/tx history may be stale.
+            if let h = height {
+                snap.lagWarning = await Self.detectBlockLag(chain: chain, userURL: url, userHeight: h, config: config)
+            }
         case .failure(let err):
             snap.status = .failed(Self.friendlyError(err))
             snap.blockHeight = nil
@@ -1046,6 +1059,88 @@ final class NodeHealthStore: ObservableObject {
         default:
             return nil
         }
+    }
+
+    /// Cached reference-height probes keyed by chain. Expires after 30s so
+    /// probing multiple chains in quick succession doesn't hammer every
+    /// reference endpoint each time.
+    private static var referenceCache: [Chain: (height: UInt64, at: Date)] = [:]
+    private static let referenceCacheTTL: TimeInterval = 30
+
+    /// Detects whether `userHeight` is significantly behind the independently-
+    /// sourced consensus height for the same chain.
+    ///
+    /// We probe 2-3 reference endpoints (from `RPCFallbacks.endpoints`),
+    /// excluding the user's own URL to avoid self-comparison, and take the
+    /// **median** so a single stale or malicious reference can't poison the
+    /// result. If fewer than 2 references respond, we silently skip (better
+    /// no warning than a false alarm).
+    ///
+    /// Thresholds are chain-specific — EVM/SOL produce blocks fast (seconds),
+    /// BTC/LTC slow (~10 min), so "20 blocks behind" means very different
+    /// things.
+    private static func detectBlockLag(
+        chain: Chain,
+        userURL: String,
+        userHeight: UInt64,
+        config: NetworkConfig
+    ) async -> String? {
+        // Chain.solana probes don't return a height (we use `getHealth`);
+        // Tron's probe returns a height but we keep lag detection to the
+        // chains where fallbacks are well-defined.
+        guard chain != .solana else { return nil }
+
+        let threshold: UInt64
+        switch chain {
+        case .ethereum, .polygon, .arbitrum, .base, .optimism, .bnb,
+             .avalanche, .zksync, .linea, .scroll:
+            threshold = 30            // ~6 min ETH, faster on L2s
+        case .bitcoin, .litecoin:
+            threshold = 2             // ~20 min at 10 min blocks
+        case .tron:
+            threshold = 20            // ~60 s at 3 s blocks
+        default:
+            return nil
+        }
+
+        // Use cache if fresh, else probe fresh references.
+        let referenceHeight: UInt64
+        if let cached = referenceCache[chain],
+           Date().timeIntervalSince(cached.at) < referenceCacheTTL {
+            referenceHeight = cached.height
+        } else {
+            let candidates = RPCFallbacks.orderedAttempts(for: chain, config: config)
+                .filter { $0 != userURL }
+                .prefix(3)
+            guard candidates.count >= 2 else { return nil }
+
+            // Probe all candidates in parallel, collect successes.
+            let heights: [UInt64] = await withTaskGroup(of: UInt64?.self) { group in
+                for ref in candidates {
+                    group.addTask {
+                        if case .success(let h?) = await probe(chain: chain, url: ref) { return h }
+                        return nil
+                    }
+                }
+                var out: [UInt64] = []
+                for await h in group {
+                    if let h { out.append(h) }
+                }
+                return out
+            }
+            guard heights.count >= 2 else { return nil }
+            let sorted = heights.sorted()
+            let median = sorted[sorted.count / 2]
+            referenceCache[chain] = (median, Date())
+            referenceHeight = median
+        }
+
+        // Only warn if behind — being ahead (rare; reorg / faster node) is
+        // not actionable for the user.
+        guard userHeight < referenceHeight else { return nil }
+        let lag = referenceHeight - userHeight
+        guard lag >= threshold else { return nil }
+        return L10n.NodeStatus.blockLagWarning(Int(lag))
     }
 }
 

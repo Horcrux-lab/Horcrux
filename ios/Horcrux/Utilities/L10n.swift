@@ -1026,6 +1026,10 @@ enum L10n {
             String(format: NSLocalizedString("nodeStatus.chainMismatch", comment: ""), expected, actual)
         }
 
+        static func blockLagWarning(_ blocks: Int) -> String {
+            String(format: NSLocalizedString("nodeStatus.blockLagWarning", comment: ""), blocks)
+        }
+
         static func healthySummary(_ ok: Int, _ total: Int) -> String {
             String(format: NSLocalizedString("nodeStatus.healthySummary", comment: ""), ok, total)
         }

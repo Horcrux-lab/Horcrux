@@ -1236,6 +1236,15 @@ struct NodeStatusRow: View {
                     .foregroundStyle(HorcruxTheme.dangerRed)
                     .accessibilityLabel(warning)
                 }
+                if let lag = snap.lagWarning {
+                    HStack(spacing: 6) {
+                        Image(systemName: "clock.badge.exclamationmark")
+                            .font(.caption2)
+                        Text(lag).font(.caption2)
+                    }
+                    .foregroundStyle(HorcruxTheme.warningAmber)
+                    .accessibilityLabel(lag)
+                }
             }
         }
         .buttonStyle(.plain)

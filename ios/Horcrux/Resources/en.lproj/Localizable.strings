@@ -517,6 +517,7 @@
 "nodeStatus.networkMismatchExpectedMainnet" = "Node returned testnet, but you've selected mainnet";
 "nodeStatus.networkMismatchExpectedTestnet" = "Node returned mainnet, but you've selected testnet";
 "nodeStatus.chainMismatch" = "Network mismatch: expected %1$@, got %2$@";
+"nodeStatus.blockLagWarning" = "~%d blocks behind reference median";
 "nodeStatus.resetThisChain" = "Reset this chain";
 "nodeStatus.copyURL" = "Copy URL";
 
