@@ -956,6 +956,8 @@
 "refresh.explainer" = "在保持钱包地址不变的前提下，对两台设备的分片重新随机化。两台手机均需在线并已连接。";
 "refresh.idle" = "准备就绪。";
 "refresh.waitingPeer" = "等待另一台设备加入房间…";
+"refresh.waitingPeerHintTitle" = "另一台设备也需参与";
+"refresh.waitingPeerHintBody" = "请在持有同一分片的另一台设备上打开 Horcrux，并对同一分片点击「立即轮换」。轮换需要两台设备同时在线配合完成。";
 "refresh.runningRound" = "正在刷新分片… 第 %d / %d 轮";
 "refresh.persisting" = "正在安全保存新分片…";
 "refresh.complete" = "分片刷新完成，钱包地址保持不变。";

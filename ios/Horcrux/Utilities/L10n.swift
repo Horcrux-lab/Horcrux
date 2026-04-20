@@ -1318,6 +1318,8 @@ extension L10n {
         static let explainer = NSLocalizedString("refresh.explainer", comment: "")
         static let idle = NSLocalizedString("refresh.idle", comment: "")
         static let waitingPeer = NSLocalizedString("refresh.waitingPeer", comment: "")
+        static let waitingPeerHintTitle = NSLocalizedString("refresh.waitingPeerHintTitle", comment: "")
+        static let waitingPeerHintBody = NSLocalizedString("refresh.waitingPeerHintBody", comment: "")
         static func runningRound(_ done: Int, _ total: Int) -> String {
             String(format: NSLocalizedString("refresh.runningRound", comment: ""), done, total)
         }

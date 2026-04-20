@@ -955,6 +955,8 @@
 "refresh.explainer" = "Re-randomises both devices' shards while keeping your wallet address unchanged. Both phones must be online and connected.";
 "refresh.idle" = "Ready to begin.";
 "refresh.waitingPeer" = "Waiting for the other device to join the room…";
+"refresh.waitingPeerHintTitle" = "Need the other device too";
+"refresh.waitingPeerHintBody" = "Open Horcrux on your other shard device and tap Rotate on the same shard. Rotation runs cooperatively across both devices.";
 "refresh.runningRound" = "Refreshing shard… round %d / %d";
 "refresh.persisting" = "Saving the new shard securely…";
 "refresh.complete" = "Shard refreshed. Wallet address unchanged.";

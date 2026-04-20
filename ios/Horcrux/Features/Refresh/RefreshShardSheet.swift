@@ -9,6 +9,8 @@ struct RefreshShardSheet: View {
     @StateObject private var coord: RefreshShardCoordinator
 
     @State private var showPinPrompt = false
+    @State private var showLongWaitHint = false
+    @State private var waitStartedAt: Date?
 
     init(wallet: Wallet, appState: AppState) {
         self.wallet = wallet
@@ -92,8 +94,41 @@ struct RefreshShardSheet: View {
         case .idle:
             statusRow(icon: "lock.shield", text: L10n.Refresh.idle, tint: .secondary)
         case .waitingForPeer:
-            statusRow(icon: "antenna.radiowaves.left.and.right",
-                      text: L10n.Refresh.waitingPeer, tint: .yellow)
+            VStack(spacing: 12) {
+                statusRow(icon: "antenna.radiowaves.left.and.right",
+                          text: L10n.Refresh.waitingPeer, tint: .yellow)
+                if showLongWaitHint {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Label {
+                            Text(L10n.Refresh.waitingPeerHintTitle)
+                                .font(.footnote.weight(.semibold))
+                        } icon: {
+                            Image(systemName: "lightbulb.fill")
+                                .foregroundStyle(.yellow)
+                        }
+                        Text(L10n.Refresh.waitingPeerHintBody)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    .padding(12)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(RoundedRectangle(cornerRadius: 10).fill(Color.yellow.opacity(0.08)))
+                    .overlay(RoundedRectangle(cornerRadius: 10).stroke(Color.yellow.opacity(0.25), lineWidth: 1))
+                    .padding(.horizontal)
+                    .transition(.opacity.combined(with: .move(edge: .top)))
+                }
+            }
+            .task(id: String(describing: coord.phase)) {
+                // Surface an actionable hint if the wait exceeds ~10s so
+                // solo users understand rotation needs a second device that
+                // has also started the same flow.
+                showLongWaitHint = false
+                try? await Task.sleep(nanoseconds: 10_000_000_000)
+                if case .waitingForPeer = coord.phase {
+                    withAnimation { showLongWaitHint = true }
+                }
+            }
         case .running:
             VStack(spacing: 12) {
                 ProgressView(
