@@ -136,6 +136,19 @@ enum L10n {
             String(format: NSLocalizedString("walletHome.nodesUnreachable", comment: ""), chains)
         }
 
+        // Security health card
+        static let securityTitleSafe = NSLocalizedString("walletHome.security.title.safe", comment: "")
+        static let securityTitleAttention = NSLocalizedString("walletHome.security.title.attention", comment: "")
+        static let securityTitleRisk = NSLocalizedString("walletHome.security.title.risk", comment: "")
+        static let securityRotationRow = NSLocalizedString("walletHome.security.rotationRow", comment: "")
+        static let securityRotationNever = NSLocalizedString("walletHome.security.rotationNever", comment: "")
+        static func securityRotationAgo(_ days: Int) -> String {
+            String(format: NSLocalizedString("walletHome.security.rotationAgo", comment: ""), days)
+        }
+        static let securityBackupRow = NSLocalizedString("walletHome.security.backupRow", comment: "")
+        static let securityBackupOn = NSLocalizedString("walletHome.security.backupOn", comment: "")
+        static let securityBackupOff = NSLocalizedString("walletHome.security.backupOff", comment: "")
+
         static func networkWarning(_ chains: String) -> String {
             String(format: NSLocalizedString("walletHome.networkWarning", comment: ""), chains)
         }

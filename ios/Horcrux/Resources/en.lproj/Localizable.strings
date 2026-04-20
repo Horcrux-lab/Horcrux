@@ -69,6 +69,15 @@
 "walletHome.pendingBroadcasts" = "Pending Broadcasts";
 "walletHome.nodeUnreachable" = "%@ node unreachable";
 "walletHome.nodesUnreachable" = "%@ nodes unreachable";
+"walletHome.security.title.safe" = "Wallet safe";
+"walletHome.security.title.attention" = "Needs attention";
+"walletHome.security.title.risk" = "Action required";
+"walletHome.security.rotationRow" = "Last rotation";
+"walletHome.security.rotationNever" = "Never rotated";
+"walletHome.security.rotationAgo" = "%d days ago";
+"walletHome.security.backupRow" = "Biometric unlock";
+"walletHome.security.backupOn" = "Enabled";
+"walletHome.security.backupOff" = "Not set up";
 "walletHome.networkWarning" = "Network warning: %@ nodes are unreachable";
 "walletHome.loadingBalance" = "Loading balance";
 "walletHome.showMoreChains" = "Show %d more chains";

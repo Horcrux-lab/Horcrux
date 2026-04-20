@@ -69,6 +69,15 @@
 "walletHome.pendingBroadcasts" = "待广播交易";
 "walletHome.nodeUnreachable" = "%@ 节点不可达";
 "walletHome.nodesUnreachable" = "%@ 节点不可达";
+"walletHome.security.title.safe" = "钱包安全";
+"walletHome.security.title.attention" = "建议处理";
+"walletHome.security.title.risk" = "请立即处理";
+"walletHome.security.rotationRow" = "上次轮换";
+"walletHome.security.rotationNever" = "从未轮换";
+"walletHome.security.rotationAgo" = "%d 天前";
+"walletHome.security.backupRow" = "生物识别解锁";
+"walletHome.security.backupOn" = "已启用";
+"walletHome.security.backupOff" = "未设置";
 "walletHome.networkWarning" = "网络警告：%@ 节点不可达";
 "walletHome.loadingBalance" = "正在加载余额";
 "walletHome.showMoreChains" = "显示其他 %d 条链";
