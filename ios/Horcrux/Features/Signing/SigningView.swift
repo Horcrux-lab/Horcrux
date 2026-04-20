@@ -381,6 +381,9 @@ struct InviteSignersView: View {
     /// that appears after `waitHintThreshold` seconds.
     @State private var waitElapsed: TimeInterval = 0
     private let waitHintThreshold: TimeInterval = 30
+    /// Peer the user tapped the "x" button next to; bound to a confirm
+    /// dialog so a mis-tap doesn't silently evict a legitimate cosigner.
+    @State private var peerPendingKick: Peer?
 
     /// How many peers (excluding self) are needed to reach threshold.
     private var peersNeeded: Int { Int(viewModel.wallet.threshold) - 1 }
@@ -541,6 +544,15 @@ struct InviteSignersView: View {
                                     Spacer()
                                     Image(systemName: "checkmark.circle.fill")
                                         .foregroundStyle(HorcruxTheme.successGreen)
+                                    Button {
+                                        peerPendingKick = peer
+                                    } label: {
+                                        Image(systemName: "xmark.circle.fill")
+                                            .foregroundStyle(HorcruxTheme.subtleText)
+                                            .imageScale(.medium)
+                                    }
+                                    .buttonStyle(.plain)
+                                    .accessibilityLabel(L10n.Signing.removePeer)
                                 }
                                 .tintedGlassCard(color: chainTint)
                             }
@@ -625,6 +637,25 @@ struct InviteSignersView: View {
         }
         .onChange(of: viewModel.joinedSigners.count) { _, _ in
             waitElapsed = 0
+        }
+        .confirmationDialog(
+            L10n.Signing.removePeerConfirmTitle,
+            isPresented: Binding(
+                get: { peerPendingKick != nil },
+                set: { if !$0 { peerPendingKick = nil } }
+            ),
+            titleVisibility: .visible,
+            presenting: peerPendingKick
+        ) { peer in
+            Button(L10n.Signing.removePeer, role: .destructive) {
+                viewModel.kickPeer(peer)
+                peerPendingKick = nil
+            }
+            Button(L10n.Common.cancel, role: .cancel) {
+                peerPendingKick = nil
+            }
+        } message: { peer in
+            Text(L10n.Signing.removePeerConfirmBody(peer.name))
         }
     }
 }
@@ -1457,7 +1488,18 @@ private struct SigningTransportPicker: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            VaultSectionHeader(L10n.Signing.transportTitle, icon: "antenna.radiowaves.left.and.right")
+            HStack(spacing: 8) {
+                VaultSectionHeader(L10n.Signing.transportTitle, icon: "antenna.radiowaves.left.and.right")
+                Spacer()
+                Text(transportModeLabel)
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(HorcruxTheme.accentCyan)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 3)
+                    .background(
+                        Capsule().fill(HorcruxTheme.accentCyan.opacity(0.15))
+                    )
+            }
 
             transportToggle(
                 .relay,
@@ -1486,6 +1528,19 @@ private struct SigningTransportPicker: View {
                 .fill(Color.white.opacity(0.05))
                 .overlay(RoundedRectangle(cornerRadius: 14).stroke(HorcruxTheme.hairline, lineWidth: 1))
         )
+    }
+
+    /// Compact label summarising the current toggle state, shown in the
+    /// header as a pill. Makes "both on" (the recommended default) a
+    /// first-class, named mode instead of an untitled checkbox combo.
+    private var transportModeLabel: String {
+        let set = viewModel.selectedTransports
+        let hasRelay = set.contains(.relay)
+        let hasLAN = set.contains(.wifiLAN)
+        if hasRelay && hasLAN { return L10n.Signing.transportModeAuto }
+        if hasRelay { return L10n.Signing.transportModeRelayOnly }
+        if hasLAN { return L10n.Signing.transportModeLANOnly }
+        return L10n.Signing.transportAtLeastOne
     }
 
     @ViewBuilder

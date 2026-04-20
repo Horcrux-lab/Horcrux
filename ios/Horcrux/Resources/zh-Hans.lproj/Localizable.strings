@@ -268,6 +268,9 @@
 "signing.needMoreSigners" = "还需 %d 个签名者";
 "signing.waitingForCoSigners" = "等待共签方加入…";
 "signing.walletFingerprintLabel" = "钱包指纹：";
+"signing.removePeer" = "移除";
+"signing.removePeerConfirmTitle" = "移除这位签署方？";
+"signing.removePeerConfirmBody" = "%@ 将从当前签名仪式中移除。如需彻底阻止其再次加入，请额外点击「生成新码」。";
 "signing.roomCodeExpired" = "房间码已过期";
 "signing.roomCodeRegenerate" = "生成新码";
 "signing.roomCodeValidFor" = "有效期剩余 %@";
@@ -284,6 +287,9 @@
 "signing.transportLANTitle" = "同一 Wi-Fi";
 "signing.transportLANSubtitle" = "免中继、免房间码。只对同局域网内、已发现本机的共签方可见。";
 "signing.transportAtLeastOne" = "至少启用一种加入方式";
+"signing.transportModeAuto" = "自动（中继 + 局域网）";
+"signing.transportModeRelayOnly" = "仅中继（跨网络）";
+"signing.transportModeLANOnly" = "仅局域网（更私密）";
 "signing.signTransaction" = "签署交易";
 "signing.signHint" = "输入 PIN 并与共签方一起签署交易";
 "signing.enterPinDecrypt" = "输入 PIN 以解密分片";

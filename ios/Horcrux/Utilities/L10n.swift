@@ -593,6 +593,11 @@ enum L10n {
         static let inviteCoSigners = NSLocalizedString("signing.inviteCoSigners", comment: "")
         static let waitingForCoSigners = NSLocalizedString("signing.waitingForCoSigners", comment: "")
         static let walletFingerprintLabel = NSLocalizedString("signing.walletFingerprintLabel", comment: "")
+        static let removePeer = NSLocalizedString("signing.removePeer", comment: "")
+        static let removePeerConfirmTitle = NSLocalizedString("signing.removePeerConfirmTitle", comment: "")
+        static func removePeerConfirmBody(_ name: String) -> String {
+            String(format: NSLocalizedString("signing.removePeerConfirmBody", comment: ""), name)
+        }
         static let roomCodeExpired = NSLocalizedString("signing.roomCodeExpired", comment: "")
         static let roomCodeRegenerate = NSLocalizedString("signing.roomCodeRegenerate", comment: "")
         static func roomCodeValidFor(_ countdown: String) -> String {
@@ -611,6 +616,9 @@ enum L10n {
         static let transportLANTitle = NSLocalizedString("signing.transportLANTitle", comment: "")
         static let transportLANSubtitle = NSLocalizedString("signing.transportLANSubtitle", comment: "")
         static let transportAtLeastOne = NSLocalizedString("signing.transportAtLeastOne", comment: "")
+        static let transportModeAuto = NSLocalizedString("signing.transportModeAuto", comment: "")
+        static let transportModeRelayOnly = NSLocalizedString("signing.transportModeRelayOnly", comment: "")
+        static let transportModeLANOnly = NSLocalizedString("signing.transportModeLANOnly", comment: "")
         static let signTransaction = NSLocalizedString("signing.signTransaction", comment: "")
         static let signHint = NSLocalizedString("signing.signHint", comment: "")
         static let enterPinDecrypt = NSLocalizedString("signing.enterPinDecrypt", comment: "")

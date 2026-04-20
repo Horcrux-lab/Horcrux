@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.0-dev.92] - 2026-04-20
+
+### Added
+
+- **iOS (Signing)**: **踢人 + 传输模式标签**。
+  - 发起方 invite 界面的已加入 cosigner 行新增小号 `×` 移除按钮，点了会弹确认对话框（"%@ 将从本次签名中移除"），确认后 VM 把该 peer 丢进本地黑名单 `kickedPeerIds`，下一个 `connectedPeers` tick 立刻把人滤掉。和 dev.91 的 `regenerateRoomCode` 组合用：单次仪式内踢出用「移除」，想让同一个 peer 彻底进不来再叠一个「生成新码」（regenerate 会清空黑名单，因为"新码 = 新仪式 = 干净起点"）。注意这是单方面驱逐，被踢方仍在底层房间里（没有带签名的 kick 消息），所以 UI 文案上明确建议配合换码。
+  - 传输选择卡片标题行右侧多了个 pill，根据勾选状态显示 `自动（中继 + 局域网）` / `仅中继（跨网络）` / `仅局域网（更私密）`。给默认的"都开"配一个名字，用户一眼知道自己处在哪种模式，不用靠心算两个 checkbox。
+
 ## [0.3.0-dev.91] - 2026-04-20
 
 ### Added

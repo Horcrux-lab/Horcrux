@@ -110,6 +110,14 @@ final class SigningViewModel: ObservableObject {
 
     // Signing
     @Published var joinedSigners: [Peer] = []
+    /// Peer IDs the initiator has explicitly dismissed from this ceremony
+    /// (via the "remove" button on the joined-cosigners row). They stay
+    /// filtered out of `joinedSigners` as long as the current room code
+    /// is alive, so a removed peer can't silently rejoin just because
+    /// `peerManager.connectedPeers` still reports them. Cleared on
+    /// `regenerateRoomCode()` / room-code rotation (new ceremony = clean
+    /// slate).
+    private var kickedPeerIds: Set<String> = []
     /// Three-word room code shared with co-signers to join this MPC session.
     /// Generated lazily when user advances to the invite step. Also used
     /// verbatim as the MPC `sessionId` so every participant derives the same
@@ -340,9 +348,11 @@ final class SigningViewModel: ObservableObject {
         appState.peerManager.$connectedPeers
             .receive(on: DispatchQueue.main)
             .sink { [weak self] peers in
+                guard let self else { return }
                 var seen = Set<String>()
                 var unique: [Peer] = []
                 for peer in peers {
+                    if self.kickedPeerIds.contains(peer.id) { continue }
                     let base = peer.name.isEmpty ? peer.id : peer.name
                     let normalized = base
                         .replacingOccurrences(of: #"\s*\([^)]*\)\s*$"#,
@@ -354,7 +364,7 @@ final class SigningViewModel: ObservableObject {
                         unique.append(peer)
                     }
                 }
-                self?.joinedSigners = unique
+                self.joinedSigners = unique
             }
             .store(in: &cancellables)
     }
@@ -662,7 +672,26 @@ final class SigningViewModel: ObservableObject {
         roomJoined = false
         roomJoinError = nil
         peerPartyIndex.removeAll()
+        kickedPeerIds.removeAll()
         prepareInvite()
+    }
+
+    /// Remove a peer from the current ceremony. The peer is added to a
+    /// local blocklist so they don't pop back into `joinedSigners` on
+    /// the next `connectedPeers` tick; they can only re-participate by
+    /// the initiator rotating the room code (at which point the
+    /// blocklist is cleared — fresh ceremony, fresh slate).
+    ///
+    /// Note: this is a one-sided dismissal. The kicked peer is still
+    /// in the underlying relay/LAN room (we don't have an authenticated
+    /// kick message), so they might still see late broadcasts. That's
+    /// why we pair this with `regenerateRoomCode()` in the UI when the
+    /// user wants a harder reset — new code, old peer gone for real.
+    func kickPeer(_ peer: Peer) {
+        kickedPeerIds.insert(peer.id)
+        peerPartyIndex.removeValue(forKey: peer.id)
+        joinedSigners.removeAll { $0.id == peer.id }
+        SecureLog.info("[signing] kicked peer \(peer.id) from ceremony")
     }
 
     /// Called ~once per second by the invite view's ticker to surface
