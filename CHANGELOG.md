@@ -5,6 +5,46 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.0-dev.70] - 2026-04-20
+
+### Added
+
+- **iOS**: **RPC 设置页 P0/P1/P2/P3/P4/P5** 一揽子重做。
+  - P0: Ethereum & EVM 段把之前 6 个堆叠的 SecureField（Alchemy/Infura/Ankr/BlockPI/dRPC/NodeReal）收拢成 `PaidEVMProvider` 枚举 + 单 Picker + 绑定 SecureField + 单个 "Use X for <chain>" 按钮。换付费服务商只需拨菜单。
+  - P1: 点 Mainnet / Testnet 预设不再立即覆盖当前配置，弹 alert 预览 ETH/BTC/SOL 三条目标 URL，已生效的预设直接 no-op。
+  - P2: "Test All" 按钮从状态概览行移到导航栏右侧工具项，留给正文更多空间。
+  - P3: EVM 网络选择器（Mainnet/Polygon/Base…）合并到 "RPC 地址" 标签右侧内联 `.menu` Picker，取代独立 Form 行。
+  - P4: Import/Export 脚注从防御性措辞（"不包含 API 密钥"）改为正向价值 + 兜底说明（"可作为备份在多台设备之间迁移……API 密钥始终留在本机 Keychain"）。
+  - P5: Litecoin / Tron 只读段的 header 增加 `eye` 图标视觉提示。
+- **iOS**: **动态 DKG 时间估算**。新建 `DkgEstimate` 根据参与方 n + 曲线 + prime-pool 状态预测耗时；2-of-2 ≈ 10s，3-of-3 ≈ 18s，5-of-5 ≈ 45s。
+- **iOS**: **Polygon / Arbitrum One / Base** 升为一等链（第 8/9/10 条）。新增 Polygon/Arbitrum/Base 品牌 logo 资产。
+- **iOS**: **Rotate Shards** 功能：重命名为"Replace Device"，新增 `RefreshTracker` 记录上次轮换时间、`SecurityDetailView` 展示轮换卡，`RefreshShardSheet` 走 transport picker + room code 预协商。
+- **iOS**: **账户头像**：按账户（非钱包）分配 emoji + 渐变背景，多账户 UI 一眼区分。
+- **iOS**: `SecurityHealthCard` 作为钱包主页信息架构 P2/P3 的一部分落到 Shards tab；原位置 Wallet Home 改用 QuickActionsRow（Receive/Send/History）再回滚；当前方案：Shards tab 持有 SecurityHealthCard + push 到 `SecurityDetailView`。
+
+### Fixed
+
+- **iOS**: **DKG/Signing/Refresh 跨设备路由修复**（关键 bug）。relay room 是广播，所有参与方都会看到所有包；原来没过滤 `toParty` 就直接 feed 进 state machine，导致 n ≥ 3 时 CGGMP21 抛 "party N tried to overwrite message" 而崩。现在统一加 `msg.toParty != 0 && msg.toParty == myPartyIndex` 过滤。已 3 台模拟器端到端验证：DKG、Sign、Refresh 全通。
+- **iOS**: **Refresh 多方协调**系列修复：t==n 走非-VSS keygen、subscribe 先于 broadcast、按 payload 去重而非 (from,round,to) 元组、共享 session id、`allPeers` gate、surface cggmp21 inner error。
+- **iOS**: **DKG 进度条**：`currentRound` 改由 `msg.round`（协议真正的轮号）驱动，不再是 msgCount，修复了 n=3 时进度卡 90% 的显示异常。
+- **iOS**: **RPC 健康探测防抖**：`NodeHealthStore.refreshAll` 为每条链加 8 秒 cooldown，页面打开 `.task` 不再反复探测；工具栏刷新按钮 + 单行点击仍强制 bypass。
+- **iOS**: **FfiMpcMessage @unchecked Sendable** 消除 Swift 6 并发警告（POD 类型安全）。
+- **iOS**: **死代码清理**：`BlockchainService.swift` 里 3 处 unused let 绑定升级为真正的 `rpcError(code, message)` 透传。
+- **iOS**: `CreateShardFlow` 切换 Creator ↔ Joiner 时 roomCode 残留清空。
+- **iOS**: `ProgressRing` 仪式场景下数字被图标遮挡，新增 `showPercentage: Bool` 开关。
+- **iOS**: 钱包行 "BNB Smart Chain" + 24h% badge 不再换行。
+- **iOS**: `SecurityDetailView` 轮换行按 account 分组，不再按 chain 重复。
+- **iOS**: 默认 RPC 更换：Polygon/Sepolia 原公共节点已挂，换成 llama/Ankr 等新源。
+- **iOS**: 生物识别本地备份系列修复：SE-seal 在模拟器提前返回带清晰消息、SWK 未缓存时兜底 PIN sheet、失败时 surface underlying error。
+
+### Changed
+
+- **iOS**: **RPC 设置页功能矩阵**大幅扩展（跨 dev.60-dev.69 多个版本）：Infura/Ankr/BlockPI/dRPC/NodeReal 模板、chain-id 校验、provider badge、per-chain reset、JSON 导入/导出、Etherscan 密钥内联、inline latency sparkline、block-lag 多源中位数检测、可选 WebSocket endpoint + 探测。
+- **iOS**: **设备标签页**重排版：chain chips 去重（ETH/Polygon/Arbitrum/Base 合并为一个 EVM 快照）、卡片间距紧凑化。
+- **iOS**: **Settings 三波审计**（wave A/B/C）：vault 调色板统一、共享组件下沉、动态版本号、子屏 chain 段本地化。
+- **iOS**: **Room code 文案** 与 Lobby 卡片改进：非 Relay transport 下隐藏、首屏 CTA 清晰化。
+- **iOS**: **签名成功页**带 tx hash reveal 动画。
+
 ## [0.3.0-dev.59] - 2026-04-19
 
 ### Added

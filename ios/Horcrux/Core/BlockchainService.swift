@@ -532,7 +532,7 @@ actor BlockchainService {
         let code = (json["code"] as? String) ?? "UNKNOWN"
         let msgHex = (json["message"] as? String) ?? ""
         let msg = hexToUtf8(msgHex) ?? msgHex
-        throw BlockchainError.invalidResponse
+        throw BlockchainError.rpcError(code: 0, message: "\(code): \(msg)")
     }
 
     /// Poll `/wallet/gettransactionbyid` — returns true once the tx has
@@ -562,7 +562,7 @@ actor BlockchainService {
             throw BlockchainError.invalidResponse
         }
         if let err = json["Error"] as? String {
-            throw BlockchainError.invalidResponse
+            throw BlockchainError.rpcError(code: 0, message: err)
         }
         guard let txID = json["txID"] as? String,
               let rawDataHex = json["raw_data_hex"] as? String,

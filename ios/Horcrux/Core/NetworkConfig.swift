@@ -1092,8 +1092,15 @@ final class NodeHealthStore: ObservableObject {
     // MARK: Probes
 
     /// Probe a single chain; updates its snapshot in-place.
-    func refresh(chain: Chain, config: NetworkConfig = .shared) async {
+    /// `force=false` respects a short per-chain cool-down so rapid taps /
+    /// repeated page-open `task` blocks don't storm the endpoint.
+    func refresh(chain: Chain, config: NetworkConfig = .shared, force: Bool = true) async {
         var snap = snapshots[chain] ?? NodeHealthSnapshot()
+        if !force, let last = snap.lastCheckedAt,
+           Date().timeIntervalSince(last) < Self.probeCooldownSeconds,
+           snap.status != .checking {
+            return
+        }
         snap.status = .checking
         snap.mismatchWarning = nil
         snap.lagWarning = nil
@@ -1137,19 +1144,26 @@ final class NodeHealthStore: ObservableObject {
         snapshots[chain] = snap
     }
 
-    /// Probe every chain concurrently.
-    func refreshAll(config: NetworkConfig = .shared) async {
+    /// Probe every chain concurrently. Respects a per-chain cool-down so
+    /// opening the Settings page repeatedly doesn't spam the endpoints.
+    /// Pass `force=true` from the toolbar refresh button to bypass it.
+    func refreshAll(config: NetworkConfig = .shared, force: Bool = false) async {
         guard !refreshingAll else { return }
         refreshingAll = true
         await withTaskGroup(of: Void.self) { group in
             for chain in Chain.allCases {
                 group.addTask { [weak self] in
-                    await self?.refresh(chain: chain, config: config)
+                    await self?.refresh(chain: chain, config: config, force: force)
                 }
             }
         }
         refreshingAll = false
     }
+
+    /// How long after a probe before another `refreshAll` bothers the same
+    /// endpoint again. The toolbar button and row-tap still bypass this
+    /// by calling `refresh(chain:force:true)`.
+    private static let probeCooldownSeconds: TimeInterval = 8
 
     // MARK: Internals
 

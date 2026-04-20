@@ -1171,7 +1171,7 @@ struct BlockchainNodeSettingsView: View {
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
                 Button {
-                    Task { await health.refreshAll(config: config) }
+                    Task { await health.refreshAll(config: config, force: true) }
                 } label: {
                     if health.refreshingAll {
                         ProgressView().scaleEffect(0.8)

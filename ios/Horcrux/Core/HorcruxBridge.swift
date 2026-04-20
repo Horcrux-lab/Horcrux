@@ -147,3 +147,12 @@ final class HorcruxBridge: ObservableObject {
         horcruxKeccak256(data: data)
     }
 }
+
+// MARK: - Generated FFI type Sendable conformance
+//
+// `horcrux_core.swift` is produced by uniffi-bindgen and cannot carry
+// concurrency annotations directly. `FfiMpcMessage` is POD (UInt16,
+// UInt32, String, Data) — all fields are Sendable — so this retroactive
+// conformance is safe and silences Swift 6 warnings when the Rust
+// bridge's response values cross actor boundaries.
+extension FfiMpcMessage: @unchecked Sendable {}

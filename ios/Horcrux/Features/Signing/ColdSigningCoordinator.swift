@@ -18,17 +18,36 @@ import SwiftUI
 /// After QR4 each side has consumed all peer messages and
 /// `getSigningResult` yields the aggregated signature.
 ///
-/// Wire format — a packet is a single JSON encoded as base64 inside a
-/// QR code. Three packet kinds:
+/// **Extending to t-of-n (n ≥ 3) — design sketch, not yet implemented:**
 ///
-/// 1. **invite**: initiator → cosigner. Sets up the session (threshold,
-///    message hash, curve). Once scanned, both sides call `startSigning`
-///    with identical params so the MPC engines line up.
-/// 2. **round**: either side → other. Wraps a batch of `FfiMpcMessage`s
-///    produced by `handleMessage`. Both rounds (commitments, shares)
-///    ride the same shape.
-/// 3. **done**: cosigner → initiator optional ack. Not required because
-///    the initiator derives completion from `getSigningResult`.
+/// FROST signing for t parties with t ≥ 3 needs `t × (t-1)` directed
+/// messages per round (each party sends to each other party). Options
+/// for the QR flow:
+///
+/// A. **Star topology** (recommended for UX): initiator is hub.
+///    Every cosigner only talks to initiator; initiator forwards
+///    aggregated packets. Total QR ceremony length ≈ `2 × t × rounds`
+///    (initiator shows → cosigner scans → cosigner shows → initiator
+///    scans → repeat for next cosigner). For t=3 rounds=2 that's ≈ 12
+///    QR hops. `Phase` enum needs `(role, roundIndex, cosignerIndex)`
+///    tuple rather than the current 1-D state.
+///
+/// B. **Round-robin**: each cosigner talks to the next in sequence.
+///    Fewer QRs but more complex party mapping and error recovery is
+///    much harder (one bad scan breaks the chain).
+///
+/// C. **Payload-batching**: Each QR carries *all* of one party's
+///    round-N packets addressed to *all* peers at once. Initiator
+///    acts as dispatcher. Works well with existing `QRTransport`
+///    paging but requires `FfiMpcMessage.toParty` routing in the
+///    receive loop (same filter already used for DKG/relay — so
+///    the cryptographic plumbing is ready).
+///
+/// The Rust core already supports n-of-n and t-of-n signing; the
+/// blocker is purely the QR state machine and view layer, not the
+/// MPC backend. Implementation should live in a new
+/// `ColdSigningCoordinatorV2` alongside this file rather than
+/// rewriting this one, so existing 2-of-2 ceremonies stay stable.
 @MainActor
 final class ColdSigningCoordinator: ObservableObject {
 

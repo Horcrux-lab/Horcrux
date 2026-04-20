@@ -490,7 +490,15 @@ final class CreateShardViewModel: ObservableObject {
                 // so the user sees the right phase ("Paillier keys",
                 // "ZK proofs") while it's happening instead of the
                 // previous round's label.
-                currentRound = msgCount
+                //
+                // The protocol round is carried on the message itself
+                // (set by horcrux-core). `msgCount` stays as a pure
+                // local counter for logging and does not drive the UI
+                // progress anymore — see commit adding the msg.round
+                // pathway for why: for n≥3 parties the message count
+                // can reach 40+ while the protocol is still on round
+                // 3 of 9, which made the progress bar look stuck.
+                currentRound = max(1, Int(msg.round))
                 updateProgress()
                 updateDKGStatusMessage()
 
