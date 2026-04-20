@@ -146,6 +146,15 @@ final class RefreshShardCoordinator: ObservableObject {
         }
         defer { swkLocal.resetBytes(in: 0..<swkLocal.count) }
 
+        // Subscribe BEFORE anything else. AsyncStream does not replay
+        // messages that arrived before the subscription was registered,
+        // so if we start/broadcast first we'd miss the partner's
+        // initial round. (Side-effect: we still need a re-broadcaster
+        // below in case the partner subscribes after us.)
+        let (subId, stream) = peerManager.mpcMessageStream()
+        defer { peerManager.unsubscribeMpc(subId) }
+        NSLog("[Refresh] subscribed mpcStream, sid=\(sessionId ?? "nil")")
+
         // 1. Decrypt the existing shard.
         let plaintext: Data
         do {
@@ -156,6 +165,7 @@ final class RefreshShardCoordinator: ObservableObject {
                 swk: swkLocal
             )
         } catch {
+            NSLog("[Refresh] decrypt shard failed: \(error)")
             await MainActor.run { self.phase = .error("decrypt shard: \(error.localizedDescription)") }
             return
         }
@@ -176,26 +186,56 @@ final class RefreshShardCoordinator: ObservableObject {
                 config: config,
                 shardData: plaintextMut
             )
+            NSLog("[Refresh] startRefresh ok, initial messages=\(initialMessages.count)")
         } catch {
+            NSLog("[Refresh] startRefresh failed: \(error)")
             await MainActor.run { self.phase = .error("startRefresh: \(error.localizedDescription)") }
             return
         }
 
-        // 3. Run the round loop over the relay.
-        let (subId, stream) = peerManager.mpcMessageStream()
-        defer { peerManager.unsubscribeMpc(subId) }
-
-        do {
-            for msg in initialMessages {
-                let data = try JSONEncoder().encode(MpcMessageDTO(msg))
-                try await peerManager.broadcastMpcMessage(data)
+        // 3. Broadcast initial messages. Repeat a few times with
+        // backoff — the peer may have subscribed to mpcMessageStream
+        // after we sent (their stream does not buffer pre-subscription
+        // messages). Re-sends are deduped on the receiving side by
+        // (fromParty, round).
+        let rebroadcast = Task {
+            let encoded: [Data] = initialMessages.compactMap {
+                try? JSONEncoder().encode(MpcMessageDTO($0))
             }
+            for attempt in 0..<4 {
+                if Task.isCancelled { return }
+                for data in encoded {
+                    try? await peerManager.broadcastMpcMessage(data)
+                }
+                try? await Task.sleep(nanoseconds: UInt64(400 + attempt * 400) * 1_000_000)
+            }
+        }
+        defer { rebroadcast.cancel() }
 
+        // 4. Round loop.
+        var seenMessages: Set<String> = []
+        do {
             for await (_, data) in stream {
                 if Task.isCancelled { return }
-                let dto = try JSONDecoder().decode(MpcMessageDTO.self, from: data)
+                let dto: MpcMessageDTO
+                do {
+                    dto = try JSONDecoder().decode(MpcMessageDTO.self, from: data)
+                } catch {
+                    // Non-MPC traffic (e.g. RoomPresence from another
+                    // flow sharing the same transport) — ignore.
+                    continue
+                }
                 let inbound = dto.toFfi()
                 guard inbound.sessionId == sessionId else { continue }
+                let key = "\(inbound.fromParty)-\(inbound.round)-\(inbound.toParty)"
+                if seenMessages.contains(key) { continue }
+                seenMessages.insert(key)
+
+                // First real round message from the partner — we can
+                // stop spamming our initial broadcast.
+                rebroadcast.cancel()
+
+                NSLog("[Refresh] inbound from party=\(inbound.fromParty) round=\(inbound.round)")
                 let responses = try bridge.handleMessage(inbound)
                 await MainActor.run {
                     self.roundsCompleted = min(self.roundsCompleted + 1, self.approxTotalRounds)
@@ -205,11 +245,13 @@ final class RefreshShardCoordinator: ObservableObject {
                     try await peerManager.broadcastMpcMessage(rd)
                 }
                 if let result = bridge.getRefreshResult(sessionId: sessionId!) {
+                    NSLog("[Refresh] got refresh result, persisting")
                     await persist(result: result, deviceKey: deviceKey, swk: swkLocal, bridge: bridge, walletStore: walletStore)
                     return
                 }
             }
         } catch {
+            NSLog("[Refresh] round loop error: \(error)")
             await MainActor.run { self.phase = .error("refresh round: \(error.localizedDescription)") }
         }
     }
