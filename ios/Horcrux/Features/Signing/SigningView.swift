@@ -390,6 +390,13 @@ struct InviteSignersView: View {
         !thresholdMet && waitElapsed >= waitHintThreshold
     }
 
+    /// Format a seconds-remaining integer as `M:SS` for the countdown.
+    private func formatCountdown(_ secs: Int) -> String {
+        let m = secs / 60
+        let s = secs % 60
+        return String(format: "%d:%02d", m, s)
+    }
+
     var body: some View {
         let chainTint = viewModel.wallet.chain.color
         ZStack {
@@ -438,6 +445,40 @@ struct InviteSignersView: View {
                         VStack(alignment: .leading, spacing: 10) {
                             VaultSectionHeader(L10n.Signing.inviteCoSigners, icon: "qrcode")
                             SigningRoomCodeCard(code: viewModel.roomCode)
+                                .opacity(viewModel.roomCodeExpired ? 0.4 : 1)
+                            if viewModel.roomCodeExpired {
+                                HStack(spacing: 8) {
+                                    Image(systemName: "clock.badge.exclamationmark")
+                                        .foregroundStyle(HorcruxTheme.warningAmber)
+                                    Text(L10n.Signing.roomCodeExpired)
+                                        .font(.caption)
+                                        .foregroundStyle(HorcruxTheme.warningAmber)
+                                    Spacer()
+                                    Button(L10n.Signing.roomCodeRegenerate) {
+                                        viewModel.regenerateRoomCode()
+                                    }
+                                    .buttonStyle(.borderedProminent)
+                                    .controlSize(.small)
+                                }
+                            } else if let remaining = viewModel.roomCodeSecondsRemaining {
+                                HStack(spacing: 6) {
+                                    Image(systemName: "timer")
+                                        .font(.caption2)
+                                        .foregroundStyle(HorcruxTheme.subtleText)
+                                    Text(L10n.Signing.roomCodeValidFor(
+                                        formatCountdown(remaining)))
+                                        .font(.caption.monospacedDigit())
+                                        .foregroundStyle(HorcruxTheme.subtleText)
+                                    Spacer()
+                                    if remaining <= 60 {
+                                        Button(L10n.Signing.roomCodeRegenerate) {
+                                            viewModel.regenerateRoomCode()
+                                        }
+                                        .buttonStyle(.bordered)
+                                        .controlSize(.mini)
+                                    }
+                                }
+                            }
                             if let err = viewModel.roomJoinError {
                                 HStack(spacing: 8) {
                                     Image(systemName: "exclamationmark.triangle.fill")
@@ -569,11 +610,13 @@ struct InviteSignersView: View {
             }
             .presentationDetents([.medium, .large])
         }
-        // Drive the "still waiting?" timer. Resets as soon as anyone
-        // joins; only runs while in the invite step and under threshold.
+        // Drive the "still waiting?" timer + room-code expiry tick.
+        // Resets as soon as anyone joins; only runs while in the invite
+        // step and under threshold.
         .onReceive(
             Timer.publish(every: 1, on: .main, in: .common).autoconnect()
         ) { _ in
+            viewModel.tickRoomCodeExpiry()
             if thresholdMet {
                 waitElapsed = 0
             } else {

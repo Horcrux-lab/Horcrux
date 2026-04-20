@@ -593,6 +593,11 @@ enum L10n {
         static let inviteCoSigners = NSLocalizedString("signing.inviteCoSigners", comment: "")
         static let waitingForCoSigners = NSLocalizedString("signing.waitingForCoSigners", comment: "")
         static let walletFingerprintLabel = NSLocalizedString("signing.walletFingerprintLabel", comment: "")
+        static let roomCodeExpired = NSLocalizedString("signing.roomCodeExpired", comment: "")
+        static let roomCodeRegenerate = NSLocalizedString("signing.roomCodeRegenerate", comment: "")
+        static func roomCodeValidFor(_ countdown: String) -> String {
+            String(format: NSLocalizedString("signing.roomCodeValidFor", comment: ""), countdown)
+        }
         static let waitingTroubleshootTitle = NSLocalizedString("signing.waitingTroubleshootTitle", comment: "")
         static let waitingCheckCode = NSLocalizedString("signing.waitingCheckCode", comment: "")
         static let waitingCheckRelay = NSLocalizedString("signing.waitingCheckRelay", comment: "")

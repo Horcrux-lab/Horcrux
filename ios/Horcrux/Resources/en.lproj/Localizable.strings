@@ -268,6 +268,9 @@
 "signing.needMoreSigners" = "Need %d more signer(s)";
 "signing.waitingForCoSigners" = "Waiting for co-signers to join…";
 "signing.walletFingerprintLabel" = "Wallet fingerprint:";
+"signing.roomCodeExpired" = "Room code expired";
+"signing.roomCodeRegenerate" = "New code";
+"signing.roomCodeValidFor" = "Valid for %@";
 "signing.waitingTroubleshootTitle" = "Still no co-signer?";
 "signing.waitingCheckCode" = "Confirm the co-signer typed the same three words in the same order.";
 "signing.waitingCheckRelay" = "Both sides are on the \"Relay\" channel — the relay server must be reachable from both networks (corporate Wi-Fi / VPN can block it).";

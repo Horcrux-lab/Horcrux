@@ -126,6 +126,20 @@ final class SigningViewModel: ObservableObject {
     /// LAN keeps the entire ceremony off the relay (privacy mode), and
     /// picking only relay avoids broadcasting on the local network.
     @Published var selectedTransports: Set<TransportType> = [.relay, .wifiLAN]
+
+    /// When the current room code stops being advertised and the invite
+    /// stops accepting new joiners. Limits the window in which a leaked
+    /// code can be reused (e.g. photographed from a screen, pasted in
+    /// the wrong chat). `nil` before invite is prepared. Refreshed on
+    /// every `prepareInvite()` / `regenerateRoomCode()` call.
+    @Published var roomCodeExpiresAt: Date?
+    /// Driven by a 1 Hz timer in the invite view. `true` means the user
+    /// must tap "generate a new code" before anyone can join.
+    @Published var roomCodeExpired: Bool = false
+    /// How long a freshly-minted room code stays valid. 5 min keeps the
+    /// attack surface small without forcing users to re-negotiate during
+    /// a normal sign session.
+    static let roomCodeTTL: TimeInterval = 5 * 60
     @Published var signingProgress: Double = 0
     @Published var signingStatusMessage: String = ""
     @Published var currentRound: Int = 0
@@ -571,6 +585,13 @@ final class SigningViewModel: ObservableObject {
     func prepareInvite() {
         if roomCode.isEmpty {
             roomCode = RoomCode.generate()
+            roomCodeExpiresAt = Date().addingTimeInterval(Self.roomCodeTTL)
+            roomCodeExpired = false
+        } else if roomCodeExpiresAt == nil {
+            // Defensive: if we re-enter invite with an existing code
+            // and no timer, kick one off so it will eventually expire.
+            roomCodeExpiresAt = Date().addingTimeInterval(Self.roomCodeTTL)
+            roomCodeExpired = false
         }
         // MPC sessionId == roomCode regardless of transport — the bridge
         // keys its session state off this ID on every participant.
@@ -623,6 +644,51 @@ final class SigningViewModel: ObservableObject {
         roomJoined = false
         roomJoinError = nil
         prepareInvite()
+    }
+
+    /// Throw away the current room code and mint a fresh one. Called
+    /// when the TTL expires or the user manually requests a rotation.
+    /// We also clear any already-accumulated cosigners since they joined
+    /// against the old code and shouldn't be counted toward the new
+    /// ceremony; the announce beacon + a new `joinRelayRoom` kick off
+    /// discovery against the new code.
+    func regenerateRoomCode() {
+        announceTask?.cancel()
+        announceTask = nil
+        roomCode = RoomCode.generate()
+        sessionId = roomCode
+        roomCodeExpiresAt = Date().addingTimeInterval(Self.roomCodeTTL)
+        roomCodeExpired = false
+        roomJoined = false
+        roomJoinError = nil
+        peerPartyIndex.removeAll()
+        prepareInvite()
+    }
+
+    /// Called ~once per second by the invite view's ticker to surface
+    /// the "code expired" state. Cheap idempotent operation; we keep
+    /// the state-diff check so SwiftUI only re-renders when it flips.
+    func tickRoomCodeExpiry() {
+        guard step == .invite, let expires = roomCodeExpiresAt else { return }
+        let shouldExpire = Date() >= expires
+        if shouldExpire != roomCodeExpired {
+            roomCodeExpired = shouldExpire
+            if shouldExpire {
+                // Stop advertising the expired code; a new one will be
+                // minted via `regenerateRoomCode()` when the user taps
+                // the regenerate button.
+                announceTask?.cancel()
+                announceTask = nil
+            }
+        }
+    }
+
+    /// Seconds remaining on the current room code. Returns 0 once
+    /// expired so the UI can show "0:00" briefly before flipping to
+    /// the regenerate CTA. Nil before `prepareInvite` runs.
+    var roomCodeSecondsRemaining: Int? {
+        guard let expires = roomCodeExpiresAt else { return nil }
+        return max(0, Int(expires.timeIntervalSinceNow.rounded()))
     }
 
     /// Periodically broadcast a `SignRequestDTO` while still in the invite

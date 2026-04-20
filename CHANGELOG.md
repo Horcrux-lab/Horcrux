@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.0-dev.91] - 2026-04-20
+
+### Added
+
+- **iOS (Signing)**: **房间码 5 分钟 TTL + 倒计时 + 一键重生**。防止截屏里/消息记录里留下的旧房间码被人再次使用，也避免 invite 界面挂一晚上之后还照旧放人进来。新增行为：`prepareInvite` 设置 `roomCodeExpiresAt = now + 5min`；invite 卡片下方持续显示 "有效期剩余 4:32"（mono 倒计时），最后 60 秒起旁边出现小号 "生成新码" 按钮；到期后房间码置灰、announce beacon 立刻停、出现完整重生 CTA。`regenerateRoomCode()` 丢弃旧码、清 `peerPartyIndex`、重新 `joinRelayRoom`——已经按老码进来的 peer 被要求重新加入新码房间，避免"我以为都对齐但其实有人沿用旧码"混用问题。新 L10n 键：`signing.roomCodeExpired` / `roomCodeRegenerate` / `roomCodeValidFor` (zh-Hans + en)。
+
 ## [0.3.0-dev.90] - 2026-04-20
 
 ### Added
