@@ -78,9 +78,6 @@
 "walletHome.security.backupRow" = "Biometric unlock";
 "walletHome.security.backupOn" = "Enabled";
 "walletHome.security.backupOff" = "Not set up";
-"walletHome.quick.receive" = "Receive";
-"walletHome.quick.send" = "Send";
-"walletHome.quick.history" = "History";
 "walletHome.networkWarning" = "Network warning: %@ nodes are unreachable";
 "walletHome.loadingBalance" = "Loading balance";
 "walletHome.showMoreChains" = "Show %d more chains";

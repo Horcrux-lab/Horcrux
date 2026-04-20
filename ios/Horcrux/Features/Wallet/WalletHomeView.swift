@@ -24,18 +24,6 @@ struct WalletHomeView: View {
     @State private var rotationTarget: Wallet?
     @State private var rotationNudgeDismissedAt: Date?
     @State private var avatarEditTarget: AvatarEditTarget?
-    /// Quick-action entry points at the top of the home screen. Each state var
-    /// is driven by a top-level button; when multiple wallets are eligible we
-    /// first route through `quickActionPicker` to let the user pick one, then
-    /// set the appropriate target (which in turn presents the sheet).
-    @State private var sendWallet: Wallet?
-    @State private var historyWallet: Wallet?
-    @State private var quickActionPicker: QuickAction?
-
-    enum QuickAction: String, Identifiable {
-        case receive, send, history
-        var id: String { rawValue }
-    }
 
     private struct AvatarEditTarget: Identifiable {
         let id: String  // == accountId
@@ -106,22 +94,6 @@ struct WalletHomeView: View {
             .sheet(item: $receiveWallet) { wallet in
                 ReceiveView(wallet: wallet)
             }
-            .sheet(item: $sendWallet) { wallet in
-                NavigationStack { SigningView(wallet: wallet) }
-                    .environmentObject(appState)
-            }
-            .sheet(item: $historyWallet) { wallet in
-                NavigationStack { TransactionHistoryView(wallet: wallet) }
-                    .environmentObject(appState)
-            }
-            .sheet(item: $quickActionPicker) { action in
-                QuickActionWalletPicker(
-                    action: action,
-                    wallets: eligibleWallets(for: action)
-                ) { chosen in
-                    dispatchQuickAction(action, wallet: chosen)
-                }
-            }
             .sheet(item: $rotationTarget) { wallet in
                 RefreshShardSheet(wallet: wallet, appState: appState)
                     .environmentObject(appState)
@@ -187,117 +159,6 @@ struct WalletHomeView: View {
         let formatter = RelativeDateTimeFormatter()
         formatter.unitsStyle = .abbreviated
         return "Checked \(formatter.localizedString(for: date, relativeTo: Date()))"
-    }
-
-    // MARK: - Quick Actions
-
-    /// Wallets eligible for a given quick action. Receive/history accept any
-    /// non-hidden wallet; Send additionally requires signing support so users
-    /// don't land in SigningView for a read-only chain.
-    private func eligibleWallets(for action: QuickAction) -> [Wallet] {
-        let base = walletStore.wallets.filter { !$0.hidden }
-        switch action {
-        case .send:
-            return base.filter { $0.chain.signingSupported }
-        case .receive, .history:
-            return base
-        }
-    }
-
-    /// Called by every quick-action button. When exactly one wallet is
-    /// eligible, dispatch straight away; otherwise present the picker so the
-    /// user can choose between chains.
-    private func invokeQuickAction(_ action: QuickAction) {
-        let candidates = eligibleWallets(for: action)
-        guard !candidates.isEmpty else { return }
-        if candidates.count == 1 {
-            dispatchQuickAction(action, wallet: candidates[0])
-        } else {
-            quickActionPicker = action
-        }
-    }
-
-    private func dispatchQuickAction(_ action: QuickAction, wallet: Wallet) {
-        switch action {
-        case .receive: receiveWallet = wallet
-        case .send:    sendWallet = wallet
-        case .history: historyWallet = wallet
-        }
-    }
-
-    @ViewBuilder
-    private var quickActionsRow: some View {
-        let canSend = !eligibleWallets(for: .send).isEmpty
-        let hasAny = !walletStore.wallets.filter { !$0.hidden }.isEmpty
-        if hasAny {
-            HStack(spacing: 10) {
-                quickActionButton(
-                    icon: "qrcode",
-                    label: L10n.WalletHome.quickReceive,
-                    tint: HorcruxTheme.accentBlue,
-                    enabled: true,
-                    a11yId: "walletHome_quickReceive"
-                ) { invokeQuickAction(.receive) }
-
-                quickActionButton(
-                    icon: "arrow.up.right",
-                    label: L10n.WalletHome.quickSend,
-                    tint: HorcruxTheme.accentPurple,
-                    enabled: canSend,
-                    a11yId: "walletHome_quickSend"
-                ) { invokeQuickAction(.send) }
-
-                quickActionButton(
-                    icon: "clock.arrow.circlepath",
-                    label: L10n.WalletHome.quickHistory,
-                    tint: HorcruxTheme.accentCyan,
-                    enabled: true,
-                    a11yId: "walletHome_quickHistory"
-                ) { invokeQuickAction(.history) }
-            }
-        }
-    }
-
-    @ViewBuilder
-    private func quickActionButton(
-        icon: String,
-        label: String,
-        tint: Color,
-        enabled: Bool,
-        a11yId: String,
-        action: @escaping () -> Void
-    ) -> some View {
-        Button(action: action) {
-            VStack(spacing: 6) {
-                Image(systemName: icon)
-                    .font(.title3.weight(.semibold))
-                    .foregroundStyle(enabled ? tint : HorcruxTheme.subtleText)
-                    .frame(width: 36, height: 36)
-                    .background(
-                        Circle().fill(tint.opacity(enabled ? 0.18 : 0.06))
-                    )
-                    .overlay(
-                        Circle().stroke(tint.opacity(enabled ? 0.35 : 0.1), lineWidth: 1)
-                    )
-                Text(label)
-                    .font(.caption.weight(.medium))
-                    .foregroundStyle(enabled ? .white : HorcruxTheme.subtleText)
-            }
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 10)
-            .background(
-                RoundedRectangle(cornerRadius: 14)
-                    .fill(HorcruxTheme.cardSurface.opacity(0.4))
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 14)
-                    .stroke(HorcruxTheme.cardBorder.opacity(0.25), lineWidth: 1)
-            )
-        }
-        .buttonStyle(.plain)
-        .disabled(!enabled)
-        .accessibilityLabel(label)
-        .accessibilityIdentifier(a11yId)
     }
 
     /// First refreshable wallet (n-of-n CGGMP21 ECDSA) whose last rotation
@@ -569,16 +430,10 @@ struct WalletHomeView: View {
                 offlineBanner
                     .padding(.top, 4)
 
-                // Portfolio summary (IA: root → hero value → shortcuts → safety → list)
-                PortfolioSummaryCard(wallets: walletStore.wallets.filter { !$0.hidden })
-
-                // Quick actions — L2 shortcuts (Receive / Send / History) so
-                // the most common tasks don't require drilling into a specific
-                // wallet card first. Routed through an intermediate picker
-                // when more than one wallet is eligible.
-                quickActionsRow
-
                 securityHealthCard
+
+                // Portfolio summary (IA: root → chain → asset)
+                PortfolioSummaryCard(wallets: walletStore.wallets.filter { !$0.hidden })
 
                 // Pending broadcasts
                 if !appState.pendingBroadcastQueue.pending.isEmpty {
@@ -2113,90 +1968,5 @@ struct PortfolioBreakdownSheet: View {
         .tintedGlassCard(color: slice.chain.color, padding: 14)
         .accessibilityElement(children: .combine)
         .accessibilityLabel("\(slice.chain.displayName): \(Self.fiatFormatter.string(from: NSNumber(value: slice.usdValue)) ?? ""), \(String(format: "%.1f", pct * 100)) percent of portfolio")
-    }
-}
-
-// MARK: - Quick Action Wallet Picker
-
-/// Simple chain picker shown when a home-screen quick action (Receive /
-/// Send / History) has more than one eligible wallet. Dismisses on pick
-/// and hands the chosen wallet back via closure — the caller is then
-/// responsible for presenting the downstream sheet.
-struct QuickActionWalletPicker: View {
-    let action: WalletHomeView.QuickAction
-    let wallets: [Wallet]
-    let onPick: (Wallet) -> Void
-    @Environment(\.dismiss) private var dismiss
-    @ObservedObject private var balanceCache = BalanceCache.shared
-
-    private var title: String {
-        switch action {
-        case .receive: return L10n.WalletHome.quickReceive
-        case .send:    return L10n.WalletHome.quickSend
-        case .history: return L10n.WalletHome.quickHistory
-        }
-    }
-
-    var body: some View {
-        NavigationStack {
-            ZStack {
-                HorcruxTheme.backgroundGradient.ignoresSafeArea()
-                ScrollView {
-                    LazyVStack(spacing: 10) {
-                        ForEach(wallets) { wallet in
-                            Button {
-                                dismiss()
-                                // Defer the dispatch so the picker sheet has
-                                // fully dismissed before the next one tries to
-                                // present; otherwise SwiftUI drops the second
-                                // presentation on iOS 18.
-                                DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-                                    onPick(wallet)
-                                }
-                            } label: {
-                                HStack(spacing: 14) {
-                                    ChainIcon(chain: wallet.chain, size: 40)
-                                    VStack(alignment: .leading, spacing: 2) {
-                                        Text(wallet.chain.displayName)
-                                            .font(.subheadline.weight(.semibold))
-                                            .foregroundStyle(.white)
-                                        if let raw = balanceCache.cachedRaw(walletId: wallet.id) {
-                                            Text(raw)
-                                                .font(.caption.monospaced())
-                                                .foregroundStyle(HorcruxTheme.subtleText)
-                                        }
-                                    }
-                                    Spacer()
-                                    Image(systemName: "chevron.right")
-                                        .font(.caption.weight(.semibold))
-                                        .foregroundStyle(HorcruxTheme.subtleText)
-                                }
-                                .padding(14)
-                                .background(
-                                    RoundedRectangle(cornerRadius: 14)
-                                        .fill(HorcruxTheme.cardSurface.opacity(0.4))
-                                )
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: 14)
-                                        .stroke(HorcruxTheme.cardBorder.opacity(0.3), lineWidth: 1)
-                                )
-                            }
-                            .buttonStyle(.plain)
-                        }
-                    }
-                    .padding(.horizontal, 16)
-                    .padding(.top, 12)
-                }
-            }
-            .navigationTitle(title)
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button(L10n.Common.cancel) { dismiss() }
-                }
-            }
-            .toolbarColorScheme(.dark, for: .navigationBar)
-            .preferredColorScheme(.dark)
-        }
     }
 }
