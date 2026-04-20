@@ -29,6 +29,32 @@ enum L10n {
         static let collapse = NSLocalizedString("common.collapse", comment: "")
     }
 
+    // MARK: - JoinSigning
+
+    enum JoinSigning {
+        static let title = NSLocalizedString("joinSigning.title", comment: "")
+        static let intro = NSLocalizedString("joinSigning.intro", comment: "")
+        static let introHint = NSLocalizedString("joinSigning.introHint", comment: "")
+        static let joinButton = NSLocalizedString("joinSigning.joinButton", comment: "")
+        static let waitingForRequest = NSLocalizedString("joinSigning.waitingForRequest", comment: "")
+        static let waitingForRequestHint = NSLocalizedString("joinSigning.waitingForRequestHint", comment: "")
+        static let reviewTitle = NSLocalizedString("joinSigning.reviewTitle", comment: "")
+        static let wallet = NSLocalizedString("joinSigning.wallet", comment: "")
+        static let recipient = NSLocalizedString("joinSigning.recipient", comment: "")
+        static let amount = NSLocalizedString("joinSigning.amount", comment: "")
+        static let verifyWarning = NSLocalizedString("joinSigning.verifyWarning", comment: "")
+        static let approve = NSLocalizedString("joinSigning.approve", comment: "")
+        static let reject = NSLocalizedString("joinSigning.reject", comment: "")
+        static let unmatchedTitle = NSLocalizedString("joinSigning.unmatchedTitle", comment: "")
+        static let homeButton = NSLocalizedString("joinSigning.homeButton", comment: "")
+        static func fromDevice(_ name: String) -> String {
+            String(format: NSLocalizedString("joinSigning.fromDevice", comment: ""), name)
+        }
+        static func unmatchedBody(_ gpkPrefix: String) -> String {
+            String(format: NSLocalizedString("joinSigning.unmatchedBody", comment: ""), gpkPrefix)
+        }
+    }
+
     // MARK: - App
 
     enum App {

@@ -1063,3 +1063,21 @@
 "coldSignV2.intro" = "n devices take turns showing / scanning QR codes, entirely offline. Keep device order consistent; a dropped scan means restarting the ceremony.";
 "coldSignV2.showToPeer" = "Show to Device %1$@ · step %2$d";
 "coldSignV2.scanFromPeer" = "Scan Device %@'s QR";
+
+"joinSigning.title" = "Join Signing";
+"joinSigning.intro" = "Enter the room code shared by the initiator to join their MPC signing session.";
+"joinSigning.introHint" = "The room code is three English words shown on the initiator's invite screen.";
+"joinSigning.joinButton" = "Join Room";
+"joinSigning.waitingForRequest" = "Joined relay room";
+"joinSigning.waitingForRequestHint" = "Waiting for the initiator to broadcast transaction details…\nKeep this screen open.";
+"joinSigning.reviewTitle" = "Review Signing Request";
+"joinSigning.wallet" = "Wallet";
+"joinSigning.recipient" = "Recipient";
+"joinSigning.amount" = "Amount";
+"joinSigning.verifyWarning" = "⚠️ Verify amount and address out-of-band. No single party can sign alone, but once threshold is met the tx will broadcast.";
+"joinSigning.approve" = "Approve & Sign";
+"joinSigning.reject" = "Reject";
+"joinSigning.unmatchedTitle" = "No Matching Wallet";
+"joinSigning.unmatchedBody" = "This device has no MPC account matching the request (group key: %@). Check you're on the right device, or restore the account from backup first.";
+"joinSigning.fromDevice" = "From: %@";
+"joinSigning.homeButton" = "Join Signing";

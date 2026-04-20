@@ -12,6 +12,7 @@ struct WalletHomeView: View {
     @StateObject private var accountStore = AccountStore.shared
     @State private var showCreateShard = false
     @State private var showRestoreSheet = false
+    @State private var showJoinSigning = false
     @State private var networkReachable: [Chain: Bool] = [:]
     @State private var expandedGroups: Set<String> = []
     /// Account groups folded by the user (session-local). Collapsed state
@@ -83,9 +84,25 @@ struct WalletHomeView: View {
                     // the single source of truth (avoids 3x redundant CTAs).
                     EmptyView()
                 }
+                ToolbarItem(placement: .topBarLeading) {
+                    if !walletStore.wallets.isEmpty {
+                        Button {
+                            showJoinSigning = true
+                        } label: {
+                            Image(systemName: "person.badge.key.fill")
+                                .foregroundStyle(HorcruxTheme.accentCyan)
+                        }
+                        .accessibilityLabel(L10n.JoinSigning.homeButton)
+                        .accessibilityIdentifier("walletHome_joinSigningButton")
+                    }
+                }
             }
             .sheet(isPresented: $showCreateShard) {
                 CreateShardFlow()
+            }
+            .sheet(isPresented: $showJoinSigning) {
+                JoinSigningView()
+                    .environmentObject(appState)
             }
             .sheet(isPresented: $showRestoreSheet) {
                 AccountImportView(viewModel: ShardsViewModel())

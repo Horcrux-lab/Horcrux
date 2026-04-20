@@ -1064,3 +1064,21 @@
 "coldSignV2.intro" = "n 方轮流展示 / 扫描二维码，全程离线。请保持设备顺序一致，中途丢码需重开。";
 "coldSignV2.showToPeer" = "向设备 %1$@ 展示 · 第 %2$d 步";
 "coldSignV2.scanFromPeer" = "扫描设备 %@ 的二维码";
+
+"joinSigning.title" = "加入签名会话";
+"joinSigning.intro" = "输入发起方分享的房间码，加入本次 MPC 签名。";
+"joinSigning.introHint" = "房间码由三个英文单词组成，来自发起方的邀请页。";
+"joinSigning.joinButton" = "加入房间";
+"joinSigning.waitingForRequest" = "已加入中继房间";
+"joinSigning.waitingForRequestHint" = "正在等待发起方广播交易详情…\n请保持此页打开。";
+"joinSigning.reviewTitle" = "审阅签名请求";
+"joinSigning.wallet" = "钱包";
+"joinSigning.recipient" = "收款地址";
+"joinSigning.amount" = "金额";
+"joinSigning.verifyWarning" = "⚠️ 请线下核对金额与地址——任何一方都无法单独完成签名，但错误的交易一旦门限达成就会广播。";
+"joinSigning.approve" = "同意并开始签名";
+"joinSigning.reject" = "拒绝";
+"joinSigning.unmatchedTitle" = "没有匹配的钱包";
+"joinSigning.unmatchedBody" = "这台设备上没有与该签名请求对应的 MPC 账户（group key: %@）。请确认你在正确的设备上，或先从备份恢复该账户。";
+"joinSigning.fromDevice" = "来自：%@";
+"joinSigning.homeButton" = "加入签名";

@@ -5,6 +5,25 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.0-dev.78] - 2026-04-20
+
+### Added
+
+- **iOS**: **共签方加入签名会话**完整闭环（dev.77 只补了发起方；本版把 cosigner 那一侧也建好）。新增 `JoinSigningView`，入口在钱包首页顶栏左上角的 "person.badge.key.fill" 图标。流程：
+  1. 输入 / 粘贴发起方的三词房间码（复用 `RoomCode.normalize` + `.isValid`）；
+  2. 点 "加入房间" → `peerManager.joinRelayRoom(roomId:)` + 启动中继 discovery；
+  3. 监听发起方周期广播的 `SignRequestDTO`（magic `HSQ-v1`，携带 sessionId / groupPublicKey / chain / recipient / amount / token / feeDisplay / initiatorDeviceName），收到后匹配本地 `walletStore.wallets` 的 `groupPublicKey`；
+  4. 匹配成功 → 渲染审阅卡片（钱包 / 收款地址 / 金额 / 预估手续费 / 初始化设备名 + 线下核对警告）；
+  5. 点 "同意并开始签名" → 走 `PinUnlockSheet` → 用 cached SWK 初始化新的 `SigningViewModel` → `applySignRequest(dto)` 同步参数 → 直接进入 `.signing` 步骤并启动 MPC 轮次；
+  6. 匹配不上 → 显示 "没有匹配的钱包" + group key 前缀提示。
+- **iOS**: 发起方侧 `SigningViewModel.startAnnounceLoop()` — 进入 `.invite` 步骤后每 300ms 广播 6 次 `SignRequestDTO`（捕获同时加入的 cosigner），之后降到 2s 间隔；`.signing` 步骤进入后自动停止广播。载荷随 tx 信息实时变化（包含当前 feeDisplay），保证 cosigner 看到的和发起方一致。
+- **iOS**: L10n `JoinSigning.*` 中英双语（title / intro / joinButton / waitingForRequest / reviewTitle / wallet / recipient / amount / verifyWarning / approve / reject / unmatchedTitle / fromDevice / unmatchedBody / homeButton）。
+
+### Known limitations
+
+- `SigningViewModel.startSigning()` 里 `participants = [self.partyIndex] + joinedSigners.prefix(...).enumerated().map { offset + 1 }` 的计算仍用 offset 伪索引——只在发起方 `partyIndex == 1` 且两方钱包恰好拿到连续索引时巧合工作。正式多方（3-of-3、非连续 partyIndex）需要让 peer 在加入时把自己的 `partyIndex` 声明出来（拟在下一版 `RoomPresenceDTO` 扩展字段，或新增 `SignerManifestDTO`）。
+- cosigner 侧的 gas / nonce / 链 ID 等链特定参数目前由 cosigner 自己从本地 RPC 拿——如果 cosigner 与发起方的 RPC 节点 nonce 同步有差异（极少见），哈希会不一致导致签名失败。后续将把 initiator 侧构建好的 unsigned tx 原文直接塞进 `SignRequestDTO`。
+
 ## [0.3.0-dev.77] - 2026-04-20
 
 ### Added

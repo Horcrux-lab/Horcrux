@@ -1,5 +1,6 @@
 import Foundation
 import Combine
+import UIKit
 
 /// View model for threshold signing ceremony.
 @MainActor
@@ -152,6 +153,9 @@ final class SigningViewModel: ObservableObject {
     private var currentRecordId: String?
     private var cancellables = Set<AnyCancellable>()
     private var signingTask: Task<Void, Never>?
+    /// Periodic broadcast of `SignRequestDTO` while in the `.invite` step
+    /// so cosigners who join the relay room late still see the request.
+    private var announceTask: Task<Void, Never>?
     private var decodingFailures = 0
     private let maxDecodingFailures = 5
 
@@ -446,13 +450,17 @@ final class SigningViewModel: ObservableObject {
         // Join the relay room in the background so peers who enter the
         // same code can discover us. Bonjour/LAN peers are already
         // published via PeerManager observers regardless.
-        guard let peerManager, !roomJoined else { return }
+        guard let peerManager, !roomJoined else {
+            startAnnounceLoop()
+            return
+        }
         let code = roomCode
         Task { [weak self] in
             do {
                 try await peerManager.joinRelayRoom(roomId: code)
                 await MainActor.run {
                     self?.roomJoined = true
+                    self?.startAnnounceLoop()
                     SecureLog.info("[signing] joined relay room \(code)")
                 }
             } catch {
@@ -472,6 +480,66 @@ final class SigningViewModel: ObservableObject {
         prepareInvite()
     }
 
+    /// Periodically broadcast a `SignRequestDTO` while still in the invite
+    /// step so any cosigner who joins the relay room late sees the request
+    /// without needing a re-tap from the initiator. Stops automatically
+    /// once `step` advances past `.invite` or the VM is deallocated.
+    private func startAnnounceLoop() {
+        announceTask?.cancel()
+        guard let peerManager, !roomCode.isEmpty else { return }
+        let dto = buildSignRequestDTO()
+        guard let payload = try? JSONEncoder().encode(dto) else { return }
+        announceTask = Task { [weak self] in
+            // Rapid early beacon: first 6 broadcasts ~300ms apart to catch
+            // a cosigner joining right after the initiator, then slow to
+            // every 2s to limit relay traffic.
+            var interval: UInt64 = 300_000_000
+            var count = 0
+            while let self, !Task.isCancelled {
+                if await MainActor.run(body: { self.step != .invite }) { return }
+                try? await peerManager.broadcastMpcMessage(payload)
+                count += 1
+                if count >= 6 { interval = 2_000_000_000 }
+                try? await Task.sleep(nanoseconds: interval)
+            }
+        }
+    }
+
+    private func buildSignRequestDTO() -> SignRequestDTO {
+        let gpkHex = wallet.groupPublicKey.map { String(format: "%02x", $0) }.joined()
+        return SignRequestDTO(
+            sessionId: roomCode,
+            groupPublicKey: gpkHex,
+            chain: wallet.chain.rawValue,
+            recipient: recipientAddress,
+            amount: amount,
+            tokenContract: selectedToken?.id,
+            tokenSymbol: selectedToken?.symbol,
+            tokenDecimals: selectedToken.map { $0.decimals },
+            feeDisplay: estimatedFee == "—" ? nil : estimatedFee,
+            initiatorDeviceName: UIDevice.current.name
+        )
+    }
+
+    /// Populate this VM from a received `SignRequestDTO` so a cosigner's
+    /// local signing flow mirrors the initiator's exactly. The caller is
+    /// responsible for setting `roomCode` to match and pinning the wallet
+    /// (via the VM initializer) before invoking.
+    func applySignRequest(_ dto: SignRequestDTO) {
+        self.roomCode = dto.sessionId
+        self.sessionId = dto.sessionId
+        self.recipientAddress = dto.recipient
+        self.amount = dto.amount
+        // Token lookup: check built-in list first, then custom tokens.
+        if let contract = dto.tokenContract?.lowercased() {
+            let built = TokenList.tokens(for: wallet.chain)
+                .first { $0.id.lowercased() == contract }
+            let custom = customTokenStore?.effectiveTokens(for: wallet.chain)
+                .first { $0.id.lowercased() == contract }
+            self.selectedToken = built ?? custom
+        }
+    }
+
     func startSigning() {
         // Block on jailbroken devices
         if SecurityEnvironment.isCompromised {
@@ -486,6 +554,10 @@ final class SigningViewModel: ObservableObject {
         }
 
         step = .signing
+        // Stop the invite-step sign-request beacon now that signing begins;
+        // rebroadcasting it during signing would only add relay noise.
+        announceTask?.cancel()
+        announceTask = nil
         // sessionId was pinned by prepareInvite() to match roomCode so all
         // participants share the same MPC session. Fall back to a fresh
         // UUID only if someone bypassed prepareInvite (defensive).
