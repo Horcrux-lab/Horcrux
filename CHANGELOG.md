@@ -5,6 +5,47 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.0] - 2026-04-21
+
+First stable release of the Horcrux MPC wallet. Consolidates everything
+shipped across `dev.1`–`dev.101` since `0.2.0`: the full P0/P1/P3
+product roadmap, the 15-item Tier 1/2/3 product polish batch, and
+dozens of multi-device cosigning bug fixes.
+
+Detailed per-dev-build notes are preserved below this section.
+
+### Highlights
+
+- **Threshold MPC signing** — 2-of-3 default with CGGMP21 (secp256k1 ECDSA) + FROST (ed25519) across EVM / BTC / LTC / SOL / TRX.
+- **Key recovery** — import any valid shard → match `groupPublicKey` → restore the wallet from remaining co-signers.
+- **Built-in relay** — zero-config DKG / signing over `wss://relay.horcrux.app`; fully self-hostable via `horcrux-relay`.
+- **Multi-transport** — BLE / Wi-Fi Direct / Wi-Fi LAN / QR / Relay, all wrapped in Noise_XX E2E encryption.
+- **Multi-chain** — single shard set serves ETH/ERC-20 (USDT/USDC), BTC, LTC, SOL/SPL, TRX via per-curve derivation.
+- **Hardware-wallet co-signing** — pair a Ledger as one of the `n` parties.
+- **Cold-signing** — 2-of-2 fully air-gapped signing over animated QR fountain codes.
+- **Encrypted backup** — AES-256-GCM + Secure Enclave for at-rest shards; encrypted cloud / QR export for disaster recovery.
+- **BIP39 3-word room codes** — human-friendly DKG / signing session codes with scanner + paste entry + system share sheet (`horcrux://join?session=…` deep link).
+- **Transaction simulation** — decode ERC-20 transfers / calldata + gas preview before signing.
+- **Address book + ENS** — resolve `.eth` names; store frequent recipients; picker wired into send sheet.
+- **Portfolio UX** — fiat pricing (CoinGecko), sparklines, grouped multi-chain view, collapsible empty wallets, pending-broadcast queue with retry/discard.
+- **Hardened settings** — PIN-gated shard deletion, mandatory post-DKG backup gate, auto-lock, biometric unlock.
+- **Invite / co-sign flow** — PEP8-tier device identity, ID shortId tagging, presence opt-in gating (no ghost devices in invite list), auto-dismiss on completion, device-name aware last-signed-with shortcuts.
+
+### Breaking Changes
+
+- Relay URL setting moves from hardcoded default to a user-editable field in Settings (was: `ws://localhost:3210`; is now: `wss://relay.horcrux.app`). Existing installs inherit the default.
+- Shard encryption envelope revved (AES-GCM-256 + Secure-Enclave-sealed device key); re-enroll PIN on first launch.
+- Protocol v2 peer announce now carries `deviceName`; older peers are compatible but render as `iPhone` in the invite list.
+
+### Known Limitations
+
+- Official `wss://relay.horcrux.app` public deployment pending; `horcrux-relay` image in `Dockerfile` is production-ready, operators can self-host now.
+- CGGMP21 key_refresh is limited to 2-of-2 wallets in this release; N-of-M refresh is on the 0.3.x roadmap.
+- Cosigner UI treats the `lastError` on a pending broadcast as a red pill only; retry UX is on the 0.3.x roadmap.
+
+
+
+
 ## [0.3.0-dev.101] - 2026-04-21
 
 ### Added
@@ -24,6 +65,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **iOS (UI)**: **加速/丢弃弹窗点击无反应**。根因是 SwiftUI 嵌套 ObservableObject 观察丢失——`AppState.pendingBroadcastQueue` 的 `@Published` 变化不会冒泡到 `@EnvironmentObject appState` 的消费者。在 `AppState.init` 中补上 `pendingBroadcastQueue.objectWillChange → self.objectWillChange` 桥接（镜像原有的 walletStore bridge）。
 
 
+
+## [0.3.0-dev.100] - 2026-04-21
 
 ### Fixed
 
