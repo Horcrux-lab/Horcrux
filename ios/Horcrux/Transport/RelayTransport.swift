@@ -96,6 +96,12 @@ final class RelayTransport: NSObject, TransportChannel, ObservableObject {
     /// timeout. Safe to call when not connected — no-op in that case.
     /// Used when rotating the room code (see `SigningViewModel.regenerateRoomCode`).
     func leaveRoom() {
+        // If a join is still mid-flight, fail it synchronously so a
+        // following join doesn't inherit the stale continuation.
+        if let cont = openContinuation {
+            openContinuation = nil
+            cont.resume(throwing: TransportError.connectionFailed("room left"))
+        }
         webSocket?.cancel(with: .normalClosure, reason: nil)
         webSocket = nil
         isConnected = false
@@ -219,6 +225,11 @@ final class RelayTransport: NSObject, TransportChannel, ObservableObject {
 extension RelayTransport: URLSessionWebSocketDelegate {
     func urlSession(_ session: URLSession, webSocketTask: URLSessionWebSocketTask,
                     didOpenWithProtocol protocol: String?) {
+        // Ignore delegate callbacks for sockets we've already abandoned
+        // (e.g. the user left the room and immediately joined again —
+        // without this check the stale task's open/close events race
+        // with the fresh join and break it on first attempt).
+        guard webSocketTask === self.webSocket else { return }
         isConnected = true
         openContinuation?.resume()
         openContinuation = nil
@@ -226,12 +237,17 @@ extension RelayTransport: URLSessionWebSocketDelegate {
 
     func urlSession(_ session: URLSession, webSocketTask: URLSessionWebSocketTask,
                     didCloseWith closeCode: URLSessionWebSocketTask.CloseCode, reason: Data?) {
+        guard webSocketTask === self.webSocket else { return }
         isConnected = false
         discoveredPeers.removeAll()
     }
 
     func urlSession(_ session: URLSession, task: URLSessionTask,
                     didCompleteWithError error: Error?) {
+        // Same-task check as above: a cancelled prior task would
+        // otherwise resume the new join's continuation with its
+        // cancellation error.
+        guard task === self.webSocket else { return }
         if let error {
             openContinuation?.resume(throwing: error)
             openContinuation = nil
