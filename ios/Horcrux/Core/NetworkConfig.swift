@@ -966,7 +966,9 @@ enum RPCFallbacks {
         case .tron:
             return [
                 "https://api.trongrid.io",
-                "https://api.tronstack.io"
+                "https://api.tronstack.io",
+                "https://api.shasta.trongrid.io",
+                "https://nile.trongrid.io"
             ]
         default:
             return []

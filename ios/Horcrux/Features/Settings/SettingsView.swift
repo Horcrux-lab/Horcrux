@@ -1198,6 +1198,15 @@ struct BlockchainNodeSettingsView: View {
                         .autocorrectionDisabled()
                         .textInputAutocapitalization(.never)
                     RPCStatusStrip(urlString: config.tronAPI)
+                    RPCPresetChips(
+                        presets: [
+                            ("TronGrid", "https://api.trongrid.io"),
+                            ("TronStack", "https://api.tronstack.io"),
+                            ("Shasta", "https://api.shasta.trongrid.io"),
+                            ("Nile", "https://nile.trongrid.io")
+                        ],
+                        binding: $config.tronAPI
+                    )
                     Text(L10n.NodeSettings.signingUnsupportedNote)
                         .font(.caption2)
                         .foregroundStyle(.secondary)
@@ -1354,15 +1363,15 @@ struct RPCStatusStrip: View {
     }
 }
 
-/// Inline chip row for Esplora-compatible BTC/LTC presets. Each chip
-/// one-taps-swaps `binding` to a known-good Esplora REST endpoint. The
-/// currently active preset renders filled (green); the others render
-/// outlined so the user sees at a glance which one is in use.
+/// Inline chip row for one-tap switching between known-good REST/RPC
+/// endpoints. Each chip writes `binding` to its URL. The currently
+/// active preset renders filled green; the others render outlined so
+/// the user sees at a glance which one is in use.
 ///
-/// All presets are zero-code-change: they speak the same `/address`,
-/// `/tx`, `/blocks/tip/height` endpoints the app already uses. If a
-/// new Esplora mirror appears, add it here — no backend work required.
-struct EsploraPresetChips: View {
+/// Used for zero-code-change providers (Esplora for BTC/LTC, Tron
+/// Full-HTTP mirrors for TRX, etc.) — if a mirror speaks the same
+/// protocol as the default, it's just a one-line tuple addition.
+struct RPCPresetChips: View {
     let presets: [(label: String, url: String)]
     @Binding var binding: String
 
@@ -1387,6 +1396,9 @@ struct EsploraPresetChips: View {
         }
     }
 }
+
+/// Back-compat alias for the earlier, BTC/LTC-specific name.
+typealias EsploraPresetChips = RPCPresetChips
 
 struct URLValidationHint: View {
     let urlString: String
