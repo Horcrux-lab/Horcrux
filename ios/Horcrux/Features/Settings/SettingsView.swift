@@ -415,8 +415,9 @@ struct SettingsView: View {
             }
             .darkBackground()
             .navigationTitle(L10n.Settings.title)
-            .navigationBarTitleDisplayMode(.large)
+            .navigationBarTitleDisplayMode(.inline)
             .toolbarColorScheme(.dark, for: .navigationBar)
+            .toolbarBackground(.hidden, for: .navigationBar)
             .sheet(isPresented: $showChangePin) {
                 ChangePinView()
             }
