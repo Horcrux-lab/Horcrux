@@ -5,7 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.3.0-dev.99] - 2026-04-21
+## [0.3.0-dev.100] - 2026-04-21
+
+### Fixed
+
+- **iOS (Signing)**: **邀请列表"幽灵设备"修复**。`SigningViewModel.joinedSigners` 之前直接从 `connectedPeers` 派生，任何 LAN 邻居或上次房间遗留的 peer 都会显示为"已加入"。现在严格要求 peer 发过带 `partyIndex` 且 `sessionId == roomCode` 的 `SignPresenceDTO`（即对方点过"批准"）才入列，`regenerateRoomCode` / kick / 断连均即时刷新。
+- **iOS (Signing)**: **共签方进度环卡在 "第 0/4 轮"**。签名协议双方都完成后，`JoinSigningView` 的 `.signing(vm)` 之前不监听 `viewModel.step`，无法在 `.complete` 时自动关闭。新增 `JoinSigningProgressBridge` 包装层，成功后触发 haptic + 900ms 延迟自动 dismiss。
+- **iOS (Signing)**: **签名卡在 round 0**。发起方广播 `SignBeginDTO` 后 sleep 400ms 才订阅 `mpcStream`，共签方第一批 r=0 消息在此窗口内到达即被丢弃（log 显示 `yielding to 0 subscriber(s)`）。现将订阅移到 `signingTask` 顶部，DTO 广播前就已订阅。
+- **iOS (Signing)**: **gas 估算缺失时"下一步"按钮被锁死**，`estimateGas` revert 的交易无法进入手动 gas 逃生通道——取消对 `gasEstimate != nil` 的硬性依赖。
+- **iOS (Relay)**: **加入者退出房间后再进报错**。`JoinSigningView` dismiss 时未 `leaveRelayRoom`，且重进前没清理老 WebSocket delegate callback，导致陈旧回调污染新连接。现在 sheet dismiss + 重连前都主动 tear down。
+- **iOS (DKG)**: **跨房间 presence 串扰**，`RoomPresence` 监听没过滤 `roomCode`。
+- **iOS (UI)**: **"我的 ID" 胶囊与别人看到的 shortId 不一致**；`displayName` 现在一律附加 8 位 hex shortId；DeviceList 把 ID 行叠在角色标签之上。
+
 
 ### Changed
 
