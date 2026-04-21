@@ -1694,6 +1694,19 @@ private struct SigningRoomCodeCard: View {
                     .background(Circle().fill(Color.white.opacity(0.06)))
             }
             .accessibilityLabel(L10n.CreateShard.copyRoomCode)
+            ShareLink(
+                item: RoomCodeShareHelper.deepLink(for: code),
+                subject: Text(L10n.CreateShard.shareRoomSubject),
+                message: Text(L10n.CreateShard.shareRoomMessage(code)),
+                preview: RoomCodeShareHelper.preview(for: code)
+            ) {
+                Image(systemName: "square.and.arrow.up")
+                    .font(.body.weight(.semibold))
+                    .foregroundStyle(HorcruxTheme.accentCyan)
+                    .frame(width: 36, height: 36)
+                    .background(Circle().fill(Color.white.opacity(0.06)))
+            }
+            .accessibilityLabel(L10n.CreateShard.shareRoom)
             Button {
                 expanded = true
             } label: {
@@ -1712,7 +1725,7 @@ private struct SigningRoomCodeCard: View {
         )
         .sheet(isPresented: $expanded) {
             SigningRoomCodeExpandedSheet(code: code)
-                .presentationDetents([.medium])
+                .presentationDetents([.medium, .large])
         }
     }
 }
@@ -1771,6 +1784,16 @@ private struct SigningRoomCodeExpandedSheet: View {
             .navigationTitle(L10n.Signing.inviteCoSigners)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    ShareLink(
+                        item: RoomCodeShareHelper.deepLink(for: code),
+                        subject: Text(L10n.CreateShard.shareRoomSubject),
+                        message: Text(L10n.CreateShard.shareRoomMessage(code)),
+                        preview: RoomCodeShareHelper.preview(for: code)
+                    ) {
+                        Label(L10n.CreateShard.shareRoom, systemImage: "square.and.arrow.up")
+                    }
+                }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button(L10n.Common.done) { dismiss() }
                 }
