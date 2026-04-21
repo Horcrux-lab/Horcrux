@@ -413,6 +413,7 @@ final class SigningViewModel: ObservableObject {
             }
         }
         joinedSigners = unique
+        NSLog("[signing] rebuildJoinedSigners count=%d peerPartyIndex=%d connected=%d", unique.count, peerPartyIndex.count, peerManager.connectedPeers.count)
     }
 
     /// Estimate gas / fees before signing (called when user fills amount + address).
