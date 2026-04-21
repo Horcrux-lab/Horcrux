@@ -205,6 +205,19 @@ final class SigningViewModel: ObservableObject {
     /// losing the MPC race to a post-signing broadcast rejection.
     @Published var composeBlocker: String? = nil
 
+    /// True when the user has entered a positive custom gas price in gwei
+    /// (and the fee tier is `.custom`). Acts as an escape hatch when
+    /// `estimateGas` failed — e.g. sending an ERC-20 the wallet has zero
+    /// balance of, where the contract reverts with "invalid opcode" during
+    /// eth_estimateGas but the user still wants to sign (offline / manual
+    /// broadcast later). Used by `SigningView` to un-gate the Next button.
+    var hasCustomGasOverride: Bool {
+        guard feeTier == .custom else { return false }
+        let trimmed = customGasPriceGwei.trimmingCharacters(in: .whitespaces)
+        guard let v = Double(trimmed), v > 0 else { return false }
+        return true
+    }
+
     // Broadcast
     @Published var broadcastStatus: String?
     @Published var isBroadcasting = false

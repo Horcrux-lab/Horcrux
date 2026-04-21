@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.0-dev.97] - 2026-04-21
+
+### Fixed
+
+- **iOS (Signing)**: **`estimateGas` revert 时的"自定义 gas"逃生通道**。
+  - 现象：用 ERC-20（如 USDT）发起转账且发送方链上 token 余额为 0 时，`eth_estimateGas` 被合约 revert（日志里 `RPC error: invalid opcode: INVALID`），`composeBlocker = "无法估算手续费"` 触发"下一步：邀请共签方"按钮 disable；此时即使切 GAS→"自定义"手填 gwei，按钮依然点不动——完全无法进入邀请页，协同签名走不下去。
+  - 修复：新增 `SigningViewModel.hasCustomGasOverride`（`feeTier == .custom && customGasPriceGwei > 0`），`SigningView` 的"下一步"按钮 gate 条件改为 `composeBlocker != nil && !hasCustomGasOverride`——有手填 gas 时就放行。离线签名 / 先签后广播 / 合约 probe 余额为 0 这些场景都能继续往下走；无 override 时原行为不变。
+
 ## [0.3.0-dev.96] - 2026-04-21
 
 ### Added
