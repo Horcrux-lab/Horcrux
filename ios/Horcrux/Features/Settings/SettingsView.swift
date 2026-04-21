@@ -1175,6 +1175,20 @@ struct BlockchainNodeSettingsView: View {
                         .autocorrectionDisabled()
                         .textInputAutocapitalization(.never)
                     RPCStatusStrip(urlString: config.solanaRPC)
+                    if !keyBinding(for: selectedEVMProvider).wrappedValue.isEmpty,
+                       let solTmpl = selectedEVMProvider.solanaTemplate(mainnet: !config.solDevnet) {
+                        if config.solanaRPC == solTmpl {
+                            Label(L10n.NodeSettings.providerActiveFor(selectedEVMProvider.label, "Solana"),
+                                  systemImage: "checkmark.seal.fill")
+                                .font(.caption)
+                                .foregroundStyle(HorcruxTheme.successGreen)
+                        } else {
+                            Button(L10n.NodeSettings.applyProviderFor(selectedEVMProvider.label, "Solana")) {
+                                config.solanaRPC = solTmpl
+                            }
+                            .font(.caption)
+                        }
+                    }
                     if solanaSharesPaidKey {
                         Text(L10n.NodeSettings.sharedAcrossChains)
                             .font(.caption2)
