@@ -525,6 +525,7 @@
 "nodeSettings.useNodeRealFor" = "Use NodeReal for %@";
 "nodeSettings.paidProviderPicker" = "Paid provider";
 "nodeSettings.applyProviderFor" = "Use %1$@ for %2$@";
+"nodeSettings.providerActiveFor" = "%1$@ active for %2$@";
 "nodeSettings.providerUnsupportedOnChain" = "%1$@ doesn't support %2$@";
 "nodeSettings.etherscanKeySection" = "Etherscan API key";
 "nodeSettings.etherscanKeyLabel" = "Etherscan V2 multichain key (optional, stored in Keychain). Used for EVM transaction history sync on all chains.";

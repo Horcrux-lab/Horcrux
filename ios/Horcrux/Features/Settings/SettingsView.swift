@@ -912,6 +912,20 @@ struct BlockchainNodeSettingsView: View {
         }
     }
 
+    /// Auto-apply the current provider's RPC template to `config.ethereumRPC`
+    /// when the user has a key for that provider and a template exists for
+    /// the current chain. Avoids the common UX trap where users paste a key
+    /// but forget to tap "Use <Provider> for <Chain>" — broadcasts would
+    /// silently keep using the old free endpoint.
+    private func autoApplyProviderTemplate() {
+        let key = keyBinding(for: selectedEVMProvider).wrappedValue
+        guard !key.isEmpty,
+              let net = EVMNetwork(rawValue: config.evmChainId),
+              let tmpl = selectedEVMProvider.template(for: net),
+              config.ethereumRPC != tmpl else { return }
+        config.ethereumRPC = tmpl
+    }
+
     var body: some View {
         Form {
             Section {
@@ -992,20 +1006,36 @@ struct BlockchainNodeSettingsView: View {
                         .autocorrectionDisabled()
                         .textInputAutocapitalization(.never)
                         .accessibilityIdentifier("nodeSettings_paidKey_\(selectedEVMProvider.rawValue)")
+                        .onChange(of: keyBinding(for: selectedEVMProvider).wrappedValue) { _, _ in
+                            autoApplyProviderTemplate()
+                        }
 
                     if !keyBinding(for: selectedEVMProvider).wrappedValue.isEmpty,
                        let net = EVMNetwork(rawValue: config.evmChainId),
                        let tmpl = selectedEVMProvider.template(for: net) {
-                        Button(L10n.NodeSettings.applyProviderFor(selectedEVMProvider.label, net.displayName)) {
-                            config.ethereumRPC = tmpl
+                        if config.ethereumRPC == tmpl {
+                            Label(L10n.NodeSettings.providerActiveFor(selectedEVMProvider.label, net.displayName),
+                                  systemImage: "checkmark.seal.fill")
+                                .font(.caption)
+                                .foregroundStyle(HorcruxTheme.successGreen)
+                        } else {
+                            Button(L10n.NodeSettings.applyProviderFor(selectedEVMProvider.label, net.displayName)) {
+                                config.ethereumRPC = tmpl
+                            }
+                            .font(.caption)
                         }
-                        .font(.caption)
                     } else if let net = EVMNetwork(rawValue: config.evmChainId),
                               selectedEVMProvider.template(for: net) == nil {
                         Text(L10n.NodeSettings.providerUnsupportedOnChain(selectedEVMProvider.label, net.displayName))
                             .font(.caption2)
                             .foregroundStyle(.secondary)
                     }
+                }
+                .onChange(of: selectedEVMProvider) { _, _ in
+                    autoApplyProviderTemplate()
+                }
+                .onChange(of: config.evmChainId) { _, _ in
+                    autoApplyProviderTemplate()
                 }
 
                 VStack(alignment: .leading, spacing: 4) {

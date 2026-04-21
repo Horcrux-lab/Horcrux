@@ -1122,6 +1122,10 @@ enum L10n {
             String(format: NSLocalizedString("nodeSettings.applyProviderFor", comment: ""), provider, chain)
         }
 
+        static func providerActiveFor(_ provider: String, _ chain: String) -> String {
+            String(format: NSLocalizedString("nodeSettings.providerActiveFor", comment: ""), provider, chain)
+        }
+
         static func providerUnsupportedOnChain(_ provider: String, _ chain: String) -> String {
             String(format: NSLocalizedString("nodeSettings.providerUnsupportedOnChain", comment: ""), provider, chain)
         }
