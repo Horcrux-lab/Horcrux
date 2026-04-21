@@ -1164,7 +1164,7 @@ struct WalletDetailView: View {
                             }
                             .glassCard()
                         } else if tokenBalances.isEmpty {
-                            VaultEmptyState(icon: "circle.dashed", title: L10n.WalletDetail.noTokens, subtitle: L10n.WalletDetail.noTokensDescription, iconSize: 32)
+                            VaultEmptyState(icon: "circle.dashed", title: L10n.WalletDetail.noTokens, subtitle: L10n.WalletDetail.noTokensDescription(wallet.chain.tokenStandardName), iconSize: 32)
                                 .frame(maxWidth: .infinity)
                                 .glassCard()
                         } else {

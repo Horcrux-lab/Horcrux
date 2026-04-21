@@ -124,7 +124,7 @@
 "walletDetail.tokens" = "代币";
 "walletDetail.loadingTokens" = "正在加载代币…";
 "walletDetail.noTokens" = "未找到代币余额";
-"walletDetail.noTokensDescription" = "添加后，ERC-20 和 SPL 代币将显示在此处。";
+"walletDetail.noTokensDescription" = "添加后，%@ 代币将显示在此处。";
 "walletDetail.recentTransactions" = "最近交易";
 "walletDetail.viewAllHistory" = "查看全部历史";
 "walletDetail.transactions" = "交易";
@@ -1126,3 +1126,5 @@
 "joinSigning.scannedInvalid" = "扫描结果不是有效的房间码";
 "joinSigning.nearbyDevices" = "同一局域网内的设备";
 "joinSigning.nearbySearching" = "正在搜索附近设备…";
+
+"token.generic" = "代币";

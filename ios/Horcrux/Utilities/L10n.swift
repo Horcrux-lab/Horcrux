@@ -239,7 +239,9 @@ enum L10n {
         static let tokens = NSLocalizedString("walletDetail.tokens", comment: "")
         static let loadingTokens = NSLocalizedString("walletDetail.loadingTokens", comment: "")
         static let noTokens = NSLocalizedString("walletDetail.noTokens", comment: "")
-        static let noTokensDescription = NSLocalizedString("walletDetail.noTokensDescription", comment: "")
+        static func noTokensDescription(_ standard: String) -> String {
+            String(format: NSLocalizedString("walletDetail.noTokensDescription", comment: ""), standard)
+        }
         static let recentTransactions = NSLocalizedString("walletDetail.recentTransactions", comment: "")
         static let viewAllHistory = NSLocalizedString("walletDetail.viewAllHistory", comment: "")
         static let transactions = NSLocalizedString("walletDetail.transactions", comment: "")

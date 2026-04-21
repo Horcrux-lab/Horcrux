@@ -595,6 +595,18 @@ enum Chain: String, Codable, CaseIterable, Identifiable {
         }
     }
 
+    /// Display name of the fungible token standard native to this chain,
+    /// used in UI copy (e.g. empty states, labels). EVM → ERC-20, Solana →
+    /// SPL, Tron → TRC-20. UTXO chains fall back to the generic "Token".
+    var tokenStandardName: String {
+        if isEVM { return "ERC-20" }
+        switch self {
+        case .solana: return "SPL"
+        case .tron:   return "TRC-20"
+        default:      return NSLocalizedString("token.generic", comment: "")
+        }
+    }
+
     /// Default EVMNetwork mapping for non-Ethereum EVM chains. Returns the
     /// canonical mainnet network — Ethereum itself defers to NetworkConfig
     /// so users can pick mainnet vs Sepolia vs a custom chainId.

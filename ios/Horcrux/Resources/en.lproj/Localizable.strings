@@ -124,7 +124,7 @@
 "walletDetail.tokens" = "Tokens";
 "walletDetail.loadingTokens" = "Loading tokens…";
 "walletDetail.noTokens" = "No token balances found";
-"walletDetail.noTokensDescription" = "ERC-20 and SPL tokens will appear here once added.";
+"walletDetail.noTokensDescription" = "%@ tokens will appear here once added.";
 "walletDetail.recentTransactions" = "Recent Transactions";
 "walletDetail.viewAllHistory" = "View All History";
 "walletDetail.transactions" = "Transactions";
@@ -1125,3 +1125,5 @@
 "joinSigning.scannedInvalid" = "The scanned code is not a valid room code.";
 "joinSigning.nearbyDevices" = "Devices on this Wi-Fi";
 "joinSigning.nearbySearching" = "Searching nearby devices…";
+
+"token.generic" = "Token";
