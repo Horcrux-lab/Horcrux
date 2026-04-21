@@ -317,10 +317,10 @@ struct ComposeTransactionView: View {
                         .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(GradientButtonStyle(
-                    isEnabled: !(viewModel.recipientAddress.isEmpty || viewModel.amount.isEmpty || addressError != nil || (viewModel.composeBlocker != nil && !viewModel.hasCustomGasOverride)),
+                    isEnabled: !(viewModel.recipientAddress.isEmpty || viewModel.amount.isEmpty || addressError != nil),
                     tint: viewModel.wallet.chain.color
                 ))
-                .disabled(viewModel.recipientAddress.isEmpty || viewModel.amount.isEmpty || addressError != nil || (viewModel.composeBlocker != nil && !viewModel.hasCustomGasOverride))
+                .disabled(viewModel.recipientAddress.isEmpty || viewModel.amount.isEmpty || addressError != nil)
                 .accessibilityHint(L10n.Signing.inviteHint)
                 .accessibilityIdentifier("compose_nextButton")
             }
