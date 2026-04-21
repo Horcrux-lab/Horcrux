@@ -83,7 +83,7 @@ final class CreateShardViewModel: ObservableObject {
         if hasRelay, let relayId = peerManager?.relay.deviceId {
             return String(relayId.prefix(8))
         }
-        return UIDevice.current.name
+        return DeviceIdentity.displayName
     }
 
     func bind(to appState: AppState) {
@@ -166,7 +166,7 @@ final class CreateShardViewModel: ObservableObject {
                 if let pres = try? JSONDecoder().decode(RoomPresenceDTO.self, from: data),
                    pres.magic == RoomPresenceDTO.magic {
                     NSLog("[DKG]   → RoomPresence from \(pres.deviceName) role=\(pres.role)")
-                    if pres.deviceName != UIDevice.current.name {
+                    if pres.deviceName != DeviceIdentity.displayName {
                         self.roomPresence[pres.deviceName] = pres
                     }
                     continue
@@ -215,7 +215,7 @@ final class CreateShardViewModel: ObservableObject {
     private func broadcastPresence() async {
         guard let peerManager else { return }
         let beacon = RoomPresenceDTO(
-            deviceName: UIDevice.current.name,
+            deviceName: DeviceIdentity.displayName,
             role: role,
             proposedThreshold: role == .create ? threshold : nil,
             proposedTotalParties: role == .create ? totalParties : nil,
@@ -230,7 +230,7 @@ final class CreateShardViewModel: ObservableObject {
     /// transitions straight into DKG — no button press required.
     private func autoJoinFromBegin(_ begin: SessionBeginDTO) {
         guard step == .discover else { return }
-        guard let myIdx = begin.participantIds.firstIndex(of: UIDevice.current.name) else {
+        guard let myIdx = begin.participantIds.firstIndex(of: DeviceIdentity.displayName) else {
             NSLog("[DKG] SessionBegin ignored — I am not in the participant list \(begin.participantIds)")
             return
         }
@@ -254,7 +254,7 @@ final class CreateShardViewModel: ObservableObject {
         // Participant list: self + presences, sorted by deviceName,
         // trimmed to exactly `totalParties`.
         var names = Array(roomPresence.keys)
-        names.append(UIDevice.current.name)
+        names.append(DeviceIdentity.displayName)
         names = Array(Set(names)).sorted()
         guard names.count >= totalParties else {
             errorMessage = L10n.DKG.errNotEnoughPeers(totalParties, names.count)
@@ -262,7 +262,7 @@ final class CreateShardViewModel: ObservableObject {
             return
         }
         let participants = Array(names.prefix(totalParties))
-        guard let myIdx = participants.firstIndex(of: UIDevice.current.name) else {
+        guard let myIdx = participants.firstIndex(of: DeviceIdentity.displayName) else {
             errorMessage = L10n.DKG.errNotInParticipants
             step = .error
             return
@@ -382,7 +382,7 @@ final class CreateShardViewModel: ObservableObject {
     /// IMPORTANT: the identifiers used for sorting MUST live in the same
     /// namespace on both sides. Previously we used `peer.id` (a Bonjour
     /// service name with `\032` escapes on WiFi-LAN, a UUID on relay) but
-    /// compared it against `UIDevice.current.name` locally — causing both
+    /// compared it against `DeviceIdentity.displayName` locally — causing both
     /// devices to sort themselves to index 1 over WiFi-LAN.
     private func autoAssignPartyIndex() {
         let hasRelayPeer = foundPeers.contains { $0.channel == "relay" }
@@ -390,12 +390,12 @@ final class CreateShardViewModel: ObservableObject {
         let peerIdOf: (Peer) -> String
         if hasRelayPeer {
             // Relay namespace: both sides use the relay device UUID.
-            localId = peerManager?.relay.deviceId ?? UIDevice.current.name
+            localId = peerManager?.relay.deviceId ?? DeviceIdentity.displayName
             peerIdOf = { $0.id }
         } else {
             // WiFi-LAN namespace: use the Bonjour *display name* on both
-            // sides (matches UIDevice.current.name on the peer).
-            localId = UIDevice.current.name
+            // sides (matches DeviceIdentity.displayName on the peer).
+            localId = DeviceIdentity.displayName
             peerIdOf = { $0.name }
         }
 

@@ -4,21 +4,11 @@ import UIKit
 #endif
 
 /// Human-readable name for this device used in peer discovery control messages.
-/// Priority: user-set nickname in Settings → UIDevice.current.name → model.
+/// Delegates to the shared `DeviceIdentity.displayName` which produces a
+/// unique `{model}-{shortId}` or the user's Settings nickname — never a
+/// bare "iPhone" string that would collide between devices.
 private var localDeviceName: String {
-    if let nick = UserDefaults.standard.string(forKey: "deviceNickname"),
-       !nick.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-        return nick
-    }
-    #if canImport(UIKit)
-    let d = UIDevice.current
-    if !d.name.isEmpty, d.name != d.model {
-        return "\(d.name) (\(d.model))"
-    }
-    return d.model
-    #else
-    return "iOS Device"
-    #endif
+    DeviceIdentity.displayName
 }
 
 /// WebSocket transport to the horcrux-relay server for remote DKG and signing.

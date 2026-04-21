@@ -5,6 +5,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.0-dev.98] - 2026-04-21
+
+### Fixed
+
+- **iOS (多机协同)**: **设备列表不再显示成一串 "iPhone"**——修复 iOS 16+ 下 `UIDevice.current.name` 的隐私屏蔽导致的参与方身份碰撞。
+  - 现象：iOS 16 起，第三方应用读 `UIDevice.current.name` 一律得到通用字符串 `"iPhone"`（Apple 去个性化隐私改动）。Horcrux 之前把它直接当参与方标识用，导致两台真机或三台模拟器在 DKG / 协同签名中：
+    - 邀请页 / 已加入共签方 / 设备发现列表全是 `iPhone / iPhone / iPhone`，无法区分；
+    - presence 消息过滤 "排除自己" 时也过滤掉了别人；
+    - `participantIds.firstIndex(of: "iPhone")` 把两台设备都解析成 party 0，DKG 协议直接错位，后续 FROST 签名无法进行。
+  - 修复：新建 `Core/DeviceIdentity.swift`，集中封装：
+    - `stableId`：UUID，`UserDefaults` 持久化（key `com.horcrux.deviceId.v1`），首次读取时懒生成；App 重启不变，卸载后重置（模拟器 reinstall 视同新钱包，符合心智模型）。
+    - `shortId`：`stableId` 头 8 位 hex 大写，例如 `7F3A9B21`。
+    - `displayName`：优先取 Settings 里用户填的 `deviceNickname`；否则用 `"{UIDevice.model}-{shortId}"`（如 `iPhone-7F3A9B21`）——保证同机型两台设备始终可区分。
+  - 迁移 19 处 `UIDevice.current.name` 调用到 `DeviceIdentity.displayName`：`CreateShardViewModel`（participant 身份 + presence 过滤 + party 索引）、`SigningViewModel.initiatorDeviceName`、`JoinSigningView`（cosigner presence + SignRequestDTO）、`RelayTransport.localDeviceName`、`WiFiLANTransport.ownServiceName` / Bonjour 服务名、`SettingsView` 昵称输入框 placeholder。
+  - 用户可继续在"设置 → 设备昵称"里覆盖默认名；留空则恢复成 `iPhone-XXXXXXXX`。
+
 ## [0.3.0-dev.97] - 2026-04-21
 
 ### Fixed

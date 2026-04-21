@@ -309,7 +309,7 @@ struct SettingsView: View {
                                         .foregroundStyle(.white)
                                     Spacer()
                                 }
-                                VaultTextField(text: $deviceNickname, placeholder: UIDevice.current.name, monospaced: false)
+                                VaultTextField(text: $deviceNickname, placeholder: DeviceIdentity.displayName, monospaced: false)
                                     .accessibilityIdentifier("settings_deviceNicknameField")
                                 Text(L10n.SettingsResidual.deviceNicknameHint)
                                     .font(.caption2)

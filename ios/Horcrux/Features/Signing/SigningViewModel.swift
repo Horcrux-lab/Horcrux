@@ -863,7 +863,7 @@ final class SigningViewModel: ObservableObject {
             tokenSymbol: selectedToken?.symbol,
             tokenDecimals: selectedToken.map { $0.decimals },
             feeDisplay: estimatedFee == "—" ? nil : estimatedFee,
-            initiatorDeviceName: UIDevice.current.name
+            initiatorDeviceName: DeviceIdentity.displayName
         )
     }
 

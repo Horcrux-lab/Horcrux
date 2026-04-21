@@ -539,7 +539,7 @@ struct JoinSigningView: View {
     /// `allPeers` when `connectedPeers` is empty — so the packet reaches
     /// the initiator over whichever transport(s) we just joined.
     private func sendPresencePing(sessionId: String) async {
-        let name = UIDevice.current.name
+        let name = DeviceIdentity.displayName
         let dto = SignPresenceDTO(sessionId: sessionId, deviceName: name)
         guard let payload = try? JSONEncoder().encode(dto) else { return }
         try? await appState.peerManager.broadcastMpcMessage(payload)
@@ -605,7 +605,7 @@ struct JoinSigningView: View {
         // initiator would fall back to "smallest-unused-index" guessing
         // — fine for 2-of-2 but ambiguous for 3-of-N+.
         let sessionId = dto.sessionId
-        let name = UIDevice.current.name
+        let name = DeviceIdentity.displayName
         let partyIndex = wallet.partyIndex
         Task { [appState] in
             let confirm = SignPresenceDTO(

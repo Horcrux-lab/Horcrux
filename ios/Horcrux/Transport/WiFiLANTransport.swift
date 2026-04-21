@@ -18,8 +18,10 @@ final class WiFiLANTransport: NSObject, TransportChannel, ObservableObject {
     private var browser: NWBrowser?
     private var listener: NWListener?
     private var connections: [String: NWConnection] = [:]
-    /// Our own Bonjour service name, used to filter self-discovery
-    private let ownServiceName = UIDevice.current.name
+    /// Our own Bonjour service name, used to filter self-discovery.
+    /// Uses `DeviceIdentity.displayName` (unique per install) rather than
+    /// `UIDevice.current.name` which iOS 16+ returns as a generic "iPhone".
+    private let ownServiceName = DeviceIdentity.displayName
 
     private var messageContinuation: AsyncStream<TransportMessage>.Continuation?
     let incomingMessages: AsyncStream<TransportMessage>
@@ -172,7 +174,7 @@ final class WiFiLANTransport: NSObject, TransportChannel, ObservableObject {
 
             listener = try NWListener(using: params)
             listener?.service = NWListener.Service(
-                name: UIDevice.current.name,
+                name: DeviceIdentity.displayName,
                 type: Self.bonjourType
             )
 
@@ -202,7 +204,7 @@ final class WiFiLANTransport: NSObject, TransportChannel, ObservableObject {
             }
 
             listener?.start(queue: .main)
-            NSLog("[WiFi-LAN] Listener started, service name=\(UIDevice.current.name) type=\(Self.bonjourType)")
+            NSLog("[WiFi-LAN] Listener started, service name=\(DeviceIdentity.displayName) type=\(Self.bonjourType)")
         } catch {
             NSLog("[WiFi-LAN] Listener failed: \(error)")
         }
