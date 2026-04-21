@@ -932,6 +932,19 @@ final class SigningViewModel: ObservableObject {
                 guard let bridge, let peerManager, let deviceKey else {
                     throw SigningError.notInitialized
                 }
+                // Subscribe to the MPC stream BEFORE broadcasting SignBeginDTO
+                // or the 400ms handshake sleep. If we subscribe only after the
+                // sleep (old behavior), any cosigner that already completed its
+                // own `bridge.startSigning` and broadcast its round-0 messages
+                // finds 0 subscribers on our side and the packets are silently
+                // dropped — stalling the ceremony forever. AsyncStream buffers
+                // `.unbounded` by default, so early arrivals queue safely until
+                // `runSigningRounds` starts iterating.
+                let (mpcSubId, mpcStream) = peerManager.mpcMessageStream()
+                var mpcSubActive = true
+                defer {
+                    if mpcSubActive { peerManager.unsubscribeMpc(mpcSubId) }
+                }
                 guard var swk = signingShardKey, !swk.isEmpty else {
                     throw SigningError.notInitialized
                 }
@@ -1036,10 +1049,20 @@ final class SigningViewModel: ObservableObject {
                     shardData: shardData,
                     participants: participants
                 )
+                NSLog("[signing] startSigning me=%d participants=%@ initial=%d hash=%@",
+                      Int(myIndex),
+                      participants.map { String($0) }.joined(separator: ","),
+                      outgoing.count,
+                      messageHash.map { String(format: "%02x", $0) }.joined().prefix(16).description)
 
                 signingProgress = 0.2
 
-                await runSigningRounds(initialMessages: outgoing)
+                mpcSubActive = false
+                await runSigningRounds(
+                    initialMessages: outgoing,
+                    subId: mpcSubId,
+                    mpcStream: mpcStream
+                )
 
             } catch {
                 if !Task.isCancelled {
@@ -1080,10 +1103,13 @@ final class SigningViewModel: ObservableObject {
         }
     }
 
-    private func runSigningRounds(initialMessages: [FfiMpcMessage]) async {
+    private func runSigningRounds(
+        initialMessages: [FfiMpcMessage],
+        subId: UUID,
+        mpcStream: AsyncStream<(Peer, Data)>
+    ) async {
         guard let bridge, let peerManager else { return }
 
-        let (subId, mpcStream) = peerManager.mpcMessageStream()
         defer { peerManager.unsubscribeMpc(subId) }
 
         do {
