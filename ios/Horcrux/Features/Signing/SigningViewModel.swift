@@ -2267,6 +2267,34 @@ final class SigningViewModel: ObservableObject {
         return preTxBalance
     }
 
+    /// `true` when we have enough information to confidently say the native
+    /// balance cannot cover this transaction (amount + fee for native, or fee
+    /// alone for token transfers). Returns `false` when the balance/fee data
+    /// is still loading — we prefer a permissive gate there so the user can
+    /// retry rather than being stuck behind a stale "insufficient funds".
+    var hasInsufficientFunds: Bool {
+        // Parse "1.234 ETH" → 1.234; bail (permissive) if unavailable.
+        guard let raw = preTxBalance,
+              let balStr = raw.split(separator: " ").first,
+              let nativeBal = Double(String(balStr).replacingOccurrences(of: ",", with: ""))
+        else { return false }
+
+        // Parse "≈ 0.00012 ETH" → 0.00012. If no numeric fee yet, don't block.
+        var fee: Double = 0
+        for part in estimatedFee.split(separator: " ") {
+            if let v = Double(String(part)) { fee = v; break }
+        }
+        guard fee > 0 else { return false }
+
+        // Token transfer: gas is paid in native; value goes out of token.
+        if selectedToken != nil {
+            return nativeBal < fee
+        }
+        // Native transfer: need value + fee.
+        let value = Double(amount) ?? 0
+        return nativeBal < value + fee
+    }
+
     private static func formatAmountTrimmed(_ v: Double) -> String {
         if v == 0 { return "0" }
         let s = String(format: "%.8f", v)

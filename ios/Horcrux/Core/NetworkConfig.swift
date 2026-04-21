@@ -930,8 +930,7 @@ enum RPCFallbacks {
         case .mainnet:
             return [
                 "https://eth.llamarpc.com",
-                "https://ethereum.publicnode.com",
-                "https://rpc.ankr.com/eth"
+                "https://ethereum.publicnode.com"
             ]
         case .sepolia:
             return [

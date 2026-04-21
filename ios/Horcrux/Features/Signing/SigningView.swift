@@ -714,6 +714,16 @@ struct InviteSignersView: View {
                     }
 
                     if thresholdMet {
+                        if viewModel.hasInsufficientFunds {
+                            HStack(spacing: 8) {
+                                Image(systemName: "exclamationmark.triangle.fill")
+                                    .foregroundStyle(.orange)
+                                Text(L10n.Signing.insufficientBalance)
+                                    .font(.subheadline)
+                                    .foregroundStyle(HorcruxTheme.subtleText)
+                            }
+                            .padding(.vertical, 8)
+                        }
                         Button {
                             // Fast path: SWK is cached from the unlock session.
                             if let swk = appState.cachedShardKey() {
@@ -726,6 +736,7 @@ struct InviteSignersView: View {
                             Text(L10n.Signing.signTransaction)
                         }
                         .buttonStyle(GradientButtonStyle(tint: chainTint))
+                        .disabled(viewModel.hasInsufficientFunds)
                         .accessibilityHint(L10n.Signing.signHint)
                         .accessibilityIdentifier("invite_signButton")
                     }
