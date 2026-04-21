@@ -60,6 +60,14 @@ final class RelayTransport: NSObject, TransportChannel, ObservableObject {
     /// Join (or create) a relay room. Room code is shared out-of-band (QR, verbal).
     /// Connects to: `ws://{relayURL}/ws/{roomId}?device_id={deviceId}`
     func joinRoom(roomId: String, token: String? = nil) async throws {
+        // If a prior socket is still around (e.g. user dismissed the
+        // join sheet without an explicit leave), tear it down first.
+        // Otherwise the relay would see two connections for the same
+        // device_id and reject the fresh one, which is what caused
+        // "退出房间再进房间" to fail on the first try.
+        if webSocket != nil || openContinuation != nil {
+            leaveRoom()
+        }
         self.roomId = roomId
         seq = 0
 

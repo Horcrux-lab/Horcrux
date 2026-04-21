@@ -633,5 +633,8 @@ struct JoinSigningView: View {
         // Only the browsing part stops; an already-established LAN
         // connection stays alive for any in-progress ceremony.
         appState.peerManager.wifiLAN.stopDiscovery()
+        // Drop the relay room so we don't leak a second connection
+        // with the same device_id on the next join attempt.
+        appState.peerManager.leaveRelayRoom()
     }
 }
