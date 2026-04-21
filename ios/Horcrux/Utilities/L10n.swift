@@ -334,6 +334,10 @@ enum L10n {
         static let copyHash = NSLocalizedString("txDetail.copyHash", comment: "")
         static let copied = NSLocalizedString("txDetail.copied", comment: "")
         static let viewOnExplorer = NSLocalizedString("txDetail.viewOnExplorer", comment: "")
+        static let statusSigned = NSLocalizedString("txDetail.statusSigned", comment: "")
+        static let statusBroadcast = NSLocalizedString("txDetail.statusBroadcast", comment: "")
+        static let statusConfirmed = NSLocalizedString("txDetail.statusConfirmed", comment: "")
+        static let statusFailed = NSLocalizedString("txDetail.statusFailed", comment: "")
     }
 
     // MARK: - Create Shard

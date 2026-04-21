@@ -250,7 +250,7 @@ struct TransactionRow: View {
                             Text("→ " + ens)
                                 .foregroundStyle(HorcruxTheme.accentBlue)
                         } else {
-                            Text("→ " + shortAddress(transaction.toAddress))
+                            Text("→ " + shortAddress(AddressFormatter.canonical(transaction.toAddress, chain: transaction.chain)))
                                 .foregroundStyle(HorcruxTheme.subtleText)
                                 .monospaced()
                         }
@@ -339,10 +339,11 @@ struct TransactionDetailView: View {
                             Text(L10n.TxDetail.from)
                                 .font(.caption)
                                 .foregroundStyle(HorcruxTheme.subtleText)
-                            Text(transaction.fromAddress)
+                            Text(AddressFormatter.chunked(AddressFormatter.canonical(transaction.fromAddress, chain: transaction.chain)))
                                 .font(.system(.caption, design: .monospaced))
                                 .foregroundStyle(.white)
                                 .textSelection(.enabled)
+                                .accessibilityValue(transaction.fromAddress)
                         }
                         .padding(.vertical, 10)
                         Divider().background(HorcruxTheme.hairline)
@@ -351,10 +352,11 @@ struct TransactionDetailView: View {
                             Text(L10n.TxDetail.to)
                                 .font(.caption)
                                 .foregroundStyle(HorcruxTheme.subtleText)
-                            Text(transaction.toAddress)
+                            Text(AddressFormatter.chunked(AddressFormatter.canonical(transaction.toAddress, chain: transaction.chain)))
                                 .font(.system(.caption, design: .monospaced))
                                 .foregroundStyle(.white)
                                 .textSelection(.enabled)
+                                .accessibilityValue(transaction.toAddress)
                         }
                         .padding(.vertical, 10)
 
@@ -485,12 +487,21 @@ struct TransactionDetailView: View {
     }
 
     private var statusBadge: some View {
-        Text(transaction.status.rawValue.capitalized)
+        Text(statusLabel)
             .font(.caption.bold())
             .padding(.horizontal, 10)
             .padding(.vertical, 5)
             .background(detailStatusColor.opacity(0.15), in: Capsule())
             .foregroundStyle(detailStatusColor)
+    }
+
+    private var statusLabel: String {
+        switch transaction.status {
+        case .signed:    return L10n.TxDetail.statusSigned
+        case .broadcast: return L10n.TxDetail.statusBroadcast
+        case .confirmed: return L10n.TxDetail.statusConfirmed
+        case .failed:    return L10n.TxDetail.statusFailed
+        }
     }
 }
 

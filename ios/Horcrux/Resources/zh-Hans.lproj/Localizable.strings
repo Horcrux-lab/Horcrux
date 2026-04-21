@@ -176,6 +176,10 @@
 "txDetail.copyHash" = "复制哈希";
 "txDetail.copied" = "已复制";
 "txDetail.viewOnExplorer" = "在浏览器中查看";
+"txDetail.statusSigned" = "已签名";
+"txDetail.statusBroadcast" = "广播中";
+"txDetail.statusConfirmed" = "已确认";
+"txDetail.statusFailed" = "失败";
 
 /* Create Shard / DKG */
 "createShard.title" = "创建钱包";

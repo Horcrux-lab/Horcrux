@@ -176,6 +176,10 @@
 "txDetail.copyHash" = "Copy Hash";
 "txDetail.copied" = "Copied";
 "txDetail.viewOnExplorer" = "View on Explorer";
+"txDetail.statusSigned" = "Signed";
+"txDetail.statusBroadcast" = "Broadcasting";
+"txDetail.statusConfirmed" = "Confirmed";
+"txDetail.statusFailed" = "Failed";
 
 /* Create Shard / DKG */
 "createShard.title" = "Create Wallet";
