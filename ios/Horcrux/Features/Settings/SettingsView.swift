@@ -874,7 +874,7 @@ struct BlockchainNodeSettingsView: View {
     /// section only ever shows one SecureField at a time instead of the
     /// previous 6 stacked fields.
     enum PaidEVMProvider: String, CaseIterable, Identifiable {
-        case alchemy, infura, ankr, blockpi, drpc, nodeReal
+        case alchemy, infura, ankr, blockpi, drpc, nodeReal, getblock
 
         var id: String { rawValue }
 
@@ -886,6 +886,7 @@ struct BlockchainNodeSettingsView: View {
             case .blockpi: return "BlockPI"
             case .drpc: return "dRPC"
             case .nodeReal: return "NodeReal"
+            case .getblock: return "GetBlock"
             }
         }
 
@@ -897,6 +898,7 @@ struct BlockchainNodeSettingsView: View {
             case .blockpi: return RPCProviderTemplate.blockpi(evm: net)
             case .drpc: return RPCProviderTemplate.drpc(evm: net)
             case .nodeReal: return RPCProviderTemplate.nodeReal(evm: net)
+            case .getblock: return RPCProviderTemplate.getblock(evm: net)
             }
         }
 
@@ -909,6 +911,7 @@ struct BlockchainNodeSettingsView: View {
             case .alchemy: return RPCProviderTemplate.alchemySolana(mainnet: mainnet)
             case .infura: return RPCProviderTemplate.infuraSolana(mainnet: mainnet)
             case .ankr: return mainnet ? "https://rpc.ankr.com/solana/{KEY}" : nil
+            case .getblock: return RPCProviderTemplate.getblockSolana(mainnet: mainnet)
             case .blockpi, .drpc, .nodeReal: return nil
             }
         }
@@ -922,6 +925,7 @@ struct BlockchainNodeSettingsView: View {
         case .blockpi: return $config.blockpiAPIKey
         case .drpc: return $config.drpcAPIKey
         case .nodeReal: return $config.nodeRealAPIKey
+        case .getblock: return $config.getblockAPIKey
         }
     }
 

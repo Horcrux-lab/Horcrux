@@ -148,6 +148,18 @@ final class NetworkConfig: ObservableObject, @unchecked Sendable {
         }
     }
 
+    /// GetBlock access token. Tokens are bound to a single chain on their
+    /// dashboard, but the URL pattern is chain-agnostic
+    /// (`https://go.getblock.io/{TOKEN}/`), so the same field works for
+    /// EVM + BTC/LTC + Solana — the user just has to generate a separate
+    /// token per chain in their GetBlock account.
+    @Published var getblockAPIKey: String {
+        didSet {
+            saveKeychain(getblockAPIKey, forKey: Keys.getblockKey)
+            invalidateBalances()
+        }
+    }
+
     /// Optional WebSocket endpoint for the selected EVM chain. Paid
     /// providers (Alchemy, Infura, QuickNode) expose `wss://` alongside
     /// `https://`. We don't auto-subscribe — the field is manually
@@ -186,6 +198,7 @@ final class NetworkConfig: ObservableObject, @unchecked Sendable {
         self.blockpiAPIKey = Self.loadKeychainString(key: Keys.blockpiKey)
         self.drpcAPIKey = Self.loadKeychainString(key: Keys.drpcKey)
         self.nodeRealAPIKey = Self.loadKeychainString(key: Keys.nodeRealKey)
+        self.getblockAPIKey = Self.loadKeychainString(key: Keys.getblockKey)
         self.ethereumWSS = ud.string(forKey: Keys.ethereumWSS) ?? ""
         self.solanaWSS = ud.string(forKey: Keys.solanaWSS) ?? ""
     }
@@ -281,6 +294,8 @@ final class NetworkConfig: ObservableObject, @unchecked Sendable {
                 key = drpcAPIKey
             } else if host.contains("nodereal.io") {
                 key = nodeRealAPIKey
+            } else if host.contains("getblock.io") {
+                key = getblockAPIKey
             } else {
                 // Alchemy is the default EVM key slot; also covers bare
                 // template URLs that users haven't pointed at a specific
@@ -294,6 +309,7 @@ final class NetworkConfig: ObservableObject, @unchecked Sendable {
                 else if host.contains("alchemy.com") { key = alchemyAPIKey }
                 else if host.contains("ankr.com") { key = ankrAPIKey }
                 else if host.contains("drpc.org") { key = drpcAPIKey }
+                else if host.contains("getblock.io") { key = getblockAPIKey }
                 else { key = heliusAPIKey }
             default: key = ""
             }
@@ -649,6 +665,7 @@ private extension NetworkConfig {
         static let blockpiKey = "com.horcrux.rpc.blockpiAPIKey"
         static let drpcKey = "com.horcrux.rpc.drpcAPIKey"
         static let nodeRealKey = "com.horcrux.rpc.nodeRealAPIKey"
+        static let getblockKey = "com.horcrux.rpc.getblockAPIKey"
         static let ethereumWSS = "com.horcrux.rpc.ethereumWSS"
         static let solanaWSS = "com.horcrux.rpc.solanaWSS"
     }
@@ -752,6 +769,21 @@ enum RPCProviderTemplate {
     /// Ankr Premium Solana template.
     static func ankrSolana() -> String {
         "https://rpc.ankr.com/solana/{KEY}"
+    }
+
+    /// GetBlock EVM template. GetBlock's shared endpoint `go.getblock.io/{TOKEN}/`
+    /// is chain-agnostic — the token itself is bound to a chain on their
+    /// dashboard. Returns the same URL for every supported EVM chain;
+    /// returns `nil` for chains not offered by GetBlock (none in practice,
+    /// but kept for parity with other providers).
+    static func getblock(evm: EVMNetwork) -> String? {
+        "https://go.getblock.io/{KEY}/"
+    }
+
+    /// GetBlock Solana template. Same URL shape as EVM/BTC/LTC; the
+    /// access token the user pastes must be a Solana-scoped one.
+    static func getblockSolana(mainnet _: Bool) -> String {
+        "https://go.getblock.io/{KEY}/"
     }
 
     /// BlockPI EVM template. `{KEY}` is appended as the path suffix.
