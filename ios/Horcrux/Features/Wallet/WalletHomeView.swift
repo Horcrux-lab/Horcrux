@@ -83,25 +83,11 @@ struct WalletHomeView: View {
                     }
                 }
             }
-            .navigationTitle(L10n.WalletHome.title)
+            .navigationTitle("")
             .navigationBarTitleDisplayMode(.inline)
             .toolbarColorScheme(.dark, for: .navigationBar)
             .toolbarBackground(.hidden, for: .navigationBar)
             .toolbar {
-                ToolbarItem(placement: .principal) {
-                    // Subtle brand lockup replaces the lonely large title.
-                    // Keeps the PortfolioSummaryCard below as the visual hero
-                    // (see Rainbow / Zerion / Phantom for the same pattern).
-                    HStack(spacing: 6) {
-                        Image(systemName: "shield.lefthalf.filled")
-                            .font(.footnote.weight(.semibold))
-                            .foregroundStyle(HorcruxTheme.accentPurple)
-                        Text(L10n.WalletHome.title)
-                            .font(.subheadline.weight(.semibold))
-                            .foregroundStyle(.white.opacity(0.9))
-                    }
-                    .accessibilityAddTraits(.isHeader)
-                }
                 ToolbarItem(placement: .topBarLeading) {
                     if !walletStore.wallets.isEmpty {
                         Button {
