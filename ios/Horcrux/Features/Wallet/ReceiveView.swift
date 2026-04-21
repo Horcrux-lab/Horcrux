@@ -95,8 +95,9 @@ struct ReceiveView: View {
                     .background(RoundedRectangle(cornerRadius: 12).fill(HorcruxTheme.cardSurface))
                     .padding(.horizontal, 32)
 
-                    // Address
-                    Text(wallet.address)
+                    // Address — EIP-55 checksummed (EVM) + 4-char chunking so
+                    // long addresses don't word-wrap as an ugly single blob.
+                    Text(AddressFormatter.chunked(AddressFormatter.canonical(wallet.address, chain: wallet.chain)))
                         .font(.system(.caption, design: .monospaced))
                         .foregroundStyle(HorcruxTheme.subtleText)
                         .multilineTextAlignment(.center)
@@ -121,8 +122,15 @@ struct ReceiveView: View {
                     .accessibilityHint(L10n.Receive.copiesHint)
                     .accessibilityIdentifier("receive_copyButton")
 
-                    // Share button — shares payload (incl. requested amount) if set.
-                    ShareLink(item: qrPayload) {
+                    // Share button — shares payload (incl. requested amount) if set,
+                    // plus a rich preview (chain symbol + QR thumbnail) so the
+                    // share sheet target renders a recognizable card.
+                    ShareLink(
+                        item: qrPayload,
+                        subject: Text(L10n.Receive.receiveSymbol(wallet.chain.symbol)),
+                        message: Text(wallet.address),
+                        preview: sharePreview
+                    ) {
                         Label(L10n.Receive.shareAddress, systemImage: "square.and.arrow.up")
                             .frame(maxWidth: .infinity)
                             .font(.headline.weight(.semibold))
@@ -165,5 +173,18 @@ struct ReceiveView: View {
         let transformed = outputImage.transformed(by: CGAffineTransform(scaleX: scale, y: scale))
         guard let cgImage = context.createCGImage(transformed, from: transformed.extent) else { return nil }
         return UIImage(cgImage: cgImage)
+    }
+
+    /// Rich share-sheet preview: uses the rendered QR image as both the list
+    /// thumbnail and the large hero image so targets like Messages/Mail render
+    /// a recognizable "scan to pay" card instead of the raw URL string.
+    private var sharePreview: SharePreview<Image, Image> {
+        let title = L10n.Receive.receiveSymbol(wallet.chain.symbol)
+        if let qr = generateQRCode(from: qrPayload) {
+            let img = Image(uiImage: qr)
+            return SharePreview(title, image: img, icon: img)
+        }
+        let fallback = Image(systemName: "qrcode")
+        return SharePreview(title, image: fallback, icon: fallback)
     }
 }
