@@ -875,8 +875,30 @@ final class SigningViewModel: ObservableObject {
                 let activeSession = await MainActor.run { self.roomCode }
                 guard dto.sessionId == activeSession, !activeSession.isEmpty else { continue }
                 await MainActor.run {
-                    self.peerPartyIndex[peer.id] = idx
-                    SecureLog.info("[signing] presence: peer=\(peer.id.prefix(8)) party=\(idx)")
+                    // wifi-lan presents two peer identities for the same
+                    // remote device: an outbound `Peer(id: <bonjour-id>)`
+                    // used for sending, and an inbound stub
+                    // `Peer(id: "inbound-<endpoint>")` produced by the
+                    // listener's accept callback. Because PeerManager
+                    // filters `inbound-*` stubs out of `connectedPeers`
+                    // (they're receive-only), keying `peerPartyIndex`
+                    // under the inbound id means `rebuildJoinedSigners`
+                    // would never find a match and the cosigner would
+                    // stay invisible on the initiator's invite screen.
+                    // Resolve the canonical outbound peer by matching
+                    // the DTO's `deviceName` against `connectedPeers`.
+                    var keyId = peer.id
+                    if peer.id.hasPrefix("inbound-"),
+                       let pm = self.peerManager {
+                        if let match = pm.connectedPeers.first(where: {
+                            !$0.id.hasPrefix("inbound-") &&
+                            ($0.name == dto.deviceName || $0.id == dto.deviceName)
+                        }) {
+                            keyId = match.id
+                        }
+                    }
+                    self.peerPartyIndex[keyId] = idx
+                    SecureLog.info("[signing] presence: peer=\(keyId.prefix(12)) party=\(idx) (raw=\(peer.id.prefix(12)))")
                     // `joinedSigners` is derived from a snapshot of
                     // `connectedPeers ∩ peerPartyIndex`, and the
                     // `connectedPeers` publisher only fires on peer
@@ -932,8 +954,14 @@ final class SigningViewModel: ObservableObject {
         // to the same stream. The duplicates then raced on every
         // incoming FROST packet, each fed the same bytes into the
         // bridge, producing divergent state and broken signatures.
-        if let existing = signingTask, !existing.isCancelled {
-            NSLog("[signing] startSigning ignored — task already running")
+        // Idempotency guard: prevent a second signingTask from being
+        // spawned if the user double-taps "Sign" or a SwiftUI re-render
+        // re-invokes this path. We check `step` (observable state) rather
+        // than `signingTask.isCancelled` because a completed Task reports
+        // `isCancelled == false` forever, which would silently block any
+        // legitimate retry after an error.
+        if step == .signing {
+            NSLog("[signing] startSigning ignored — already in .signing phase")
             return
         }
         // Block on jailbroken devices
@@ -1183,6 +1211,14 @@ final class SigningViewModel: ObservableObject {
                     errorMessage = error.localizedDescription
                     step = .error
                 }
+            }
+            // Clear the task reference once the closure returns so the
+            // idempotency guard above (which now keys off `step`) is the
+            // sole authority on whether a fresh signingTask may spawn.
+            // Without this, a completed Task would linger in the property
+            // and confuse any future debugging that inspects it.
+            await MainActor.run { [weak self] in
+                self?.signingTask = nil
             }
         }
     }
