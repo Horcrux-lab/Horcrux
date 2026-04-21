@@ -1128,3 +1128,10 @@
 "joinSigning.nearbySearching" = "正在搜索附近设备…";
 
 "token.generic" = "代币";
+
+"vaultError.notProvisioned" = "本设备尚未设置本地备份。";
+"vaultError.randomFailed" = "无法生成安全随机数。";
+"vaultError.deriveFailed" = "无法派生加密密钥。";
+"vaultError.wrapFailed" = "无法加密备份。";
+"vaultError.biometricUnavailable" = "本设备不支持安全隔区（Secure Enclave）。";
+"vaultError.simulatorUnsupported" = "iOS 模拟器无法保存生物识别加密备份，请在真机上启用此功能。";

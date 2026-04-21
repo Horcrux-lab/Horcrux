@@ -1127,3 +1127,10 @@
 "joinSigning.nearbySearching" = "Searching nearby devices…";
 
 "token.generic" = "Token";
+
+"vaultError.notProvisioned" = "Local backup is not set up on this device yet.";
+"vaultError.randomFailed" = "Couldn't generate secure random data.";
+"vaultError.deriveFailed" = "Couldn't derive the encryption key.";
+"vaultError.wrapFailed" = "Couldn't encrypt the backup.";
+"vaultError.biometricUnavailable" = "This device doesn't have a Secure Enclave available.";
+"vaultError.simulatorUnsupported" = "The iOS Simulator can't store biometric-sealed backups. Build to a real device to enable this feature.";

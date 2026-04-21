@@ -224,12 +224,12 @@ enum SecureKeyVault {
 
         var errorDescription: String? {
             switch self {
-            case .notProvisioned:       return "SWK vault not provisioned"
-            case .randomFailed:         return "Failed to generate random key"
-            case .deriveFailed:         return "PBKDF2 key derivation failed"
-            case .wrapFailed:           return "AES-GCM wrap failed"
-            case .biometricUnavailable: return "Secure Enclave not available on this device"
-            case .simulatorUnsupported: return "iOS Simulator does not support Secure Enclave biometric sealing. Build to a real device to test biometric backup."
+            case .notProvisioned:       return NSLocalizedString("vaultError.notProvisioned", comment: "")
+            case .randomFailed:         return NSLocalizedString("vaultError.randomFailed", comment: "")
+            case .deriveFailed:         return NSLocalizedString("vaultError.deriveFailed", comment: "")
+            case .wrapFailed:           return NSLocalizedString("vaultError.wrapFailed", comment: "")
+            case .biometricUnavailable: return NSLocalizedString("vaultError.biometricUnavailable", comment: "")
+            case .simulatorUnsupported: return NSLocalizedString("vaultError.simulatorUnsupported", comment: "")
             }
         }
     }
