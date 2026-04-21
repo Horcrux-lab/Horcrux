@@ -768,6 +768,10 @@
 "createShard.roomCodeCopied" = "已复制";
 "createShard.pasteRoomCodeA11y" = "粘贴房间码";
 "createShard.roomCodeCreatorHint" = "房间码将在下一步邀请其他参与者时显示。";
+"createShard.shareRoom" = "分享";
+"createShard.shareRoomSubject" = "邀请加入 Horcrux 签名";
+"createShard.shareRoomMessage" = "房间码：%1$@\n点击加入：horcrux://join?session=%1$@";
+"createShard.shareRoomQR" = "分享二维码图片";
 "createShard.roomCodeInvalid" = "房间码应为 3 个用连字符分隔的单词";
 "createShard.scanRoomTitle" = "扫描房间码";
 "createShard.explainerNoMnemonicTitle" = "无助记词";

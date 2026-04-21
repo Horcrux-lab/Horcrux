@@ -411,6 +411,12 @@ enum L10n {
         static let roomCodeCopied = NSLocalizedString("createShard.roomCodeCopied", comment: "")
         static let pasteRoomCodeA11y = NSLocalizedString("createShard.pasteRoomCodeA11y", comment: "")
         static let roomCodeCreatorHint = NSLocalizedString("createShard.roomCodeCreatorHint", comment: "")
+        static let shareRoom = NSLocalizedString("createShard.shareRoom", comment: "")
+        static let shareRoomSubject = NSLocalizedString("createShard.shareRoomSubject", comment: "")
+        static func shareRoomMessage(_ code: String) -> String {
+            String(format: NSLocalizedString("createShard.shareRoomMessage", comment: ""), code)
+        }
+        static let shareRoomQR = NSLocalizedString("createShard.shareRoomQR", comment: "")
 
         // MPC explainer sheet
         static let explainerNoMnemonicTitle = NSLocalizedString("createShard.explainerNoMnemonicTitle", comment: "")

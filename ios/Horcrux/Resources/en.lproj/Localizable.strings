@@ -768,6 +768,10 @@
 "createShard.roomCodeCopied" = "Copied";
 "createShard.pasteRoomCodeA11y" = "Paste room code";
 "createShard.roomCodeCreatorHint" = "A fresh room code will be shown on the next step when you invite joiners.";
+"createShard.shareRoom" = "Share";
+"createShard.shareRoomSubject" = "Join my Horcrux signing session";
+"createShard.shareRoomMessage" = "Room code: %1$@\nTap to join: horcrux://join?session=%1$@";
+"createShard.shareRoomQR" = "Share QR image";
 "createShard.roomCodeInvalid" = "Room code should be 3 words separated by hyphens";
 "createShard.scanRoomTitle" = "Scan room code";
 "createShard.explainerNoMnemonicTitle" = "No seed phrase";

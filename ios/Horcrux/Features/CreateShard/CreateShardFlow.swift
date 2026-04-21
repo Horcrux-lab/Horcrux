@@ -737,6 +737,20 @@ private struct RoomCodeShareCard: View {
                 }
                 .accessibilityLabel(L10n.CreateShard.copyRoomCode)
 
+                ShareLink(
+                    item: RoomCodeShareHelper.deepLink(for: code),
+                    subject: Text(L10n.CreateShard.shareRoomSubject),
+                    message: Text(L10n.CreateShard.shareRoomMessage(code)),
+                    preview: RoomCodeShareHelper.preview(for: code)
+                ) {
+                    Image(systemName: "square.and.arrow.up")
+                        .font(.body.weight(.semibold))
+                        .foregroundStyle(HorcruxTheme.accentCyan)
+                        .frame(width: 36, height: 36)
+                        .background(Circle().fill(Color.white.opacity(0.06)))
+                }
+                .accessibilityLabel(L10n.CreateShard.shareRoom)
+
                 Button {
                     expanded = true
                 } label: {
@@ -790,6 +804,25 @@ private struct RoomCodeExpandedSheet: View {
                         .foregroundStyle(.tertiary)
                         .multilineTextAlignment(.center)
                         .padding(.horizontal)
+
+                    ShareLink(
+                        item: RoomCodeShareHelper.deepLink(for: code),
+                        subject: Text(L10n.CreateShard.shareRoomSubject),
+                        message: Text(L10n.CreateShard.shareRoomMessage(code)),
+                        preview: RoomCodeShareHelper.preview(for: code)
+                    ) {
+                        Label(L10n.CreateShard.shareRoom, systemImage: "square.and.arrow.up")
+                            .font(.body.weight(.semibold))
+                            .foregroundStyle(.white)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 12)
+                            .background(
+                                RoundedRectangle(cornerRadius: 12)
+                                    .fill(HorcruxTheme.accentCyan)
+                            )
+                    }
+                    .padding(.horizontal)
+                    .padding(.top, 4)
                 }
                 .padding()
             }
@@ -800,6 +833,39 @@ private struct RoomCodeExpandedSheet: View {
                 }
             }
         }
+    }
+}
+
+/// Shared helpers for exposing a room code via the iOS share sheet.
+///
+/// Encapsulates the `horcrux://join?session=CODE` deep link and a share-sheet
+/// preview image (rendered QR) so both the compact card and the expanded
+/// sheet can offer the same ShareLink payload.
+enum RoomCodeShareHelper {
+    static func deepLink(for code: String) -> URL {
+        // Deep link is the primary share payload — tapping it on the
+        // recipient's device opens Horcrux directly to the join flow.
+        let encoded = code.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? code
+        return URL(string: "horcrux://join?session=\(encoded)") ?? URL(string: "horcrux://join")!
+    }
+
+    static func preview(for code: String) -> SharePreview<Image, Image> {
+        if let qr = renderQR(code: code) {
+            let img = Image(uiImage: qr)
+            return SharePreview(code, image: img, icon: img)
+        }
+        let fallback = Image(systemName: "qrcode")
+        return SharePreview(code, image: fallback, icon: fallback)
+    }
+
+    private static func renderQR(code: String) -> UIImage? {
+        let data = Data("horcrux-room:\(code)".utf8)
+        guard let filter = CIFilter(name: "CIQRCodeGenerator") else { return nil }
+        filter.setValue(data, forKey: "inputMessage")
+        filter.setValue("M", forKey: "inputCorrectionLevel")
+        guard let ci = filter.outputImage?.transformed(by: CGAffineTransform(scaleX: 10, y: 10)),
+              let cg = CIContext().createCGImage(ci, from: ci.extent) else { return nil }
+        return UIImage(cgImage: cg)
     }
 }
 
