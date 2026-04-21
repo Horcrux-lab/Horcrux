@@ -81,6 +81,17 @@ final class AppState: ObservableObject {
             .receive(on: RunLoop.main)
             .sink { [weak self] _ in self?.objectWillChange.send() }
             .store(in: &childCancellables)
+
+        // Same bridge for the pending-broadcast queue so WalletHomeView's
+        // "Pending broadcasts" section refreshes when rows are dequeued
+        // (user taps 丢弃 / Discard or a broadcast retry succeeds). Without
+        // this the underlying @Published updates fire on the child but never
+        // reach @EnvironmentObject appState consumers — the discard button
+        // appears unresponsive even though the item is already removed.
+        pendingBroadcastQueue.objectWillChange
+            .receive(on: RunLoop.main)
+            .sink { [weak self] _ in self?.objectWillChange.send() }
+            .store(in: &childCancellables)
     }
 
     /// Whether this is the first launch (no PIN set yet)
