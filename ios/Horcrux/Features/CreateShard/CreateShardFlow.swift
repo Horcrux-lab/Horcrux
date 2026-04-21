@@ -597,15 +597,24 @@ struct PeerDiscoveryView: View {
             let presenceList = viewModel.roomPresence.values.sorted { $0.deviceName < $1.deviceName }
             if !presenceList.isEmpty {
                 List(presenceList, id: \.deviceName) { pres in
+                    let parts = DeviceIdentity.split(pres.deviceName)
                     HStack {
                         Image(systemName: pres.role == "create" ? "crown.fill" : "person.circle.fill")
                             .foregroundStyle(pres.role == "create" ? .orange : .blue)
-                        VStack(alignment: .leading) {
-                            Text(pres.deviceName)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(parts.label)
                                 .font(.headline)
-                            Text(pres.role == "create" ? L10n.Discovery.initiatorLabel : L10n.Discovery.joinerLabel)
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
+                            HStack(spacing: 6) {
+                                if let sid = parts.shortId {
+                                    Text("ID: \(sid)")
+                                        .font(.caption2)
+                                        .foregroundStyle(.secondary)
+                                        .monospaced()
+                                }
+                                Text(pres.role == "create" ? L10n.Discovery.initiatorLabel : L10n.Discovery.joinerLabel)
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
                         }
                         Spacer()
                         Image(systemName: "checkmark.circle.fill")
@@ -614,15 +623,24 @@ struct PeerDiscoveryView: View {
                 }
             } else {
                 List(viewModel.foundPeers) { peer in
+                    let parts = DeviceIdentity.split(peer.name)
                     HStack {
                         Image(systemName: "person.circle.fill")
                             .foregroundStyle(.gray)
-                        VStack(alignment: .leading) {
-                            Text(peer.name)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(parts.label)
                                 .font(.headline)
-                            Text("\(peer.channel) · \(String(peer.id.prefix(8)))")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
+                            HStack(spacing: 6) {
+                                if let sid = parts.shortId {
+                                    Text("ID: \(sid)")
+                                        .font(.caption2)
+                                        .foregroundStyle(.secondary)
+                                        .monospaced()
+                                }
+                                Text("\(peer.channel) · \(String(peer.id.prefix(8)))")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
                         }
                         Spacer()
                     }

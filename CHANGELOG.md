@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.0-dev.99] - 2026-04-21
+
+### Changed
+
+- **iOS (UI)**: **设备列表同时显示"设备名"和"ID"两行**，方便用户直观区分。
+  - 新增 `DeviceIdentity.split(_:)`：把 `"iPhone-7F3A9B21"` 这类自动生成名切成 `(label: "iPhone", shortId: "7F3A9B21")`；用户自定义昵称（不含 8 位 hex 尾缀）保持原样、`shortId` 为 `nil`。
+  - 迁移列表 UI：
+    - `CreateShardFlow` 房间内参与方列表（presenceList）+ 传输层发现列表（foundPeers）：主标题显示 `label`，副标题加一行 `ID: 7F3A9B21`（等宽字体）。
+    - `SigningView` 邀请阶段已加入共签方列表：同格式，`label` + `ID: …`。
+    - `JoinSigningView` 附近可加入的发起人列表：副标题显示 `ID: 7F3A9B21 · Wi-Fi LAN`。
+  - 签名进行中的 `CosignerStatusRow` 保持单行紧凑（只显示 label，省略 ID 以留出进度徽标空间）。
+
 ## [0.3.0-dev.98] - 2026-04-21
 
 ### Fixed

@@ -575,11 +575,20 @@ struct InviteSignersView: View {
                             }
                             .padding(.horizontal, 4)
                             ForEach(viewModel.joinedSigners) { peer in
+                                let parts = DeviceIdentity.split(peer.name)
                                 HStack(spacing: 10) {
                                     Image(systemName: "person.circle.fill")
                                         .foregroundStyle(HorcruxTheme.successGreen)
-                                    Text(peer.name)
-                                        .foregroundStyle(.white)
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text(parts.label)
+                                            .foregroundStyle(.white)
+                                        if let sid = parts.shortId {
+                                            Text("ID: \(sid)")
+                                                .font(.caption2)
+                                                .foregroundStyle(HorcruxTheme.subtleText)
+                                                .monospaced()
+                                        }
+                                    }
                                     Spacer()
                                     Image(systemName: "checkmark.circle.fill")
                                         .foregroundStyle(HorcruxTheme.successGreen)
@@ -881,7 +890,7 @@ struct SigningProgressView: View {
 
                 ForEach(viewModel.joinedSigners) { peer in
                     CosignerStatusRow(
-                        name: peer.name,
+                        name: DeviceIdentity.split(peer.name).label,
                         status: viewModel.peerStates[peer.id].flatMap(mapState) ?? .waiting,
                         round: viewModel.peerRounds[peer.id] ?? 0,
                         totalRounds: viewModel.totalRounds,

@@ -65,4 +65,28 @@ enum DeviceIdentity {
         return "Device-\(shortId)"
         #endif
     }
+
+    /// Split a `displayName` string into its friendly label part and short-id
+    /// suffix for two-line display in device lists. Works on both the
+    /// auto-generated `"iPhone-7F3A9B21"` form and on user nicknames that
+    /// don't contain an 8-hex suffix (in which case `shortId` is `nil`).
+    ///
+    /// Examples:
+    ///   - `"iPhone-7F3A9B21"` → `("iPhone", "7F3A9B21")`
+    ///   - `"iPad-ABCDEF01"`   → `("iPad", "ABCDEF01")`
+    ///   - `"Bill's Phone"`    → `("Bill's Phone", nil)` — nickname, no id
+    static func split(_ displayName: String) -> (label: String, shortId: String?) {
+        guard let dashRange = displayName.range(of: "-", options: .backwards) else {
+            return (displayName, nil)
+        }
+        let tail = displayName[dashRange.upperBound...]
+        let isShortId = tail.count == 8 && tail.allSatisfy { c in
+            c.isHexDigit && (c.isNumber || c.isUppercase)
+        }
+        if isShortId {
+            let label = String(displayName[..<dashRange.lowerBound])
+            return (label.isEmpty ? displayName : label, String(tail))
+        }
+        return (displayName, nil)
+    }
 }

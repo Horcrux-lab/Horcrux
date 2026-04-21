@@ -218,12 +218,20 @@ struct JoinSigningView: View {
                                 Image(systemName: "iphone")
                                     .foregroundStyle(HorcruxTheme.accentCyan)
                                 VStack(alignment: .leading, spacing: 2) {
-                                    Text(peer.name)
+                                    let parts = DeviceIdentity.split(peer.name)
+                                    Text(parts.label)
                                         .font(.footnote.weight(.semibold))
                                         .foregroundStyle(.white)
-                                    Text("Wi-Fi LAN")
-                                        .font(.caption2)
-                                        .foregroundStyle(HorcruxTheme.subtleText)
+                                    if let sid = parts.shortId {
+                                        Text("ID: \(sid) · Wi-Fi LAN")
+                                            .font(.caption2)
+                                            .foregroundStyle(HorcruxTheme.subtleText)
+                                            .monospaced()
+                                    } else {
+                                        Text("Wi-Fi LAN")
+                                            .font(.caption2)
+                                            .foregroundStyle(HorcruxTheme.subtleText)
+                                    }
                                 }
                                 Spacer()
                                 Image(systemName: "chevron.right")
