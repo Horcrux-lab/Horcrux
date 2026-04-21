@@ -107,11 +107,37 @@ actor BlockchainService {
         var txObj: [String: String] = ["from": from, "to": to, "value": valueHex]
         if let txData, !txData.isEmpty { txObj["data"] = txData }
         let estimateParams: [[String: String]] = [txObj]
-        let gasHex: String = try await ethCall(
-            method: "eth_estimateGas",
-            params: estimateParams,
-            rpcURL: rpcURL
-        )
+        let gasHex: String
+        do {
+            gasHex = try await ethCall(
+                method: "eth_estimateGas",
+                params: estimateParams,
+                rpcURL: rpcURL
+            )
+        } catch {
+            // Geth/Infura/Alchemy return "insufficient funds for gas * price
+            // + value" from eth_estimateGas when the `from` account can't
+            // cover the would-be transaction — even though this is a pure
+            // simulation. That error is useless for the UX because it
+            // prevents the user from ever *seeing* the fee preview that
+            // tells them how much ETH to top up. Retry without `from` so
+            // the node runs the call against an address with synthetic
+            // funds; the resulting gas limit is still correct for simple
+            // transfers. The real balance-vs-fee check happens at submit
+            // time, not during preview.
+            let lower = error.localizedDescription.lowercased()
+            if lower.contains("insufficient funds") || lower.contains("insufficient balance") {
+                var txObjNoFrom = txObj
+                txObjNoFrom.removeValue(forKey: "from")
+                gasHex = try await ethCall(
+                    method: "eth_estimateGas",
+                    params: [txObjNoFrom],
+                    rpcURL: rpcURL
+                )
+            } else {
+                throw error
+            }
+        }
         // Add 20% safety margin to gas limit
         let rawGas = UInt64(hexToDecimal(gasHex)) ?? 21000
         let gasLimit = rawGas + rawGas / 5
