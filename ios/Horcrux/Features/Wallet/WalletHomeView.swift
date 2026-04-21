@@ -51,37 +51,6 @@ struct WalletHomeView: View {
                         walletList
                     }
                 }
-
-                if !walletStore.wallets.isEmpty {
-                    VStack {
-                        Spacer()
-                        HStack {
-                            Spacer()
-                            Button {
-                                showCreateShard = true
-                            } label: {
-                                Image(systemName: "plus")
-                                    .font(.title2.weight(.bold))
-                                    .foregroundStyle(.white)
-                                    .frame(width: 56, height: 56)
-                                    .background(
-                                        LinearGradient(
-                                            colors: [HorcruxTheme.accentPurple, HorcruxTheme.accentBlue],
-                                            startPoint: .topLeading,
-                                            endPoint: .bottomTrailing
-                                        ),
-                                        in: Circle()
-                                    )
-                                    .shadow(color: HorcruxTheme.accentPurple.opacity(0.5), radius: 12, y: 6)
-                            }
-                            .padding(.trailing, 20)
-                            .padding(.bottom, 20)
-                            .accessibilityLabel(L10n.WalletHome.createNewWallet)
-                            .accessibilityHint(L10n.WalletHome.opensCreationFlow)
-                            .accessibilityIdentifier("walletHome_fabCreateButton")
-                        }
-                    }
-                }
             }
             .navigationTitle("")
             .navigationBarTitleDisplayMode(.inline)
@@ -98,6 +67,24 @@ struct WalletHomeView: View {
                         }
                         .accessibilityLabel(L10n.JoinSigning.homeButton)
                         .accessibilityIdentifier("walletHome_joinSigningButton")
+                    }
+                }
+                ToolbarItem(placement: .topBarTrailing) {
+                    if !walletStore.wallets.isEmpty {
+                        // Replaces the old bottom-right FAB. Symmetric with the
+                        // left Join button, doesn't overlap scrollable content,
+                        // and matches Rainbow / Phantom's top-right "+" pattern.
+                        Button {
+                            showCreateShard = true
+                        } label: {
+                            Image(systemName: "plus.circle.fill")
+                                .font(.title3)
+                                .foregroundStyle(HorcruxTheme.accentPurple)
+                                .symbolRenderingMode(.hierarchical)
+                        }
+                        .accessibilityLabel(L10n.WalletHome.createNewWallet)
+                        .accessibilityHint(L10n.WalletHome.opensCreationFlow)
+                        .accessibilityIdentifier("walletHome_fabCreateButton")
                     }
                 }
             }
@@ -263,7 +250,7 @@ struct WalletHomeView: View {
             }
             .padding(.horizontal, 16)
             .padding(.top, 8)
-            .padding(.bottom, 96)  // reserve space for the floating + FAB
+            .padding(.bottom, 24)
         }
         .refreshable {
             // Pull-to-refresh: force-bypass the 30s TTL so pulling actually
