@@ -47,23 +47,30 @@ enum DeviceIdentity {
     /// Human-readable identifier for this device, shown in invite / joined
     /// cosigner / device list UIs and included in every presence message.
     ///
-    /// Priority:
-    ///   1. User-set nickname from Settings (`deviceNickname`) — respected
-    ///      verbatim if non-empty.
-    ///   2. `{model}-{shortId}` — e.g. `"iPhone-7F3A9B21"`. Always unique
-    ///      across two installs of the app even when iOS masks the system
-    ///      device name.
+    /// Always includes the 8-char `shortId` suffix so:
+    ///   - two installs of the same model never collide at protocol level,
+    ///   - `split(_:)` can always separate a friendly label from the ID for
+    ///     two-line display, even when the user has set a nickname.
+    ///
+    /// Priority for the label part:
+    ///   1. User-set nickname from Settings (`deviceNickname`) — trimmed.
+    ///   2. `UIDevice.current.model` (e.g. `"iPhone"`).
+    /// The label is joined with the shortId by `-`, e.g. `"iPhone-7F3A9B21"`
+    /// or `"Bill's Phone-7F3A9B21"`.
     static var displayName: String {
-        if let nick = UserDefaults.standard.string(forKey: nicknameKey),
-           !nick.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            return nick
+        let base: String
+        if let nick = UserDefaults.standard.string(forKey: nicknameKey)?
+            .trimmingCharacters(in: .whitespacesAndNewlines),
+           !nick.isEmpty {
+            base = nick
+        } else {
+            #if canImport(UIKit)
+            base = UIDevice.current.model
+            #else
+            base = "Device"
+            #endif
         }
-        #if canImport(UIKit)
-        let model = UIDevice.current.model
-        return "\(model)-\(shortId)"
-        #else
-        return "Device-\(shortId)"
-        #endif
+        return "\(base)-\(shortId)"
     }
 
     /// Split a `displayName` string into its friendly label part and short-id
