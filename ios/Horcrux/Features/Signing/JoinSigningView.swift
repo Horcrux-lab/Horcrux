@@ -102,8 +102,10 @@ struct JoinSigningView: View {
         case let .unmatchedWallet(dto):
             unmatchedView(dto: dto)
         case let .signing(vm):
-            SigningProgressView(viewModel: vm)
-                .onAppear { _ = vm }
+            JoinSigningProgressBridge(viewModel: vm, onComplete: {
+                cleanup()
+                dismiss()
+            })
         case let .error(message):
             errorView(message)
         }
@@ -636,5 +638,32 @@ struct JoinSigningView: View {
         // Drop the relay room so we don't leak a second connection
         // with the same device_id on the next join attempt.
         appState.peerManager.leaveRelayRoom()
+    }
+}
+
+/// Thin wrapper around `SigningProgressView` that observes the
+/// cosigner's `SigningViewModel.step` and fires `onComplete` once the
+/// ceremony finishes successfully. Without this, `JoinSigningView`
+/// remains parked on the progress ring forever even after the MPC
+/// bridge has produced a final signature on this side — because
+/// `SigningProgressView` itself doesn't reflect `step` transitions.
+private struct JoinSigningProgressBridge: View {
+    @ObservedObject var viewModel: SigningViewModel
+    let onComplete: () -> Void
+    @State private var didFire = false
+
+    var body: some View {
+        SigningProgressView(viewModel: viewModel)
+            .onChange(of: viewModel.step) { newStep in
+                guard !didFire, newStep == .complete else { return }
+                didFire = true
+                Haptics.success()
+                // Brief pause so the user sees the 100% ring + "done"
+                // states before the sheet dismisses.
+                Task { @MainActor in
+                    try? await Task.sleep(nanoseconds: 900_000_000)
+                    onComplete()
+                }
+            }
     }
 }
