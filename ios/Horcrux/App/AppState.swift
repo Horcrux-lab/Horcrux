@@ -92,6 +92,26 @@ final class AppState: ObservableObject {
             .receive(on: RunLoop.main)
             .sink { [weak self] _ in self?.objectWillChange.send() }
             .store(in: &childCancellables)
+
+        // Same bridge for the transaction store so any view that reads
+        // `appState.transactionStore.records(for:)` (WalletHomeView history
+        // preview, TransactionHistoryView) re-renders when records are
+        // added/updated/removed. Without this a newly-broadcast tx or a
+        // status flip (signed → broadcast → confirmed) only reaches views
+        // that explicitly hold `@ObservedObject transactionStore`.
+        transactionStore.objectWillChange
+            .receive(on: RunLoop.main)
+            .sink { [weak self] _ in self?.objectWillChange.send() }
+            .store(in: &childCancellables)
+
+        // Same bridge for the custom-token store so views reading
+        // `appState.customTokenStore.tokens` / `.effectiveTokens(for:)`
+        // refresh when the user adds or removes a custom ERC-20 / SPL
+        // token from Settings.
+        customTokenStore.objectWillChange
+            .receive(on: RunLoop.main)
+            .sink { [weak self] _ in self?.objectWillChange.send() }
+            .store(in: &childCancellables)
     }
 
     /// Whether this is the first launch (no PIN set yet)
