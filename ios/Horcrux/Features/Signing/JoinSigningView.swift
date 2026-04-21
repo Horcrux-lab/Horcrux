@@ -596,6 +596,10 @@ struct JoinSigningView: View {
     }
 
     private func approve(dto: SignRequestDTO, wallet: Wallet) {
+        // Prevent double-approve (button double-tap, SwiftUI re-render)
+        // from spawning two SigningViewModels / two signingTasks that
+        // would race on every incoming MPC packet.
+        if case .signing = phase { return }
         // Fast path: cached SWK from a prior unlock.
         if let swk = appState.cachedShardKey() {
             startSigningWithSWK(swk, dto: dto, wallet: wallet)

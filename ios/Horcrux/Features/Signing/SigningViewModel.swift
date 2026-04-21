@@ -926,6 +926,16 @@ final class SigningViewModel: ObservableObject {
     }
 
     func startSigning() {
+        // Idempotency guard: the approve button / SWK closure can fire
+        // twice under flaky input (double-tap, SwiftUI re-render), and
+        // each call previously spawned a fresh `signingTask` subscribed
+        // to the same stream. The duplicates then raced on every
+        // incoming FROST packet, each fed the same bytes into the
+        // bridge, producing divergent state and broken signatures.
+        if let existing = signingTask, !existing.isCancelled {
+            NSLog("[signing] startSigning ignored — task already running")
+            return
+        }
         // Block on jailbroken devices
         if SecurityEnvironment.isCompromised {
             errorMessage = L10n.Signing.compromisedDevice
