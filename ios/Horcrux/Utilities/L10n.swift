@@ -1126,6 +1126,11 @@ enum L10n {
             String(format: NSLocalizedString("nodeSettings.providerActiveFor", comment: ""), provider, chain)
         }
 
+        static let advancedFields = NSLocalizedString("nodeSettings.advancedFields", comment: "")
+        static let apiKeysSection = NSLocalizedString("nodeSettings.apiKeysSection", comment: "")
+        static let apiKeysHint = NSLocalizedString("nodeSettings.apiKeysHint", comment: "")
+        static let sharedAcrossChains = NSLocalizedString("nodeSettings.sharedAcrossChains", comment: "")
+
         static func providerUnsupportedOnChain(_ provider: String, _ chain: String) -> String {
             String(format: NSLocalizedString("nodeSettings.providerUnsupportedOnChain", comment: ""), provider, chain)
         }

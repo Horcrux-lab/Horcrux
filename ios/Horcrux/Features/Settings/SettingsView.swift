@@ -950,17 +950,6 @@ struct BlockchainNodeSettingsView: View {
 
     var body: some View {
         Form {
-            Section {
-                HStack(spacing: 10) {
-                    Circle()
-                        .fill(healthRollupColor)
-                        .frame(width: 10, height: 10)
-                    Text(health.summaryText)
-                        .font(.subheadline)
-                    Spacer()
-                }
-            }
-
             Section(L10n.NodeSettings.quickPresets) {
                 HStack(spacing: 12) {
                     ForEach(NetworkPreset.all) { preset in
@@ -986,34 +975,7 @@ struct BlockchainNodeSettingsView: View {
                     .foregroundStyle(.secondary)
             }
 
-            Section(L10n.NodeSettings.ethereumEVM) {
-                VStack(alignment: .leading, spacing: 4) {
-                    HStack(alignment: .firstTextBaseline) {
-                        Text(L10n.NodeSettings.rpcURL)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                        Spacer()
-                        Picker(L10n.NodeSettings.networkPicker, selection: $config.evmChainId) {
-                            ForEach(EVMNetwork.allCases) { net in
-                                Text(net.displayName).tag(net.rawValue)
-                            }
-                        }
-                        .pickerStyle(.menu)
-                        .labelsHidden()
-                        .font(.caption)
-                        .accessibilityIdentifier("nodeSettings_evmNetworkPicker")
-                    }
-                    TextField("https://eth.llamarpc.com", text: $config.ethereumRPC)
-                        .font(.system(.body, design: .monospaced))
-                        .autocorrectionDisabled()
-                        .textInputAutocapitalization(.never)
-                    URLValidationHint(urlString: config.ethereumRPC)
-                    KeySecurityHint(urlString: config.ethereumRPC)
-                    ProviderBadge(urlString: config.ethereumRPC)
-                    EndpointSwitcher(chain: .ethereum)
-                    ChainFieldActions(chain: .ethereum)
-                }
-
+            Section {
                 VStack(alignment: .leading, spacing: 8) {
                     Picker(L10n.NodeSettings.paidProviderPicker, selection: $selectedEVMProvider) {
                         ForEach(PaidEVMProvider.allCases) { p in
@@ -1077,7 +1039,57 @@ struct BlockchainNodeSettingsView: View {
                         .foregroundStyle(.secondary)
                 }
 
-                WSSField(url: $config.ethereumWSS, kind: .evm)
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(L10n.NodeSettings.heliusKeyLabel)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    SecureField(L10n.NodeSettings.pasteKeyPlaceholder, text: $config.heliusAPIKey)
+                        .font(.system(.body, design: .monospaced))
+                        .autocorrectionDisabled()
+                        .textInputAutocapitalization(.never)
+                    if !config.heliusAPIKey.isEmpty {
+                        Button(L10n.NodeSettings.useHelius) {
+                            config.solanaRPC = RPCProviderTemplate.helius(mainnet: !config.solDevnet)
+                        }
+                        .font(.caption)
+                    }
+                }
+            } header: {
+                Text(L10n.NodeSettings.apiKeysSection)
+            } footer: {
+                Text(L10n.NodeSettings.apiKeysHint)
+            }
+
+            Section(L10n.NodeSettings.ethereumEVM) {
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack(alignment: .firstTextBaseline) {
+                        Text(L10n.NodeSettings.rpcURL)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        Spacer()
+                        Picker(L10n.NodeSettings.networkPicker, selection: $config.evmChainId) {
+                            ForEach(EVMNetwork.allCases) { net in
+                                Text(net.displayName).tag(net.rawValue)
+                            }
+                        }
+                        .pickerStyle(.menu)
+                        .labelsHidden()
+                        .font(.caption)
+                        .accessibilityIdentifier("nodeSettings_evmNetworkPicker")
+                    }
+                    TextField("https://eth.llamarpc.com", text: $config.ethereumRPC)
+                        .font(.system(.body, design: .monospaced))
+                        .autocorrectionDisabled()
+                        .textInputAutocapitalization(.never)
+                    RPCStatusStrip(urlString: config.ethereumRPC)
+                }
+
+                DisclosureGroup(L10n.NodeSettings.advancedFields) {
+                    EndpointSwitcher(chain: .ethereum)
+                    ChainFieldActions(chain: .ethereum)
+                    WSSField(url: $config.ethereumWSS, kind: .evm)
+                }
+                .font(.subheadline)
 
                 NodeStatusRow(chain: .ethereum)
             }
@@ -1091,14 +1103,17 @@ struct BlockchainNodeSettingsView: View {
                         .font(.system(.body, design: .monospaced))
                         .autocorrectionDisabled()
                         .textInputAutocapitalization(.never)
-                    URLValidationHint(urlString: config.bitcoinAPI)
-                    ProviderBadge(urlString: config.bitcoinAPI)
-                    EndpointSwitcher(chain: .bitcoin)
-                    ChainFieldActions(chain: .bitcoin)
+                    RPCStatusStrip(urlString: config.bitcoinAPI)
                 }
 
                 Toggle(L10n.NodeSettings.testnet, isOn: $config.btcTestnet)
                     .accessibilityHint(L10n.NodeSettings.testnetHint)
+
+                DisclosureGroup(L10n.NodeSettings.advancedFields) {
+                    EndpointSwitcher(chain: .bitcoin)
+                    ChainFieldActions(chain: .bitcoin)
+                }
+                .font(.subheadline)
 
                 NodeStatusRow(chain: .bitcoin)
             }
@@ -1112,14 +1127,17 @@ struct BlockchainNodeSettingsView: View {
                         .font(.system(.body, design: .monospaced))
                         .autocorrectionDisabled()
                         .textInputAutocapitalization(.never)
-                    URLValidationHint(urlString: config.litecoinAPI)
-                    ProviderBadge(urlString: config.litecoinAPI)
-                    EndpointSwitcher(chain: .litecoin)
-                    ChainFieldActions(chain: .litecoin)
+                    RPCStatusStrip(urlString: config.litecoinAPI)
                     Text(L10n.NodeSettings.signingUnsupportedNote)
                         .font(.caption2)
                         .foregroundStyle(.secondary)
                 }
+
+                DisclosureGroup(L10n.NodeSettings.advancedFields) {
+                    EndpointSwitcher(chain: .litecoin)
+                    ChainFieldActions(chain: .litecoin)
+                }
+                .font(.subheadline)
 
                 NodeStatusRow(chain: .litecoin)
             } header: {
@@ -1137,33 +1155,23 @@ struct BlockchainNodeSettingsView: View {
                         .font(.system(.body, design: .monospaced))
                         .autocorrectionDisabled()
                         .textInputAutocapitalization(.never)
-                    URLValidationHint(urlString: config.solanaRPC)
-                    KeySecurityHint(urlString: config.solanaRPC)
-                    ProviderBadge(urlString: config.solanaRPC)
-                    EndpointSwitcher(chain: .solana)
-                    ChainFieldActions(chain: .solana)
+                    RPCStatusStrip(urlString: config.solanaRPC)
+                    if solanaSharesPaidKey {
+                        Text(L10n.NodeSettings.sharedAcrossChains)
+                            .font(.caption2)
+                            .foregroundStyle(HorcruxTheme.successGreen)
+                    }
                 }
 
                 Toggle(L10n.NodeSettings.devnet, isOn: $config.solDevnet)
                     .accessibilityHint(L10n.NodeSettings.devnetHint)
 
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(L10n.NodeSettings.heliusKeyLabel)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                    SecureField(L10n.NodeSettings.pasteKeyPlaceholder, text: $config.heliusAPIKey)
-                        .font(.system(.body, design: .monospaced))
-                        .autocorrectionDisabled()
-                        .textInputAutocapitalization(.never)
-                    if !config.heliusAPIKey.isEmpty {
-                        Button(L10n.NodeSettings.useHelius) {
-                            config.solanaRPC = RPCProviderTemplate.helius(mainnet: !config.solDevnet)
-                        }
-                        .font(.caption)
-                    }
+                DisclosureGroup(L10n.NodeSettings.advancedFields) {
+                    EndpointSwitcher(chain: .solana)
+                    ChainFieldActions(chain: .solana)
+                    WSSField(url: $config.solanaWSS, kind: .solana)
                 }
-
-                WSSField(url: $config.solanaWSS, kind: .solana)
+                .font(.subheadline)
 
                 NodeStatusRow(chain: .solana)
             }
@@ -1177,14 +1185,17 @@ struct BlockchainNodeSettingsView: View {
                         .font(.system(.body, design: .monospaced))
                         .autocorrectionDisabled()
                         .textInputAutocapitalization(.never)
-                    URLValidationHint(urlString: config.tronAPI)
-                    ProviderBadge(urlString: config.tronAPI)
-                    EndpointSwitcher(chain: .tron)
-                    ChainFieldActions(chain: .tron)
+                    RPCStatusStrip(urlString: config.tronAPI)
                     Text(L10n.NodeSettings.signingUnsupportedNote)
                         .font(.caption2)
                         .foregroundStyle(.secondary)
                 }
+
+                DisclosureGroup(L10n.NodeSettings.advancedFields) {
+                    EndpointSwitcher(chain: .tron)
+                    ChainFieldActions(chain: .tron)
+                }
+                .font(.subheadline)
 
                 NodeStatusRow(chain: .tron)
             } header: {
@@ -1298,16 +1309,43 @@ struct BlockchainNodeSettingsView: View {
         "ETH · \(p.ethereumRPC)\nBTC · \(p.bitcoinAPI)\nSOL · \(p.solanaRPC)"
     }
 
-    private var healthRollupColor: Color {
-        if health.refreshingAll { return HorcruxTheme.subtleText }
-        if health.probedCount == 0 { return HorcruxTheme.subtleText }
-        if health.anyFailed { return HorcruxTheme.dangerRed }
-        return HorcruxTheme.successGreen
+    /// True when the current Solana RPC is a template from a paid provider
+    /// (Infura / Alchemy / Ankr) that the user also configured for EVM —
+    /// i.e. the same API key is actively shared across both chains.
+    private var solanaSharesPaidKey: Bool {
+        for p in PaidEVMProvider.allCases {
+            if keyBinding(for: p).wrappedValue.isEmpty { continue }
+            if let tmpl = p.solanaTemplate(mainnet: !config.solDevnet),
+               config.solanaRPC == tmpl {
+                return true
+            }
+        }
+        return false
     }
 }
 
 /// Inline warning chip for a user-entered RPC URL. Hidden when the URL is
 /// valid HTTPS. Shown in amber for insecure http:// and in red for malformed.
+/// Compact single-line status strip for an RPC/REST URL field: combines
+/// provider identification, key-security hint, and URL validation into one
+/// horizontal row so the Settings page doesn't stack 3 separate caption
+/// lines under every URL input. Each sub-badge still self-hides when it has
+/// nothing to say, so URLs with no provider match / no `{KEY}` / no warning
+/// collapse down to zero height.
+struct RPCStatusStrip: View {
+    let urlString: String
+
+    var body: some View {
+        HStack(alignment: .center, spacing: 10) {
+            ProviderBadge(urlString: urlString)
+            KeySecurityHint(urlString: urlString)
+            URLValidationHint(urlString: urlString)
+            Spacer(minLength: 0)
+        }
+        .lineLimit(1)
+    }
+}
+
 struct URLValidationHint: View {
     let urlString: String
 

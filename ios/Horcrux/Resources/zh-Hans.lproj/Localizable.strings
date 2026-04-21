@@ -526,6 +526,10 @@
 "nodeSettings.paidProviderPicker" = "付费服务商";
 "nodeSettings.applyProviderFor" = "为 %2$@ 使用 %1$@";
 "nodeSettings.providerActiveFor" = "已为 %2$@ 启用 %1$@";
+"nodeSettings.advancedFields" = "高级";
+"nodeSettings.apiKeysSection" = "API 密钥";
+"nodeSettings.apiKeysHint" = "Infura / Alchemy 的 key 可同时用于 EVM 和 Solana，密钥仅保存在本机。";
+"nodeSettings.sharedAcrossChains" = "🔗 已与 EVM 共用该 key";
 "nodeSettings.providerUnsupportedOnChain" = "%1$@ 暂不支持 %2$@";
 "nodeSettings.etherscanKeySection" = "Etherscan API 密钥";
 "nodeSettings.etherscanKeyLabel" = "Etherscan V2 多链密钥（可选，存入 Keychain）。用于跨链同步 EVM 交易历史。";
