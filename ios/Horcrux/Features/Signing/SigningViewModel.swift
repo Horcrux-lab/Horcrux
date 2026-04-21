@@ -189,6 +189,12 @@ final class SigningViewModel: ObservableObject {
     private var currentRecordId: String?
     private var cancellables = Set<AnyCancellable>()
     private var signingTask: Task<Void, Never>?
+    /// Latch set at the top of `signingTask`'s do-block and cleared in its
+    /// defer. The idempotency guard in `startSigning()` keys off this
+    /// instead of `step` (which `awaitInitiatorStart()` flips to `.signing`
+    /// *before* invoking startSigning) or `signingTask.isCancelled` (which
+    /// stays `false` even for tasks that have long since completed).
+    private var isSigningActive: Bool = false
     /// Periodic broadcast of `SignRequestDTO` while in the `.invite` step
     /// so cosigners who join the relay room late still see the request.
     private var announceTask: Task<Void, Never>?
@@ -957,12 +963,13 @@ final class SigningViewModel: ObservableObject {
         // bridge, producing divergent state and broken signatures.
         // Idempotency guard: prevent a second signingTask from being
         // spawned if the user double-taps "Sign" or a SwiftUI re-render
-        // re-invokes this path. We check `step` (observable state) rather
-        // than `signingTask.isCancelled` because a completed Task reports
-        // `isCancelled == false` forever, which would silently block any
-        // legitimate retry after an error.
-        if step == .signing {
-            NSLog("[signing] startSigning ignored — already in .signing phase")
+        // re-invokes this path. We cannot key off `step == .signing`
+        // because `awaitInitiatorStart()` (cosigner path) sets that
+        // *before* calling startSigning — doing so would block the very
+        // first call on every cosigner. Instead, `isSigningActive` is
+        // flipped true by the Task below only once it's actually mid-flight.
+        if isSigningActive {
+            NSLog("[signing] startSigning ignored — already active")
             return
         }
         // Block on jailbroken devices
@@ -1000,6 +1007,7 @@ final class SigningViewModel: ObservableObject {
         peerStates = initialStates
         peerRounds = [:]
 
+        isSigningActive = true
         signingTask = Task {
             do {
                 guard let bridge, let peerManager, let deviceKey else {
@@ -1214,12 +1222,13 @@ final class SigningViewModel: ObservableObject {
                 }
             }
             // Clear the task reference once the closure returns so the
-            // idempotency guard above (which now keys off `step`) is the
+            // idempotency guard above (keyed on `isSigningActive`) is the
             // sole authority on whether a fresh signingTask may spawn.
             // Without this, a completed Task would linger in the property
             // and confuse any future debugging that inspects it.
             await MainActor.run { [weak self] in
                 self?.signingTask = nil
+                self?.isSigningActive = false
             }
         }
     }
