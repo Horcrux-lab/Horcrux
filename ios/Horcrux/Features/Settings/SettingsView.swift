@@ -1061,22 +1061,18 @@ struct BlockchainNodeSettingsView: View {
             }
 
             Section(L10n.NodeSettings.ethereumEVM) {
-                VStack(alignment: .leading, spacing: 4) {
-                    HStack(alignment: .firstTextBaseline) {
-                        Text(L10n.NodeSettings.rpcURL)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                        Spacer()
-                        Picker(L10n.NodeSettings.networkPicker, selection: $config.evmChainId) {
-                            ForEach(EVMNetwork.allCases) { net in
-                                Text(net.displayName).tag(net.rawValue)
-                            }
-                        }
-                        .pickerStyle(.menu)
-                        .labelsHidden()
-                        .font(.caption)
-                        .accessibilityIdentifier("nodeSettings_evmNetworkPicker")
+                Picker(L10n.NodeSettings.networkPicker, selection: $config.evmChainId) {
+                    ForEach(EVMNetwork.allCases) { net in
+                        Text("\(net.displayName) · \(net.rawValue)").tag(net.rawValue)
                     }
+                }
+                .pickerStyle(.menu)
+                .accessibilityIdentifier("nodeSettings_evmNetworkPicker")
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(L10n.NodeSettings.rpcURL)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                     TextField("https://eth.llamarpc.com", text: $config.ethereumRPC)
                         .font(.system(.body, design: .monospaced))
                         .autocorrectionDisabled()
@@ -1204,24 +1200,20 @@ struct BlockchainNodeSettingsView: View {
                 Text(L10n.NodeSettings.readOnlyNote)
             }
 
-            Section(L10n.NodeSettings.importExportSection) {
-                Button {
-                    exportJSON = RPCConfigSnapshot(from: config).jsonString() ?? ""
-                    showExportSheet = true
+            Section {
+                NavigationLink {
+                    ImportExportSubView(
+                        config: config,
+                        showExportSheet: $showExportSheet,
+                        showImportSheet: $showImportSheet,
+                        exportJSON: $exportJSON,
+                        importPasteText: $importPasteText,
+                        importPreview: $importPreview,
+                        importError: $importError
+                    )
                 } label: {
-                    Label(L10n.NodeSettings.exportConfig, systemImage: "square.and.arrow.up")
+                    Label(L10n.NodeSettings.importExportSection, systemImage: "square.and.arrow.up.on.square")
                 }
-                Button {
-                    importPasteText = ""
-                    importPreview = nil
-                    importError = nil
-                    showImportSheet = true
-                } label: {
-                    Label(L10n.NodeSettings.importConfig, systemImage: "square.and.arrow.down")
-                }
-                Text(L10n.NodeSettings.exportNote)
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
             }
 
             Section {
@@ -1911,6 +1903,42 @@ struct RPCConfigSnapshot: Codable, Equatable {
         add("Ethereum WSS", config.ethereumWSS, ethereumWSS ?? "")
         add("Solana WSS", config.solanaWSS, solanaWSS ?? "")
         return rows
+    }
+}
+
+private struct ImportExportSubView: View {
+    @ObservedObject var config: NetworkConfig
+    @Binding var showExportSheet: Bool
+    @Binding var showImportSheet: Bool
+    @Binding var exportJSON: String
+    @Binding var importPasteText: String
+    @Binding var importPreview: RPCConfigSnapshot?
+    @Binding var importError: String?
+
+    var body: some View {
+        Form {
+            Section {
+                Button {
+                    exportJSON = RPCConfigSnapshot(from: config).jsonString() ?? ""
+                    showExportSheet = true
+                } label: {
+                    Label(L10n.NodeSettings.exportConfig, systemImage: "square.and.arrow.up")
+                }
+                Button {
+                    importPasteText = ""
+                    importPreview = nil
+                    importError = nil
+                    showImportSheet = true
+                } label: {
+                    Label(L10n.NodeSettings.importConfig, systemImage: "square.and.arrow.down")
+                }
+            } footer: {
+                Text(L10n.NodeSettings.exportNote)
+            }
+        }
+        .vaultForm()
+        .navigationTitle(L10n.NodeSettings.importExportSection)
+        .navigationBarTitleDisplayMode(.inline)
     }
 }
 
