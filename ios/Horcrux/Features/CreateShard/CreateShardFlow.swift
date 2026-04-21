@@ -770,7 +770,7 @@ private struct RoomCodeShareCard: View {
         )
         .sheet(isPresented: $expanded) {
             RoomCodeExpandedSheet(code: code)
-                .presentationDetents([.medium])
+                .presentationDetents([.medium, .large])
         }
     }
 }
@@ -804,7 +804,12 @@ private struct RoomCodeExpandedSheet: View {
                         .foregroundStyle(.tertiary)
                         .multilineTextAlignment(.center)
                         .padding(.horizontal)
-
+                }
+                .padding()
+            }
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
                     ShareLink(
                         item: RoomCodeShareHelper.deepLink(for: code),
                         subject: Text(L10n.CreateShard.shareRoomSubject),
@@ -812,22 +817,8 @@ private struct RoomCodeExpandedSheet: View {
                         preview: RoomCodeShareHelper.preview(for: code)
                     ) {
                         Label(L10n.CreateShard.shareRoom, systemImage: "square.and.arrow.up")
-                            .font(.body.weight(.semibold))
-                            .foregroundStyle(.white)
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 12)
-                            .background(
-                                RoundedRectangle(cornerRadius: 12)
-                                    .fill(HorcruxTheme.accentCyan)
-                            )
                     }
-                    .padding(.horizontal)
-                    .padding(.top, 4)
                 }
-                .padding()
-            }
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
                     Button(L10n.Common.done) { dismiss() }
                 }
