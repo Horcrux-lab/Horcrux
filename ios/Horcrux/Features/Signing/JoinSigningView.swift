@@ -41,6 +41,12 @@ struct JoinSigningView: View {
     @State private var showPinSheet = false
     @State private var showScanner = false
     @State private var didAutoJoin = false
+    /// Mirror of `appState.peerManager.wifiLAN.discoveredPeers`. SwiftUI does
+    /// not automatically observe nested ObservableObjects, so reading the
+    /// @Published array through `appState` does not trigger re-renders when
+    /// Bonjour turns up a new peer — which is why LAN devices only showed
+    /// after a view re-entry. We subscribe explicitly in `onAppear`.
+    @State private var nearbyPeers: [Peer] = []
 
     /// Optional code to prefill from a deep link (`horcrux://join?session=…`).
     /// If provided and valid, we auto-click the join button once on appear.
@@ -75,11 +81,17 @@ struct JoinSigningView: View {
                 // appear in the nearby list. The user can still type a
                 // room code and use the relay — both paths coexist.
                 appState.peerManager.wifiLAN.startDiscovery()
+                // Seed with whatever Bonjour has already found before we
+                // subscribe; the onReceive handler below keeps it fresh.
+                nearbyPeers = appState.peerManager.wifiLAN.discoveredPeers
                 if !didAutoJoin, let code = prefilledCode,
                    RoomCode.isValid(RoomCode.normalize(code)) {
                     didAutoJoin = true
                     joinRoom()
                 }
+            }
+            .onReceive(appState.peerManager.wifiLAN.$discoveredPeers) { peers in
+                nearbyPeers = peers
             }
             .onDisappear { cleanup() }
             .sheet(isPresented: $showScanner) {
@@ -196,7 +208,7 @@ struct JoinSigningView: View {
     /// device cannot silently start a ceremony.
     @ViewBuilder
     private var nearbyPeersSection: some View {
-        let peers = appState.peerManager.wifiLAN.discoveredPeers
+        let peers = nearbyPeers
         VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 6) {
                 Image(systemName: "wifi")
