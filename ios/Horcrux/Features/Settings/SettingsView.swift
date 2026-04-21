@@ -899,6 +899,19 @@ struct BlockchainNodeSettingsView: View {
             case .nodeReal: return RPCProviderTemplate.nodeReal(evm: net)
             }
         }
+
+        /// Solana endpoint template for providers that share one key across
+        /// EVM + Solana. Returning `nil` means this provider doesn't offer
+        /// Solana under the same account; auto-apply will then leave the
+        /// Solana RPC untouched. `mainnet=false` yields the devnet host.
+        func solanaTemplate(mainnet: Bool) -> String? {
+            switch self {
+            case .alchemy: return RPCProviderTemplate.alchemySolana(mainnet: mainnet)
+            case .infura: return RPCProviderTemplate.infuraSolana(mainnet: mainnet)
+            case .ankr: return mainnet ? "https://rpc.ankr.com/solana/{KEY}" : nil
+            case .blockpi, .drpc, .nodeReal: return nil
+            }
+        }
     }
 
     private func keyBinding(for provider: PaidEVMProvider) -> Binding<String> {
@@ -917,13 +930,22 @@ struct BlockchainNodeSettingsView: View {
     /// the current chain. Avoids the common UX trap where users paste a key
     /// but forget to tap "Use <Provider> for <Chain>" — broadcasts would
     /// silently keep using the old free endpoint.
+    ///
+    /// Also mirrors the setting to `config.solanaRPC` when the provider
+    /// offers a shared-key Solana endpoint (Alchemy, Infura, Ankr-mainnet).
+    /// The Solana side respects the `solDevnet` toggle.
     private func autoApplyProviderTemplate() {
         let key = keyBinding(for: selectedEVMProvider).wrappedValue
-        guard !key.isEmpty,
-              let net = EVMNetwork(rawValue: config.evmChainId),
-              let tmpl = selectedEVMProvider.template(for: net),
-              config.ethereumRPC != tmpl else { return }
-        config.ethereumRPC = tmpl
+        guard !key.isEmpty else { return }
+        if let net = EVMNetwork(rawValue: config.evmChainId),
+           let tmpl = selectedEVMProvider.template(for: net),
+           config.ethereumRPC != tmpl {
+            config.ethereumRPC = tmpl
+        }
+        if let solTmpl = selectedEVMProvider.solanaTemplate(mainnet: !config.solDevnet),
+           config.solanaRPC != solTmpl {
+            config.solanaRPC = solTmpl
+        }
     }
 
     var body: some View {
@@ -1035,6 +1057,9 @@ struct BlockchainNodeSettingsView: View {
                     autoApplyProviderTemplate()
                 }
                 .onChange(of: config.evmChainId) { _, _ in
+                    autoApplyProviderTemplate()
+                }
+                .onChange(of: config.solDevnet) { _, _ in
                     autoApplyProviderTemplate()
                 }
 

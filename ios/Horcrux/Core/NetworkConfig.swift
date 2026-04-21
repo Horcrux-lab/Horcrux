@@ -290,7 +290,9 @@ final class NetworkConfig: ObservableObject, @unchecked Sendable {
         } else {
             switch chain {
             case .solana:
-                if host.contains("ankr.com") { key = ankrAPIKey }
+                if host.contains("infura.io") { key = infuraAPIKey }
+                else if host.contains("alchemy.com") { key = alchemyAPIKey }
+                else if host.contains("ankr.com") { key = ankrAPIKey }
                 else if host.contains("drpc.org") { key = drpcAPIKey }
                 else { key = heliusAPIKey }
             default: key = ""
@@ -688,6 +690,23 @@ enum RPCProviderTemplate {
         mainnet
             ? "https://mainnet.helius-rpc.com/?api-key={KEY}"
             : "https://devnet.helius-rpc.com/?api-key={KEY}"
+    }
+
+    /// Infura Solana template. Infura's Solana product lives on the same
+    /// account as their EVM endpoints, so a single Project ID (stored in
+    /// `infuraAPIKey`) works for both. `mainnet=false` yields the devnet
+    /// host.
+    static func infuraSolana(mainnet: Bool) -> String {
+        mainnet
+            ? "https://solana-mainnet.infura.io/v3/{KEY}"
+            : "https://solana-devnet.infura.io/v3/{KEY}"
+    }
+
+    /// Alchemy Solana template. Same account + key as Alchemy EVM.
+    static func alchemySolana(mainnet: Bool) -> String {
+        mainnet
+            ? "https://solana-mainnet.g.alchemy.com/v2/{KEY}"
+            : "https://solana-devnet.g.alchemy.com/v2/{KEY}"
     }
 
     /// Infura EVM template for the given chain. `{KEY}` is the project ID.
