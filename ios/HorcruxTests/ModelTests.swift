@@ -41,12 +41,13 @@ final class ModelTests: XCTestCase {
             threshold: 2,
             totalParties: 3,
             partyIndex: 0,
-            createdAt: Date(timeIntervalSince1970: 1000000)
+            createdAt: Date(timeIntervalSince1970: 1000000),
+            isHidden: nil
         )
         let data = try JSONEncoder().encode(wallet)
         let decoded = try JSONDecoder().decode(Wallet.self, from: data)
         XCTAssertEqual(decoded.id, wallet.id)
-        XCTAssertEqual(decoded.chain, .bitcoin)
+        XCTAssertEqual(decoded.chain, Chain.bitcoin)
         XCTAssertEqual(decoded.threshold, 2)
         XCTAssertEqual(decoded.totalParties, 3)
         XCTAssertEqual(decoded.groupPublicKey, Data([1, 2, 3]))

@@ -78,6 +78,7 @@
 		77F9C81CC6B30731F02F60D2 /* NetworkConfigTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 89DC7DDF9C3EE0632FE5DB2D /* NetworkConfigTests.swift */; };
 		7BA88143B652370DAED1B6BB /* MessagePaddingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 381AF38EB22187DD56EF23DC /* MessagePaddingTests.swift */; };
 		7C01BF66F94495332721FAB0 /* SigningViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 36FEFBACE024F46E9D1DAB72 /* SigningViewModelTests.swift */; };
+		A750C4BE1F8FDC4AC02FF90E /* RecentCoSignersStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9ED6532B3918854BC16EDA69 /* RecentCoSignersStoreTests.swift */; };
 		82624C1E2CBCF28A0E353F78 /* TokenModelsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 26C30AF355F59A004BE66E70 /* TokenModelsTests.swift */; };
 		88380DABC0637076A7B84583 /* SigningView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 49A262F731DB964A68E24B04 /* SigningView.swift */; };
 		AA11BB22CC33DD44EE55F001 /* SignRequestDTO.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA11BB22CC33DD44EE55F002 /* SignRequestDTO.swift */; };
@@ -163,6 +164,7 @@
 		9771BE3A29550BF3533578D9 /* RecoveryKeyManager.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = RecoveryKeyManager.swift; sourceTree = "<group>"; };
 		4BB6F2B69C7D60FF3B363D64 /* SecureKeyVault.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SecureKeyVault.swift; sourceTree = "<group>"; };
 		36FEFBACE024F46E9D1DAB72 /* SigningViewModelTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HorcruxTests/SigningViewModelTests.swift; sourceTree = SOURCE_ROOT; };
+		9ED6532B3918854BC16EDA69 /* RecentCoSignersStoreTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HorcruxTests/RecentCoSignersStoreTests.swift; sourceTree = SOURCE_ROOT; };
 		381AF38EB22187DD56EF23DC /* MessagePaddingTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HorcruxTests/MessagePaddingTests.swift; sourceTree = SOURCE_ROOT; };
 		3935002B5AD730445E22C6BD /* TransportProtocol.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TransportProtocol.swift; sourceTree = "<group>"; };
 		3CDB13C07B9797F06F91A090 /* TransactionStoreTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HorcruxTests/TransactionStoreTests.swift; sourceTree = SOURCE_ROOT; };
@@ -450,6 +452,7 @@
 				6AB845987D1C925700225B43 /* SecureEnclaveManagerTests.swift */,
 				0B6E61D592F4FD54E5442B57 /* SecurityEnvironmentTests.swift */,
 				36FEFBACE024F46E9D1DAB72 /* SigningViewModelTests.swift */,
+				9ED6532B3918854BC16EDA69 /* RecentCoSignersStoreTests.swift */,
 				26C30AF355F59A004BE66E70 /* TokenModelsTests.swift */,
 				3CDB13C07B9797F06F91A090 /* TransactionStoreTests.swift */,
 				5AD471CE5D3BA4FC52FD5262 /* WalletStoreTests.swift */,
@@ -731,6 +734,7 @@
 				773069CC300E29CCFC7C940B /* SecureEnclaveManagerTests.swift in Sources */,
 				AB61FAF5D17089CA55A60FB5 /* SecurityEnvironmentTests.swift in Sources */,
 				7C01BF66F94495332721FAB0 /* SigningViewModelTests.swift in Sources */,
+				A750C4BE1F8FDC4AC02FF90E /* RecentCoSignersStoreTests.swift in Sources */,
 				82624C1E2CBCF28A0E353F78 /* TokenModelsTests.swift in Sources */,
 				07F1DBBA780D85A37E6222E4 /* TransactionStoreTests.swift in Sources */,
 				FACED99D3FC34A502E59CA44 /* WalletStoreTests.swift in Sources */,

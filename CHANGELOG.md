@@ -5,6 +5,24 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.0-dev.96] - 2026-04-21
+
+### Added
+
+- **iOS (Tests)**: **单元测试覆盖 dev.91–94 新功能**。
+  - 新建 `RecentCoSignersStoreTests`（9 个用例）：覆盖 `record` / `mostRecent` 时间序排序、5 条上限淘汰、按钱包隔离、`forget` 精确移除、`UserDefaults` 持久化往返、空 peerId 被忽略。
+  - 扩展 `SigningViewModelTests` 5 个用例：`kickPeer`（黑名单 + 从 `joinedSigners` 同步剔除）、`regenerateRoomCode`（新房号 + 清空 kick list）、`tickRoomCodeExpiry`（未到期/已过期两条分支）、`resignToSameRecipient`（保留收款人/代币，清掉金额/费用/会话）。
+  - 顺带修掉两条历史失败：`testStartSigningSetsIsRunning` / `testCancelStopsSigning` 因 `amount` 为空被 guard 提前拦成 `.error`，补 `vm.amount = "0.1"`；取消用例同时接受中英文"取消/cancel"以适配模拟器默认 zh-Hans 语言环境。
+  - `SigningViewModel.sessionId` / `kickedPeerIds` / `peerPartyIndex` 由 `private` 放宽为 internal，附注释说明仅为 `@testable` 可见性；无对外 API 变更。
+  - 全部 22 个用例通过，为后续 DKG / 签名协同的重构提供回归网。
+
+### Fixed
+
+- **iOS (Tests)**: **修复遗留测试编译失败**，解锁测试目标整体 CI。
+  - `ModelTests.swift`：`Wallet(...)` 初始化补 `isHidden: nil`；`XCTAssertEqual(decoded.chain, .bitcoin)` 加 `Chain.` 显式限定（原先推导成 `Equatable` 导致报错）。
+  - `WalletStoreTests.swift`：`makeWallet` 辅助工厂补 `isHidden: nil`。
+  - `CreateShardViewModelTests.swift`：整体 API 已过期（`selectedChain` / `generatedAddress` / `.ble` 等都已不存在），暂用 `#if false` 包住，留 TODO 等下一轮 DKG UI 迭代时重写，避免阻塞其他测试目标编译。
+
 ## [0.3.0-dev.95] - 2026-04-21
 
 ### Added

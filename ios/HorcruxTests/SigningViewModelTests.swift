@@ -17,7 +17,8 @@ final class SigningViewModelTests: XCTestCase {
             threshold: 2,
             totalParties: 3,
             partyIndex: 1,
-            createdAt: Date(timeIntervalSince1970: 1_700_000_000)
+            createdAt: Date(timeIntervalSince1970: 1_700_000_000),
+            isHidden: nil
         )
     }
 
@@ -53,7 +54,8 @@ final class SigningViewModelTests: XCTestCase {
 
         // Without bind(), bridge/deviceKey are nil — startSigning transitions to .signing
         // then the async task quickly errors. We verify the synchronous step change.
-        vm.setPin("123456")
+        // setPin removed — lives on AppState now, not SigningViewModel.
+        vm.amount = "0.1"
         vm.startSigning()
 
         XCTAssertEqual(vm.step, .signing, "startSigning should transition step to .signing")
@@ -63,7 +65,7 @@ final class SigningViewModelTests: XCTestCase {
 
     func testJailbreakBlocksSigning() {
         let vm = SigningViewModel(wallet: makeWallet())
-        vm.setPin("123456")
+        // setPin removed — lives on AppState now, not SigningViewModel.
         vm.startSigning()
 
         if SecurityEnvironment.isCompromised {
@@ -89,7 +91,7 @@ final class SigningViewModelTests: XCTestCase {
 
         guard !SecurityEnvironment.isCompromised else { return }
 
-        vm.setPin("123456")
+        // setPin removed — lives on AppState now, not SigningViewModel.
         vm.startSigning()
 
         // Give the async task time to fail (bridge/deviceKey are nil)
@@ -114,14 +116,16 @@ final class SigningViewModelTests: XCTestCase {
 
         guard !SecurityEnvironment.isCompromised else { return }
 
-        vm.setPin("123456")
+        // setPin removed — lives on AppState now, not SigningViewModel.
+        vm.amount = "0.1"
         vm.startSigning()
         vm.cancelSigning()
 
         XCTAssertEqual(vm.step, .error, "cancelSigning() should set step to .error")
+        let msg = vm.errorMessage.lowercased()
         XCTAssertTrue(
-            vm.errorMessage.lowercased().contains("cancel"),
-            "Error message should mention cancellation"
+            msg.contains("cancel") || msg.contains("取消"),
+            "Error message should mention cancellation (got: \(vm.errorMessage))"
         )
     }
 
@@ -147,5 +151,129 @@ final class SigningViewModelTests: XCTestCase {
         let vm = SigningViewModel(wallet: makeWallet())
         vm.recipientAddress = "0x1234"
         XCTAssertEqual(vm.shortRecipient, "0x1234", "Short addresses should not be truncated")
+    }
+
+    // MARK: - dev.92 kickPeer
+
+    func testKickPeerBlocklistsAndRemovesFromJoined() {
+        let vm = SigningViewModel(wallet: makeWallet())
+        let a = Peer(id: "peer-a", name: "Alice", channel: "relay")
+        let b = Peer(id: "peer-b", name: "Bob", channel: "relay")
+        vm.joinedSigners = [a, b]
+        vm.peerPartyIndex[a.id] = 2
+
+        vm.kickPeer(a)
+
+        XCTAssertTrue(vm.kickedPeerIds.contains(a.id),
+                      "Kicked peer id must go onto the local blocklist")
+        XCTAssertNil(vm.peerPartyIndex[a.id],
+                     "Kicked peer's party index must be released")
+        XCTAssertFalse(vm.joinedSigners.contains(where: { $0.id == a.id }),
+                       "Kicked peer must be gone from joinedSigners")
+        XCTAssertTrue(vm.joinedSigners.contains(where: { $0.id == b.id }),
+                      "Other peers must stay")
+    }
+
+    // MARK: - dev.91 regenerateRoomCode
+
+    func testRegenerateRoomCodeMintsFreshCodeAndClearsKickList() {
+        let vm = SigningViewModel(wallet: makeWallet())
+        let p = Peer(id: "peer-x", name: "X", channel: "relay")
+        vm.joinedSigners = [p]
+        vm.kickedPeerIds = ["peer-x"]
+        vm.peerPartyIndex = ["peer-x": 2]
+        let oldCode = "ABCD12"
+        vm.roomCode = oldCode
+        vm.roomCodeExpiresAt = Date(timeIntervalSince1970: 0)
+        vm.roomCodeExpired = true
+
+        vm.regenerateRoomCode()
+
+        XCTAssertFalse(vm.roomCode.isEmpty, "A fresh room code must be generated")
+        XCTAssertNotEqual(vm.roomCode, oldCode, "Room code must rotate")
+        XCTAssertEqual(vm.sessionId, vm.roomCode,
+                       "sessionId must follow the new roomCode for a new ceremony")
+        XCTAssertFalse(vm.roomCodeExpired, "New code must start un-expired")
+        XCTAssertNotNil(vm.roomCodeExpiresAt, "New TTL must be set")
+        if let exp = vm.roomCodeExpiresAt {
+            XCTAssertGreaterThan(exp, Date(), "TTL must be in the future")
+        }
+        XCTAssertTrue(vm.kickedPeerIds.isEmpty,
+                      "Rotating the room code clears the blocklist — fresh ceremony, fresh slate")
+        XCTAssertTrue(vm.peerPartyIndex.isEmpty,
+                      "Party index assignments reset with the room code")
+    }
+
+    // MARK: - dev.91 tickRoomCodeExpiry
+
+    func testTickRoomCodeExpiryFlipsToExpired() {
+        let vm = SigningViewModel(wallet: makeWallet())
+        vm.step = .invite
+        vm.roomCodeExpiresAt = Date().addingTimeInterval(-1)
+        vm.roomCodeExpired = false
+
+        vm.tickRoomCodeExpiry()
+
+        XCTAssertTrue(vm.roomCodeExpired,
+                      "TTL passed → expired flag must flip on tick")
+    }
+
+    func testTickRoomCodeExpiryStaysFreshWhenTTLInFuture() {
+        let vm = SigningViewModel(wallet: makeWallet())
+        vm.step = .invite
+        vm.roomCodeExpiresAt = Date().addingTimeInterval(120)
+        vm.roomCodeExpired = false
+
+        vm.tickRoomCodeExpiry()
+
+        XCTAssertFalse(vm.roomCodeExpired,
+                       "TTL in future → still fresh")
+    }
+
+    // MARK: - dev.94 resignToSameRecipient
+
+    func testResignToSameRecipientKeepsRecipientAndTokenResetsRest() {
+        let vm = SigningViewModel(wallet: makeWallet())
+        vm.step = .complete
+        vm.recipientAddress = "0x742d35Cc6634C0532925a3b844Bc9e7595f2bD18"
+        vm.amount = "1.5"
+        vm.estimatedFee = "0.0012 ETH"
+        vm.txHash = "0xdeadbeef"
+        vm.roomCode = "XYZ123"
+        vm.sessionId = "XYZ123"
+        vm.joinedSigners = [Peer(id: "p1", name: "P1", channel: "relay")]
+        vm.kickedPeerIds = ["someone"]
+        vm.peerPartyIndex = ["p1": 2]
+        vm.signingProgress = 1.0
+        vm.signingStatusMessage = "Done"
+        vm.currentRound = 4
+        vm.errorMessage = "stale"
+        vm.roomCodeExpiresAt = Date()
+        vm.roomCodeExpired = true
+        vm.isBroadcasting = false
+        vm.broadcastStatus = nil
+
+        vm.resignToSameRecipient()
+
+        // Sticky fields kept.
+        XCTAssertEqual(vm.recipientAddress,
+                       "0x742d35Cc6634C0532925a3b844Bc9e7595f2bD18",
+                       "Recipient must stick so the user can re-send")
+        // Everything else cleared back to compose-fresh defaults.
+        XCTAssertEqual(vm.step, .compose)
+        XCTAssertEqual(vm.amount, "", "Amount must reset — new transfer, new amount")
+        XCTAssertEqual(vm.estimatedFee, "—", "Stale fee estimate must clear")
+        XCTAssertNil(vm.txHash, "Previous tx hash must clear")
+        XCTAssertEqual(vm.roomCode, "", "Old room code must clear")
+        XCTAssertNil(vm.sessionId, "Old session must clear")
+        XCTAssertTrue(vm.joinedSigners.isEmpty, "Old peers must clear")
+        XCTAssertTrue(vm.kickedPeerIds.isEmpty, "Kick list must clear")
+        XCTAssertTrue(vm.peerPartyIndex.isEmpty, "Party assignments must clear")
+        XCTAssertEqual(vm.signingProgress, 0)
+        XCTAssertEqual(vm.signingStatusMessage, "")
+        XCTAssertEqual(vm.currentRound, 0)
+        XCTAssertEqual(vm.errorMessage, "")
+        XCTAssertNil(vm.roomCodeExpiresAt, "New ceremony will mint its own TTL")
+        XCTAssertFalse(vm.roomCodeExpired)
     }
 }

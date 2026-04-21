@@ -22,7 +22,8 @@ final class WalletStoreTests: XCTestCase {
             threshold: 2,
             totalParties: 3,
             partyIndex: 1,
-            createdAt: Date(timeIntervalSince1970: 1_700_000_000)
+            createdAt: Date(timeIntervalSince1970: 1_700_000_000),
+            isHidden: nil
         )
     }
 

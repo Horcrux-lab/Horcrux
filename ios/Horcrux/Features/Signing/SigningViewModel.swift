@@ -117,7 +117,12 @@ final class SigningViewModel: ObservableObject {
     /// `peerManager.connectedPeers` still reports them. Cleared on
     /// `regenerateRoomCode()` / room-code rotation (new ceremony = clean
     /// slate).
-    private var kickedPeerIds: Set<String> = []
+    /// Peer IDs the initiator explicitly kicked from this ceremony.
+    /// Keeps them out of `joinedSigners` on subsequent presence ticks
+    /// until a full `regenerateRoomCode()` / room-code rotation (new ceremony = clean
+    /// slate). `internal` (not private) so tests can observe the
+    /// blocklist without calling internal reducer plumbing.
+    var kickedPeerIds: Set<String> = []
     /// Three-word room code shared with co-signers to join this MPC session.
     /// Generated lazily when user advances to the invite step. Also used
     /// verbatim as the MPC `sessionId` so every participant derives the same
@@ -178,7 +183,9 @@ final class SigningViewModel: ObservableObject {
     private var deviceKey: Data?
     private var networkConfig: NetworkConfig?
     private var blockchainService: BlockchainService?
-    private var sessionId: String?
+    // `internal` for @testable visibility; lifecycle is managed via
+    // `prepareInvite` / `regenerateRoomCode` / `resignToSameRecipient`.
+    var sessionId: String?
     private var currentRecordId: String?
     private var cancellables = Set<AnyCancellable>()
     private var signingTask: Task<Void, Never>?
@@ -241,7 +248,9 @@ final class SigningViewModel: ObservableObject {
     /// `[1, 1]`). Entries for peers that never sent a "confirmed" ping
     /// (old clients, out-of-order packets) are filled in deterministically
     /// from the pool of unused party indices before signing starts.
-    private var peerPartyIndex: [String: UInt16] = [:]
+    // `internal` for @testable visibility. Populated by kickPeer /
+    // presence reducer; cleared by regenerateRoomCode/resignToSame.
+    var peerPartyIndex: [String: UInt16] = [:]
     /// Background task that watches the MPC stream during `.invite` for
     /// incoming `SignPresenceDTO` packets carrying `partyIndex`.
     private var presenceListenerTask: Task<Void, Never>?
