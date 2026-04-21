@@ -138,6 +138,9 @@ enum L10n {
         static let viewDetailsHint = NSLocalizedString("walletHome.viewDetailsHint", comment: "")
         static let editWalletList = NSLocalizedString("walletHome.editWalletList", comment: "")
         static let pendingBroadcasts = NSLocalizedString("walletHome.pendingBroadcasts", comment: "")
+        static func pendingBroadcastsCount(_ n: Int) -> String {
+            String(format: NSLocalizedString("walletHome.pendingBroadcastsCount", comment: ""), n)
+        }
         static let loadingBalance = NSLocalizedString("walletHome.loadingBalance", comment: "")
         static func showMoreChains(_ n: Int) -> String {
             String(format: NSLocalizedString("walletHome.showMoreChains", comment: ""), n)

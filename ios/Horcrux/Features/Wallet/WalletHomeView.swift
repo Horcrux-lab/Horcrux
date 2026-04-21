@@ -29,6 +29,10 @@ struct WalletHomeView: View {
     @State private var lastReachabilityCheck: Date?
     @State private var rotationTarget: Wallet?
     @State private var avatarEditTarget: AvatarEditTarget?
+    /// Collapse state for the pending-broadcasts section. When 2+ items
+    /// are queued we default to collapsed (renders a single pill) to stop
+    /// the list from hogging the top of the screen. Taps expand inline.
+    @State private var pendingExpanded: Bool = false
 
     private struct AvatarEditTarget: Identifiable {
         let id: String  // == accountId
@@ -247,22 +251,10 @@ struct WalletHomeView: View {
                 // Portfolio summary (IA: root → chain → asset)
                 PortfolioSummaryCard(wallets: walletStore.wallets.filter { !$0.hidden })
 
-                // Pending broadcasts
+                // Pending broadcasts — collapsible when 2+ queued
                 if !appState.pendingBroadcastQueue.pending.isEmpty {
-                    VStack(alignment: .leading, spacing: 8) {
-                        VaultSectionHeader(L10n.WalletHome.pendingBroadcasts, icon: "arrow.up.circle.badge.clock")
-                            .padding(.horizontal, 4)
-
-                        ForEach(appState.pendingBroadcastQueue.pending) { tx in
-                            PendingBroadcastRow(
-                                transaction: tx,
-                                onRetry: { Task { await retryBroadcast(tx) } },
-                                onDiscard: { appState.pendingBroadcastQueue.dequeue(id: tx.id) }
-                            )
-                            .glassCard()
-                        }
-                    }
-                    .padding(.bottom, 8)
+                    pendingBroadcastsSection
+                        .padding(.bottom, 8)
                 }
 
                 // Wallets grouped by MPC account (same groupPublicKey → one account spanning multiple chains)
@@ -500,6 +492,63 @@ struct WalletHomeView: View {
     }
 
     @State private var hiddenExpanded = false
+
+    /// Collapsible pending-broadcasts section. Defaults to expanded when
+    /// only one tx is queued (low visual cost, actionable), collapsed when
+    /// 2+ are queued (keeps the top of the wallet home usable). Tap the
+    /// header pill to toggle.
+    @ViewBuilder
+    private var pendingBroadcastsSection: some View {
+        let queued = appState.pendingBroadcastQueue.pending
+        let shouldCollapseByDefault = queued.count >= 2
+        let expanded = pendingExpanded || !shouldCollapseByDefault
+        VStack(alignment: .leading, spacing: 8) {
+            Button {
+                Haptics.selection()
+                withAnimation(.easeInOut(duration: 0.22)) {
+                    pendingExpanded.toggle()
+                }
+            } label: {
+                HStack(spacing: 8) {
+                    Image(systemName: "arrow.up.circle.badge.clock")
+                        .foregroundStyle(HorcruxTheme.accentBlue)
+                    Text(queued.count == 1
+                         ? L10n.WalletHome.pendingBroadcasts
+                         : L10n.WalletHome.pendingBroadcastsCount(queued.count))
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(.white)
+                    if queued.contains(where: { $0.lastError != nil }) {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .font(.caption)
+                            .foregroundStyle(HorcruxTheme.warningAmber)
+                    }
+                    Spacer()
+                    if shouldCollapseByDefault {
+                        Image(systemName: expanded ? "chevron.up" : "chevron.down")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(HorcruxTheme.subtleText)
+                    }
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 10)
+                .background(HorcruxTheme.accentBlue.opacity(0.12), in: RoundedRectangle(cornerRadius: 12))
+            }
+            .buttonStyle(.plain)
+            .disabled(!shouldCollapseByDefault)
+            .accessibilityIdentifier("walletHome_pendingBroadcastsHeader")
+
+            if expanded {
+                ForEach(queued) { tx in
+                    PendingBroadcastRow(
+                        transaction: tx,
+                        onRetry: { Task { await retryBroadcast(tx) } },
+                        onDiscard: { appState.pendingBroadcastQueue.dequeue(id: tx.id) }
+                    )
+                    .glassCard()
+                }
+            }
+        }
+    }
 
     private var hiddenSection: some View {
         VStack(alignment: .leading, spacing: 8) {

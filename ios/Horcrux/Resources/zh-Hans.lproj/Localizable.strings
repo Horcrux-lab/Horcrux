@@ -67,6 +67,7 @@
 "walletHome.viewDetailsHint" = "查看钱包详情、发送和接收";
 "walletHome.editWalletList" = "编辑钱包列表";
 "walletHome.pendingBroadcasts" = "待广播交易";
+"walletHome.pendingBroadcastsCount" = "%d 笔待广播";
 "walletHome.nodeUnreachable" = "%@ 节点不可达";
 "walletHome.nodesUnreachable" = "%@ 节点不可达";
 "walletHome.security.title.safe" = "钱包安全";

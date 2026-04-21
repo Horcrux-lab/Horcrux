@@ -67,6 +67,7 @@
 "walletHome.viewDetailsHint" = "View wallet details, send, and receive";
 "walletHome.editWalletList" = "Edit wallet list";
 "walletHome.pendingBroadcasts" = "Pending Broadcasts";
+"walletHome.pendingBroadcastsCount" = "%d pending broadcast(s)";
 "walletHome.nodeUnreachable" = "%@ node unreachable";
 "walletHome.nodesUnreachable" = "%@ nodes unreachable";
 "walletHome.security.title.safe" = "Wallet safe";
