@@ -165,7 +165,17 @@ final class CreateShardViewModel: ObservableObject {
 
                 if let pres = try? JSONDecoder().decode(RoomPresenceDTO.self, from: data),
                    pres.magic == RoomPresenceDTO.magic {
-                    NSLog("[DKG]   → RoomPresence from \(pres.deviceName) role=\(pres.role)")
+                    NSLog("[DKG]   → RoomPresence from \(pres.deviceName) role=\(pres.role) room=\(pres.roomCode ?? "<nil>")")
+                    // Reject presence from devices in a *different* room —
+                    // LAN Bonjour broadcasts aren't room-scoped, so without
+                    // this check a peer mid-ceremony on room A would show
+                    // up in room B's presence list and confuse the
+                    // invite UI / DKG participant resolver.
+                    if let theirRoom = pres.roomCode, !theirRoom.isEmpty,
+                       !self.roomCode.isEmpty, theirRoom != self.roomCode {
+                        NSLog("[DKG]     ignored — wrong room (mine=\(self.roomCode))")
+                        continue
+                    }
                     if pres.deviceName != DeviceIdentity.displayName {
                         self.roomPresence[pres.deviceName] = pres
                     }
@@ -219,7 +229,8 @@ final class CreateShardViewModel: ObservableObject {
             role: role,
             proposedThreshold: role == .create ? threshold : nil,
             proposedTotalParties: role == .create ? totalParties : nil,
-            curve: role == .create ? selectedCurve : nil
+            curve: role == .create ? selectedCurve : nil,
+            roomCode: roomCode.isEmpty ? nil : roomCode
         )
         guard let data = try? JSONEncoder().encode(beacon) else { return }
         try? await peerManager.broadcastMpcMessage(data)
@@ -748,13 +759,20 @@ struct RoomPresenceDTO: Codable {
     let proposedThreshold: UInt16?
     let proposedTotalParties: UInt16?
     let curve: String?
+    /// Room code the broadcaster is currently in. Lets peers on the same
+    /// LAN / relay reject presence from devices that are in a *different*
+    /// room. Optional for back-compat with pre-dev.100 peers; when nil,
+    /// treat as "legacy, accept" (those peers still collide by roomCode
+    /// on the relay channel ID so the legacy behaviour is acceptable).
+    let roomCode: String?
 
     init(
         deviceName: String,
         role: CreateShardViewModel.Role,
         proposedThreshold: Int?,
         proposedTotalParties: Int?,
-        curve: FfiCurveType?
+        curve: FfiCurveType?,
+        roomCode: String?
     ) {
         self.magic = Self.magic
         self.deviceName = deviceName
@@ -762,6 +780,7 @@ struct RoomPresenceDTO: Codable {
         self.proposedThreshold = proposedThreshold.map(UInt16.init)
         self.proposedTotalParties = proposedTotalParties.map(UInt16.init)
         self.curve = curve.map(Self.curveString)
+        self.roomCode = roomCode
     }
 
     static func curveString(_ c: FfiCurveType) -> String {
