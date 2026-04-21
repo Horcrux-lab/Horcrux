@@ -604,9 +604,26 @@ final class SigningViewModel: ObservableObject {
 
         guard let peerManager else { return }
         beginListenerTask?.cancel()
+        // Subscribe the long-lived "signing" stream synchronously *before*
+        // dispatching the listener Task. Hand the subscription to
+        // `startSigning` (via cosignerMpcSubId/Stream) so it reuses this
+        // continuation instead of tearing it down and creating a fresh one.
+        //
+        // Historical stall: the old code subscribed inside the Task, then
+        // `return`ed from the for-await as soon as SignBeginDTO arrived —
+        // triggering `defer { unsubscribeMpc }`. `startSigning` only
+        // subscribed its own stream several tens of ms later (after
+        // MainActor.run + Task scheduling + decryption setup), and any
+        // FROST round-1 packet that arrived during that gap was yielded to
+        // zero subscribers and silently dropped (log: "yielding 13543B to 0
+        // subscriber(s)"), stalling the ceremony forever.
+        let (subId, stream) = peerManager.mpcMessageStream()
+        cosignerMpcSubId = subId
+        cosignerMpcStream = stream
         beginListenerTask = Task { [weak self] in
-            let (subId, stream) = peerManager.mpcMessageStream()
-            defer { peerManager.unsubscribeMpc(subId) }
+            // NOTE: we do NOT unsubscribe here on exit — ownership passes to
+            // `startSigning`/`runSigningRounds`. If the listener is cancelled
+            // before SignBeginDTO arrives, `cancelSigning` cleans up.
             for await (_, data) in stream {
                 guard let self else { return }
                 if Task.isCancelled { return }
@@ -630,6 +647,14 @@ final class SigningViewModel: ObservableObject {
     /// handshake (only the initiator sends it).
     private var isCosigner: Bool = false
     private var beginListenerTask: Task<Void, Never>?
+    /// On the cosigner path, the MPC subscription is created in
+    /// `awaitInitiatorStart` (before the begin-listener Task is even
+    /// scheduled) and handed to `startSigning` here. This closes the race
+    /// where the old code dropped the subscription on SignBeginDTO receipt
+    /// and then re-subscribed inside `startSigning`, losing any FROST
+    /// messages that arrived in the tens-of-ms gap.
+    private var cosignerMpcSubId: UUID?
+    private var cosignerMpcStream: AsyncStream<(Peer, Data)>?
 
     /// Move from the compose step to the invite step. Generates a fresh
     /// three-word `roomCode`, joins the relay room so co-signers with the
@@ -979,7 +1004,23 @@ final class SigningViewModel: ObservableObject {
                 // dropped — stalling the ceremony forever. AsyncStream buffers
                 // `.unbounded` by default, so early arrivals queue safely until
                 // `runSigningRounds` starts iterating.
-                let (mpcSubId, mpcStream) = peerManager.mpcMessageStream()
+                //
+                // On the cosigner path, `awaitInitiatorStart` already created
+                // the subscription (before the SignBeginDTO handshake) and
+                // stashed it on the VM — reuse it to avoid a
+                // unsubscribe/re-subscribe gap that would drop FROST round-1
+                // messages arriving between the two. On the initiator path
+                // both stashed fields are nil and we subscribe fresh here.
+                let mpcSubId: UUID
+                let mpcStream: AsyncStream<(Peer, Data)>
+                if let stashedId = cosignerMpcSubId, let stashedStream = cosignerMpcStream {
+                    mpcSubId = stashedId
+                    mpcStream = stashedStream
+                    cosignerMpcSubId = nil
+                    cosignerMpcStream = nil
+                } else {
+                    (mpcSubId, mpcStream) = peerManager.mpcMessageStream()
+                }
                 var mpcSubActive = true
                 defer {
                     if mpcSubActive { peerManager.unsubscribeMpc(mpcSubId) }
@@ -1119,6 +1160,14 @@ final class SigningViewModel: ObservableObject {
         beginListenerTask = nil
         presenceListenerTask?.cancel()
         presenceListenerTask = nil
+        // If the cosigner subscription was created in awaitInitiatorStart
+        // but startSigning never took ownership (e.g. cancel before
+        // SignBeginDTO), tear it down here so it doesn't leak.
+        if let subId = cosignerMpcSubId {
+            peerManager?.unsubscribeMpc(subId)
+            cosignerMpcSubId = nil
+            cosignerMpcStream = nil
+        }
         if var k = signingShardKey {
             k.resetBytes(in: 0..<k.count)
             signingShardKey = nil
