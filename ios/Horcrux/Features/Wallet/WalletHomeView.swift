@@ -84,14 +84,23 @@ struct WalletHomeView: View {
                 }
             }
             .navigationTitle(L10n.WalletHome.title)
-            .navigationBarTitleDisplayMode(.large)
+            .navigationBarTitleDisplayMode(.inline)
             .toolbarColorScheme(.dark, for: .navigationBar)
+            .toolbarBackground(.hidden, for: .navigationBar)
             .toolbar {
-                ToolbarItem(placement: .primaryAction) {
-                    // Top-right + is only shown when the user already has
-                    // wallets; in empty state the centered primary CTA is
-                    // the single source of truth (avoids 3x redundant CTAs).
-                    EmptyView()
+                ToolbarItem(placement: .principal) {
+                    // Subtle brand lockup replaces the lonely large title.
+                    // Keeps the PortfolioSummaryCard below as the visual hero
+                    // (see Rainbow / Zerion / Phantom for the same pattern).
+                    HStack(spacing: 6) {
+                        Image(systemName: "shield.lefthalf.filled")
+                            .font(.footnote.weight(.semibold))
+                            .foregroundStyle(HorcruxTheme.accentPurple)
+                        Text(L10n.WalletHome.title)
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(.white.opacity(0.9))
+                    }
+                    .accessibilityAddTraits(.isHeader)
                 }
                 ToolbarItem(placement: .topBarLeading) {
                     if !walletStore.wallets.isEmpty {
