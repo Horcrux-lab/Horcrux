@@ -602,59 +602,26 @@ final class SigningViewModel: ObservableObject {
         totalRounds = wallet.chain.curveType == .ed25519 ? 2 : 4
         signingStatusMessage = L10n.Signing.waitingForInitiator
 
-        guard let peerManager else { return }
-        beginListenerTask?.cancel()
-        // Subscribe the long-lived "signing" stream synchronously *before*
-        // dispatching the listener Task. Hand the subscription to
-        // `startSigning` (via cosignerMpcSubId/Stream) so it reuses this
-        // continuation instead of tearing it down and creating a fresh one.
+        // Kick straight into startSigning. The cosigner path inside the
+        // signingTask subscribes the MPC stream *first*, then drains it
+        // until `SignBeginDTO` arrives (setting `authoritativeTx`), then
+        // proceeds with buildSignHash + bridge.startSigning on the same
+        // already-advanced iterator. A single subscription spans the
+        // whole ceremony — there is no window in which messages can be
+        // yielded to zero subscribers.
         //
-        // Historical stall: the old code subscribed inside the Task, then
-        // `return`ed from the for-await as soon as SignBeginDTO arrived —
-        // triggering `defer { unsubscribeMpc }`. `startSigning` only
-        // subscribed its own stream several tens of ms later (after
-        // MainActor.run + Task scheduling + decryption setup), and any
-        // FROST round-1 packet that arrived during that gap was yielded to
-        // zero subscribers and silently dropped (log: "yielding 13543B to 0
-        // subscriber(s)"), stalling the ceremony forever.
-        let (subId, stream) = peerManager.mpcMessageStream()
-        cosignerMpcSubId = subId
-        cosignerMpcStream = stream
-        beginListenerTask = Task { [weak self] in
-            // NOTE: we do NOT unsubscribe here on exit — ownership passes to
-            // `startSigning`/`runSigningRounds`. If the listener is cancelled
-            // before SignBeginDTO arrives, `cancelSigning` cleans up.
-            for await (_, data) in stream {
-                guard let self else { return }
-                if Task.isCancelled { return }
-                if let begin = try? JSONDecoder().decode(SignBeginDTO.self, from: data),
-                   begin.magic == SignBeginDTO.magic,
-                   await MainActor.run(body: { begin.sessionId == (self.sessionId ?? self.roomCode) }) {
-                    await MainActor.run {
-                        // Stash the authoritative tx params shipped by
-                        // the initiator so our buildSignHash uses the
-                        // exact same nonce/gas/calldata — essential for
-                        // the MPC sighash to match.
-                        self.authoritativeTx = begin.tx
-                        self.startSigning()
-                    }
-                    return
-                }
-            }
-        }
+        // Earlier designs ran a separate begin-listener Task that held
+        // its own subscription and then `return`ed on receipt of
+        // SignBeginDTO. `AsyncStream.onTermination` fires when the
+        // iterator is deallocated, so the for-await drop on return tore
+        // down the continuation; the FROST round-1 packets arriving ~500
+        // ms later (logged as "yielding 13543B to 0 subscriber(s)") hit a
+        // dead stream and were silently dropped, stalling the ceremony.
+        startSigning()
     }
     /// True on a cosigner's VM so `startSigning` skips the "broadcast begin"
     /// handshake (only the initiator sends it).
     private var isCosigner: Bool = false
-    private var beginListenerTask: Task<Void, Never>?
-    /// On the cosigner path, the MPC subscription is created in
-    /// `awaitInitiatorStart` (before the begin-listener Task is even
-    /// scheduled) and handed to `startSigning` here. This closes the race
-    /// where the old code dropped the subscription on SignBeginDTO receipt
-    /// and then re-subscribed inside `startSigning`, losing any FROST
-    /// messages that arrived in the tens-of-ms gap.
-    private var cosignerMpcSubId: UUID?
-    private var cosignerMpcStream: AsyncStream<(Peer, Data)>?
 
     /// Move from the compose step to the invite step. Generates a fresh
     /// three-word `roomCode`, joins the relay room so co-signers with the
@@ -972,11 +939,6 @@ final class SigningViewModel: ObservableObject {
         // once signing starts, all further traffic is real MPC bytes.
         presenceListenerTask?.cancel()
         presenceListenerTask = nil
-        // We're about to subscribe to the MPC stream ourselves via
-        // runSigningRounds; the cosigner's separate begin-listener is no
-        // longer needed (and would double-subscribe).
-        beginListenerTask?.cancel()
-        beginListenerTask = nil
         // sessionId was pinned by prepareInvite() to match roomCode so all
         // participants share the same MPC session. Fall back to a fresh
         // UUID only if someone bypassed prepareInvite (defensive).
@@ -997,34 +959,30 @@ final class SigningViewModel: ObservableObject {
                     throw SigningError.notInitialized
                 }
                 // Subscribe to the MPC stream BEFORE broadcasting SignBeginDTO
-                // or the 400ms handshake sleep. If we subscribe only after the
-                // sleep (old behavior), any cosigner that already completed its
-                // own `bridge.startSigning` and broadcast its round-0 messages
-                // finds 0 subscribers on our side and the packets are silently
-                // dropped — stalling the ceremony forever. AsyncStream buffers
-                // `.unbounded` by default, so early arrivals queue safely until
-                // `runSigningRounds` starts iterating.
+                // (initiator) or waiting for it (cosigner). AsyncStream buffers
+                // `.unbounded` by default, so any early arrivals queue safely
+                // until we drain them below.
                 //
-                // On the cosigner path, `awaitInitiatorStart` already created
-                // the subscription (before the SignBeginDTO handshake) and
-                // stashed it on the VM — reuse it to avoid a
-                // unsubscribe/re-subscribe gap that would drop FROST round-1
-                // messages arriving between the two. On the initiator path
-                // both stashed fields are nil and we subscribe fresh here.
-                let mpcSubId: UUID
-                let mpcStream: AsyncStream<(Peer, Data)>
-                if let stashedId = cosignerMpcSubId, let stashedStream = cosignerMpcStream {
-                    mpcSubId = stashedId
-                    mpcStream = stashedStream
-                    cosignerMpcSubId = nil
-                    cosignerMpcStream = nil
-                } else {
-                    (mpcSubId, mpcStream) = peerManager.mpcMessageStream()
-                }
+                // Single subscription spans the entire ceremony. On the
+                // cosigner path we iterate this very stream until SignBeginDTO
+                // arrives, stash authoritativeTx, then hand the already-
+                // advanced iterator to `runSigningRounds` (which resumes
+                // reading without ever tearing the subscription down).
+                //
+                // Historical stall: an earlier design ran a separate
+                // begin-listener Task that held its own subscription and
+                // returned from its for-await on SignBeginDTO. AsyncStream's
+                // onTermination fires when the iterator deallocates — the
+                // continuation was killed at that moment and the FROST
+                // round-1 packets arriving ~500 ms later (e.g. 13.5 KB +
+                // 21.7 KB, logged as "yielding to 0 subscriber(s)") were
+                // silently dropped.
+                let (mpcSubId, mpcStream) = peerManager.mpcMessageStream()
                 var mpcSubActive = true
                 defer {
                     if mpcSubActive { peerManager.unsubscribeMpc(mpcSubId) }
                 }
+                var mpcIterator = mpcStream.makeAsyncIterator()
                 guard var swk = signingShardKey, !swk.isEmpty else {
                     throw SigningError.notInitialized
                 }
@@ -1051,6 +1009,27 @@ final class SigningViewModel: ObservableObject {
                 // independent RPC call and no two participants can drift.
                 if !isCosigner {
                     try await preresolveTxParams()
+                } else {
+                    // Cosigner: drain the MPC iterator until the initiator's
+                    // SignBeginDTO arrives with authoritative tx params, then
+                    // fall through with the iterator already advanced past it.
+                    // Non-SignBegin packets that land here (e.g. stale
+                    // presence pings) are discarded — real FROST rounds only
+                    // start after SignBeginDTO so anything before it is
+                    // either another control DTO or a packet from a previous
+                    // ceremony in the same room.
+                    let expectedSession = sessionId ?? roomCode
+                    while !Task.isCancelled {
+                        guard let (_, data) = await mpcIterator.next() else {
+                            throw SigningError.notInitialized
+                        }
+                        if let begin = try? JSONDecoder().decode(SignBeginDTO.self, from: data),
+                           begin.magic == SignBeginDTO.magic,
+                           begin.sessionId == expectedSession {
+                            await MainActor.run { self.authoritativeTx = begin.tx }
+                            break
+                        }
+                    }
                 }
 
                 // Build the transaction hash to sign
@@ -1141,7 +1120,7 @@ final class SigningViewModel: ObservableObject {
                 await runSigningRounds(
                     initialMessages: outgoing,
                     subId: mpcSubId,
-                    mpcStream: mpcStream
+                    mpcIterator: mpcIterator
                 )
 
             } catch {
@@ -1156,18 +1135,8 @@ final class SigningViewModel: ObservableObject {
     func cancelSigning() {
         signingTask?.cancel()
         signingTask = nil
-        beginListenerTask?.cancel()
-        beginListenerTask = nil
         presenceListenerTask?.cancel()
         presenceListenerTask = nil
-        // If the cosigner subscription was created in awaitInitiatorStart
-        // but startSigning never took ownership (e.g. cancel before
-        // SignBeginDTO), tear it down here so it doesn't leak.
-        if let subId = cosignerMpcSubId {
-            peerManager?.unsubscribeMpc(subId)
-            cosignerMpcSubId = nil
-            cosignerMpcStream = nil
-        }
         if var k = signingShardKey {
             k.resetBytes(in: 0..<k.count)
             signingShardKey = nil
@@ -1194,11 +1163,17 @@ final class SigningViewModel: ObservableObject {
     private func runSigningRounds(
         initialMessages: [FfiMpcMessage],
         subId: UUID,
-        mpcStream: AsyncStream<(Peer, Data)>
+        mpcIterator: AsyncStream<(Peer, Data)>.Iterator
     ) async {
         guard let bridge, let peerManager else { return }
 
         defer { peerManager.unsubscribeMpc(subId) }
+
+        // The iterator is passed in already advanced past SignBeginDTO
+        // (cosigner) or fresh (initiator). Capture it into a local `var`
+        // so we can call `next()` — AsyncStream.Iterator is a struct and
+        // `next()` is mutating.
+        var iterator = mpcIterator
 
         do {
             // Send initial messages
@@ -1215,7 +1190,7 @@ final class SigningViewModel: ObservableObject {
             var seenMessages = Set<Data>()
 
             // Process incoming messages
-            for await (peer, data) in mpcStream {
+            while let (peer, data) = await iterator.next() {
                 // Drop exact-byte duplicates before even decoding. SHA-256
                 // keeps the set bounded in size vs storing raw bytes.
                 let digest = Data(SHA256.hash(data: data))
