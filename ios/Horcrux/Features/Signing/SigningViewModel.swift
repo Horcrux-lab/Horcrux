@@ -261,6 +261,14 @@ final class SigningViewModel: ObservableObject {
     /// `[1, 1]`). Entries for peers that never sent a "confirmed" ping
     /// (old clients, out-of-order packets) are filled in deterministically
     /// from the pool of unused party indices before signing starts.
+    /// On the cosigner side only: the full sorted participant list
+    /// copied verbatim from `SignBeginDTO.participants`. Cosigners
+    /// can't compute this locally (no cross-cosigner presence pings),
+    /// so they take the initiator's authoritative list. `nil` on
+    /// the initiator or against pre-dev.115 initiators that didn't
+    /// populate the field.
+    private var initiatorParticipants: [UInt16]?
+
     // `internal` for @testable visibility. Populated by kickPeer /
     // presence reducer; cleared by regenerateRoomCode/resignToSame.
     var peerPartyIndex: [String: UInt16] = [:]
@@ -1029,8 +1037,12 @@ final class SigningViewModel: ObservableObject {
                         if let begin = try? JSONDecoder().decode(SignBeginDTO.self, from: data),
                            begin.magic == SignBeginDTO.magic,
                            begin.sessionId == expectedSession {
-                            NSLog("[signing] cosigner got SignBegin")
-                            await MainActor.run { self.authoritativeTx = begin.tx }
+                            NSLog("[signing] cosigner got SignBegin participants=%@",
+                                  (begin.participants ?? []).map { String($0) }.joined(separator: ","))
+                            await MainActor.run {
+                                self.authoritativeTx = begin.tx
+                                self.initiatorParticipants = begin.participants
+                            }
                             break
                         }
                     }
@@ -1057,37 +1069,63 @@ final class SigningViewModel: ObservableObject {
                 // was party 1 and filled cosigner slots starting at 1,
                 // breaking any 2-of-2 ceremony initiated by party 1.
                 let myIndex = wallet.partyIndex
-                let neededCosigners = Int(wallet.threshold) - 1
-                var assigned: Set<UInt16> = [myIndex]
-                var cosignerIndices: [UInt16] = []
-                let joined = Array(joinedSigners.prefix(neededCosigners))
-                var unresolved: [Peer] = []
-                for peer in joined {
-                    if let idx = peerPartyIndex[peer.id],
-                       idx != myIndex,
-                       !assigned.contains(idx),
-                       idx >= 1, idx <= wallet.totalParties {
-                        cosignerIndices.append(idx)
-                        assigned.insert(idx)
-                    } else {
-                        unresolved.append(peer)
+                let participants: [UInt16]
+                if isCosigner, let provided = initiatorParticipants, provided.contains(myIndex) {
+                    // Authoritative list from the initiator — use it
+                    // verbatim so both sides agree on the exact
+                    // participant set even if the cosigner never saw
+                    // any cross-cosigner presence pings.
+                    participants = provided.sorted()
+                } else {
+                    let neededCosigners = Int(wallet.threshold) - 1
+                    var assigned: Set<UInt16> = [myIndex]
+                    var cosignerIndices: [UInt16] = []
+                    let joined = Array(joinedSigners.prefix(neededCosigners))
+                    var unresolved: [Peer] = []
+                    for peer in joined {
+                        if let idx = peerPartyIndex[peer.id],
+                           idx != myIndex,
+                           !assigned.contains(idx),
+                           idx >= 1, idx <= wallet.totalParties {
+                            cosignerIndices.append(idx)
+                            assigned.insert(idx)
+                        } else {
+                            unresolved.append(peer)
+                        }
                     }
-                }
-                // Fill any unresolved slots with the smallest unused
-                // indices. Deterministic so both sides agree even if
-                // the ping was dropped.
-                if !unresolved.isEmpty {
-                    var next: UInt16 = 1
-                    for _ in unresolved {
-                        while next <= wallet.totalParties && assigned.contains(next) {
+                    // Fill any unresolved slots with the smallest unused
+                    // indices. Deterministic so both sides agree even if
+                    // the ping was dropped.
+                    if !unresolved.isEmpty {
+                        var next: UInt16 = 1
+                        for _ in unresolved {
+                            while next <= wallet.totalParties && assigned.contains(next) {
+                                next += 1
+                            }
+                            guard next <= wallet.totalParties else { break }
+                            cosignerIndices.append(next)
+                            assigned.insert(next)
+                        }
+                    }
+                    // Cosigner fallback (no initiator-supplied list,
+                    // no incoming presence pings from other cosigners):
+                    // for a 2-of-N wallet the ceremony is always
+                    // {me, other} so we can deterministically pick the
+                    // smallest index in `1...totalParties \ {me}`. Only
+                    // makes sense for threshold == 2; higher thresholds
+                    // genuinely need the initiator's list and there's
+                    // no safe local guess.
+                    if isCosigner && cosignerIndices.isEmpty && wallet.threshold == 2 {
+                        var next: UInt16 = 1
+                        while next <= wallet.totalParties && next == myIndex {
                             next += 1
                         }
-                        guard next <= wallet.totalParties else { break }
-                        cosignerIndices.append(next)
-                        assigned.insert(next)
+                        if next <= wallet.totalParties {
+                            cosignerIndices.append(next)
+                        }
                     }
+                    participants = ([myIndex] + cosignerIndices).sorted()
                 }
-                let participants = ([myIndex] + cosignerIndices).sorted()
                 SecureLog.info("[signing] participants=\(participants) threshold=\(wallet.threshold)/\(wallet.totalParties) me=\(myIndex)")
 
                 signingStatusMessage = L10n.Signing.initializingProtocol
@@ -1102,7 +1140,7 @@ final class SigningViewModel: ObservableObject {
                 // catch our round-1 output.
                 if !isCosigner, let sid = sessionId,
                    let payload = try? JSONEncoder().encode(
-                        SignBeginDTO(sessionId: sid, tx: authoritativeTx)) {
+                        SignBeginDTO(sessionId: sid, tx: authoritativeTx, participants: participants)) {
                     try? await peerManager.broadcastMpcMessage(payload)
                     try? await Task.sleep(nanoseconds: 400_000_000)
                 }

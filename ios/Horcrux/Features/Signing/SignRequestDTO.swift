@@ -72,10 +72,21 @@ struct SignBeginDTO: Codable {
     /// legacy "recompute locally" path.
     let tx: AuthoritativeTxParams?
 
-    init(sessionId: String, tx: AuthoritativeTxParams? = nil) {
+    /// Full sorted list of MPC party indices participating in this
+    /// ceremony, computed by the initiator from its `peerPartyIndex`
+    /// map (which is populated from cosigners' `SignPresenceDTO`
+    /// pings during the invite phase). Cosigners cannot derive this
+    /// locally because they don't receive presence pings from each
+    /// other — they only know their own `wallet.partyIndex`. Optional
+    /// for back-compat with pre-dev.115 peers; when nil or absent,
+    /// cosigner falls back to `[myIndex, otherIndexFallback]`.
+    let participants: [UInt16]?
+
+    init(sessionId: String, tx: AuthoritativeTxParams? = nil, participants: [UInt16]? = nil) {
         self.magic = Self.magic
         self.sessionId = sessionId
         self.tx = tx
+        self.participants = participants
     }
 }
 
