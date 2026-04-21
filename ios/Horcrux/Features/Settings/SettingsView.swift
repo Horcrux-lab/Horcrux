@@ -1104,6 +1104,14 @@ struct BlockchainNodeSettingsView: View {
                         .autocorrectionDisabled()
                         .textInputAutocapitalization(.never)
                     RPCStatusStrip(urlString: config.bitcoinAPI)
+                    EsploraPresetChips(
+                        presets: config.btcTestnet
+                            ? [("Blockstream", "https://blockstream.info/testnet/api"),
+                               ("mempool.space", "https://mempool.space/testnet/api")]
+                            : [("Blockstream", "https://blockstream.info/api"),
+                               ("mempool.space", "https://mempool.space/api")],
+                        binding: $config.bitcoinAPI
+                    )
                 }
 
                 Toggle(L10n.NodeSettings.testnet, isOn: $config.btcTestnet)
@@ -1128,6 +1136,10 @@ struct BlockchainNodeSettingsView: View {
                         .autocorrectionDisabled()
                         .textInputAutocapitalization(.never)
                     RPCStatusStrip(urlString: config.litecoinAPI)
+                    EsploraPresetChips(
+                        presets: [("litecoinspace", "https://litecoinspace.org/api")],
+                        binding: $config.litecoinAPI
+                    )
                     Text(L10n.NodeSettings.signingUnsupportedNote)
                         .font(.caption2)
                         .foregroundStyle(.secondary)
@@ -1339,6 +1351,40 @@ struct RPCStatusStrip: View {
             Spacer(minLength: 0)
         }
         .lineLimit(1)
+    }
+}
+
+/// Inline chip row for Esplora-compatible BTC/LTC presets. Each chip
+/// one-taps-swaps `binding` to a known-good Esplora REST endpoint. The
+/// currently active preset renders filled (green); the others render
+/// outlined so the user sees at a glance which one is in use.
+///
+/// All presets are zero-code-change: they speak the same `/address`,
+/// `/tx`, `/blocks/tip/height` endpoints the app already uses. If a
+/// new Esplora mirror appears, add it here — no backend work required.
+struct EsploraPresetChips: View {
+    let presets: [(label: String, url: String)]
+    @Binding var binding: String
+
+    var body: some View {
+        HStack(spacing: 8) {
+            ForEach(presets, id: \.url) { p in
+                let active = binding == p.url
+                Button {
+                    if !active { binding = p.url }
+                } label: {
+                    Text(p.label)
+                        .font(.caption)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 4)
+                }
+                .buttonStyle(.bordered)
+                .tint(active ? HorcruxTheme.successGreen : HorcruxTheme.accentPurple)
+                .controlSize(.mini)
+                .accessibilityLabel("\(p.label)\(active ? " (active)" : "")")
+            }
+            Spacer(minLength: 0)
+        }
     }
 }
 
