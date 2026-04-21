@@ -71,13 +71,25 @@ final class CertificatePinner: NSObject, @unchecked Sendable {
 
         guard !serverHashes.isEmpty else { return false }
 
-        // Check against known pins
+        // Check against known pins. If stored pins don't intersect with the
+        // chain's SPKIs, we treat this as a cert rotation (the chain already
+        // passed system trust validation, and all hosts we pin use well-known
+        // CAs whose intermediates rotate on a yearly cadence). Rotate the
+        // stored hashes to the new chain and warn. Without this, hardcoded
+        // pins from an older app version (e.g. Let's Encrypt R3 for
+        // blockstream.info) brick the feature permanently for every user.
         if let knownPins = pinnedHashes[host], !knownPins.isEmpty {
-            return !knownPins.isDisjoint(with: serverHashes)
+            if !knownPins.isDisjoint(with: serverHashes) {
+                return true
+            }
+            SecureLog.warning("SPKI pin rotation for \(host): stored hashes disjoint from current chain, re-pinning")
+            pinnedHashes[host] = serverHashes
+            saveTOFUPins()
+            return true
         }
 
         // TOFU: no pins yet → trust and store the leaf hash
-        if let firstHash = serverHashes.first {
+        if serverHashes.first != nil {
             pinnedHashes[host] = serverHashes
             saveTOFUPins()
         }

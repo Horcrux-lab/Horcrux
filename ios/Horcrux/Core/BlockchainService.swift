@@ -37,16 +37,20 @@ actor BlockchainService {
                 return try await operation()
             } catch let error as BlockchainError where error.isTransient {
                 lastError = error
-            } catch let error as URLError where [.timedOut, .networkConnectionLost, .notConnectedToInternet].contains(error.code) {
+            } catch let error as URLError where [.timedOut, .networkConnectionLost, .notConnectedToInternet, .cannotConnectToHost, .cannotFindHost, .dnsLookupFailed, .resourceUnavailable].contains(error.code) {
                 lastError = error
             } catch {
+                // Surface the real error for diagnostics, then give up.
+                SecureLog.warning("RPC non-retryable error: \(type(of: error)) \(error.localizedDescription)")
                 throw error
             }
             let baseDelay: UInt64 = 500_000_000 // 500ms
             let jitter = UInt64.random(in: 0...200_000_000)
             let delay = baseDelay * UInt64(1 << attempt) + jitter
             try? await Task.sleep(nanoseconds: delay)
-            SecureLog.warning("RPC retry \(attempt + 1)/\(maxRetries)")
+            let detail = (lastError as? URLError).map { "URLError.\($0.code.rawValue)" }
+                ?? (lastError.map { "\(type(of: $0)): \($0.localizedDescription)" } ?? "unknown")
+            SecureLog.warning("RPC retry \(attempt + 1)/\(maxRetries) after \(detail)")
         }
         throw lastError ?? BlockchainError.invalidResponse
     }

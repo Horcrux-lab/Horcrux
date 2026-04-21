@@ -63,15 +63,13 @@ actor TransactionConfirmationPoller {
                                    config: NetworkConfig) async -> Bool {
         do {
             if chain.isEVM {
-                return try await checkEthConfirmation(txHash: txHash, service: service, rpcURL: config.rpcURL(for: chain))
+                return try await checkEthConfirmation(txHash: txHash, service: service, chain: chain, config: config)
             }
             switch chain {
             case .bitcoin:
-                return try await checkBtcConfirmation(txHash: txHash, apiURL: config.bitcoinAPI)
+                return try await checkBtcConfirmation(txHash: txHash, chain: .bitcoin, config: config)
             case .litecoin:
-                // litecoinspace.org exposes the same Esplora `/tx/{id}/status`
-                // endpoint as mempool.space, so we reuse the BTC prober.
-                return try await checkBtcConfirmation(txHash: txHash, apiURL: config.litecoinAPI)
+                return try await checkBtcConfirmation(txHash: txHash, chain: .litecoin, config: config)
             case .solana:
                 return try await checkSolConfirmation(txHash: txHash, service: service, rpcURL: config.solanaRPC)
             case .tron:
@@ -80,35 +78,54 @@ actor TransactionConfirmationPoller {
                 return false
             }
         } catch {
+            NSLog("[tx-poller] checkConfirmation error: %@", String(describing: error))
             return false
         }
     }
 
-    private func checkEthConfirmation(txHash: String, service: BlockchainService, rpcURL: String) async throws -> Bool {
-        // BlockchainService already gives us a retry+pinned variant that
-        // returns `nil` for pending (null-result) receipts.
-        //
-        // NOTE: `ethTxConfirmed` returns `Bool?` — `Optional(false)` means
-        // the tx was mined but reverted. We treat any non-nil value (mined)
-        // as "confirmation observed" so the UI stops showing "confirming";
-        // the receipt status is persisted separately by the history syncer.
-        if let _ = try await service.ethTxConfirmed(txHash: txHash, rpcURL: rpcURL) {
-            return true
+    /// Try each candidate EVM RPC endpoint in order until one responds.
+    /// Returns true on any mined receipt (Optional(true/false)); a thrown
+    /// error from the last candidate bubbles up so the poller logs it.
+    private func checkEthConfirmation(txHash: String, service: BlockchainService,
+                                      chain: Chain, config: NetworkConfig) async throws -> Bool {
+        let endpoints = RPCFallbacks.orderedAttempts(for: chain, config: config)
+        var lastError: Error = NSError(domain: "tx-poller", code: -1)
+        for (idx, rpcURL) in endpoints.enumerated() {
+            do {
+                if let _ = try await service.ethTxConfirmed(txHash: txHash, rpcURL: rpcURL) {
+                    if idx > 0 { NSLog("[tx-poller] eth fallback %d (%@) succeeded", idx, rpcURL) }
+                    return true
+                }
+                return false
+            } catch {
+                lastError = error
+                continue
+            }
         }
-        return false
+        throw lastError
     }
 
-    private func checkBtcConfirmation(txHash: String, apiURL: String) async throws -> Bool {
-        // Direct Esplora call — no need to go through BlockchainService.
-        guard let url = URL(string: "\(apiURL)/tx/\(txHash)/status") else { return false }
+    /// Try each candidate Esplora-compatible endpoint (blockstream / mempool
+    /// / litecoinspace) until one responds.
+    private func checkBtcConfirmation(txHash: String, chain: Chain,
+                                      config: NetworkConfig) async throws -> Bool {
+        let endpoints = RPCFallbacks.orderedAttempts(for: chain, config: config)
+        struct BtcTxStatus: Decodable { let confirmed: Bool }
         let session = PinnedURLSession.shared.session
-        let (data, _) = try await session.data(from: url)
-
-        struct BtcTxStatus: Decodable {
-            let confirmed: Bool
+        var lastError: Error = NSError(domain: "tx-poller", code: -1)
+        for (idx, apiURL) in endpoints.enumerated() {
+            guard let url = URL(string: "\(apiURL)/tx/\(txHash)/status") else { continue }
+            do {
+                let (data, _) = try await session.data(from: url)
+                let status = try JSONDecoder().decode(BtcTxStatus.self, from: data)
+                if idx > 0 { NSLog("[tx-poller] btc fallback %d (%@) succeeded", idx, apiURL) }
+                return status.confirmed
+            } catch {
+                lastError = error
+                continue
+            }
         }
-        let status = try JSONDecoder().decode(BtcTxStatus.self, from: data)
-        return status.confirmed
+        throw lastError
     }
 
     private func checkSolConfirmation(txHash: String, service: BlockchainService, rpcURL: String) async throws -> Bool {
