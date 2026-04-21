@@ -1019,21 +1019,27 @@ final class SigningViewModel: ObservableObject {
                     // either another control DTO or a packet from a previous
                     // ceremony in the same room.
                     let expectedSession = sessionId ?? roomCode
+                    NSLog("[signing] cosigner waiting for SignBegin session=%@", expectedSession)
                     while !Task.isCancelled {
                         guard let (_, data) = await mpcIterator.next() else {
+                            NSLog("[signing] cosigner iterator finished before SignBegin")
                             throw SigningError.notInitialized
                         }
+                        NSLog("[signing] cosigner rx %dB while waiting SignBegin", data.count)
                         if let begin = try? JSONDecoder().decode(SignBeginDTO.self, from: data),
                            begin.magic == SignBeginDTO.magic,
                            begin.sessionId == expectedSession {
+                            NSLog("[signing] cosigner got SignBegin")
                             await MainActor.run { self.authoritativeTx = begin.tx }
                             break
                         }
                     }
                 }
 
+                NSLog("[signing] building sign hash (isCosigner=%d)", isCosigner ? 1 : 0)
                 // Build the transaction hash to sign
                 let messageHash = try await buildSignHash()
+                NSLog("[signing] sign hash built (%dB)", messageHash.count)
 
                 // Collect participant indices.
                 //
@@ -1124,6 +1130,7 @@ final class SigningViewModel: ObservableObject {
                 )
 
             } catch {
+                NSLog("[signing] signingTask error: %@ (cancelled=%d)", error.localizedDescription, Task.isCancelled ? 1 : 0)
                 if !Task.isCancelled {
                     errorMessage = error.localizedDescription
                     step = .error

@@ -37,6 +37,7 @@ struct JoinSigningView: View {
     @State private var phase: Phase = .enterCode
     @State private var roomCode: String = ""
     @State private var listenerTask: Task<Void, Never>?
+    @State private var listenerSubId: UUID?
     @State private var showPinSheet = false
     @State private var showScanner = false
     @State private var didAutoJoin = false
@@ -557,8 +558,14 @@ struct JoinSigningView: View {
 
     private func startListening(expectedCode: String?) {
         listenerTask?.cancel()
-        let (_, stream) = appState.peerManager.mpcMessageStream()
+        if let oldSubId = listenerSubId {
+            appState.peerManager.unsubscribeMpc(oldSubId)
+        }
+        let peerManager = appState.peerManager
+        let (subId, stream) = peerManager.mpcMessageStream()
+        listenerSubId = subId
         listenerTask = Task { [appState] in
+            defer { peerManager.unsubscribeMpc(subId) }
             for await (_, data) in stream {
                 if Task.isCancelled { return }
                 guard let dto = try? JSONDecoder().decode(SignRequestDTO.self, from: data),
@@ -632,6 +639,10 @@ struct JoinSigningView: View {
     private func cleanup() {
         listenerTask?.cancel()
         listenerTask = nil
+        if let subId = listenerSubId {
+            appState.peerManager.unsubscribeMpc(subId)
+            listenerSubId = nil
+        }
         // Only the browsing part stops; an already-established LAN
         // connection stays alive for any in-progress ceremony.
         appState.peerManager.wifiLAN.stopDiscovery()

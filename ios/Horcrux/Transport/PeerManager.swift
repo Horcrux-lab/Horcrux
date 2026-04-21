@@ -36,23 +36,20 @@ final class PeerManager: ObservableObject {
     private var mpcMessageContinuations: [UUID: AsyncStream<(Peer, Data)>.Continuation] = [:]
 
     /// Returns a fresh, independent stream of incoming MPC bytes plus
-    /// a subscription ID the caller should pass to `unsubscribeMpc(_:)`
-    /// when they're done. This is needed because `AsyncStream`'s
-    /// `onTermination` only fires when the iterator is actually dropped
-    /// — cancelling the consuming Task alone does not drop the
-    /// continuation, so stale subscribers can leak across ceremonies
-    /// and eat messages from the live subscriber (the fan-out yields
-    /// to every live continuation). Callers must explicitly unsubscribe
-    /// on teardown.
+    /// a subscription ID the caller MUST pass to `unsubscribeMpc(_:)`
+    /// on teardown. We intentionally do NOT install an `onTermination`
+    /// handler: iterator drops (e.g. when an `await for` loop breaks,
+    /// when the iterator is passed across suspension points, or when
+    /// a Task is cancelled and the for-await exits) would otherwise
+    /// silently evict the continuation mid-ceremony, causing FROST
+    /// round-1 commitments to be delivered to zero subscribers.
+    /// Ownership is explicit: every caller has a matching
+    /// `defer { peerManager.unsubscribeMpc(id) }` at the top of its
+    /// subscribing Task.
     func mpcMessageStream() -> (id: UUID, stream: AsyncStream<(Peer, Data)>) {
         let id = UUID()
         let stream = AsyncStream<(Peer, Data)> { cont in
             self.mpcMessageContinuations[id] = cont
-            cont.onTermination = { [weak self] _ in
-                Task { @MainActor in
-                    self?.mpcMessageContinuations.removeValue(forKey: id)
-                }
-            }
         }
         return (id, stream)
     }
