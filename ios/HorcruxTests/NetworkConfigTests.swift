@@ -30,9 +30,9 @@ final class NetworkConfigTests: XCTestCase {
         let p = NetworkPreset.mainnet
         XCTAssertEqual(p.id, "mainnet")
         XCTAssertEqual(p.name, "Mainnet")
-        XCTAssertEqual(p.ethereumRPC, "https://eth.llamarpc.com")
-        XCTAssertEqual(p.bitcoinAPI, "https://blockstream.info/api")
-        XCTAssertEqual(p.solanaRPC, "https://api.mainnet-beta.solana.com")
+        XCTAssertEqual(p.ethereumRPC, "https://ethereum-rpc.publicnode.com")
+        XCTAssertEqual(p.bitcoinAPI, "https://mempool.space/api")
+        XCTAssertEqual(p.solanaRPC, "https://solana-rpc.publicnode.com")
         XCTAssertEqual(p.evmChainId, 1)
         XCTAssertFalse(p.btcTestnet)
         XCTAssertFalse(p.solDevnet)
@@ -44,8 +44,8 @@ final class NetworkConfigTests: XCTestCase {
         let p = NetworkPreset.testnet
         XCTAssertEqual(p.id, "testnet")
         XCTAssertEqual(p.name, "Testnet")
-        XCTAssertEqual(p.ethereumRPC, "https://eth-sepolia.public.blastapi.io")
-        XCTAssertEqual(p.bitcoinAPI, "https://blockstream.info/testnet/api")
+        XCTAssertEqual(p.ethereumRPC, "https://ethereum-sepolia-rpc.publicnode.com")
+        XCTAssertEqual(p.bitcoinAPI, "https://mempool.space/testnet/api")
         XCTAssertEqual(p.solanaRPC, "https://api.devnet.solana.com")
         XCTAssertEqual(p.evmChainId, 11155111)
         XCTAssertTrue(p.btcTestnet)
@@ -87,9 +87,9 @@ final class NetworkConfigTests: XCTestCase {
         config.applyPreset(.testnet)
 
         config.resetToDefaults()
-        XCTAssertEqual(config.ethereumRPC, "https://eth.llamarpc.com")
-        XCTAssertEqual(config.bitcoinAPI, "https://blockstream.info/api")
-        XCTAssertEqual(config.solanaRPC, "https://api.mainnet-beta.solana.com")
+        XCTAssertEqual(config.ethereumRPC, "https://ethereum-rpc.publicnode.com")
+        XCTAssertEqual(config.bitcoinAPI, "https://mempool.space/api")
+        XCTAssertEqual(config.solanaRPC, "https://solana-rpc.publicnode.com")
         XCTAssertEqual(config.evmChainId, 1)
         XCTAssertFalse(config.btcTestnet)
         XCTAssertFalse(config.solDevnet)
@@ -109,8 +109,8 @@ final class NetworkConfigTests: XCTestCase {
         let config = NetworkConfig.shared
         config.applyPreset(.testnet)
 
-        XCTAssertEqual(config.rpcURL(for: .ethereum), "https://eth-sepolia.public.blastapi.io")
-        XCTAssertEqual(config.rpcURL(for: .bitcoin), "https://blockstream.info/testnet/api")
+        XCTAssertEqual(config.rpcURL(for: .ethereum), "https://ethereum-sepolia-rpc.publicnode.com")
+        XCTAssertEqual(config.rpcURL(for: .bitcoin), "https://mempool.space/testnet/api")
         XCTAssertEqual(config.rpcURL(for: .solana), "https://api.devnet.solana.com")
 
         // Restore

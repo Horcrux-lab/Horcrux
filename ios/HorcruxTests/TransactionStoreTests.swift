@@ -121,20 +121,30 @@ final class TransactionStoreTests: XCTestCase {
 
     @MainActor
     func testExplorerURLs() {
-        let ethTx = makeTx(chain: .ethereum)
+        // Use realistic hash lengths so `looksLikeFinalTxHash` accepts them
+        // (EVM: 0x + 64 hex, BTC: 64 hex, SOL: base58 up to ~88 chars).
+        let ethHash = "0x" + String(repeating: "a", count: 64)
+        let btcHash = String(repeating: "a", count: 64)
+        let solHash = String(repeating: "1", count: 64)
+
+        let ethTx = TransactionRecord(
+            id: "eth", walletId: "w", chain: .ethereum,
+            fromAddress: "0x00", toAddress: "0x00", amount: "0.1",
+            fee: nil, txHash: ethHash, status: .broadcast, createdAt: Date()
+        )
         XCTAssertTrue(ethTx.explorerURL?.absoluteString.contains("etherscan.io") ?? false)
 
         let btcTx = TransactionRecord(
             id: "btc", walletId: "w", chain: .bitcoin,
             fromAddress: "bc1q...", toAddress: "bc1q...", amount: "0.1",
-            fee: nil, txHash: "abc123", status: .broadcast, createdAt: Date()
+            fee: nil, txHash: btcHash, status: .broadcast, createdAt: Date()
         )
-        XCTAssertTrue(btcTx.explorerURL?.absoluteString.contains("blockstream.info") ?? false)
+        XCTAssertTrue(btcTx.explorerURL?.absoluteString.contains("mempool.space") ?? false)
 
         let solTx = TransactionRecord(
             id: "sol", walletId: "w", chain: .solana,
             fromAddress: "1111...", toAddress: "2222...", amount: "1.0",
-            fee: nil, txHash: "sig123", status: .broadcast, createdAt: Date()
+            fee: nil, txHash: solHash, status: .broadcast, createdAt: Date()
         )
         XCTAssertTrue(solTx.explorerURL?.absoluteString.contains("solscan.io") ?? false)
     }
