@@ -9,8 +9,12 @@ actor TransactionConfirmationPoller {
     /// Start polling. Checks every `interval` seconds.
     func start(store: TransactionStore, service: BlockchainService,
                config: NetworkConfig, interval: TimeInterval = 30) {
-        guard !isRunning else { return }
+        guard !isRunning else {
+            NSLog("[tx-poller] start: already running, skip")
+            return
+        }
         isRunning = true
+        NSLog("[tx-poller] start: interval=%.0fs", interval)
 
         pollTask = Task { [weak self] in
             while !Task.isCancelled {
@@ -31,13 +35,18 @@ actor TransactionConfirmationPoller {
     private func pollOnce(store: TransactionStore, service: BlockchainService,
                           config: NetworkConfig) async {
         let broadcast = store.records.filter { $0.status == .broadcast && $0.txHash != nil }
-        guard !broadcast.isEmpty else { return }
+        guard !broadcast.isEmpty else {
+            NSLog("[tx-poller] pollOnce: no broadcast records to check")
+            return
+        }
+        NSLog("[tx-poller] pollOnce: checking %d broadcast tx(s)", broadcast.count)
 
         for tx in broadcast {
             guard let txHash = tx.txHash else { continue }
             let confirmed = await checkConfirmation(
                 txHash: txHash, chain: tx.chain, service: service, config: config
             )
+            NSLog("[tx-poller] %@ %@ confirmed=%@", tx.chain.rawValue, String(txHash.prefix(10)), confirmed ? "YES" : "no")
             if confirmed {
                 store.updateStatus(id: tx.id, status: .confirmed)
                 NotificationManager.shared.notifyTransactionConfirmed(
@@ -78,6 +87,11 @@ actor TransactionConfirmationPoller {
     private func checkEthConfirmation(txHash: String, service: BlockchainService, rpcURL: String) async throws -> Bool {
         // BlockchainService already gives us a retry+pinned variant that
         // returns `nil` for pending (null-result) receipts.
+        //
+        // NOTE: `ethTxConfirmed` returns `Bool?` — `Optional(false)` means
+        // the tx was mined but reverted. We treat any non-nil value (mined)
+        // as "confirmation observed" so the UI stops showing "confirming";
+        // the receipt status is persisted separately by the history syncer.
         if let _ = try await service.ethTxConfirmed(txHash: txHash, rpcURL: rpcURL) {
             return true
         }

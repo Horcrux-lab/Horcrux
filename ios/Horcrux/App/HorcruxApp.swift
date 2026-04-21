@@ -83,14 +83,17 @@ struct HorcruxApp: App {
                 .onReceive(NotificationCenter.default.publisher(for: UIApplication.userDidTakeScreenshotNotification)) { _ in
                     NotificationCenter.default.post(name: .horcruxScreenshotDetected, object: nil)
                 }
-                .onChange(of: scenePhase) { _, newPhase in
+                .onChange(of: scenePhase, initial: true) { _, newPhase in
                     if newPhase == .background {
                         appState.onEnterBackground()
                         PrimePoolManager.shared.suspend()
                         Self.scheduleBroadcastRetry()
                     } else if newPhase == .active {
                         appState.checkAutoLock()
-                        // Start confirmation poller + broadcast pending queue
+                        // Start confirmation poller + broadcast pending queue.
+                        // Note: `isUnlocked` may still be false on cold-launch;
+                        // the `.onChange(of: isUnlocked)` handler below also
+                        // starts these once the user completes unlock.
                         if appState.isUnlocked {
                             Task {
                                 await appState.confirmationPoller.start(
@@ -114,6 +117,26 @@ struct HorcruxApp: App {
                         Task {
                             await appState.ceremonyState.cleanupStale()
                         }
+                    }
+                }
+                .onChange(of: appState.isUnlocked) { _, isUnlocked in
+                    // Starting the poller is idempotent; safe to call
+                    // whenever the lock state flips open. This covers the
+                    // cold-launch path where the user unlocks AFTER the
+                    // initial scenePhase==.active fires (so the scenePhase
+                    // handler's isUnlocked gate was still false).
+                    guard isUnlocked else { return }
+                    Task {
+                        await appState.confirmationPoller.start(
+                            store: appState.transactionStore,
+                            service: appState.blockchainService,
+                            config: appState.networkConfig
+                        )
+                        await appState.pendingBroadcastQueue.broadcastAll(
+                            service: appState.blockchainService,
+                            config: appState.networkConfig,
+                            transactionStore: appState.transactionStore
+                        )
                     }
                 }
                 .task {
