@@ -874,7 +874,7 @@ struct BlockchainNodeSettingsView: View {
     /// section only ever shows one SecureField at a time instead of the
     /// previous 6 stacked fields.
     enum PaidEVMProvider: String, CaseIterable, Identifiable {
-        case alchemy, infura, ankr, blockpi, drpc, nodeReal, getblock
+        case alchemy, infura, ankr, blockpi, drpc, nodeReal, getblock, tenderly, oneRPC
 
         var id: String { rawValue }
 
@@ -887,6 +887,8 @@ struct BlockchainNodeSettingsView: View {
             case .drpc: return "dRPC"
             case .nodeReal: return "NodeReal"
             case .getblock: return "GetBlock"
+            case .tenderly: return "Tenderly"
+            case .oneRPC: return "1RPC"
             }
         }
 
@@ -899,6 +901,8 @@ struct BlockchainNodeSettingsView: View {
             case .drpc: return RPCProviderTemplate.drpc(evm: net)
             case .nodeReal: return RPCProviderTemplate.nodeReal(evm: net)
             case .getblock: return RPCProviderTemplate.getblock(evm: net)
+            case .tenderly: return RPCProviderTemplate.tenderly(evm: net)
+            case .oneRPC: return RPCProviderTemplate.oneRPC(evm: net)
             }
         }
 
@@ -912,7 +916,8 @@ struct BlockchainNodeSettingsView: View {
             case .infura: return RPCProviderTemplate.infuraSolana(mainnet: mainnet)
             case .ankr: return mainnet ? "https://rpc.ankr.com/solana/{KEY}" : nil
             case .getblock: return RPCProviderTemplate.getblockSolana(mainnet: mainnet)
-            case .blockpi, .drpc, .nodeReal: return nil
+            case .oneRPC: return RPCProviderTemplate.oneRPCSolana(mainnet: mainnet)
+            case .blockpi, .drpc, .nodeReal, .tenderly: return nil
             }
         }
     }
@@ -926,6 +931,8 @@ struct BlockchainNodeSettingsView: View {
         case .drpc: return $config.drpcAPIKey
         case .nodeReal: return $config.nodeRealAPIKey
         case .getblock: return $config.getblockAPIKey
+        case .tenderly: return $config.tenderlyAPIKey
+        case .oneRPC: return $config.oneRPCAPIKey
         }
     }
 

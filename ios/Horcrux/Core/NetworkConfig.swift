@@ -160,6 +160,28 @@ final class NetworkConfig: ObservableObject, @unchecked Sendable {
         }
     }
 
+    /// Tenderly Gateway API key. Fits the `{KEY}` substitution pattern:
+    /// `https://{chain}.gateway.tenderly.co/{KEY}`. Covers EVM only
+    /// (Tenderly does not offer Solana). Single key works across all
+    /// EVM chains on the user's Tenderly account.
+    @Published var tenderlyAPIKey: String {
+        didSet {
+            saveKeychain(tenderlyAPIKey, forKey: Keys.tenderlyKey)
+            invalidateBalances()
+        }
+    }
+
+    /// 1RPC API key. URL pattern puts the key in the path:
+    /// `https://1rpc.io/{KEY}/eth`. Same key works across all supported
+    /// chains (EVM + Solana) — 1RPC is privacy-focused and routes
+    /// requests through multiple upstreams to mask the caller.
+    @Published var oneRPCAPIKey: String {
+        didSet {
+            saveKeychain(oneRPCAPIKey, forKey: Keys.oneRPCKey)
+            invalidateBalances()
+        }
+    }
+
     /// Optional WebSocket endpoint for the selected EVM chain. Paid
     /// providers (Alchemy, Infura, QuickNode) expose `wss://` alongside
     /// `https://`. We don't auto-subscribe — the field is manually
@@ -199,6 +221,8 @@ final class NetworkConfig: ObservableObject, @unchecked Sendable {
         self.drpcAPIKey = Self.loadKeychainString(key: Keys.drpcKey)
         self.nodeRealAPIKey = Self.loadKeychainString(key: Keys.nodeRealKey)
         self.getblockAPIKey = Self.loadKeychainString(key: Keys.getblockKey)
+        self.tenderlyAPIKey = Self.loadKeychainString(key: Keys.tenderlyKey)
+        self.oneRPCAPIKey = Self.loadKeychainString(key: Keys.oneRPCKey)
         self.ethereumWSS = ud.string(forKey: Keys.ethereumWSS) ?? ""
         self.solanaWSS = ud.string(forKey: Keys.solanaWSS) ?? ""
     }
@@ -296,6 +320,10 @@ final class NetworkConfig: ObservableObject, @unchecked Sendable {
                 key = nodeRealAPIKey
             } else if host.contains("getblock.io") {
                 key = getblockAPIKey
+            } else if host.contains("tenderly.co") {
+                key = tenderlyAPIKey
+            } else if host.contains("1rpc.io") {
+                key = oneRPCAPIKey
             } else {
                 // Alchemy is the default EVM key slot; also covers bare
                 // template URLs that users haven't pointed at a specific
@@ -310,6 +338,7 @@ final class NetworkConfig: ObservableObject, @unchecked Sendable {
                 else if host.contains("ankr.com") { key = ankrAPIKey }
                 else if host.contains("drpc.org") { key = drpcAPIKey }
                 else if host.contains("getblock.io") { key = getblockAPIKey }
+                else if host.contains("1rpc.io") { key = oneRPCAPIKey }
                 else { key = heliusAPIKey }
             default: key = ""
             }
@@ -666,6 +695,8 @@ private extension NetworkConfig {
         static let drpcKey = "com.horcrux.rpc.drpcAPIKey"
         static let nodeRealKey = "com.horcrux.rpc.nodeRealAPIKey"
         static let getblockKey = "com.horcrux.rpc.getblockAPIKey"
+        static let tenderlyKey = "com.horcrux.rpc.tenderlyAPIKey"
+        static let oneRPCKey = "com.horcrux.rpc.oneRPCAPIKey"
         static let ethereumWSS = "com.horcrux.rpc.ethereumWSS"
         static let solanaWSS = "com.horcrux.rpc.solanaWSS"
     }
@@ -784,6 +815,48 @@ enum RPCProviderTemplate {
     /// access token the user pastes must be a Solana-scoped one.
     static func getblockSolana(mainnet _: Bool) -> String {
         "https://go.getblock.io/{KEY}/"
+    }
+
+    /// Tenderly Gateway EVM template. Per-chain subdomain + `{KEY}` path.
+    /// Same key works across all EVM chains on the user's Tenderly account.
+    static func tenderly(evm: EVMNetwork) -> String? {
+        switch evm {
+        case .mainnet: return "https://mainnet.gateway.tenderly.co/{KEY}"
+        case .sepolia: return "https://sepolia.gateway.tenderly.co/{KEY}"
+        case .polygon: return "https://polygon.gateway.tenderly.co/{KEY}"
+        case .arbitrumOne: return "https://arbitrum.gateway.tenderly.co/{KEY}"
+        case .optimism: return "https://optimism.gateway.tenderly.co/{KEY}"
+        case .base: return "https://base.gateway.tenderly.co/{KEY}"
+        case .linea: return "https://linea.gateway.tenderly.co/{KEY}"
+        case .avalanche: return "https://avalanche.gateway.tenderly.co/{KEY}"
+        case .bnb: return "https://bnb.gateway.tenderly.co/{KEY}"
+        case .zkSyncEra, .scroll: return nil
+        }
+    }
+
+    /// 1RPC EVM template. Key is in the path segment before the chain slug:
+    /// `https://1rpc.io/{KEY}/<chain>`.
+    static func oneRPC(evm: EVMNetwork) -> String? {
+        let slug: String
+        switch evm {
+        case .mainnet: slug = "eth"
+        case .sepolia: slug = "sepolia"
+        case .polygon: slug = "matic"
+        case .arbitrumOne: slug = "arb"
+        case .optimism: slug = "op"
+        case .base: slug = "base"
+        case .linea: slug = "linea"
+        case .bnb: slug = "bnb"
+        case .avalanche: slug = "avax"
+        case .zkSyncEra: slug = "zksync-era"
+        case .scroll: slug = "scroll"
+        }
+        return "https://1rpc.io/{KEY}/\(slug)"
+    }
+
+    /// 1RPC Solana template. Same key as 1RPC EVM — one account covers both.
+    static func oneRPCSolana(mainnet: Bool) -> String? {
+        mainnet ? "https://1rpc.io/{KEY}/sol" : nil
     }
 
     /// BlockPI EVM template. `{KEY}` is appended as the path suffix.
