@@ -265,6 +265,8 @@
 "signing.unableToEstimate" = "Unable to estimate";
 "signing.insufficientBalance" = "Insufficient balance for this transaction";
 "signing.cannotEstimateFee" = "Cannot estimate fee — check network or recipient";
+"signing.estimateNetworkError" = "Network error. Check your connection or switch RPC, then retry.";
+"signing.retryEstimate" = "Retry";
 "signing.nextInviteCoSigners" = "Next: Invite Co-Signers";
 "signing.inviteHint" = "Proceed to invite co-signers for this transaction";
 

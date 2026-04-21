@@ -257,6 +257,26 @@ struct ComposeTransactionView: View {
                         LabeledContent(L10n.Signing.gasLimit, value: viewModel.estimatedGas)
                         LabeledContent(L10n.Signing.estFee, value: viewModel.estimatedFee)
                     }
+                    if let blocker = viewModel.composeBlocker {
+                        HStack(alignment: .top, spacing: 8) {
+                            Image(systemName: "exclamationmark.triangle.fill")
+                                .foregroundStyle(HorcruxTheme.warningAmber)
+                            VStack(alignment: .leading, spacing: 6) {
+                                Text(blocker)
+                                    .font(.caption)
+                                    .foregroundStyle(HorcruxTheme.warningAmber)
+                                    .fixedSize(horizontal: false, vertical: true)
+                                Button(L10n.Signing.retryEstimate) {
+                                    viewModel.estimateGas()
+                                }
+                                .font(.caption.weight(.semibold))
+                                .buttonStyle(.borderless)
+                                .foregroundStyle(HorcruxTheme.accentBlue)
+                                .accessibilityIdentifier("compose_retryEstimate")
+                            }
+                        }
+                        .padding(.vertical, 4)
+                    }
                 }
                 .darkListRow()
             } else if viewModel.wallet.chain == .bitcoin || viewModel.wallet.chain == .litecoin || viewModel.wallet.chain == .solana {
@@ -297,10 +317,18 @@ struct ComposeTransactionView: View {
                         HStack(alignment: .top, spacing: 8) {
                             Image(systemName: "exclamationmark.triangle.fill")
                                 .foregroundStyle(HorcruxTheme.warningAmber)
-                            Text(blocker)
-                                .font(.caption)
-                                .foregroundStyle(HorcruxTheme.warningAmber)
-                                .fixedSize(horizontal: false, vertical: true)
+                            VStack(alignment: .leading, spacing: 6) {
+                                Text(blocker)
+                                    .font(.caption)
+                                    .foregroundStyle(HorcruxTheme.warningAmber)
+                                    .fixedSize(horizontal: false, vertical: true)
+                                Button(L10n.Signing.retryEstimate) {
+                                    viewModel.estimateGas()
+                                }
+                                .font(.caption.weight(.semibold))
+                                .buttonStyle(.borderless)
+                                .foregroundStyle(HorcruxTheme.accentBlue)
+                            }
                         }
                         .padding(.vertical, 4)
                     }

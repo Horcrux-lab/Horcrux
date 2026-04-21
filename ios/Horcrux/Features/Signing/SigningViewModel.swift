@@ -552,6 +552,7 @@ final class SigningViewModel: ObservableObject {
             } catch {
                 await MainActor.run {
                     estimatedFee = L10n.Signing.unableToEstimate
+                    estimatedGas = "—"
                     isEstimatingGas = false
                     // Classify the most common failure. The exact RPC
                     // error surface varies by provider; match on
@@ -559,6 +560,10 @@ final class SigningViewModel: ObservableObject {
                     let lower = error.localizedDescription.lowercased()
                     if lower.contains("insufficient funds") || lower.contains("insufficient balance") {
                         self.composeBlocker = L10n.Signing.insufficientBalance
+                    } else if lower.contains("timeout") || lower.contains("timed out")
+                                || lower.contains("offline") || lower.contains("unreachable")
+                                || lower.contains("network") || lower.contains("connection") {
+                        self.composeBlocker = L10n.Signing.estimateNetworkError
                     } else {
                         self.composeBlocker = L10n.Signing.cannotEstimateFee
                     }
