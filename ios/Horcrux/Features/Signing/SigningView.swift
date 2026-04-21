@@ -202,6 +202,10 @@ struct ComposeTransactionView: View {
                         .accessibilityLabel(L10n.Signing.amount)
                         .accessibilityHint(L10n.Signing.amountHint)
                         .accessibilityIdentifier("compose_amountField")
+                        .onChange(of: viewModel.amount) { _, newValue in
+                            let sanitized = Self.sanitizeDecimalInput(newValue)
+                            if sanitized != newValue { viewModel.amount = sanitized }
+                        }
                     if viewModel.canFillMax {
                         Button(L10n.Common.max) {
                             viewModel.fillMax()
@@ -243,6 +247,10 @@ struct ComposeTransactionView: View {
                                 .multilineTextAlignment(.trailing)
                                 .frame(minWidth: 80)
                                 .accessibilityIdentifier("compose_customGasGwei")
+                                .onChange(of: viewModel.customGasPriceGwei) { _, newValue in
+                                    let sanitized = Self.sanitizeDecimalInput(newValue)
+                                    if sanitized != newValue { viewModel.customGasPriceGwei = sanitized }
+                                }
                         }
                     }
 
@@ -300,6 +308,12 @@ struct ComposeTransactionView: View {
                                     .multilineTextAlignment(.trailing)
                                     .frame(minWidth: 80)
                                     .accessibilityIdentifier("compose_customSatVB")
+                                    .onChange(of: viewModel.customGasPriceGwei) { _, newValue in
+                                        // BTC/LTC sat/vB is integer — strip
+                                        // anything non-digit (catches 。、 etc).
+                                        let filtered = newValue.filter { $0.isASCII && $0.isNumber }
+                                        if filtered != newValue { viewModel.customGasPriceGwei = filtered }
+                                    }
                             }
                         }
                     }
@@ -378,6 +392,34 @@ struct ComposeTransactionView: View {
             guard !Task.isCancelled else { return }
             viewModel.estimateGas()
         }
+    }
+
+    /// Normalize a decimal-number TextField value so Chinese / Japanese IMEs
+    /// or paste don't inject unparseable glyphs. Specifically:
+    ///   - U+FF0E FULLWIDTH FULL STOP `．` → `.`
+    ///   - U+3002 IDEOGRAPHIC FULL STOP `。` → `.`
+    ///   - U+FF0C FULLWIDTH COMMA `，` → `.`
+    ///   - `,` (ASCII) → `.`    (some locales use comma as decimal separator)
+    /// Then keep only ASCII digits and at most one `.`, dropping everything
+    /// else. The result is a string safe to feed into `Decimal(string:)`.
+    static func sanitizeDecimalInput(_ raw: String) -> String {
+        let mapped = raw
+            .replacingOccurrences(of: "．", with: ".")
+            .replacingOccurrences(of: "。", with: ".")
+            .replacingOccurrences(of: "，", with: ".")
+            .replacingOccurrences(of: ",", with: ".")
+        var seenDot = false
+        var out = ""
+        out.reserveCapacity(mapped.count)
+        for ch in mapped {
+            if ch.isASCII && ch.isNumber {
+                out.append(ch)
+            } else if ch == "." && !seenDot {
+                out.append(ch)
+                seenDot = true
+            }
+        }
+        return out
     }
 
     /// Minimal ENS resolution via public RPC. Queries the ENS registry
