@@ -5,7 +5,25 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.3.0-dev.100] - 2026-04-21
+## [0.3.0-dev.101] - 2026-04-21
+
+### Added
+
+- **iOS (DKG/Signing)**: **房间码系统分享**。房间码卡片和大图弹窗新增 ShareLink，可通过 iMessage / AirDrop / 微信 等渠道一键分享 `horcrux://join?session=CODE` 深链——对方点链接即自动打开 Horcrux 跳转到加入页。分享预览带二维码缩略图，正文包含房间码文本作为后备。DKG 创建流程和签名邀请流程均已覆盖（复用 `RoomCodeShareHelper`）。
+
+### Changed
+
+- **iOS (UI)**: **钱包首页去大标题**，`.navigationTitle("")` + 隐藏 toolbar 背景让 hero 卡片更聚焦。
+- **iOS (UI)**: **创建钱包入口从右下 FAB 迁到右上导航栏**（`plus.circle.fill`，紫色主题），与左上的"加入签名"按钮对称。
+- **iOS (UI)**: **设备 / 设置 Tab 标题改为 inline**，统一全局 nav 风格。
+- **iOS (UI)**: **待广播交易区可折叠**。队列中 ≥2 笔时默认收起为单行蓝色徽章（有错误则带警告三角），点击展开；单笔时保持展开。
+- **iOS (UI)**: **房间码大图弹窗 detent 支持 medium/large**，分享按钮放到左上 toolbar 防止被底部裁剪。
+
+### Fixed
+
+- **iOS (UI)**: **加速/丢弃弹窗点击无反应**。根因是 SwiftUI 嵌套 ObservableObject 观察丢失——`AppState.pendingBroadcastQueue` 的 `@Published` 变化不会冒泡到 `@EnvironmentObject appState` 的消费者。在 `AppState.init` 中补上 `pendingBroadcastQueue.objectWillChange → self.objectWillChange` 桥接（镜像原有的 walletStore bridge）。
+
+
 
 ### Fixed
 
