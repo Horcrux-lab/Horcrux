@@ -225,6 +225,19 @@ struct ComposeTransactionView: View {
                         .transition(.opacity)
                         .accessibilityIdentifier("compose_amountFiat")
                 }
+
+                if let balance = viewModel.currentAssetBalanceDisplay {
+                    HStack(spacing: 4) {
+                        Text(L10n.Signing.availableBalance)
+                            .foregroundStyle(HorcruxTheme.subtleText)
+                        Text(balance)
+                            .foregroundStyle(.primary)
+                            .monospacedDigit()
+                        Spacer()
+                    }
+                    .font(.caption)
+                    .accessibilityIdentifier("compose_availableBalance")
+                }
             }
             .darkListRow()
 

@@ -2230,6 +2230,19 @@ final class SigningViewModel: ObservableObject {
         return preTxBalance != nil
     }
 
+    /// Human-readable balance of whatever asset is currently selected in the
+    /// compose screen. Returns e.g. "1.2345 ETH" for native or "50 USDC" for
+    /// an ERC-20 token. `nil` while the balance is still loading / unknown.
+    var currentAssetBalanceDisplay: String? {
+        if let token = selectedToken {
+            guard let bal = BalanceCache.shared.cachedTokenBalance(walletId: wallet.id, tokenId: token.id) else {
+                return nil
+            }
+            return "\(Self.formatAmountTrimmed(bal)) \(token.symbol)"
+        }
+        return preTxBalance
+    }
+
     private static func formatAmountTrimmed(_ v: Double) -> String {
         if v == 0 { return "0" }
         let s = String(format: "%.8f", v)

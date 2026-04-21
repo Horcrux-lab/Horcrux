@@ -264,6 +264,7 @@
 "signing.fee" = "手续费";
 "signing.unableToEstimate" = "无法估算";
 "signing.insufficientBalance" = "余额不足，无法支付此笔交易";
+"signing.availableBalance" = "可用余额";
 "signing.cannotEstimateFee" = "无法估算手续费，请检查网络或收款地址";
 "signing.estimateNetworkError" = "网络错误，请检查连接或切换 RPC 后重试";
 "signing.retryEstimate" = "重试";

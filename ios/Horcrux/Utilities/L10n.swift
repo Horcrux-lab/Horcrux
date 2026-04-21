@@ -602,6 +602,7 @@ enum L10n {
         static let fee = NSLocalizedString("signing.fee", comment: "")
         static let unableToEstimate = NSLocalizedString("signing.unableToEstimate", comment: "")
         static let insufficientBalance = NSLocalizedString("signing.insufficientBalance", comment: "")
+        static let availableBalance = NSLocalizedString("signing.availableBalance", comment: "")
         static let cannotEstimateFee = NSLocalizedString("signing.cannotEstimateFee", comment: "")
         static let estimateNetworkError = NSLocalizedString("signing.estimateNetworkError", comment: "")
         static let retryEstimate = NSLocalizedString("signing.retryEstimate", comment: "")
