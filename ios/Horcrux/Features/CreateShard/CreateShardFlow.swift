@@ -604,17 +604,15 @@ struct PeerDiscoveryView: View {
                         VStack(alignment: .leading, spacing: 2) {
                             Text(parts.label)
                                 .font(.headline)
-                            HStack(spacing: 6) {
-                                if let sid = parts.shortId {
-                                    Text("ID: \(sid)")
-                                        .font(.caption2)
-                                        .foregroundStyle(.secondary)
-                                        .monospaced()
-                                }
-                                Text(pres.role == "create" ? L10n.Discovery.initiatorLabel : L10n.Discovery.joinerLabel)
-                                    .font(.caption)
+                            if let sid = parts.shortId {
+                                Text("ID: \(sid)")
+                                    .font(.caption2)
                                     .foregroundStyle(.secondary)
+                                    .monospaced()
                             }
+                            Text(pres.role == "create" ? L10n.Discovery.initiatorLabel : L10n.Discovery.joinerLabel)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
                         }
                         Spacer()
                         Image(systemName: "checkmark.circle.fill")
@@ -630,17 +628,15 @@ struct PeerDiscoveryView: View {
                         VStack(alignment: .leading, spacing: 2) {
                             Text(parts.label)
                                 .font(.headline)
-                            HStack(spacing: 6) {
-                                if let sid = parts.shortId {
-                                    Text("ID: \(sid)")
-                                        .font(.caption2)
-                                        .foregroundStyle(.secondary)
-                                        .monospaced()
-                                }
-                                Text("\(peer.channel) · \(String(peer.id.prefix(8)))")
-                                    .font(.caption)
+                            if let sid = parts.shortId {
+                                Text("ID: \(sid)")
+                                    .font(.caption2)
                                     .foregroundStyle(.secondary)
+                                    .monospaced()
                             }
+                            Text("\(peer.channel) · \(String(peer.id.prefix(8)))")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
                         }
                         Spacer()
                     }
