@@ -369,26 +369,42 @@ final class SigningViewModel: ObservableObject {
         // so both land on the same bucket.
         appState.peerManager.$connectedPeers
             .receive(on: DispatchQueue.main)
-            .sink { [weak self] peers in
-                guard let self else { return }
-                var seen = Set<String>()
-                var unique: [Peer] = []
-                for peer in peers {
-                    if self.kickedPeerIds.contains(peer.id) { continue }
-                    let base = peer.name.isEmpty ? peer.id : peer.name
-                    let normalized = base
-                        .replacingOccurrences(of: #"\s*\([^)]*\)\s*$"#,
-                                              with: "",
-                                              options: .regularExpression)
-                        .trimmingCharacters(in: .whitespaces)
-                    let key = normalized.isEmpty ? base : normalized
-                    if seen.insert(key).inserted {
-                        unique.append(peer)
-                    }
-                }
-                self.joinedSigners = unique
+            .sink { [weak self] _ in
+                self?.rebuildJoinedSigners()
             }
             .store(in: &cancellables)
+    }
+
+    /// Recompute `joinedSigners` from `peerManager.connectedPeers` filtered
+    /// by `peerPartyIndex` (explicit opt-in via `SignPresenceDTO`). Called
+    /// both when the peer list itself changes and when we get a new
+    /// presence ping — see `listenForPresence()`.
+    @MainActor
+    private func rebuildJoinedSigners() {
+        guard let peerManager = peerManager else { return }
+        var seen = Set<String>()
+        var unique: [Peer] = []
+        for peer in peerManager.connectedPeers {
+            if kickedPeerIds.contains(peer.id) { continue }
+            // Gate: only include peers that have actively opted into
+            // *this* signing session via an authenticated
+            // `SignPresenceDTO` ping. Without this filter every
+            // connected peer (LAN neighbor, leftover relay tenant
+            // from an earlier ceremony, etc.) would appear in the
+            // invite list before they had any intent to cosign.
+            guard peerPartyIndex[peer.id] != nil else { continue }
+            let base = peer.name.isEmpty ? peer.id : peer.name
+            let normalized = base
+                .replacingOccurrences(of: #"\s*\([^)]*\)\s*$"#,
+                                      with: "",
+                                      options: .regularExpression)
+                .trimmingCharacters(in: .whitespaces)
+            let key = normalized.isEmpty ? base : normalized
+            if seen.insert(key).inserted {
+                unique.append(peer)
+            }
+        }
+        joinedSigners = unique
     }
 
     /// Estimate gas / fees before signing (called when user fills amount + address).
@@ -699,6 +715,7 @@ final class SigningViewModel: ObservableObject {
         roomJoinError = nil
         peerPartyIndex.removeAll()
         kickedPeerIds.removeAll()
+        rebuildJoinedSigners()
         prepareInvite()
     }
 
@@ -843,9 +860,26 @@ final class SigningViewModel: ObservableObject {
                 guard let dto = try? JSONDecoder().decode(SignPresenceDTO.self, from: data),
                       dto.magic == SignPresenceDTO.magic,
                       let idx = dto.partyIndex else { continue }
+                // Scope presence to the active room. Without this, a
+                // presence ping left over from a *previous* ceremony
+                // (or a stray peer dialed into an unrelated session
+                // over the same relay connection) would pre-populate
+                // `peerPartyIndex` and therefore `joinedSigners`,
+                // which is exactly what caused ghost entries to show
+                // up in the invite list before anyone had joined.
+                let activeSession = await MainActor.run { self.roomCode }
+                guard dto.sessionId == activeSession, !activeSession.isEmpty else { continue }
                 await MainActor.run {
                     self.peerPartyIndex[peer.id] = idx
                     SecureLog.info("[signing] presence: peer=\(peer.id.prefix(8)) party=\(idx)")
+                    // `joinedSigners` is derived from a snapshot of
+                    // `connectedPeers ∩ peerPartyIndex`, and the
+                    // `connectedPeers` publisher only fires on peer
+                    // list changes — not on our internal state. Kick
+                    // the reducer manually so a peer that was already
+                    // in `connectedPeers` but freshly approved shows
+                    // up in the invite list right away.
+                    self.rebuildJoinedSigners()
                 }
             }
         }
