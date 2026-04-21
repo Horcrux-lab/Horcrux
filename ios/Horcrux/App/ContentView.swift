@@ -463,6 +463,15 @@ struct LockScreenView: View {
             // wallets / Apple Pay. User can cancel and fall back to the PIN pad.
             guard !attemptedBiometric else { return }
             attemptedBiometric = true
+            #if DEBUG
+            // Simulator shortcut: `HORCRUX_SKIP_BIOMETRIC=1` in the scheme env
+            // keeps the Face ID system dialog from blocking QA runs (the sim
+            // can't match a face, and the dialog sits on top of the PIN pad).
+            // Production builds always attempt biometric normally.
+            if ProcessInfo.processInfo.environment["HORCRUX_SKIP_BIOMETRIC"] == "1" {
+                return
+            }
+            #endif
             await tryBiometricUnlock()
         }
     }

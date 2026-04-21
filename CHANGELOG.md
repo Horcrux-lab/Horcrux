@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.0-dev.95] - 2026-04-21
+
+### Added
+
+- **iOS (QA)**: **`HORCRUX_SKIP_BIOMETRIC=1` scheme env bypass in DEBUG builds**。
+  - 之前在模拟器跑端到端回归时，`LAContext.evaluatePolicy` 会弹出无法真正匹配的 Face ID 对话框，一直压在 PIN 键盘上，签名流程根本走不到。现在 DEBUG 构建检测到该环境变量就直接跳过自动 biometric 提示，落到 PIN 解锁，模拟器 QA 才跑得起来。
+  - 仅 `#if DEBUG` 生效，发布构建依然正常走 Face/Touch ID，无安全影响。
+
+### Notes
+
+- **发现**：`ColdSigningView` / `ColdSigningViewV2` 当前在 iOS 工程中没有任何调用方（自 dev.50 起从未接入主签名入口）。冷签名特性代码完整但不可达——建议下一步评审：是否接入 SigningTransportPicker 作为第三种传输模式，或显式移除。
+
 ## [0.3.0-dev.94] - 2026-04-20
 
 ### Added
