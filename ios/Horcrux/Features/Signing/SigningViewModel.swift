@@ -387,6 +387,30 @@ final class SigningViewModel: ObservableObject {
                 self?.rebuildJoinedSigners()
             }
             .store(in: &cancellables)
+
+        // Kick off a balance fetch right away so the compose screen can
+        // show "Available <amount>" before the user types anything.
+        // estimateGas() re-populates this on every (address+amount) change
+        // for accuracy, but that path is gated on both being filled in.
+        refreshPreTxBalance()
+    }
+
+    /// Best-effort balance fetch that populates `preTxBalance` /
+    /// `preTxBalanceUSD`. Safe to call repeatedly; failures are silent.
+    func refreshPreTxBalance() {
+        guard let blockchainService, let networkConfig else { return }
+        Task { [weak self] in
+            guard let self else { return }
+            if let raw = try? await blockchainService.balance(for: self.wallet, config: networkConfig) {
+                await MainActor.run {
+                    self.preTxBalance = raw
+                    let parts = raw.split(separator: " ")
+                    if let value = parts.first.flatMap({ Double(String($0).replacingOccurrences(of: ",", with: "")) }) {
+                        self.preTxBalanceUSD = PriceService.shared.usdPrice(symbol: self.wallet.chain.symbol).map { $0 * value }
+                    }
+                }
+            }
+        }
     }
 
     /// Recompute `joinedSigners` from `peerManager.connectedPeers` filtered
