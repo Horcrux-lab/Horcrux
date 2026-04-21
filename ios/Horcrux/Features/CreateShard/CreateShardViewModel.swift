@@ -77,13 +77,17 @@ final class CreateShardViewModel: ObservableObject {
     private var dkgMessageStream: AsyncStream<(Peer, Data)>?
     private var dkgMessageContinuation: AsyncStream<(Peer, Data)>.Continuation?
 
-    /// Local peer identifier shown during discovery.
+    /// "My ID" shown in the discovery header. MUST equal the `shortId`
+    /// that peers extract from our broadcast `deviceName` (via
+    /// `DeviceIdentity.split(_:).shortId`), otherwise the user sees two
+    /// different IDs for the same device on the two screens and can't
+    /// visually confirm they picked the right room.
+    ///
+    /// Prior to dev.100 this fell back to `RelayTransport.deviceId`
+    /// (an independent UUID) on relay, which produced an ID that had
+    /// nothing to do with the `iPhone-XXXXXXXX` label peers displayed.
     var localPeerId: String {
-        let hasRelay = foundPeers.contains { $0.channel == "relay" }
-        if hasRelay, let relayId = peerManager?.relay.deviceId {
-            return String(relayId.prefix(8))
-        }
-        return DeviceIdentity.displayName
+        DeviceIdentity.shortId
     }
 
     func bind(to appState: AppState) {
