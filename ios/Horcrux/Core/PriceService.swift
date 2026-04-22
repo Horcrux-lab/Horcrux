@@ -146,6 +146,7 @@ final class PriceService: ObservableObject {
         fmt.numberStyle = .currency
         fmt.currencyCode = "USD"
         fmt.maximumFractionDigits = usd >= 1 ? 2 : 4
+        fmt.locale = Locale(identifier: "en_US")
         return fmt.string(from: NSNumber(value: usd))
     }
 

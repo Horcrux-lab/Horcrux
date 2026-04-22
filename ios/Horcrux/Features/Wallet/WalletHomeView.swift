@@ -1035,6 +1035,7 @@ struct WalletGroupHeader: View {
         f.numberStyle = .currency
         f.currencyCode = "USD"
         f.maximumFractionDigits = 2
+        f.locale = Locale(identifier: "en_US")
         return f
     }()
 
@@ -1745,6 +1746,7 @@ struct PortfolioSummaryCard: View {
         fmt.numberStyle = .currency
         fmt.currencyCode = "USD"
         fmt.maximumFractionDigits = 2
+        fmt.locale = Locale(identifier: "en_US")
         return fmt.string(from: NSNumber(value: total)) ?? "$—"
     }
 
@@ -1864,6 +1866,7 @@ struct VaultTotalBanner: View {
         f.numberStyle = .currency
         f.currencyCode = "USD"
         f.maximumFractionDigits = 2
+        f.locale = Locale(identifier: "en_US")
         return f
     }()
 
@@ -2025,6 +2028,7 @@ struct PortfolioBreakdownSheet: View {
         f.numberStyle = .currency
         f.currencyCode = "USD"
         f.maximumFractionDigits = 2
+        f.locale = Locale(identifier: "en_US")
         return f
     }()
 
