@@ -61,6 +61,7 @@ struct WalletHomeView: View {
                 ToolbarItem(placement: .topBarLeading) {
                     if !walletStore.wallets.isEmpty {
                         Button {
+                            prefillJoinCode = nil
                             showJoinSigning = true
                         } label: {
                             Image(systemName: "person.badge.key.fill")
@@ -92,7 +93,12 @@ struct WalletHomeView: View {
             .sheet(isPresented: $showCreateShard) {
                 CreateShardFlow()
             }
-            .sheet(isPresented: $showJoinSigning) {
+            .sheet(isPresented: $showJoinSigning, onDismiss: {
+                // Prevent the old room code from auto-rejoining next time
+                // the Join Signing button is tapped via the toolbar — the
+                // relay room it points at is dead after signing completes.
+                prefillJoinCode = nil
+            }) {
                 JoinSigningView(prefilledCode: prefillJoinCode)
                     .environmentObject(appState)
                     .id(prefillJoinCode ?? "fresh")
