@@ -2072,6 +2072,7 @@ struct VaultTotalBanner: View {
 /// percentage share of the portfolio (visualised as a filled bar).
 struct PortfolioBreakdownSheet: View {
     let wallets: [Wallet]
+    @EnvironmentObject private var appState: AppState
     @Environment(\.dismiss) private var dismiss
     @StateObject private var priceService = PriceService.shared
     @ObservedObject private var balanceCache = BalanceCache.shared
@@ -2193,13 +2194,19 @@ struct PortfolioBreakdownSheet: View {
     @ViewBuilder
     private func sliceRow(_ slice: Slice) -> some View {
         let pct: Double = totalUSD > 0 ? (slice.usdValue / totalUSD) : 0
+        let testnetBadge = appState.networkConfig.testnetBadge(for: slice.chain)
         VStack(alignment: .leading, spacing: 10) {
             HStack(spacing: 10) {
                 ChainIcon(chain: slice.chain, size: 28)
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(slice.chain.displayName)
-                        .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(.white)
+                    HStack(spacing: 6) {
+                        Text(slice.chain.displayName)
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(.white)
+                        if let badge = testnetBadge {
+                            TestnetBadge(text: badge, compact: true)
+                        }
+                    }
                     Text(CurrencyFormatter.crypto(slice.nativeAmount, symbol: slice.chain.symbol))
                         .font(.caption)
                         .foregroundStyle(HorcruxTheme.subtleText)
