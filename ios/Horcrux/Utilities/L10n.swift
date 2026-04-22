@@ -80,7 +80,27 @@ enum L10n {
         static let wallet = NSLocalizedString("tab.wallet", comment: "")
         static let vault = NSLocalizedString("tab.vault", comment: "")
         static let shards = NSLocalizedString("tab.shards", comment: "")
+        static let approvals = NSLocalizedString("tab.approvals", comment: "")
         static let settings = NSLocalizedString("tab.settings", comment: "")
+    }
+
+    enum Approvals {
+        static let navTitle = NSLocalizedString("approvals.navTitle", comment: "")
+        static let pendingSection = NSLocalizedString("approvals.pendingSection", comment: "")
+        static let staleSection = NSLocalizedString("approvals.staleSection", comment: "")
+        static let recentSection = NSLocalizedString("approvals.recentSection", comment: "")
+        static let emptyTitle = NSLocalizedString("approvals.emptyTitle", comment: "")
+        static let emptyMessage = NSLocalizedString("approvals.emptyMessage", comment: "")
+        static let statusPending = NSLocalizedString("approvals.statusPending", comment: "")
+        static let statusApproved = NSLocalizedString("approvals.statusApproved", comment: "")
+        static let statusRejected = NSLocalizedString("approvals.statusRejected", comment: "")
+        static let statusExpired = NSLocalizedString("approvals.statusExpired", comment: "")
+        static let actionDismiss = NSLocalizedString("approvals.actionDismiss", comment: "")
+        static let actionReject = NSLocalizedString("approvals.actionReject", comment: "")
+        static let actionClearHistory = NSLocalizedString("approvals.actionClearHistory", comment: "")
+        static let fromInitiator = NSLocalizedString("approvals.fromInitiator", comment: "")
+        static let saveForLater = NSLocalizedString("approvals.saveForLater", comment: "")
+        static let staleWarning = NSLocalizedString("approvals.staleWarning", comment: "")
     }
 
     // MARK: - Onboarding

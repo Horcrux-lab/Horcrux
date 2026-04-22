@@ -80,6 +80,14 @@ struct MainTabView: View {
                         Text(L10n.Tab.shards)
                     }
                     .tag(1)
+
+                ApprovalsView()
+                    .tabItem {
+                        Image(systemName: selectedTab == 3 ? "checkmark.seal.fill" : "checkmark.seal")
+                        Text(L10n.Tab.approvals)
+                    }
+                    .badge(ApprovalRequestStore.shared.pending.count + ApprovalRequestStore.shared.stalePending.count)
+                    .tag(3)
             }
 
             SettingsView()

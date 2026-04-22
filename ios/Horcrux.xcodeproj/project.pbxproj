@@ -39,6 +39,9 @@
 		36B3377ADE97844BD8DABA99 /* VaultBadge.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20C7E704BECF338F37EBFB99 /* VaultBadge.swift */; };
 		6F4AD4451B8FD98F57A58976 /* VaultDisplay.swift in Sources */ = {isa = PBXBuildFile; fileRef = D83E98951552CE9E10A37723 /* VaultDisplay.swift */; };
 		26F6B4ECFEA34606BD0EC088 /* VaultEditSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = F0DD5830A7AB4F38B78E449F /* VaultEditSheet.swift */; };
+		57CBF8841CBB452495423511 /* ApprovalRequest.swift in Sources */ = {isa = PBXBuildFile; fileRef = A8684F0151B34AD18AD8281C /* ApprovalRequest.swift */; };
+		CB985E05E2B944A28F889C40 /* ApprovalRequestStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 805E7CB6BA3D4A1CB9105594 /* ApprovalRequestStore.swift */; };
+		AF19BE7605D0409EA4BD54D0 /* ApprovalsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BF8AE37B627447B8A9CB59BB /* ApprovalsView.swift */; };
 		2849F2D5E7586B599081AD84 /* PinHashTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F6233B6902699404F7105153 /* PinHashTests.swift */; };
 		2B2F3D2AFF9D3A8F5307419F /* CurrencyFormatter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 08990698B518337C3E98D3CE /* CurrencyFormatter.swift */; };
 		33A6D022F28DBB136154DFCB /* TransactionStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 719404EF19B45101797D6FB1 /* TransactionStore.swift */; };
@@ -239,6 +242,9 @@
 		20C7E704BECF338F37EBFB99 /* VaultBadge.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = VaultBadge.swift; sourceTree = "<group>"; };
 		D83E98951552CE9E10A37723 /* VaultDisplay.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = VaultDisplay.swift; sourceTree = "<group>"; };
 		F0DD5830A7AB4F38B78E449F /* VaultEditSheet.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = VaultEditSheet.swift; sourceTree = "<group>"; };
+		A8684F0151B34AD18AD8281C /* ApprovalRequest.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Horcrux/Core/ApprovalRequest.swift; sourceTree = SOURCE_ROOT; };
+		805E7CB6BA3D4A1CB9105594 /* ApprovalRequestStore.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Horcrux/Core/ApprovalRequestStore.swift; sourceTree = SOURCE_ROOT; };
+		BF8AE37B627447B8A9CB59BB /* ApprovalsView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Horcrux/Features/Approvals/ApprovalsView.swift; sourceTree = SOURCE_ROOT; };
 		94A99C1E7A26CD9EDDD95F25 /* BiometricAuth.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BiometricAuth.swift; sourceTree = "<group>"; };
 		95C0DF3FB32992A358342714 /* TransactionConfirmationPoller.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TransactionConfirmationPoller.swift; sourceTree = "<group>"; };
 		9C7A2C2E56ABEB487BD2D71F /* CertificatePinner.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CertificatePinner.swift; sourceTree = "<group>"; };
@@ -498,6 +504,9 @@
 				3D0D2513B358620E8E79D5E6 /* TransactionHistoryView.swift */,
 				D83E98951552CE9E10A37723 /* VaultDisplay.swift */,
 				F0DD5830A7AB4F38B78E449F /* VaultEditSheet.swift */,
+				A8684F0151B34AD18AD8281C /* ApprovalRequest.swift */,
+				805E7CB6BA3D4A1CB9105594 /* ApprovalRequestStore.swift */,
+				BF8AE37B627447B8A9CB59BB /* ApprovalsView.swift */,
 			);
 			path = Wallet;
 			sourceTree = "<group>";
@@ -860,6 +869,9 @@
 				36B3377ADE97844BD8DABA99 /* VaultBadge.swift in Sources */,
 				6F4AD4451B8FD98F57A58976 /* VaultDisplay.swift in Sources */,
 				26F6B4ECFEA34606BD0EC088 /* VaultEditSheet.swift in Sources */,
+				57CBF8841CBB452495423511 /* ApprovalRequest.swift in Sources */,
+				CB985E05E2B944A28F889C40 /* ApprovalRequestStore.swift in Sources */,
+				AF19BE7605D0409EA4BD54D0 /* ApprovalsView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

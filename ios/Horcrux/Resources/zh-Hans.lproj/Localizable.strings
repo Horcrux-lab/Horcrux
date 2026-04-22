@@ -1190,3 +1190,22 @@
 "vaultTag.personal" = "Personal";
 "common.cancel" = "取消";
 "common.save" = "保存";
+
+// MARK: - Approvals queue
+"tab.approvals" = "审批";
+"approvals.navTitle" = "审批队列";
+"approvals.pendingSection" = "待处理";
+"approvals.staleSection" = "已过期待清理";
+"approvals.recentSection" = "最近";
+"approvals.emptyTitle" = "暂无审批";
+"approvals.emptyMessage" = "扫码收到签名请求后，可以选择「稍后处理」把请求放入此队列。";
+"approvals.statusPending" = "待处理";
+"approvals.statusApproved" = "已批准";
+"approvals.statusRejected" = "已拒绝";
+"approvals.statusExpired" = "已过期";
+"approvals.actionDismiss" = "删除";
+"approvals.actionReject" = "拒绝";
+"approvals.actionClearHistory" = "清空历史";
+"approvals.fromInitiator" = "发起方：%@";
+"approvals.saveForLater" = "稍后处理";
+"approvals.staleWarning" = "会话已超过 24 小时，通常 relay 已关闭，无法继续签名。建议删除。";

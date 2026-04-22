@@ -1189,3 +1189,22 @@
 "vaultTag.personal" = "Personal";
 "common.cancel" = "Cancel";
 "common.save" = "Save";
+
+// MARK: - Approvals queue
+"tab.approvals" = "Approvals";
+"approvals.navTitle" = "Approval Queue";
+"approvals.pendingSection" = "Pending";
+"approvals.staleSection" = "Stale — please clear";
+"approvals.recentSection" = "Recent";
+"approvals.emptyTitle" = "No approvals";
+"approvals.emptyMessage" = "When you scan a signing request, tap “Save for later” to put it here.";
+"approvals.statusPending" = "Pending";
+"approvals.statusApproved" = "Approved";
+"approvals.statusRejected" = "Rejected";
+"approvals.statusExpired" = "Expired";
+"approvals.actionDismiss" = "Delete";
+"approvals.actionReject" = "Reject";
+"approvals.actionClearHistory" = "Clear history";
+"approvals.fromInitiator" = "From: %@";
+"approvals.saveForLater" = "Save for later";
+"approvals.staleWarning" = "Over 24h old — the relay session has almost certainly been torn down. Dismiss to clean up.";

@@ -367,6 +367,19 @@ struct JoinSigningView: View {
                 .buttonStyle(GradientButtonStyle(tint: chainTint))
 
                 Button {
+                    ApprovalRequestStore.shared.enqueue(from: dto)
+                    Haptics.success()
+                    cleanup()
+                    dismiss()
+                } label: {
+                    Text(L10n.Approvals.saveForLater)
+                        .frame(maxWidth: .infinity)
+                        .foregroundStyle(HorcruxTheme.accentCyan)
+                        .padding(.vertical, 10)
+                }
+
+                Button {
+                    ApprovalRequestStore.shared.log(from: dto, status: .rejected)
                     cleanup()
                     dismiss()
                 } label: {
