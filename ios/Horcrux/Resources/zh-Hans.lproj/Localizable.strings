@@ -1143,3 +1143,23 @@
 "vaultError.wrapFailed" = "无法加密备份。";
 "vaultError.biometricUnavailable" = "本设备不支持安全隔区（Secure Enclave）。";
 "vaultError.simulatorUnsupported" = "iOS 模拟器无法保存生物识别加密备份，请在真机上启用此功能。";
+
+/* 金库模式 — 机构风格钱包展示 */
+"settingsAppearance.section" = "外观";
+"settingsAppearance.displayMode" = "显示模式";
+"settingsAppearance.modeStandard" = "标准";
+"settingsAppearance.modeVault" = "金库";
+"settingsAppearance.hideBalances" = "默认隐藏余额";
+"settingsAppearance.hideBalancesHint" = "显示 ••• 直到点击显示";
+"settingsAppearance.envTag" = "环境标签";
+"settingsAppearance.envTagHint" = "在金库行上显示 PROD / TESTNET 标签";
+"vaultMode.neverSigned" = "尚未签名";
+"vaultMode.signersSuffix" = "%d 位签名人";
+"vaultMode.lastSignedPrefix" = "最近签名 %@";
+"vaultMode.vaultsSuffix" = "%d 个金库";
+"vaultMode.chainsSuffix" = "%d 条链";
+"vaultMode.totalSubline" = "覆盖 %@ · %@";
+"vaultMode.health.healthy" = "正常";
+"vaultMode.health.degraded" = "需关注";
+"vaultMode.health.stale" = "长期未用";
+"vaultMode.health.idle" = "闲置";

@@ -128,6 +128,9 @@ struct SettingsView: View {
                         }
                     }
 
+                    // Appearance (Standard vs Vault display mode)
+                    appearanceSection
+
                     // Relay
                     VStack(alignment: .leading, spacing: 10) {
                         VaultSectionHeader(L10n.Settings.relayServer, icon: "antenna.radiowaves.left.and.right")
@@ -474,6 +477,78 @@ struct SettingsView: View {
                 relayWarning = useCustomRelay ? Self.validateRelayURL(relayURL) : nil
             }
             .preferredColorScheme(.dark)
+        }
+    }
+
+    // MARK: - Appearance section
+
+    /// Wallet display mode and its two Vault-Mode-specific sub-toggles.
+    /// Rendered inline in the main settings scroll so users don't need
+    /// to drill into a sub-screen to flip between Standard and Vault
+    /// styling — that's a quick demo gesture for buyers.
+    @ViewBuilder
+    private var appearanceSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            VaultSectionHeader(L10n.SettingsAppearance.section, icon: "square.grid.2x2.fill")
+                .padding(.horizontal, 4)
+
+            VStack(spacing: 10) {
+                // Segmented mode picker
+                HStack {
+                    VaultSettingsRow(
+                        icon: "square.grid.2x2.fill",
+                        iconColor: HorcruxTheme.accentPurple,
+                        title: L10n.SettingsAppearance.displayMode
+                    )
+                    Spacer()
+                    Picker("", selection: $appState.walletDisplayMode) {
+                        Text(L10n.SettingsAppearance.modeStandard)
+                            .tag(AppState.WalletDisplayMode.standard)
+                        Text(L10n.SettingsAppearance.modeVault)
+                            .tag(AppState.WalletDisplayMode.vault)
+                    }
+                    .pickerStyle(.segmented)
+                    .frame(maxWidth: 200)
+                    .accessibilityIdentifier("settings_walletDisplayModePicker")
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
+                .glassCard()
+
+                if appState.walletDisplayMode == .vault {
+                    HStack {
+                        VaultSettingsRow(
+                            icon: "eye.slash",
+                            iconColor: HorcruxTheme.accentCyan,
+                            title: L10n.SettingsAppearance.hideBalances,
+                            subtitle: L10n.SettingsAppearance.hideBalancesHint
+                        )
+                        Spacer()
+                        Toggle("", isOn: $appState.hideBalancesByDefault)
+                            .labelsHidden()
+                            .accessibilityIdentifier("settings_hideBalancesToggle")
+                    }
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 8)
+                    .glassCard()
+
+                    HStack {
+                        VaultSettingsRow(
+                            icon: "tag.fill",
+                            iconColor: HorcruxTheme.warningAmber,
+                            title: L10n.SettingsAppearance.envTag,
+                            subtitle: L10n.SettingsAppearance.envTagHint
+                        )
+                        Spacer()
+                        Toggle("", isOn: $appState.showEnvironmentTag)
+                            .labelsHidden()
+                            .accessibilityIdentifier("settings_envTagToggle")
+                    }
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 8)
+                    .glassCard()
+                }
+            }
         }
     }
 

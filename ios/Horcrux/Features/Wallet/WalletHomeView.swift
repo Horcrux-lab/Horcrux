@@ -230,8 +230,14 @@ struct WalletHomeView: View {
                 offlineBanner
                     .padding(.top, 4)
 
-                // Portfolio summary (IA: root → chain → asset)
-                PortfolioSummaryCard(wallets: walletStore.wallets.filter { !$0.hidden })
+                // L1 glance (Vault Mode) vs full consumer portfolio card
+                // (Standard Mode). Both tap into the same Portfolio sheet.
+                switch appState.walletDisplayMode {
+                case .standard:
+                    PortfolioSummaryCard(wallets: walletStore.wallets.filter { !$0.hidden })
+                case .vault:
+                    VaultTotalBanner(wallets: walletStore.wallets.filter { !$0.hidden })
+                }
 
                 // Pending broadcasts — collapsible when 2+ queued
                 if !appState.pendingBroadcastQueue.pending.isEmpty {
@@ -340,7 +346,8 @@ struct WalletHomeView: View {
                     accountId: group.accountId,
                     sharedAddress: isCollapsed ? nil : evmAddress,
                     isCollapsed: isCollapsible ? isCollapsed : nil,
-                    collapsedSummary: isCollapsed ? collapsedSummary(for: group) : nil
+                    collapsedSummary: isCollapsed ? collapsedSummary(for: group) : nil,
+                    wallets: group.wallets
                 )
                 .padding(.horizontal, 6)
 
@@ -769,10 +776,26 @@ struct WalletGroupHeader: View {
     /// Optional summary shown when the group is collapsed — replaces the
     /// shared-address chip so a folded row stays one line tall.
     var collapsedSummary: String? = nil
+    /// Wallets that belong to this vault. Only consulted in Vault Mode —
+    /// Standard mode ignores this and keeps the original layout, so
+    /// callers can safely pass an empty array.
+    var wallets: [Wallet] = []
 
+    @EnvironmentObject private var appState: AppState
     @State private var copied = false
 
     var body: some View {
+        switch appState.walletDisplayMode {
+        case .standard:
+            standardBody
+        case .vault:
+            vaultBody
+        }
+    }
+
+    // MARK: - Standard (original consumer layout, unchanged)
+
+    private var standardBody: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 10) {
                 if !accountId.isEmpty {
@@ -865,6 +888,109 @@ struct WalletGroupHeader: View {
         )
         .contentShape(Rectangle())
     }
+
+    // MARK: - Vault (institutional layout)
+
+    private var vaultBody: some View {
+        let code = VaultDisplay.vaultCode(from: label)
+        let monogram = VaultDisplay.monogram2(from: label)
+        let lastSigned = VaultDisplay.lastSigned(for: wallets, store: appState.transactionStore)
+        let health = VaultDisplay.health(lastSigned: lastSigned)
+        let env = VaultDisplay.environment(for: wallets, config: appState.networkConfig)
+
+        return VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 10) {
+                VaultBadge(monogram: monogram, health: health, size: 36)
+                VStack(alignment: .leading, spacing: 2) {
+                    HStack(spacing: 6) {
+                        Text(code)
+                            .font(.system(.subheadline, design: .monospaced).weight(.semibold))
+                            .foregroundStyle(.white)
+                            .lineLimit(1)
+                            .truncationMode(.tail)
+                        if appState.showEnvironmentTag {
+                            envTag(env)
+                        }
+                    }
+                    Text(metaLine(threshold: threshold, total: total, lastSigned: lastSigned))
+                        .font(.caption2.monospacedDigit())
+                        .foregroundStyle(HorcruxTheme.subtleText)
+                        .lineLimit(1)
+                }
+                Spacer(minLength: 8)
+                if isCollapsed == true, let summary = collapsedSummary {
+                    Text(summary)
+                        .font(.caption2.monospacedDigit())
+                        .foregroundStyle(HorcruxTheme.subtleText)
+                        .lineLimit(1)
+                        .truncationMode(.tail)
+                }
+                if let collapsed = isCollapsed {
+                    Image(systemName: "chevron.down")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(HorcruxTheme.subtleText)
+                        .frame(width: 28, height: 28)
+                        .background(
+                            RoundedRectangle(cornerRadius: 6)
+                                .fill(HorcruxTheme.subtleText.opacity(0.08))
+                        )
+                        .rotationEffect(.degrees(collapsed ? -90 : 0))
+                        .animation(.easeInOut(duration: 0.22), value: collapsed)
+                        .accessibilityHidden(true)
+                }
+            }
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
+        .background(
+            RoundedRectangle(cornerRadius: 10)
+                .fill(HorcruxTheme.cardSurface.opacity(isCollapsed == true ? 0.55 : 0.35))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 10)
+                .stroke(HorcruxTheme.cardBorder.opacity(0.4), lineWidth: 1)
+        )
+        .contentShape(Rectangle())
+    }
+
+    @ViewBuilder
+    private func envTag(_ env: VaultDisplay.Environment) -> some View {
+        let (color, fill): (Color, Color) = {
+            switch env {
+            case .prod:    return (HorcruxTheme.successGreen, HorcruxTheme.successGreen.opacity(0.14))
+            case .testnet: return (HorcruxTheme.warningAmber, HorcruxTheme.warningAmber.opacity(0.14))
+            case .mixed:   return (HorcruxTheme.dangerRed,    HorcruxTheme.dangerRed.opacity(0.14))
+            }
+        }()
+        Text(env.rawValue)
+            .font(.system(size: 9, weight: .heavy, design: .monospaced))
+            .tracking(0.5)
+            .foregroundStyle(color)
+            .padding(.horizontal, 5)
+            .padding(.vertical, 2)
+            .background(
+                RoundedRectangle(cornerRadius: 3).fill(fill)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 3)
+                    .stroke(color.opacity(0.45), lineWidth: 0.5)
+            )
+    }
+
+    private func metaLine(threshold: Int, total: Int, lastSigned: Date?) -> String {
+        var parts: [String] = []
+        if threshold > 0 && total > 0 {
+            parts.append("\(threshold)-of-\(total)")
+        }
+        if total > 0 {
+            let signersFmt = NSLocalizedString("vaultMode.signersSuffix", value: "%d signers", comment: "")
+            parts.append(String(format: signersFmt, total))
+        }
+        let signedFmt = NSLocalizedString("vaultMode.lastSignedPrefix", value: "last signed %@", comment: "")
+        parts.append(String(format: signedFmt, VaultDisplay.relativeSignedLabel(lastSigned: lastSigned)))
+        return parts.joined(separator: " · ")
+    }
+
 
     private func shortAddress(_ a: String) -> String {
         guard a.count > 12 else { return a }
@@ -1631,6 +1757,122 @@ struct PortfolioSummaryCard: View {
             service: appState.blockchainService,
             config: appState.networkConfig
         )
+    }
+}
+
+// MARK: - Vault Total Banner
+
+/// Slim, high-contrast "TOTAL" banner shown at the top of Vault Mode in
+/// place of the full `PortfolioSummaryCard`. The goal is L1 "glance" —
+/// one number, one sub-line with vault/chain counts, tap to drill into
+/// the same Portfolio subpage that Standard Mode uses.
+struct VaultTotalBanner: View {
+    let wallets: [Wallet]
+    @EnvironmentObject private var appState: AppState
+    @StateObject private var priceService = PriceService.shared
+    @ObservedObject private var balanceCache = BalanceCache.shared
+    @State private var showBreakdown = false
+    @State private var localHidden: Bool = false
+
+    private var effectivelyHidden: Bool {
+        // `hideBalancesByDefault` sets the initial value; the eye icon
+        // toggles `localHidden` for this session only so operators can
+        // briefly reveal without changing the default.
+        localHidden || appState.hideBalancesByDefault
+    }
+
+    private var totalUSD: Double {
+        wallets.reduce(0.0) { acc, w in
+            let amount = balanceCache.nativeAmount(walletId: w.id) ?? 0
+            return acc + amount * (priceService.usdPrice(symbol: w.chain.symbol) ?? 0)
+        }
+    }
+
+    private static let fiatFormatter: NumberFormatter = {
+        let f = NumberFormatter()
+        f.numberStyle = .currency
+        f.currencyCode = "USD"
+        f.maximumFractionDigits = 2
+        return f
+    }()
+
+    var body: some View {
+        let vaultCount = Set(wallets.map { $0.accountId }).count
+        let chainCount = Set(wallets.map { $0.chain }).count
+
+        VStack(alignment: .leading, spacing: 6) {
+            HStack {
+                Text("TOTAL")
+                    .font(.system(size: 10, weight: .heavy, design: .monospaced))
+                    .tracking(1.5)
+                    .foregroundStyle(HorcruxTheme.subtleText)
+                Spacer()
+                Button {
+                    withAnimation(.easeInOut(duration: 0.18)) { localHidden.toggle() }
+                    Haptics.selection()
+                } label: {
+                    Image(systemName: effectivelyHidden ? "eye.slash.fill" : "eye.fill")
+                        .font(.footnote)
+                        .foregroundStyle(HorcruxTheme.subtleText)
+                        .frame(width: 28, height: 28)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(effectivelyHidden ? "Show balance" : "Hide balance")
+            }
+            Text(effectivelyHidden ? "••••••••" : (Self.fiatFormatter.string(from: NSNumber(value: totalUSD)) ?? "$—"))
+                .font(.system(size: 34, weight: .semibold, design: .monospaced))
+                .foregroundStyle(.white)
+                .minimumScaleFactor(0.55)
+                .lineLimit(1)
+                .contentTransition(.numericText())
+            Text(subLine(vaultCount: vaultCount, chainCount: chainCount))
+                .font(.caption2.monospacedDigit())
+                .foregroundStyle(HorcruxTheme.subtleText)
+                .lineLimit(1)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, 16)
+        .padding(.vertical, 14)
+        .background(
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .fill(HorcruxTheme.cardSurface.opacity(0.45))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .stroke(HorcruxTheme.cardBorder, lineWidth: 1)
+        )
+        .contentShape(Rectangle())
+        .onTapGesture {
+            Haptics.selection()
+            showBreakdown = true
+        }
+        .accessibilityAddTraits(.isButton)
+        .accessibilityHint("Show portfolio breakdown")
+        .accessibilityIdentifier("vaultMode_totalBanner")
+        .sheet(isPresented: $showBreakdown) {
+            PortfolioBreakdownSheet(wallets: wallets)
+                .presentationDetents([.medium, .large])
+                .presentationDragIndicator(.visible)
+        }
+        .task {
+            priceService.refreshIfNeeded()
+            await BalanceCache.shared.refreshAll(
+                wallets: wallets,
+                service: appState.blockchainService,
+                config: appState.networkConfig
+            )
+        }
+    }
+
+    private func subLine(vaultCount: Int, chainCount: Int) -> String {
+        let vaultWord = NSLocalizedString("vaultMode.vaultsSuffix", value: "%d vaults", comment: "")
+        let chainWord = NSLocalizedString("vaultMode.chainsSuffix", value: "%d chains", comment: "")
+        let template = NSLocalizedString("vaultMode.totalSubline",
+                                         value: "across %@ · %@",
+                                         comment: "Portfolio subline: 'across 3 vaults · 13 chains'")
+        return String(format: template,
+                      String(format: vaultWord, vaultCount),
+                      String(format: chainWord, chainCount))
     }
 }
 

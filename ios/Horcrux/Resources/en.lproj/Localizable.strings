@@ -1142,3 +1142,23 @@
 "vaultError.wrapFailed" = "Couldn't encrypt the backup.";
 "vaultError.biometricUnavailable" = "This device doesn't have a Secure Enclave available.";
 "vaultError.simulatorUnsupported" = "The iOS Simulator can't store biometric-sealed backups. Build to a real device to enable this feature.";
+
+/* Vault Mode — institutional wallet display */
+"settingsAppearance.section" = "Appearance";
+"settingsAppearance.displayMode" = "Display mode";
+"settingsAppearance.modeStandard" = "Standard";
+"settingsAppearance.modeVault" = "Vault";
+"settingsAppearance.hideBalances" = "Hide balances by default";
+"settingsAppearance.hideBalancesHint" = "Show ••• until revealed";
+"settingsAppearance.envTag" = "Environment tag";
+"settingsAppearance.envTagHint" = "Show PROD / TESTNET label on vault rows";
+"vaultMode.neverSigned" = "never signed";
+"vaultMode.signersSuffix" = "%d signers";
+"vaultMode.lastSignedPrefix" = "last signed %@";
+"vaultMode.vaultsSuffix" = "%d vaults";
+"vaultMode.chainsSuffix" = "%d chains";
+"vaultMode.totalSubline" = "across %@ · %@";
+"vaultMode.health.healthy" = "healthy";
+"vaultMode.health.degraded" = "needs attention";
+"vaultMode.health.stale" = "stale";
+"vaultMode.health.idle" = "idle";

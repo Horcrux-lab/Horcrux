@@ -1441,6 +1441,17 @@ extension L10n {
         static let lostDeviceSectionTitle = NSLocalizedString("settingsR.lostDeviceSectionTitle", comment: "")
     }
 
+    enum SettingsAppearance {
+        static let section          = NSLocalizedString("settingsAppearance.section",          value: "Appearance",       comment: "")
+        static let displayMode      = NSLocalizedString("settingsAppearance.displayMode",      value: "Display mode",     comment: "")
+        static let modeStandard     = NSLocalizedString("settingsAppearance.modeStandard",     value: "Standard",         comment: "")
+        static let modeVault        = NSLocalizedString("settingsAppearance.modeVault",        value: "Vault",            comment: "")
+        static let hideBalances     = NSLocalizedString("settingsAppearance.hideBalances",     value: "Hide balances by default", comment: "")
+        static let hideBalancesHint = NSLocalizedString("settingsAppearance.hideBalancesHint", value: "Show ••• until revealed", comment: "")
+        static let envTag           = NSLocalizedString("settingsAppearance.envTag",           value: "Environment tag",  comment: "")
+        static let envTagHint       = NSLocalizedString("settingsAppearance.envTagHint",       value: "Show PROD / TESTNET label on vault rows", comment: "")
+    }
+
     enum Rotate {
         static let nudgeTitle = NSLocalizedString("rotate.nudgeTitle", comment: "")
         static let nudgeBodyNever = NSLocalizedString("rotate.nudgeBodyNever", comment: "")

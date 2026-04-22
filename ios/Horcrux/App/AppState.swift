@@ -54,6 +54,53 @@ final class AppState: ObservableObject {
     /// Whether the app is unlocked (PIN / biometric verified)
     @Published var isUnlocked: Bool = false
 
+    // MARK: - Appearance (Vault Mode)
+    //
+    // Horcrux serves both individuals and organisations. The wallet list
+    // renders in one of two visual modes; the rest of the app is unchanged
+    // in v1. These preferences live in UserDefaults so they persist across
+    // launches and survive re-installs on the same device.
+    //
+    // Default is `.standard` — existing individual users see no change.
+
+    enum WalletDisplayMode: String, CaseIterable, Identifiable {
+        case standard
+        case vault
+        var id: String { rawValue }
+    }
+
+    @Published var walletDisplayMode: WalletDisplayMode = {
+        let raw = UserDefaults.standard.string(forKey: "walletDisplayMode") ?? ""
+        return WalletDisplayMode(rawValue: raw) ?? .standard
+    }() {
+        didSet {
+            UserDefaults.standard.set(walletDisplayMode.rawValue, forKey: "walletDisplayMode")
+        }
+    }
+
+    /// Vault-Mode only: hide USD balances behind `••••••` until the user
+    /// taps the eye icon. Over-the-shoulder defense for treasury ops.
+    @Published var hideBalancesByDefault: Bool = UserDefaults.standard.bool(forKey: "hideBalancesByDefault") {
+        didSet {
+            UserDefaults.standard.set(hideBalancesByDefault, forKey: "hideBalancesByDefault")
+        }
+    }
+
+    /// Vault-Mode only: show PROD / TESTNET / MIXED tag next to each vault
+    /// code. Helps operators avoid sending production value to a sepolia
+    /// copy of the same vault.
+    @Published var showEnvironmentTag: Bool = {
+        // Default to `true` if the key is missing — institutional users
+        // expect the environment tag to be visible unless they explicitly
+        // hide it.
+        if UserDefaults.standard.object(forKey: "showEnvironmentTag") == nil { return true }
+        return UserDefaults.standard.bool(forKey: "showEnvironmentTag")
+    }() {
+        didSet {
+            UserDefaults.standard.set(showEnvironmentTag, forKey: "showEnvironmentTag")
+        }
+    }
+
     /// Shard Wrap Key cached in RAM for the duration of this unlocked
     /// session. The SWK is a random 32-byte key that directly encrypts
     /// every shard's ciphertext; it is unwrapped at unlock time via either
