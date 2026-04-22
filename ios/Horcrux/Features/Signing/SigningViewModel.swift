@@ -1328,6 +1328,30 @@ final class SigningViewModel: ObservableObject {
                 if peerStates[peer.id] != .done {
                     peerStates[peer.id] = .signing
                 }
+                // Silently drop well-known control-plane DTOs that share
+                // the relay broadcast channel with MPC round messages.
+                // These are emitted by the initiator's periodic invite
+                // rebroadcast (SignRequestDTO), the once-per-ceremony
+                // SignBeginDTO echo, a cosigner's `SignPresenceDTO`
+                // re-ping, or a stale room-setup beacon from a
+                // re-used room. Decoding them as `MpcMessageDTO` would
+                // wrongly count against `decodingFailures` and surface
+                // the "Protocol communication failure" toast even on a
+                // healthy ceremony.
+                if let magic = try? JSONDecoder().decode(SigningMagicPeek.self, from: data) {
+                    switch magic.magic {
+                    case SignPresenceDTO.magic,
+                         SignBeginDTO.magic,
+                         SignRequestDTO.magic,
+                         RoomPresenceDTO.magic,
+                         SessionBeginDTO.magic:
+                        NSLog("[signing] drop control DTO (%@) from %@",
+                              magic.magic, peer.id)
+                        continue
+                    default:
+                        break
+                    }
+                }
                 let decodedDTO: MpcMessageDTO?
                 do {
                     decodedDTO = try JSONDecoder().decode(MpcMessageDTO.self, from: data)
@@ -2349,4 +2373,13 @@ private enum SigningError: LocalizedError {
         case .shardNotFound: return "Key shard not found on this device"
         }
     }
+}
+
+/// Minimal peek at an incoming JSON payload's top-level `magic` tag so
+/// the signing loop can skip non-MPC control-plane DTOs (presence
+/// pings, `SignBeginDTO` echoes, stale room beacons) without treating
+/// them as malformed MPC messages. Mirrors the identically-named
+/// `MagicPeek` helper used by the DKG loop in `CreateShardViewModel`.
+private struct SigningMagicPeek: Codable {
+    let magic: String
 }
