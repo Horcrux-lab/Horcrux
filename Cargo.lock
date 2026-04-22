@@ -1400,6 +1400,7 @@ dependencies = [
  "axum",
  "futures-util",
  "hex",
+ "horcrux-core",
  "http-body-util",
  "parking_lot",
  "rand",

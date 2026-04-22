@@ -49,3 +49,4 @@ tokio = { version = "1", features = ["full", "test-util"] }
 tokio-tungstenite = "0.24"
 tower = { version = "0.5", features = ["util"] }
 http-body-util = "0.1"
+horcrux-core = { path = "../horcrux-core" }
