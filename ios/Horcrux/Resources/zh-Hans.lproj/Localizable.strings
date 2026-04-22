@@ -1209,3 +1209,13 @@
 "approvals.fromInitiator" = "发起方：%@";
 "approvals.saveForLater" = "稍后处理";
 "approvals.staleWarning" = "会话已超过 24 小时，通常 relay 已关闭，无法继续签名。建议删除。";
+"approvals.detailTitle" = "审批详情";
+"approvals.detailChain" = "链";
+"approvals.detailAmount" = "金额";
+"approvals.detailRecipient" = "收款地址";
+"approvals.detailInitiator" = "发起方";
+"approvals.detailStatus" = "状态";
+"approvals.detailCreated" = "创建时间";
+"approvals.detailResolved" = "处理时间";
+"approvals.detailSession" = "会话 ID";
+"approvals.detailResumeUnavailable" = "MPC 会话无法离线恢复。如需继续签名，请让发起方重新发起请求。";

@@ -101,6 +101,16 @@ enum L10n {
         static let fromInitiator = NSLocalizedString("approvals.fromInitiator", comment: "")
         static let saveForLater = NSLocalizedString("approvals.saveForLater", comment: "")
         static let staleWarning = NSLocalizedString("approvals.staleWarning", comment: "")
+        static let detailTitle = NSLocalizedString("approvals.detailTitle", comment: "")
+        static let detailChain = NSLocalizedString("approvals.detailChain", comment: "")
+        static let detailAmount = NSLocalizedString("approvals.detailAmount", comment: "")
+        static let detailRecipient = NSLocalizedString("approvals.detailRecipient", comment: "")
+        static let detailInitiator = NSLocalizedString("approvals.detailInitiator", comment: "")
+        static let detailStatus = NSLocalizedString("approvals.detailStatus", comment: "")
+        static let detailCreated = NSLocalizedString("approvals.detailCreated", comment: "")
+        static let detailResolved = NSLocalizedString("approvals.detailResolved", comment: "")
+        static let detailSession = NSLocalizedString("approvals.detailSession", comment: "")
+        static let detailResumeUnavailable = NSLocalizedString("approvals.detailResumeUnavailable", comment: "")
     }
 
     // MARK: - Onboarding

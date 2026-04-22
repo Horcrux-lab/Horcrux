@@ -13,6 +13,7 @@ import SwiftUI
 struct ApprovalsView: View {
     @ObservedObject private var store = ApprovalRequestStore.shared
     @State private var showClearConfirm = false
+    @State private var selected: ApprovalRequest?
 
     var body: some View {
         NavigationStack {
@@ -48,6 +49,10 @@ struct ApprovalsView: View {
                     store.clearResolved()
                 }
                 Button(L10n.Common.cancel, role: .cancel) {}
+            }
+            .sheet(item: $selected) { req in
+                ApprovalDetailSheet(request: req)
+                    .presentationDetents([.medium, .large])
             }
         }
         .preferredColorScheme(.dark)
@@ -105,6 +110,8 @@ struct ApprovalsView: View {
             VStack(spacing: 8) {
                 ForEach(items) { req in
                     ApprovalRowView(request: req, stale: stale)
+                        .contentShape(Rectangle())
+                        .onTapGesture { selected = req }
                 }
             }
         }
@@ -252,5 +259,110 @@ private struct ApprovalRowView: View {
         let fmt = RelativeDateTimeFormatter()
         fmt.unitsStyle = .abbreviated
         return fmt.localizedString(for: ts, relativeTo: Date())
+    }
+}
+
+// MARK: - Detail Sheet
+
+private struct ApprovalDetailSheet: View {
+    let request: ApprovalRequest
+
+    @Environment(\.dismiss) private var dismiss
+    @ObservedObject private var store = ApprovalRequestStore.shared
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 14) {
+                    row(L10n.Approvals.detailChain, chainLabel)
+                    row(L10n.Approvals.detailAmount, "\(request.amount) \(request.tokenSymbol ?? chainLabel)")
+                    row(L10n.Approvals.detailRecipient, request.recipient, mono: true)
+                    row(L10n.Approvals.detailInitiator, request.initiatorDeviceName)
+                    row(L10n.Approvals.detailStatus, statusLabel)
+                    row(L10n.Approvals.detailCreated, dateLabel(request.createdAt))
+                    if let r = request.resolvedAt {
+                        row(L10n.Approvals.detailResolved, dateLabel(r))
+                    }
+                    row(L10n.Approvals.detailSession, request.sessionId, mono: true)
+
+                    if request.status == .pending {
+                        Text(L10n.Approvals.detailResumeUnavailable)
+                            .font(.caption)
+                            .foregroundStyle(HorcruxTheme.subtleText)
+                            .padding(.top, 4)
+                            .fixedSize(horizontal: false, vertical: true)
+
+                        Button(role: .destructive) {
+                            store.resolve(id: request.id, as: .rejected)
+                            Haptics.success()
+                            dismiss()
+                        } label: {
+                            Label(L10n.Approvals.actionReject, systemImage: "xmark.circle")
+                                .frame(maxWidth: .infinity)
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .tint(HorcruxTheme.dangerRed)
+                        .padding(.top, 8)
+                    }
+
+                    Button(role: .destructive) {
+                        store.delete(id: request.id)
+                        Haptics.success()
+                        dismiss()
+                    } label: {
+                        Label(L10n.Approvals.actionDismiss, systemImage: "trash")
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.bordered)
+                    .tint(HorcruxTheme.subtleText)
+                }
+                .padding(16)
+            }
+            .background(HorcruxTheme.backgroundGradient.ignoresSafeArea())
+            .navigationTitle(L10n.Approvals.detailTitle)
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbarColorScheme(.dark, for: .navigationBar)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button(L10n.Common.cancel) { dismiss() }
+                        .tint(HorcruxTheme.subtleText)
+                }
+            }
+        }
+        .preferredColorScheme(.dark)
+    }
+
+    private func row(_ label: String, _ value: String, mono: Bool = false) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(label)
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(HorcruxTheme.subtleText)
+            Text(value)
+                .font(mono ? .footnote.monospaced() : .subheadline)
+                .foregroundStyle(.white)
+                .textSelection(.enabled)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private var chainLabel: String {
+        Chain(rawValue: request.chain)?.symbol ?? request.chain.uppercased()
+    }
+
+    private var statusLabel: String {
+        switch request.status {
+        case .pending:  return L10n.Approvals.statusPending
+        case .approved: return L10n.Approvals.statusApproved
+        case .rejected: return L10n.Approvals.statusRejected
+        case .expired:  return L10n.Approvals.statusExpired
+        }
+    }
+
+    private func dateLabel(_ d: Date) -> String {
+        let fmt = DateFormatter()
+        fmt.dateStyle = .medium
+        fmt.timeStyle = .short
+        return fmt.string(from: d)
     }
 }

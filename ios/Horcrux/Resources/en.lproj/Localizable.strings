@@ -1208,3 +1208,13 @@
 "approvals.fromInitiator" = "From: %@";
 "approvals.saveForLater" = "Save for later";
 "approvals.staleWarning" = "Over 24h old — the relay session has almost certainly been torn down. Dismiss to clean up.";
+"approvals.detailTitle" = "Approval details";
+"approvals.detailChain" = "Chain";
+"approvals.detailAmount" = "Amount";
+"approvals.detailRecipient" = "Recipient";
+"approvals.detailInitiator" = "Initiator";
+"approvals.detailStatus" = "Status";
+"approvals.detailCreated" = "Created";
+"approvals.detailResolved" = "Resolved";
+"approvals.detailSession" = "Session ID";
+"approvals.detailResumeUnavailable" = "MPC sessions can't be resumed offline. Ask the initiator to re-scan and start a fresh request.";
