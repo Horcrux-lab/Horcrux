@@ -1727,6 +1727,60 @@ struct PortfolioSummaryCard: View {
     /// amount (we don't track historical balances, only historical prices —
     /// this approximates 'how the portfolio's current composition moved').
     private var portfolioSparkline: [Double] {
+        PortfolioMetrics.sparkline24h(wallets: wallets, priceService: priceService, balanceCache: balanceCache)
+    }
+
+    private var summarySubtitle: String {
+        let accountCount = Set(wallets.map { $0.accountId }).count
+        let chainCount = Set(wallets.map { $0.chain }).count
+        if accountCount <= 1 {
+            return L10n.WalletEmpty.summaryOneAccount(chainCount)
+        }
+        return L10n.WalletEmpty.summaryMultiAccount(accountCount, chainCount)
+    }
+
+    private var totalFiatString: String {
+        let total = PortfolioMetrics.totalUSD(wallets: wallets, priceService: priceService, balanceCache: balanceCache)
+        let fmt = NumberFormatter()
+        fmt.numberStyle = .currency
+        fmt.currencyCode = "USD"
+        fmt.maximumFractionDigits = 2
+        return fmt.string(from: NSNumber(value: total)) ?? "$—"
+    }
+
+    private func total24hChange() -> (percent: Double, absolute: Double)? {
+        PortfolioMetrics.change24h(wallets: wallets, priceService: priceService, balanceCache: balanceCache)
+    }
+
+    private func refreshAll() async {
+        priceService.refreshIfNeeded()
+        priceService.refreshSparklinesIfNeeded()
+        isLoading = true
+        defer { isLoading = false }
+        await BalanceCache.shared.refreshAll(
+            wallets: wallets,
+            service: appState.blockchainService,
+            config: appState.networkConfig
+        )
+    }
+}
+
+// MARK: - Portfolio metrics (shared between Standard card and Vault banner)
+
+/// Centralised portfolio math reused by both the Standard `PortfolioSummaryCard`
+/// and the Vault `VaultTotalBanner`. Keeping a single source of truth means
+/// the two L1 surfaces never drift on totals, sparkline, or 24h change math.
+fileprivate enum PortfolioMetrics {
+    @MainActor
+    static func totalUSD(wallets: [Wallet], priceService: PriceService, balanceCache: BalanceCache) -> Double {
+        wallets.reduce(0.0) { acc, w in
+            let amount = balanceCache.nativeAmount(walletId: w.id) ?? 0
+            return acc + amount * (priceService.usdPrice(symbol: w.chain.symbol) ?? 0)
+        }
+    }
+
+    @MainActor
+    static func sparkline24h(wallets: [Wallet], priceService: PriceService, balanceCache: BalanceCache) -> [Double] {
         var holdings: [String: Double] = [:]
         for w in wallets {
             let amount = balanceCache.nativeAmount(walletId: w.id) ?? 0
@@ -1747,32 +1801,8 @@ struct PortfolioSummaryCard: View {
         return anyData ? bucketValues : []
     }
 
-    private var summarySubtitle: String {
-        let accountCount = Set(wallets.map { $0.accountId }).count
-        let chainCount = Set(wallets.map { $0.chain }).count
-        if accountCount <= 1 {
-            return L10n.WalletEmpty.summaryOneAccount(chainCount)
-        }
-        return L10n.WalletEmpty.summaryMultiAccount(accountCount, chainCount)
-    }
-
-    private var totalFiatString: String {
-        let total = wallets.reduce(0.0) { acc, w in
-            let amount = balanceCache.nativeAmount(walletId: w.id) ?? 0
-            return acc + amount * (priceService.usdPrice(symbol: w.chain.symbol) ?? 0)
-        }
-        let fmt = NumberFormatter()
-        fmt.numberStyle = .currency
-        fmt.currencyCode = "USD"
-        fmt.maximumFractionDigits = 2
-        return fmt.string(from: NSNumber(value: total)) ?? "$—"
-    }
-
-    /// Combined 24h change across all wallets as (percentDelta, absoluteUsd).
-    /// Returns nil if no quotes carry a change figure yet. The percent is
-    /// weighted by each wallet's current USD value so a wallet with $100
-    /// of ETH at -2% and $10 of BTC at +5% yields roughly -1.4%.
-    private func total24hChange() -> (percent: Double, absolute: Double)? {
+    @MainActor
+    static func change24h(wallets: [Wallet], priceService: PriceService, balanceCache: BalanceCache) -> (percent: Double, absolute: Double)? {
         var weightedChange = 0.0
         var totalNow = 0.0
         var totalAbs = 0.0
@@ -1783,7 +1813,6 @@ struct PortfolioSummaryCard: View {
             let valueNow = amount * price
             guard let change = priceService.change24h(symbol: w.chain.symbol) else { continue }
             hadAny = true
-            // Derive "24 hours ago" value from now and change: v_now = v_old * (1 + change/100)
             let valueThen = valueNow / (1 + change / 100)
             weightedChange += change * valueNow
             totalNow += valueNow
@@ -1791,18 +1820,6 @@ struct PortfolioSummaryCard: View {
         }
         guard hadAny, totalNow > 0 else { return nil }
         return (percent: weightedChange / totalNow, absolute: totalAbs)
-    }
-
-    private func refreshAll() async {
-        priceService.refreshIfNeeded()
-        priceService.refreshSparklinesIfNeeded()
-        isLoading = true
-        defer { isLoading = false }
-        await BalanceCache.shared.refreshAll(
-            wallets: wallets,
-            service: appState.blockchainService,
-            config: appState.networkConfig
-        )
     }
 }
 
@@ -1831,10 +1848,15 @@ struct VaultTotalBanner: View {
     }
 
     private var totalUSD: Double {
-        wallets.reduce(0.0) { acc, w in
-            let amount = balanceCache.nativeAmount(walletId: w.id) ?? 0
-            return acc + amount * (priceService.usdPrice(symbol: w.chain.symbol) ?? 0)
-        }
+        PortfolioMetrics.totalUSD(wallets: wallets, priceService: priceService, balanceCache: balanceCache)
+    }
+
+    private var portfolioSparkline: [Double] {
+        PortfolioMetrics.sparkline24h(wallets: wallets, priceService: priceService, balanceCache: balanceCache)
+    }
+
+    private func total24hChange() -> (percent: Double, absolute: Double)? {
+        PortfolioMetrics.change24h(wallets: wallets, priceService: priceService, balanceCache: balanceCache)
     }
 
     private static let fiatFormatter: NumberFormatter = {
@@ -1882,6 +1904,26 @@ struct VaultTotalBanner: View {
                 .minimumScaleFactor(0.55)
                 .lineLimit(1)
                 .contentTransition(.numericText())
+            Sparkline(values: portfolioSparkline, height: 24)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .opacity(effectivelyHidden ? 0.25 : 0.9)
+                .padding(.top, 2)
+            if let (percent, absolute) = total24hChange() {
+                HStack(spacing: 6) {
+                    Image(systemName: percent >= 0 ? "arrow.up.right" : "arrow.down.right")
+                        .font(.caption2.weight(.bold))
+                    Text(String(format: "%@%.2f%%  (%@$%.2f)  24h",
+                                percent >= 0 ? "+" : "",
+                                percent,
+                                absolute >= 0 ? "+" : "-",
+                                abs(absolute)))
+                        .font(.caption2.weight(.medium).monospacedDigit())
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.7)
+                        .opacity(effectivelyHidden ? 0.0 : 1.0)
+                }
+                .foregroundStyle(percent >= 0 ? HorcruxTheme.successGreen : HorcruxTheme.dangerRed)
+            }
             Text(subLine(vaultCount: vaultCount, chainCount: chainCount))
                 .font(.caption2.monospacedDigit())
                 .foregroundStyle(HorcruxTheme.subtleText)
@@ -1913,6 +1955,7 @@ struct VaultTotalBanner: View {
         }
         .task {
             priceService.refreshIfNeeded()
+            priceService.refreshSparklinesIfNeeded()
             await BalanceCache.shared.refreshAll(
                 wallets: wallets,
                 service: appState.blockchainService,
