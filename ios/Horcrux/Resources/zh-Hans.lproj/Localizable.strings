@@ -109,7 +109,6 @@
 "walletHome.sharedAddressHint" = "EVM 共用地址";
 "walletHome.collapsedFundedOfTotal" = "%2$d 条链中 %1$d 条有余额";
 "walletHome.collapsedAllEmpty" = "%d 条链 · 全部为空";
-"walletHome.chainDotsAccessibility" = "链：%@";
 
 /* Pending Broadcast */
 "pending.retry" = "重试";
