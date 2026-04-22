@@ -121,36 +121,27 @@ jobs:
           MACOS_SDK="$(xcrun --sdk macosx --show-sdk-path)"
           CLANG="$(xcrun --find clang)"
           AR_BIN="$(xcrun --find ar)"
-          # Globally target iOS-sim so gmp-mpfr-sys's C sources (which
-          # ignore cargo's target-scoped CC_<triple> vars) pick it up.
-          # CC_FOR_BUILD / HOST_CC point at a macOS-SDK clang so GMP's
-          # autoconf "build system compiler" probe can compile+run
-          # conftest binaries on the arm64 macOS runner. Without this,
-          # configure dies with "Specified CC_FOR_BUILD doesn't seem
-          # to work".
+
+          # gmp-mpfr-sys calls CC_FOR_BUILD with no flags, so we wrap
+          # it via `xcrun --sdk macosx clang`. xcrun injects the
+          # correct SDKROOT into the subprocess so ld64 produces a
+          # properly ad-hoc-signed arm64 macOS binary; without the
+          # signature macOS Sequoia SIGKILLs it on exec.
+          HOST_CC_WRAPPER="$RUNNER_TEMP/host-cc.sh"
+          printf '%s\n' '#!/bin/bash' 'exec /usr/bin/xcrun --sdk macosx clang "$@"' > "$HOST_CC_WRAPPER"
+          chmod +x "$HOST_CC_WRAPPER"
+
           export CC="$CLANG"
           export CFLAGS="-target arm64-apple-ios14.0-simulator -isysroot $IOS_SIM_SDK -arch arm64"
           export AR="$AR_BIN"
-          export CC_FOR_BUILD="$CLANG"
-          export HOST_CC="$CLANG"
-          export CFLAGS_FOR_BUILD="-isysroot $MACOS_SDK -arch arm64"
-          export CPPFLAGS_FOR_BUILD="-isysroot $MACOS_SDK"
-          export LDFLAGS_FOR_BUILD="-isysroot $MACOS_SDK"
-          # GMP's build-host probe invokes $CC_FOR_BUILD with no CFLAGS,
-          # so a bare `clang probe.c` must find libSystem. Set SDKROOT
-          # to the macOS SDK; target CFLAGS still override via
-          # explicit -isysroot to the iOS simulator SDK.
-          export SDKROOT="$MACOS_SDK"
+          export CC_FOR_BUILD="$HOST_CC_WRAPPER"
+          export HOST_CC="$HOST_CC_WRAPPER"
 
-          # Sanity-check the build-host probe GMP will run
           echo "=== Probing CC_FOR_BUILD ==="
-          echo 'int main(){return 0;}' > /tmp/probe.c
-          "$CC_FOR_BUILD" /tmp/probe.c -o /tmp/probe
-          file /tmp/probe
-          codesign -dv /tmp/probe 2>&1 || true
-          ls -la /tmp/probe
-          xattr /tmp/probe || true
-          /tmp/probe && echo "probe ok" || { echo "probe FAILED (exit=$?)"; exit 1; }
+          echo 'int main(){return 0;}' > "$RUNNER_TEMP/probe.c"
+          "$CC_FOR_BUILD" "$RUNNER_TEMP/probe.c" -o "$RUNNER_TEMP/probe"
+          file "$RUNNER_TEMP/probe"
+          "$RUNNER_TEMP/probe" && echo "probe ok" || { echo "probe FAILED (exit=$?)"; exit 1; }
           echo "=== End probe ==="
 
           cargo build --lib -p horcrux-core --target aarch64-apple-ios-sim || {
