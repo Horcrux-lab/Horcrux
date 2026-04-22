@@ -136,17 +136,16 @@ jobs:
           export CFLAGS_FOR_BUILD="-isysroot $MACOS_SDK -arch arm64"
           export CPPFLAGS_FOR_BUILD="-isysroot $MACOS_SDK"
           export LDFLAGS_FOR_BUILD="-isysroot $MACOS_SDK"
+          # GMP's build-host probe invokes $CC_FOR_BUILD with no CFLAGS,
+          # so a bare `clang probe.c` must find libSystem. Set SDKROOT
+          # to the macOS SDK; target CFLAGS still override via
+          # explicit -isysroot to the iOS simulator SDK.
+          export SDKROOT="$MACOS_SDK"
 
           # Sanity-check the build-host probe GMP will run
           echo "=== Probing CC_FOR_BUILD ==="
           echo 'int main(){return 0;}' > /tmp/probe.c
-          set -x
-          $CC_FOR_BUILD /tmp/probe.c -o /tmp/probe || echo "COMPILE FAILED"
-          ls -la /tmp/probe /tmp/a.out 2>&1 || true
-          file /tmp/probe 2>&1 || true
-          /tmp/probe && echo "probe ran ok"
-          ( cd /tmp && $CC_FOR_BUILD probe.c && ls -la a.out && file a.out && ./a.out && echo "plain probe ok" )
-          set +x
+          "$CC_FOR_BUILD" /tmp/probe.c -o /tmp/probe && /tmp/probe && echo "probe ok" || { echo "probe FAILED"; exit 1; }
           echo "=== End probe ==="
 
           cargo build --lib -p horcrux-core --target aarch64-apple-ios-sim || {
