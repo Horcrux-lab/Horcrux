@@ -136,6 +136,19 @@ jobs:
           export CFLAGS_FOR_BUILD="-isysroot $MACOS_SDK -arch arm64"
           export CPPFLAGS_FOR_BUILD="-isysroot $MACOS_SDK"
           export LDFLAGS_FOR_BUILD="-isysroot $MACOS_SDK"
+
+          # Sanity-check the build-host probe GMP will run
+          echo "=== Probing CC_FOR_BUILD ==="
+          echo 'int main(){return 0;}' > /tmp/probe.c
+          set -x
+          $CC_FOR_BUILD /tmp/probe.c -o /tmp/probe || echo "COMPILE FAILED"
+          ls -la /tmp/probe /tmp/a.out 2>&1 || true
+          file /tmp/probe 2>&1 || true
+          /tmp/probe && echo "probe ran ok"
+          ( cd /tmp && $CC_FOR_BUILD probe.c && ls -la a.out && file a.out && ./a.out && echo "plain probe ok" )
+          set +x
+          echo "=== End probe ==="
+
           cargo build --lib -p horcrux-core --target aarch64-apple-ios-sim || {
             echo "=== GMP config.log (last 100 lines) ==="
             find target -name config.log -path '*gmp-build*' -exec tail -100 {} \; || true
