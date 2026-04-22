@@ -128,7 +128,12 @@ jobs:
           # properly ad-hoc-signed arm64 macOS binary; without the
           # signature macOS Sequoia SIGKILLs it on exec.
           HOST_CC_WRAPPER="$RUNNER_TEMP/host-cc.sh"
-          printf '%s\n' '#!/bin/bash' 'exec /usr/bin/xcrun --sdk macosx clang "$@"' > "$HOST_CC_WRAPPER"
+          printf '%s\n' \
+            '#!/bin/bash' \
+            'unset IPHONEOS_DEPLOYMENT_TARGET CFLAGS SDKROOT' \
+            'export MACOSX_DEPLOYMENT_TARGET=14.0' \
+            'exec /usr/bin/xcrun --sdk macosx clang "$@"' \
+            > "$HOST_CC_WRAPPER"
           chmod +x "$HOST_CC_WRAPPER"
 
           export CC="$CLANG"
