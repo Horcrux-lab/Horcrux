@@ -868,6 +868,25 @@ struct BlockchainNodeSettingsView: View {
     @State private var selectedEVMProvider: PaidEVMProvider = .alchemy
     @State private var pendingPreset: NetworkPreset?
 
+    /// Scans the current EVM/Solana RPC URLs against every paid provider's
+    /// template for the current chain/devnet toggle, returning the provider
+    /// whose template matches. Used to keep the picker in sync with the
+    /// actually-configured URL and to surface "Active" status regardless of
+    /// which picker position the user is currently viewing.
+    private func detectActiveEVMProvider() -> PaidEVMProvider? {
+        guard let net = EVMNetwork(rawValue: config.evmChainId) else { return nil }
+        for p in PaidEVMProvider.allCases {
+            if let tmpl = p.template(for: net), config.ethereumRPC == tmpl {
+                return p
+            }
+            if let solTmpl = p.solanaTemplate(mainnet: !config.solDevnet),
+               config.solanaRPC == solTmpl {
+                return p
+            }
+        }
+        return nil
+    }
+
     /// A collapsible single-field provider picker for the EVM key block.
     /// Switching the picker swaps which Keychain field the SecureField
     /// binds to and which template the "Use" button applies — so the
@@ -1297,6 +1316,21 @@ struct BlockchainNodeSettingsView: View {
             // current status without needing to tap anything. `refreshAll` is
             // a no-op when another refresh is already in flight.
             await health.refreshAll(config: config)
+        }
+        .onAppear {
+            // Sync the picker to whichever paid provider is currently wired
+            // up in the saved RPC URLs, so the "Active" badge shows up in
+            // the correct picker position — instead of always landing on
+            // .alchemy and hiding the active state for other providers.
+            if let active = detectActiveEVMProvider() {
+                selectedEVMProvider = active
+            }
+        }
+        .onChange(of: config.ethereumRPC) { _, _ in
+            if let active = detectActiveEVMProvider() { selectedEVMProvider = active }
+        }
+        .onChange(of: config.solanaRPC) { _, _ in
+            if let active = detectActiveEVMProvider() { selectedEVMProvider = active }
         }
         .alert(L10n.NodeSettings.presetConfirmTitle, isPresented: Binding(
             get: { pendingPreset != nil },
