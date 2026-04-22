@@ -776,13 +776,7 @@ struct WalletGroupHeader: View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 10) {
                 if !accountId.isEmpty {
-                    WalletAvatarView(
-                        accountId: accountId,
-                        fallbackText: label,
-                        size: 32,
-                        threshold: threshold,
-                        total: total
-                    )
+                    WalletAvatarView(accountId: accountId, fallbackText: label, size: 32)
                 } else {
                     Image(systemName: "key.horizontal.fill")
                         .font(.subheadline.weight(.semibold))
@@ -793,11 +787,16 @@ struct WalletGroupHeader: View {
                     .foregroundStyle(.white)
                     .lineLimit(1)
                     .truncationMode(.tail)
-                    .accessibilityLabel(
-                        threshold > 0 && total > 0
-                            ? "\(label), \(L10n.Shards.thresholdValue(threshold, total))"
-                            : label
-                    )
+                if threshold > 0 && total > 0 {
+                    Text(L10n.Shards.thresholdValue(threshold, total))
+                        .font(.caption2.weight(.medium).monospacedDigit())
+                        .foregroundStyle(HorcruxTheme.subtleText)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 3)
+                        .background(
+                            Capsule().fill(HorcruxTheme.subtleText.opacity(0.12))
+                        )
+                }
                 Spacer(minLength: 8)
                 if isCollapsed == true, let summary = collapsedSummary {
                     Text(summary)

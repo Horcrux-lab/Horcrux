@@ -8,12 +8,6 @@ struct WalletAvatarView: View {
     let accountId: String
     let fallbackText: String
     var size: CGFloat = 36
-    /// When `threshold` and `total` are both > 0 and the user hasn't
-    /// picked an emoji, the fallback renders an MPC threshold fraction
-    /// ("2⁄3") instead of a first-letter monogram. Speaks to Horcrux's
-    /// core identity and lets callers drop the separate threshold capsule.
-    var threshold: Int = 0
-    var total: Int = 0
 
     @ObservedObject private var store = WalletAvatarStore.shared
 
@@ -24,8 +18,6 @@ struct WalletAvatarView: View {
     private var monogram: String {
         String(fallbackText.trimmingCharacters(in: .whitespaces).prefix(1)).uppercased()
     }
-
-    private var hasThreshold: Bool { threshold > 0 && total > 0 }
 
     var body: some View {
         ZStack {
@@ -39,16 +31,6 @@ struct WalletAvatarView: View {
             if let emoji = store.avatar(for: accountId)?.emoji, !emoji.isEmpty {
                 Text(emoji)
                     .font(.system(size: size * 0.52))
-            } else if hasThreshold {
-                // Fraction slash (U+2044) kerns tighter than "/" and renders
-                // as a proper typographic fraction on iOS system fonts.
-                Text("\(threshold)\u{2044}\(total)")
-                    .font(.system(size: size * 0.44, weight: .bold, design: .rounded))
-                    .monospacedDigit()
-                    .foregroundStyle(.white)
-                    .minimumScaleFactor(0.7)
-                    .lineLimit(1)
-                    .padding(.horizontal, size * 0.14)
             } else {
                 Text(monogram)
                     .font(.system(size: size * 0.46, weight: .bold, design: .rounded))
