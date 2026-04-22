@@ -29,6 +29,7 @@ struct WalletHomeView: View {
     @State private var lastReachabilityCheck: Date?
     @State private var rotationTarget: Wallet?
     @State private var avatarEditTarget: AvatarEditTarget?
+    @State private var vaultEditTarget: AvatarEditTarget?
     /// Collapse state for the pending-broadcasts section. When 2+ items
     /// are queued we default to collapsed (renders a single pill) to stop
     /// the list from hogging the top of the screen. Taps expand inline.
@@ -120,6 +121,9 @@ struct WalletHomeView: View {
             }
             .sheet(item: $avatarEditTarget) { target in
                 WalletAvatarPickerSheet(accountId: target.id, fallbackLabel: target.label)
+            }
+            .sheet(item: $vaultEditTarget) { target in
+                VaultEditSheet(accountId: target.id, fallbackName: target.label)
             }
             .task {
                 networkReachable = await NetworkStatus.shared.checkAll(config: appState.networkConfig)
@@ -347,7 +351,9 @@ struct WalletHomeView: View {
                     sharedAddress: isCollapsed ? nil : evmAddress,
                     isCollapsed: isCollapsible ? isCollapsed : nil,
                     collapsedSummary: isCollapsed ? collapsedSummary(for: group) : nil,
-                    wallets: group.wallets
+                    wallets: group.wallets,
+                    note: accountStore.note(for: group.accountId),
+                    tag: accountStore.tag(for: group.accountId)
                 )
                 .padding(.horizontal, 6)
 
@@ -369,6 +375,14 @@ struct WalletHomeView: View {
                     .accessibilityIdentifier("walletHome_groupToggle_\(group.accountId)")
                     .contextMenu {
                         Button {
+                            vaultEditTarget = .init(id: group.accountId, label: group.label)
+                        } label: {
+                            Label(NSLocalizedString("vaultEdit.menu",
+                                                    value: "Edit Vault Info",
+                                                    comment: "Context menu: open vault rename/note/tag sheet"),
+                                  systemImage: "square.and.pencil")
+                        }
+                        Button {
                             avatarEditTarget = .init(id: group.accountId, label: group.label)
                         } label: {
                             Label(L10n.WalletAvatar.editMenu, systemImage: "paintpalette")
@@ -377,6 +391,14 @@ struct WalletHomeView: View {
                 } else {
                     header
                         .contextMenu {
+                            Button {
+                                vaultEditTarget = .init(id: group.accountId, label: group.label)
+                            } label: {
+                                Label(NSLocalizedString("vaultEdit.menu",
+                                                        value: "Edit Vault Info",
+                                                        comment: "Context menu: open vault rename/note/tag sheet"),
+                                      systemImage: "square.and.pencil")
+                            }
                             Button {
                                 avatarEditTarget = .init(id: group.accountId, label: group.label)
                             } label: {
@@ -780,6 +802,10 @@ struct WalletGroupHeader: View {
     /// Standard mode ignores this and keeps the original layout, so
     /// callers can safely pass an empty array.
     var wallets: [Wallet] = []
+    /// Optional user-authored note (≤120 chars) shown as a subtitle.
+    var note: String? = nil
+    /// Optional colored role chip shown next to the vault label.
+    var tag: VaultTag? = nil
 
     @EnvironmentObject private var appState: AppState
     @StateObject private var priceService = PriceService.shared
@@ -808,11 +834,23 @@ struct WalletGroupHeader: View {
                         .font(.subheadline.weight(.semibold))
                         .foregroundStyle(HorcruxTheme.accentPurple)
                 }
-                Text(label)
-                    .font(.headline)
-                    .foregroundStyle(.white)
-                    .lineLimit(1)
-                    .truncationMode(.tail)
+                VStack(alignment: .leading, spacing: 2) {
+                    HStack(spacing: 6) {
+                        Text(label)
+                            .font(.headline)
+                            .foregroundStyle(.white)
+                            .lineLimit(1)
+                            .truncationMode(.tail)
+                        if let tag { tagChip(tag) }
+                    }
+                    if let note, !note.isEmpty {
+                        Text(note)
+                            .font(.caption2)
+                            .foregroundStyle(HorcruxTheme.subtleText)
+                            .lineLimit(1)
+                            .truncationMode(.tail)
+                    }
+                }
                 if threshold > 0 && total > 0 {
                     Text(L10n.Shards.thresholdValue(threshold, total))
                         .font(.caption2.weight(.medium).monospacedDigit())
@@ -911,9 +949,17 @@ struct WalletGroupHeader: View {
                             .foregroundStyle(.white)
                             .lineLimit(1)
                             .truncationMode(.tail)
+                        if let tag { tagChip(tag) }
                         if appState.showEnvironmentTag {
                             envTag(env)
                         }
+                    }
+                    if let note, !note.isEmpty {
+                        Text(note)
+                            .font(.caption2)
+                            .foregroundStyle(HorcruxTheme.subtleText)
+                            .lineLimit(1)
+                            .truncationMode(.tail)
                     }
                     Text(metaLine(threshold: threshold, total: total, lastSigned: lastSigned))
                         .font(.caption2.monospacedDigit())
@@ -965,6 +1011,28 @@ struct WalletGroupHeader: View {
                 .stroke(HorcruxTheme.cardBorder.opacity(0.4), lineWidth: 1)
         )
         .contentShape(Rectangle())
+    }
+
+    /// Small colored chip shown inline with the vault label to signal its role.
+    @ViewBuilder
+    fileprivate func tagChip(_ tag: VaultTag) -> some View {
+        HStack(spacing: 3) {
+            Image(systemName: tag.systemIcon)
+                .font(.system(size: 9, weight: .heavy))
+            Text(tag.displayName)
+                .font(.system(size: 10, weight: .heavy, design: .rounded))
+                .lineLimit(1)
+        }
+        .foregroundStyle(tag.color)
+        .padding(.horizontal, 6)
+        .padding(.vertical, 2)
+        .background(
+            Capsule().fill(tag.color.opacity(0.16))
+        )
+        .overlay(
+            Capsule().stroke(tag.color.opacity(0.45), lineWidth: 0.5)
+        )
+        .accessibilityLabel(tag.displayName)
     }
 
     @ViewBuilder

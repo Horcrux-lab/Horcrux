@@ -1171,3 +1171,22 @@
 "vaultMode.health.degraded" = "需关注";
 "vaultMode.health.stale" = "长期未用";
 "vaultMode.health.idle" = "闲置";
+
+/* 金库命名 / 备注 / 角色 tag */
+"vaultEdit.menu" = "编辑金库信息";
+"vaultEdit.title" = "编辑金库";
+"vaultEdit.nameHeader" = "名称";
+"vaultEdit.nameFooter" = "留空可恢复默认名称。";
+"vaultEdit.noteHeader" = "备注";
+"vaultEdit.noteFooter" = "在金库名称下方作为副标题显示，最多 120 字符。";
+"vaultEdit.notePlaceholder" = "例如：季度再平衡、签名人 A、B";
+"vaultEdit.tagHeader" = "角色";
+"vaultEdit.tagFooter" = "可选彩色标签，用于标记金库用途。";
+"vaultEdit.tagNone" = "无";
+"vaultTag.treasury" = "Treasury";
+"vaultTag.hot" = "Hot";
+"vaultTag.cold" = "Cold";
+"vaultTag.operating" = "Operating";
+"vaultTag.personal" = "Personal";
+"common.cancel" = "取消";
+"common.save" = "保存";

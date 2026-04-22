@@ -1170,3 +1170,22 @@
 "vaultMode.health.degraded" = "needs attention";
 "vaultMode.health.stale" = "stale";
 "vaultMode.health.idle" = "idle";
+
+/* Vault naming / notes / role tag */
+"vaultEdit.menu" = "Edit Vault Info";
+"vaultEdit.title" = "Edit Vault";
+"vaultEdit.nameHeader" = "NAME";
+"vaultEdit.nameFooter" = "Leave empty to restore the default label.";
+"vaultEdit.noteHeader" = "NOTE";
+"vaultEdit.noteFooter" = "Shown as a subtitle under the vault name. Up to 120 characters.";
+"vaultEdit.notePlaceholder" = "e.g. quarterly rebalance, signers: A, B";
+"vaultEdit.tagHeader" = "TAG";
+"vaultEdit.tagFooter" = "Optional colored chip identifying this vault's role.";
+"vaultEdit.tagNone" = "None";
+"vaultTag.treasury" = "Treasury";
+"vaultTag.hot" = "Hot";
+"vaultTag.cold" = "Cold";
+"vaultTag.operating" = "Operating";
+"vaultTag.personal" = "Personal";
+"common.cancel" = "Cancel";
+"common.save" = "Save";
