@@ -45,6 +45,8 @@
 		2849F2D5E7586B599081AD84 /* PinHashTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F6233B6902699404F7105153 /* PinHashTests.swift */; };
 		2B2F3D2AFF9D3A8F5307419F /* CurrencyFormatter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 08990698B518337C3E98D3CE /* CurrencyFormatter.swift */; };
 		33A6D022F28DBB136154DFCB /* TransactionStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 719404EF19B45101797D6FB1 /* TransactionStore.swift */; };
+		64E12CA3E1254E35B514BE6F /* AuditExportView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 368156ADB7A44EF080658B0C /* AuditExportView.swift */; };
+		781C9F1CEC44469EA6BEE8D3 /* AuditExport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 364EC3FA7BBA41788ECEDFE4 /* AuditExport.swift */; };
 		965F23FA074A419D96E16115 /* TransactionHistorySyncer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 69133FDFA83546FEB66C98D3 /* TransactionHistorySyncer.swift */; };
 		A1B2C3D4E5F6A7B8C9D0E1F2 /* CustomTokenStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2C3D4E5F6A7B8C9D0E1F2A1 /* CustomTokenStore.swift */; };
 		C3D4E5F6A7B8C9D0E1F2A1B2 /* CustomTokensView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D4E5F6A7B8C9D0E1F2A1B2C3 /* CustomTokensView.swift */; };
@@ -196,6 +198,8 @@
 		6B60143CF0CBC4C79AB085D6 /* PeerManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PeerManager.swift; sourceTree = "<group>"; };
 		706E6F4EE34FF701DC20BB7B /* DeepLinkRouterTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HorcruxTests/DeepLinkRouterTests.swift; sourceTree = SOURCE_ROOT; };
 		719404EF19B45101797D6FB1 /* TransactionStore.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TransactionStore.swift; sourceTree = "<group>"; };
+		368156ADB7A44EF080658B0C /* AuditExportView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AuditExportView.swift; sourceTree = "<group>"; };
+		364EC3FA7BBA41788ECEDFE4 /* AuditExport.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AuditExport.swift; sourceTree = "<group>"; };
 		69133FDFA83546FEB66C98D3 /* TransactionHistorySyncer.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TransactionHistorySyncer.swift; sourceTree = "<group>"; };
 		B2C3D4E5F6A7B8C9D0E1F2A1 /* CustomTokenStore.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CustomTokenStore.swift; sourceTree = "<group>"; };
 		D4E5F6A7B8C9D0E1F2A1B2C3 /* CustomTokensView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CustomTokensView.swift; sourceTree = "<group>"; };
@@ -405,6 +409,7 @@
 			isa = PBXGroup;
 			children = (
 				46F96EED87A21ED0BBE9B1B0 /* SettingsView.swift */,
+				368156ADB7A44EF080658B0C /* AuditExportView.swift */,
 				C38D9F404F05092ED681EBC9 /* AddressBookView.swift */,
 				D4E5F6A7B8C9D0E1F2A1B2C3 /* CustomTokensView.swift */,
 				F6A7B8C9D0E1F2A1B2C3D4E5 /* ShardHealthView.swift */,
@@ -596,6 +601,7 @@
 				7B49C305B459B2D3E91C9718 /* TokenModels.swift */,
 				95C0DF3FB32992A358342714 /* TransactionConfirmationPoller.swift */,
 				719404EF19B45101797D6FB1 /* TransactionStore.swift */,
+				364EC3FA7BBA41788ECEDFE4 /* AuditExport.swift */,
 				69133FDFA83546FEB66C98D3 /* TransactionHistorySyncer.swift */,
 				B2C3D4E5F6A7B8C9D0E1F2A1 /* CustomTokenStore.swift */,
 				9112A792D218E931835A0B74 /* WalletStore.swift */,
@@ -843,6 +849,8 @@
 				D577AD02733FE2E62EC0E916 /* TokenModels.swift in Sources */,
 				37C641C45ADB6ABE3721EB1F /* TransactionConfirmationPoller.swift in Sources */,
 				33A6D022F28DBB136154DFCB /* TransactionStore.swift in Sources */,
+				64E12CA3E1254E35B514BE6F /* AuditExportView.swift in Sources */,
+				781C9F1CEC44469EA6BEE8D3 /* AuditExport.swift in Sources */,
 				965F23FA074A419D96E16115 /* TransactionHistorySyncer.swift in Sources */,
 				A1B2C3D4E5F6A7B8C9D0E1F2 /* CustomTokenStore.swift in Sources */,
 				C3D4E5F6A7B8C9D0E1F2A1B2 /* CustomTokensView.swift in Sources */,

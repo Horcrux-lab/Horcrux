@@ -248,6 +248,27 @@ struct SettingsView: View {
                         }
                         .glassCard()
                         .accessibilityIdentifier("settings_shardHealthLink")
+
+                        NavigationLink {
+                            AuditExportView()
+                        } label: {
+                            HStack {
+                                VaultSettingsRow(
+                                    icon: "square.and.arrow.up.on.square",
+                                    iconColor: HorcruxTheme.accentBlue,
+                                    title: NSLocalizedString("settings.auditExport",
+                                                              value: "Export Audit Log",
+                                                              comment: ""),
+                                    subtitle: NSLocalizedString("settings.auditExport.subtitle",
+                                                                 value: "Transactions + approvals as CSV / JSON",
+                                                                 comment: "")
+                                )
+                                Spacer()
+                                VaultDisclosureIndicator()
+                            }
+                        }
+                        .glassCard()
+                        .accessibilityIdentifier("settings_auditExportLink")
                     }
 
                     // Language
