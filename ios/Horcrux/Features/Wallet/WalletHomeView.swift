@@ -1818,13 +1818,16 @@ struct VaultTotalBanner: View {
     @StateObject private var priceService = PriceService.shared
     @ObservedObject private var balanceCache = BalanceCache.shared
     @State private var showBreakdown = false
-    @State private var localHidden: Bool = false
+    @State private var sessionRevealed: Bool = false
+    @State private var sessionHidden: Bool = false
 
     private var effectivelyHidden: Bool {
-        // `hideBalancesByDefault` sets the initial value; the eye icon
-        // toggles `localHidden` for this session only so operators can
-        // briefly reveal without changing the default.
-        localHidden || appState.hideBalancesByDefault
+        // When the global "hide by default" preference is on, the eye
+        // toggles a session-only reveal. When it's off, the eye toggles
+        // a session-only hide. Either way, tapping the icon must visibly
+        // flip the displayed amount.
+        if appState.hideBalancesByDefault { return !sessionRevealed }
+        return sessionHidden
     }
 
     private var totalUSD: Double {
@@ -1856,7 +1859,13 @@ struct VaultTotalBanner: View {
                     .foregroundStyle(HorcruxTheme.subtleText)
                 Spacer()
                 Button {
-                    withAnimation(.easeInOut(duration: 0.18)) { localHidden.toggle() }
+                    withAnimation(.easeInOut(duration: 0.18)) {
+                        if appState.hideBalancesByDefault {
+                            sessionRevealed.toggle()
+                        } else {
+                            sessionHidden.toggle()
+                        }
+                    }
                     Haptics.selection()
                 } label: {
                     Image(systemName: effectivelyHidden ? "eye.slash.fill" : "eye.fill")
