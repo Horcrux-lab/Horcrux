@@ -301,8 +301,17 @@ private struct ApprovalDetailSheet: View {
 
                             Button {
                                 Haptics.success()
-                                DeepLinkRouter.shared.handle(.joinSession(sessionId: request.sessionId))
+                                let sid = request.sessionId
                                 dismiss()
+                                // Let the detail sheet finish animating out
+                                // before posting the deep link — otherwise
+                                // the new JoinSigningView sheet tries to
+                                // present on top of a dying sheet and
+                                // SwiftUI may reuse stale @State from the
+                                // previous session.
+                                DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+                                    DeepLinkRouter.shared.handle(.joinSession(sessionId: sid))
+                                }
                             } label: {
                                 Label(L10n.Approvals.actionResume, systemImage: "signature")
                                     .frame(maxWidth: .infinity)

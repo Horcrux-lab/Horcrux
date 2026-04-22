@@ -609,6 +609,7 @@ struct JoinSigningView: View {
                     return hex == dto.groupPublicKey && (chain == nil || w.chain == chain)
                 }
                 await MainActor.run {
+                    SecureLog.debug("[join] reviewing dto session=\(dto.sessionId) amount=\(dto.amount) chain=\(dto.chain) expected=\(expectedCode ?? "nil")")
                     if let wallet = match {
                         self.phase = .reviewing(dto, wallet)
                     } else {

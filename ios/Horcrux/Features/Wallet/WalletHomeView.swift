@@ -95,6 +95,7 @@ struct WalletHomeView: View {
             .sheet(isPresented: $showJoinSigning) {
                 JoinSigningView(prefilledCode: prefillJoinCode)
                     .environmentObject(appState)
+                    .id(prefillJoinCode ?? "fresh")
             }
             .onChange(of: deepLinkRouter.pendingLink) { _, link in
                 guard case let .joinSession(session) = link else { return }
