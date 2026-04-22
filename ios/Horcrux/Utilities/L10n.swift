@@ -111,6 +111,8 @@ enum L10n {
         static let detailResolved = NSLocalizedString("approvals.detailResolved", comment: "")
         static let detailSession = NSLocalizedString("approvals.detailSession", comment: "")
         static let detailResumeUnavailable = NSLocalizedString("approvals.detailResumeUnavailable", comment: "")
+        static let actionResume = NSLocalizedString("approvals.actionResume", comment: "")
+        static let resumeHint = NSLocalizedString("approvals.resumeHint", comment: "")
     }
 
     // MARK: - Onboarding

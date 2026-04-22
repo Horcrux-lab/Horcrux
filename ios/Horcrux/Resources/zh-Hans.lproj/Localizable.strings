@@ -1219,3 +1219,5 @@
 "approvals.detailResolved" = "处理时间";
 "approvals.detailSession" = "会话 ID";
 "approvals.detailResumeUnavailable" = "MPC 会话无法离线恢复。如需继续签名，请让发起方重新发起请求。";
+"approvals.actionResume" = "继续签名";
+"approvals.resumeHint" = "前提是发起方仍在同一个 relay 房间在线。如果对方已离线，会回到等待状态。";

@@ -286,11 +286,31 @@ private struct ApprovalDetailSheet: View {
                     row(L10n.Approvals.detailSession, request.sessionId, mono: true)
 
                     if request.status == .pending {
-                        Text(L10n.Approvals.detailResumeUnavailable)
-                            .font(.caption)
-                            .foregroundStyle(HorcruxTheme.subtleText)
+                        if request.isStale {
+                            Text(L10n.Approvals.detailResumeUnavailable)
+                                .font(.caption)
+                                .foregroundStyle(HorcruxTheme.subtleText)
+                                .padding(.top, 4)
+                                .fixedSize(horizontal: false, vertical: true)
+                        } else {
+                            Text(L10n.Approvals.resumeHint)
+                                .font(.caption)
+                                .foregroundStyle(HorcruxTheme.subtleText)
+                                .padding(.top, 4)
+                                .fixedSize(horizontal: false, vertical: true)
+
+                            Button {
+                                Haptics.success()
+                                DeepLinkRouter.shared.handle(.joinSession(sessionId: request.sessionId))
+                                dismiss()
+                            } label: {
+                                Label(L10n.Approvals.actionResume, systemImage: "signature")
+                                    .frame(maxWidth: .infinity)
+                            }
+                            .buttonStyle(.borderedProminent)
+                            .tint(HorcruxTheme.accentCyan)
                             .padding(.top, 4)
-                            .fixedSize(horizontal: false, vertical: true)
+                        }
 
                         Button(role: .destructive) {
                             store.resolve(id: request.id, as: .rejected)

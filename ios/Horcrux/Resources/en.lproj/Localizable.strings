@@ -1218,3 +1218,5 @@
 "approvals.detailResolved" = "Resolved";
 "approvals.detailSession" = "Session ID";
 "approvals.detailResumeUnavailable" = "MPC sessions can't be resumed offline. Ask the initiator to re-scan and start a fresh request.";
+"approvals.actionResume" = "Resume signing";
+"approvals.resumeHint" = "Works only if the initiator is still live on the same relay room. If they're offline, the screen will sit in 'waiting'.";

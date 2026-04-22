@@ -99,6 +99,10 @@ struct MainTabView: View {
         }
         .tint(HorcruxTheme.accentPurple)
         .preferredColorScheme(.dark)
+        .onReceive(DeepLinkRouter.shared.$pendingLink) { link in
+            guard case .joinSession = link else { return }
+            selectedTab = 0
+        }
     }
 
     private var vaultMode: Bool {
