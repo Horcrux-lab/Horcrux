@@ -68,6 +68,8 @@ struct WalletAvatarPickerSheet: View {
                     colorStrip
 
                     emojiGrid
+
+                    resetButton
                 }
                 .padding(.horizontal, 20)
                 .padding(.bottom, 40)
@@ -79,15 +81,19 @@ struct WalletAvatarPickerSheet: View {
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
                     Button(L10n.Common.cancel) { dismiss() }
-                        .tint(HorcruxTheme.accentCyan)
+                        .tint(HorcruxTheme.subtleText)
                 }
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button(L10n.WalletAvatar.reset) {
-                        store.clear(accountId: accountId)
-                        selectedEmoji = nil
-                        selectedColor = store.defaultColorKey(for: accountId)
+                    Button(L10n.Common.done) {
+                        Haptics.selection()
+                        store.set(
+                            .init(emoji: selectedEmoji ?? "", colorKey: selectedColor),
+                            for: accountId
+                        )
+                        dismiss()
                     }
-                    .tint(HorcruxTheme.subtleText)
+                    .tint(HorcruxTheme.accentCyan)
+                    .fontWeight(.semibold)
                 }
             }
         }
@@ -132,7 +138,6 @@ struct WalletAvatarPickerSheet: View {
                     Button {
                         Haptics.selection()
                         selectedColor = entry.key
-                        persistIfNeeded()
                     } label: {
                         Circle()
                             .fill(store.gradient(for: entry.key))
@@ -159,7 +164,6 @@ struct WalletAvatarPickerSheet: View {
                     Button {
                         Haptics.selection()
                         selectedEmoji = emoji
-                        persistIfNeeded()
                     } label: {
                         Text(emoji)
                             .font(.system(size: 30))
@@ -178,6 +182,26 @@ struct WalletAvatarPickerSheet: View {
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private var resetButton: some View {
+        Button {
+            Haptics.selection()
+            selectedEmoji = nil
+            selectedColor = store.defaultColorKey(for: accountId)
+        } label: {
+            Text(L10n.WalletAvatar.reset)
+                .font(.subheadline.weight(.medium))
+                .foregroundStyle(HorcruxTheme.subtleText)
+                .padding(.vertical, 10)
+                .frame(maxWidth: .infinity)
+                .background(
+                    RoundedRectangle(cornerRadius: 12)
+                        .stroke(Color.white.opacity(0.12), lineWidth: 1)
+                )
+        }
+        .buttonStyle(.plain)
+        .padding(.top, 4)
     }
 
     private func persistIfNeeded() {
