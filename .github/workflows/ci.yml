@@ -36,6 +36,9 @@ jobs:
         run: cargo fmt --all -- --check
 
       - name: Clippy lints
+        # Run even if `cargo fmt --check` failed above so lint regressions
+        # don't hide behind a formatting nit (fail-fast independently).
+        if: ${{ !cancelled() }}
         run: cargo clippy --workspace -- -D warnings
 
       - name: Security audit

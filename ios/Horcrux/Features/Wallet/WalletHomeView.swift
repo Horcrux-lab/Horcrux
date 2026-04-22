@@ -1857,59 +1857,6 @@ struct PortfolioSummaryCard: View {
 /// Centralised portfolio math reused by both the Standard `PortfolioSummaryCard`
 /// and the Vault `VaultTotalBanner`. Keeping a single source of truth means
 /// the two L1 surfaces never drift on totals, sparkline, or 24h change math.
-fileprivate enum PortfolioMetrics {
-    @MainActor
-    static func totalUSD(wallets: [Wallet], priceService: PriceService, balanceCache: BalanceCache) -> Double {
-        wallets.reduce(0.0) { acc, w in
-            let amount = balanceCache.nativeAmount(walletId: w.id) ?? 0
-            return acc + amount * (priceService.usdPrice(symbol: w.chain.symbol) ?? 0)
-        }
-    }
-
-    @MainActor
-    static func sparkline24h(wallets: [Wallet], priceService: PriceService, balanceCache: BalanceCache) -> [Double] {
-        var holdings: [String: Double] = [:]
-        for w in wallets {
-            let amount = balanceCache.nativeAmount(walletId: w.id) ?? 0
-            holdings[w.chain.symbol, default: 0] += amount
-        }
-        var bucketValues = Array(repeating: 0.0, count: 24)
-        var anyData = false
-        for (symbol, amount) in holdings where amount > 0 {
-            guard let spark = priceService.sparkline24h(symbol: symbol) else { continue }
-            anyData = true
-            let padded: [Double] = spark.count >= 24
-                ? Array(spark.suffix(24))
-                : Array(repeating: spark.first ?? 0, count: 24 - spark.count) + spark
-            for i in 0..<24 {
-                bucketValues[i] += padded[i] * amount
-            }
-        }
-        return anyData ? bucketValues : []
-    }
-
-    @MainActor
-    static func change24h(wallets: [Wallet], priceService: PriceService, balanceCache: BalanceCache) -> (percent: Double, absolute: Double)? {
-        var weightedChange = 0.0
-        var totalNow = 0.0
-        var totalAbs = 0.0
-        var hadAny = false
-        for w in wallets {
-            guard let amount = balanceCache.nativeAmount(walletId: w.id),
-                  let price = priceService.usdPrice(symbol: w.chain.symbol) else { continue }
-            let valueNow = amount * price
-            guard let change = priceService.change24h(symbol: w.chain.symbol) else { continue }
-            hadAny = true
-            let valueThen = valueNow / (1 + change / 100)
-            weightedChange += change * valueNow
-            totalNow += valueNow
-            totalAbs += (valueNow - valueThen)
-        }
-        guard hadAny, totalNow > 0 else { return nil }
-        return (percent: weightedChange / totalNow, absolute: totalAbs)
-    }
-}
-
 // MARK: - Vault Total Banner
 
 /// Slim, high-contrast "TOTAL" banner shown at the top of Vault Mode in
