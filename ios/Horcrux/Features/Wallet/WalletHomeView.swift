@@ -924,9 +924,20 @@ struct WalletGroupHeader: View {
                 .layoutPriority(0)
                 Spacer(minLength: 6)
                 if !wallets.isEmpty {
-                    vaultBalanceReadout
-                        .layoutPriority(1)
-                        .fixedSize(horizontal: true, vertical: false)
+                    VStack(alignment: .trailing, spacing: 2) {
+                        vaultBalanceReadout
+                        if let ts = lastSigned {
+                            Text(String(format: NSLocalizedString("vaultMode.lastSignedPrefix",
+                                                                  value: "last signed %@",
+                                                                  comment: ""),
+                                        VaultDisplay.relativeSignedLabel(lastSigned: ts)))
+                                .font(.caption2.monospacedDigit())
+                                .foregroundStyle(HorcruxTheme.subtleText.opacity(0.85))
+                                .lineLimit(1)
+                        }
+                    }
+                    .layoutPriority(1)
+                    .fixedSize(horizontal: true, vertical: false)
                 }
                 if let collapsed = isCollapsed {
                     Image(systemName: "chevron.down")
@@ -981,16 +992,13 @@ struct WalletGroupHeader: View {
     }
 
     private func metaLine(threshold: Int, total: Int, lastSigned: Date?) -> String {
-        var parts: [String] = []
         if threshold > 0 && total > 0 {
             let thresholdFmt = NSLocalizedString("vaultMode.thresholdFraction",
                                                  value: "%d-of-%d",
                                                  comment: "Signing threshold, e.g. '2-of-3' in English or '2/3' in zh-Hans")
-            parts.append(String(format: thresholdFmt, threshold, total))
+            return String(format: thresholdFmt, threshold, total)
         }
-        let signedFmt = NSLocalizedString("vaultMode.lastSignedPrefix", value: "last signed %@", comment: "")
-        parts.append(String(format: signedFmt, VaultDisplay.relativeSignedLabel(lastSigned: lastSigned)))
-        return parts.joined(separator: " · ")
+        return ""
     }
 
 
