@@ -771,19 +771,27 @@ struct WalletGroupHeader: View {
     var collapsedSummary: String? = nil
 
     @State private var copied = false
+    @ObservedObject private var avatarStore = WalletAvatarStore.shared
+
+    /// Notion-style title: if the user has picked an emoji for this account,
+    /// prepend it to the label with a thin space so the wallet name *is* the
+    /// visual identity. Falls back to just the label when no emoji is set —
+    /// the leading position stays visually clean and the deterministic
+    /// gradient avatar is retired in favor of the textual hierarchy.
+    private var titleWithEmoji: String {
+        guard !accountId.isEmpty,
+              let emoji = avatarStore.avatar(for: accountId)?.emoji,
+              !emoji.isEmpty else {
+            return label
+        }
+        return "\(emoji)  \(label)"
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 10) {
-                if !accountId.isEmpty {
-                    WalletAvatarView(accountId: accountId, fallbackText: label, size: 32)
-                } else {
-                    Image(systemName: "key.horizontal.fill")
-                        .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(HorcruxTheme.accentPurple)
-                }
-                Text(label)
-                    .font(.headline)
+                Text(titleWithEmoji)
+                    .font(.title3.weight(.semibold))
                     .foregroundStyle(.white)
                     .lineLimit(1)
                     .truncationMode(.tail)
