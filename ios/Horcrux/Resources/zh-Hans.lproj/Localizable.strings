@@ -22,6 +22,7 @@
 
 /* Tabs */
 "tab.wallet" = "钱包";
+"tab.vault" = "金库";
 "tab.shards" = "设备";
 "tab.settings" = "设置";
 

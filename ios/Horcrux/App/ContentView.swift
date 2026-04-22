@@ -56,14 +56,17 @@ struct ContentView: View {
 
 struct MainTabView: View {
     @EnvironmentObject private var walletStore: WalletStore
+    @EnvironmentObject private var appState: AppState
     @State private var selectedTab = 0
 
     var body: some View {
         TabView(selection: $selectedTab) {
             WalletHomeView()
                 .tabItem {
-                    Image(systemName: selectedTab == 0 ? "creditcard.fill" : "creditcard")
-                    Text(L10n.Tab.wallet)
+                    Image(systemName: vaultMode
+                          ? (selectedTab == 0 ? "building.columns.fill" : "building.columns")
+                          : (selectedTab == 0 ? "creditcard.fill" : "creditcard"))
+                    Text(vaultMode ? L10n.Tab.vault : L10n.Tab.wallet)
                 }
                 .tag(0)
 
@@ -88,6 +91,10 @@ struct MainTabView: View {
         }
         .tint(HorcruxTheme.accentPurple)
         .preferredColorScheme(.dark)
+    }
+
+    private var vaultMode: Bool {
+        appState.walletDisplayMode == .vault
     }
 }
 

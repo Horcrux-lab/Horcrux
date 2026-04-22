@@ -22,6 +22,7 @@
 
 /* Tabs */
 "tab.wallet" = "Wallet";
+"tab.vault" = "Vaults";
 "tab.shards" = "Devices";
 "tab.settings" = "Settings";
 

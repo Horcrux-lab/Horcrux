@@ -78,6 +78,7 @@ enum L10n {
 
     enum Tab {
         static let wallet = NSLocalizedString("tab.wallet", comment: "")
+        static let vault = NSLocalizedString("tab.vault", comment: "")
         static let shards = NSLocalizedString("tab.shards", comment: "")
         static let settings = NSLocalizedString("tab.settings", comment: "")
     }
