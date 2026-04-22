@@ -153,6 +153,9 @@ enum L10n {
         static func collapsedAllEmpty(_ total: Int) -> String {
             String(format: NSLocalizedString("walletHome.collapsedAllEmpty", comment: ""), total)
         }
+        static func chainDotsAccessibility(_ chains: String) -> String {
+            String(format: NSLocalizedString("walletHome.chainDotsAccessibility", comment: ""), chains)
+        }
 
         // dev.40 i18n batch
         static let restoreFromBackup = NSLocalizedString("wallet.restoreFromBackup", comment: "")

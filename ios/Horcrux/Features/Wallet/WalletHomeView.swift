@@ -338,6 +338,7 @@ struct WalletHomeView: View {
                     threshold: Int(group.wallets.first?.threshold ?? 0),
                     total: Int(group.wallets.first?.totalParties ?? 0),
                     accountId: group.accountId,
+                    wallets: group.wallets,
                     sharedAddress: isCollapsed ? nil : evmAddress,
                     isCollapsed: isCollapsible ? isCollapsed : nil,
                     collapsedSummary: isCollapsed ? collapsedSummary(for: group) : nil
@@ -756,10 +757,15 @@ struct WalletGroupHeader: View {
     let label: String
     let threshold: Int
     let total: Int
-    /// Stable account identity — used by WalletAvatarView to look up the
+    /// Stable account identity — used by WalletAvatarStore to look up the
     /// user-chosen emoji/color. Falls back to a deterministic gradient
     /// monogram when no avatar is set.
     var accountId: String = ""
+    /// All wallets in this account group. Used to render the inline chain
+    /// color dots and aggregate a cross-chain total USD value. Passed as
+    /// an array rather than a WalletGroup to keep the header decoupled
+    /// from the parent store's model.
+    var wallets: [Wallet] = []
     /// Non-nil when every EVM wallet in the group shares the same address;
     /// shown as a copy-able chip so each row doesn't repeat the hex string.
     let sharedAddress: String?
@@ -772,12 +778,38 @@ struct WalletGroupHeader: View {
 
     @State private var copied = false
     @ObservedObject private var avatarStore = WalletAvatarStore.shared
+    @ObservedObject private var balanceCache = BalanceCache.shared
+    @ObservedObject private var priceService = PriceService.shared
+
+    /// Unique chains represented in this account, sorted by the canonical
+    /// chain order (matches how WalletRow lays them out) so the color dots
+    /// align with the expanded per-chain rows below.
+    private var chains: [Chain] {
+        var seen = Set<Chain>()
+        var ordered: [Chain] = []
+        for w in wallets where !seen.contains(w.chain) {
+            seen.insert(w.chain)
+            ordered.append(w.chain)
+        }
+        return ordered
+    }
+
+    /// Sum of native-balance × price across every wallet in the group.
+    /// Uses whatever BalanceCache + PriceService have — wallets with no
+    /// cached balance or no price contribute zero, so the value is
+    /// monotonically non-decreasing as data arrives.
+    private var totalUSD: Double {
+        var sum: Double = 0
+        for w in wallets {
+            guard let amount = balanceCache.nativeAmount(walletId: w.id),
+                  let price = priceService.usdPrice(symbol: w.chain.symbol) else { continue }
+            sum += amount * price
+        }
+        return sum
+    }
 
     /// Notion-style title: if the user has picked an emoji for this account,
-    /// prepend it to the label with a thin space so the wallet name *is* the
-    /// visual identity. Falls back to just the label when no emoji is set —
-    /// the leading position stays visually clean and the deterministic
-    /// gradient avatar is retired in favor of the textual hierarchy.
+    /// prepend it to the label so the wallet name *is* the visual identity.
     private var titleWithEmoji: String {
         guard !accountId.isEmpty,
               let emoji = avatarStore.avatar(for: accountId)?.emoji,
@@ -787,14 +819,71 @@ struct WalletGroupHeader: View {
         return "\(emoji)  \(label)"
     }
 
+    /// Left accent stripe color. When the group has wallets, uses the
+    /// highest-value chain's brand color as a subtle signature (so a
+    /// BTC-heavy account glows orange, an ETH-heavy one glows blue).
+    /// Falls back to the Horcrux accent purple when nothing's loaded yet.
+    private var accentColor: Color {
+        guard !wallets.isEmpty else { return HorcruxTheme.accentPurple }
+        var bestChain: Chain = wallets[0].chain
+        var bestValue: Double = -1
+        for w in wallets {
+            let amount = balanceCache.nativeAmount(walletId: w.id) ?? 0
+            let price = priceService.usdPrice(symbol: w.chain.symbol) ?? 0
+            let v = amount * price
+            if v > bestValue {
+                bestValue = v
+                bestChain = w.chain
+            }
+        }
+        return bestChain.color
+    }
+
+    private static let fiatFormatter: NumberFormatter = {
+        let f = NumberFormatter()
+        f.numberStyle = .currency
+        f.currencyCode = "USD"
+        f.maximumFractionDigits = 2
+        return f
+    }()
+
+    private var totalUSDString: String? {
+        guard totalUSD > 0 else { return nil }
+        return Self.fiatFormatter.string(from: NSNumber(value: totalUSD))
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 10) {
+                // Accent stripe: 3pt vertical bar on the leading edge,
+                // colored by the dominant-value chain. Replaces the old
+                // circular avatar — quieter, communicates "this is the
+                // account's signature" without duplicating the name.
+                RoundedRectangle(cornerRadius: 1.5)
+                    .fill(accentColor)
+                    .frame(width: 3, height: 22)
+                    .accessibilityHidden(true)
+
                 Text(titleWithEmoji)
-                    .font(.title3.weight(.semibold))
+                    .font(.headline)
                     .foregroundStyle(.white)
                     .lineLimit(1)
                     .truncationMode(.tail)
+                    .layoutPriority(1)
+
+                if chains.count > 1 {
+                    HStack(spacing: 3) {
+                        ForEach(chains, id: \.self) { c in
+                            Circle()
+                                .fill(c.color)
+                                .frame(width: 7, height: 7)
+                        }
+                    }
+                    .accessibilityLabel(L10n.WalletHome.chainDotsAccessibility(
+                        chains.map(\.displayName).joined(separator: ", ")
+                    ))
+                }
+
                 if threshold > 0 && total > 0 {
                     Text(L10n.Shards.thresholdValue(threshold, total))
                         .font(.caption2.weight(.medium).monospacedDigit())
@@ -805,14 +894,22 @@ struct WalletGroupHeader: View {
                             Capsule().fill(HorcruxTheme.subtleText.opacity(0.12))
                         )
                 }
-                Spacer(minLength: 8)
-                if isCollapsed == true, let summary = collapsedSummary {
+
+                Spacer(minLength: 6)
+
+                if let fiat = totalUSDString {
+                    Text(fiat)
+                        .font(.subheadline.weight(.semibold).monospacedDigit())
+                        .foregroundStyle(.white.opacity(0.92))
+                        .lineLimit(1)
+                } else if isCollapsed == true, let summary = collapsedSummary {
                     Text(summary)
                         .font(.caption2)
                         .foregroundStyle(HorcruxTheme.subtleText)
                         .lineLimit(1)
                         .truncationMode(.tail)
                 }
+
                 if let collapsed = isCollapsed {
                     Image(systemName: "chevron.down")
                         .font(.subheadline.weight(.semibold))

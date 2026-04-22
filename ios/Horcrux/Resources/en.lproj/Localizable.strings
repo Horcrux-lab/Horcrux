@@ -109,6 +109,7 @@
 "walletHome.sharedAddressHint" = "Shared EVM address";
 "walletHome.collapsedFundedOfTotal" = "%1$d of %2$d chains funded";
 "walletHome.collapsedAllEmpty" = "%d chain(s) · all empty";
+"walletHome.chainDotsAccessibility" = "Chains: %@";
 
 /* Pending Broadcast */
 "pending.retry" = "Retry";
