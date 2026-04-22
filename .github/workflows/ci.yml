@@ -120,13 +120,18 @@ jobs:
           IOS_SIM_SDK="$(xcrun --sdk iphonesimulator --show-sdk-path)"
           CLANG="$(xcrun --find clang)"
           AR_BIN="$(xcrun --find ar)"
-          # Scope the cross-compiler to the iOS-sim target only. Setting a
-          # plain CC/CFLAGS poisons gmp-mpfr-sys's host compiler check
-          # ("Cannot find a build system compiler") because autoconf needs
-          # an unmolested macOS cc to build configure's helper programs.
-          export CC_aarch64_apple_ios_sim="$CLANG"
-          export CFLAGS_aarch64_apple_ios_sim="-target arm64-apple-ios14.0-simulator -isysroot $IOS_SIM_SDK -arch arm64"
-          export AR_aarch64_apple_ios_sim="$AR_BIN"
+          # Globally target iOS-sim so gmp-mpfr-sys's C sources (which
+          # ignore cargo's target-scoped CC_<triple> vars) pick it up.
+          # CC_FOR_BUILD / HOST_CC give GMP's autoconf an un-sysrooted
+          # compiler for the "build system compiler" probe — without
+          # this, configure dies with "Cannot find a build system
+          # compiler" on macos-15 runners.
+          export CC="$CLANG"
+          export CFLAGS="-target arm64-apple-ios14.0-simulator -isysroot $IOS_SIM_SDK -arch arm64"
+          export AR="$AR_BIN"
+          export CC_FOR_BUILD="/usr/bin/cc"
+          export HOST_CC="/usr/bin/cc"
+          export CFLAGS_FOR_BUILD=""
           cargo build --lib -p horcrux-core --target aarch64-apple-ios-sim
 
       - name: Copy library to Frameworks
