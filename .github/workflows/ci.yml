@@ -136,7 +136,14 @@ jobs:
           export CFLAGS_FOR_BUILD="-isysroot $MACOS_SDK -arch arm64"
           export CPPFLAGS_FOR_BUILD="-isysroot $MACOS_SDK"
           export LDFLAGS_FOR_BUILD="-isysroot $MACOS_SDK"
-          cargo build --lib -p horcrux-core --target aarch64-apple-ios-sim
+          cargo build --lib -p horcrux-core --target aarch64-apple-ios-sim || {
+            echo "=== GMP config.log (last 100 lines) ==="
+            find target -name config.log -path '*gmp-build*' -exec tail -100 {} \; || true
+            echo "=== xcrun env ==="
+            xcrun --sdk macosx --show-sdk-path || true
+            /usr/bin/clang --version || true
+            exit 1
+          }
 
       - name: Copy library to Frameworks
         run: |
