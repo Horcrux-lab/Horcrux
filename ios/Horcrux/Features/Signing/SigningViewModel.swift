@@ -1993,6 +1993,7 @@ final class SigningViewModel: ObservableObject {
                             transactionStore?.updateStatus(id: id, status: .broadcast, txHash: result)
                         }
                     }
+                    refreshBalancesAfterBroadcast()
                 } else {
                     switch wallet.chain {
                     case .bitcoin:
@@ -2011,6 +2012,7 @@ final class SigningViewModel: ObservableObject {
                                 transactionStore?.markReplaced(txHash: replaced)
                             }
                         }
+                        refreshBalancesAfterBroadcast()
                     case .litecoin:
                         let result = try await blockchainService.btcBroadcast(
                             signedTxHex: txHash,
@@ -2027,6 +2029,7 @@ final class SigningViewModel: ObservableObject {
                                 transactionStore?.markReplaced(txHash: replaced)
                             }
                         }
+                        refreshBalancesAfterBroadcast()
                     case .solana:
                         let result = try await blockchainService.solSendTransaction(
                             signedTxBase64: txHash,
@@ -2040,6 +2043,7 @@ final class SigningViewModel: ObservableObject {
                                 transactionStore?.updateStatus(id: id, status: .broadcast, txHash: result)
                             }
                         }
+                        refreshBalancesAfterBroadcast()
                     case .tron:
                         guard let tron = self.pendingTronTx,
                               let sig = self.pendingTronSignature else {
@@ -2070,6 +2074,7 @@ final class SigningViewModel: ObservableObject {
                             self.pendingTronTx = nil
                             self.pendingTronSignature = nil
                         }
+                        refreshBalancesAfterBroadcast()
                     default:
                         await MainActor.run {
                             broadcastStatus = "Broadcast for \(wallet.chain.displayName) is not supported yet."
@@ -2088,6 +2093,31 @@ final class SigningViewModel: ObservableObject {
                         transactionStore?.updateStatus(id: id, status: .failed)
                     }
                 }
+            }
+        }
+    }
+
+    /// Kick off a force-refresh of the sender's native balance (and the
+    /// token balance if an ERC-20/SPL token was just sent) after a
+    /// successful broadcast. Runs twice: immediately so the spinner
+    /// reflects the attempt, and again after a short delay so the
+    /// node has time to reflect mempool / first confirmation state.
+    /// Called from every success branch in `broadcastTransaction`.
+    private func refreshBalancesAfterBroadcast() {
+        guard let service = blockchainService, let config = networkConfig else { return }
+        let w = wallet
+        let token = selectedToken
+        Task {
+            _ = await BalanceCache.shared.balance(for: w, service: service, config: config, force: true)
+            if let token {
+                _ = await BalanceCache.shared.tokenBalance(wallet: w, token: token,
+                                                          service: service, config: config, force: true)
+            }
+            try? await Task.sleep(nanoseconds: 12_000_000_000)
+            _ = await BalanceCache.shared.balance(for: w, service: service, config: config, force: true)
+            if let token {
+                _ = await BalanceCache.shared.tokenBalance(wallet: w, token: token,
+                                                          service: service, config: config, force: true)
             }
         }
     }
