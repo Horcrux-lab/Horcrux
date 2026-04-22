@@ -52,10 +52,18 @@ jobs:
           # RUSTSEC-2026-0097 (rand 0.8.5 unsound): only triggers when a
           #   custom logger calls `rand::rng()`; we don't install custom
           #   loggers. Clears when tungstenite 0.25+ drops rand 0.8.
+          # RUSTSEC-2025-0127 (cggmp21 presignature misuse): the two attack
+          #   vectors require calling `Presignature::set_derivation_path` or
+          #   `Presignature::issue_partial_signature` with a hash-only input.
+          #   We never use presignatures — our MPC signing flow always takes
+          #   a full message and goes through the single-shot sign API. Ripped
+          #   grep of horcrux-core confirms no Presignature/set_derivation_path
+          #   references. Planned migration to cggmp24 tracked in Phase 2.
           cargo audit \
             --ignore RUSTSEC-2025-0141 \
             --ignore RUSTSEC-2024-0436 \
-            --ignore RUSTSEC-2026-0097
+            --ignore RUSTSEC-2026-0097 \
+            --ignore RUSTSEC-2025-0127
 
       - name: Build release
         run: cargo build --release --workspace
@@ -142,12 +150,10 @@ jobs:
           export CC_FOR_BUILD="$HOST_CC_WRAPPER"
           export HOST_CC="$HOST_CC_WRAPPER"
 
-          echo "=== Probing CC_FOR_BUILD ==="
+          echo "=== Verifying CC_FOR_BUILD wrapper ==="
           echo 'int main(){return 0;}' > "$RUNNER_TEMP/probe.c"
           "$CC_FOR_BUILD" "$RUNNER_TEMP/probe.c" -o "$RUNNER_TEMP/probe"
-          file "$RUNNER_TEMP/probe"
-          "$RUNNER_TEMP/probe" && echo "probe ok" || { echo "probe FAILED (exit=$?)"; exit 1; }
-          echo "=== End probe ==="
+          "$RUNNER_TEMP/probe"
 
           cargo build --lib -p horcrux-core --target aarch64-apple-ios-sim || {
             echo "=== GMP config.log (last 100 lines) ==="
