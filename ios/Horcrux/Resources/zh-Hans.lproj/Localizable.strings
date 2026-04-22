@@ -1159,6 +1159,13 @@
 "vaultMode.vaultsSuffix" = "%d 个金库";
 "vaultMode.chainsSuffix" = "%d 条链";
 "vaultMode.totalSubline" = "覆盖 %@ · %@";
+"vaultMode.totalLabel" = "总资产";
+"vaultMode.thresholdFraction" = "%d / %d 阈值";
+"portfolio.title" = "投资组合明细";
+"portfolio.totalAcrossAllChains" = "全部链上总额";
+"portfolio.emptyTitle" = "暂无余额";
+"portfolio.emptyBody" = "请在主页下拉刷新，钱包入金后余额会自动显示。";
+"portfolio.pctOfPortfolio" = "占组合 %.1f%%";
 "vaultMode.health.healthy" = "正常";
 "vaultMode.health.degraded" = "需关注";
 "vaultMode.health.stale" = "长期未用";

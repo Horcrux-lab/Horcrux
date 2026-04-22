@@ -1158,6 +1158,13 @@
 "vaultMode.vaultsSuffix" = "%d vaults";
 "vaultMode.chainsSuffix" = "%d chains";
 "vaultMode.totalSubline" = "across %@ · %@";
+"vaultMode.totalLabel" = "TOTAL";
+"vaultMode.thresholdFraction" = "%d-of-%d";
+"portfolio.title" = "Portfolio Breakdown";
+"portfolio.totalAcrossAllChains" = "Total Across All Chains";
+"portfolio.emptyTitle" = "No balances yet";
+"portfolio.emptyBody" = "Pull to refresh on the main screen once your wallets are funded.";
+"portfolio.pctOfPortfolio" = "%.1f%% of portfolio";
 "vaultMode.health.healthy" = "healthy";
 "vaultMode.health.degraded" = "needs attention";
 "vaultMode.health.stale" = "stale";

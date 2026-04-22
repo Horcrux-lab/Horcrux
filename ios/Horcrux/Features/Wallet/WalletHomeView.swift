@@ -986,7 +986,10 @@ struct WalletGroupHeader: View {
     private func metaLine(threshold: Int, total: Int, lastSigned: Date?) -> String {
         var parts: [String] = []
         if threshold > 0 && total > 0 {
-            parts.append("\(threshold)-of-\(total)")
+            let thresholdFmt = NSLocalizedString("vaultMode.thresholdFraction",
+                                                 value: "%d-of-%d",
+                                                 comment: "Signing threshold, e.g. '2-of-3' in English or '2/3' in zh-Hans")
+            parts.append(String(format: thresholdFmt, threshold, total))
         }
         if total > 0 {
             let signersFmt = NSLocalizedString("vaultMode.signersSuffix", value: "%d signers", comment: "")
@@ -1853,7 +1856,9 @@ struct VaultTotalBanner: View {
 
         VStack(alignment: .leading, spacing: 6) {
             HStack {
-                Text("TOTAL")
+                Text(NSLocalizedString("vaultMode.totalLabel",
+                                       value: "TOTAL",
+                                       comment: "Portfolio banner header label"))
                     .font(.system(size: 10, weight: .heavy, design: .monospaced))
                     .tracking(1.5)
                     .foregroundStyle(HorcruxTheme.subtleText)
@@ -1999,12 +2004,14 @@ struct PortfolioBreakdownSheet: View {
                     .padding(.vertical, 12)
                 }
             }
-            .navigationTitle("Portfolio Breakdown")
+            .navigationTitle(NSLocalizedString("portfolio.title",
+                                               value: "Portfolio Breakdown",
+                                               comment: ""))
             .navigationBarTitleDisplayMode(.inline)
             .toolbarBackground(.hidden, for: .navigationBar)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button("Done") { dismiss() }
+                    Button(L10n.Common.done) { dismiss() }
                         .foregroundStyle(HorcruxTheme.accentBlue)
                 }
             }
@@ -2014,7 +2021,9 @@ struct PortfolioBreakdownSheet: View {
 
     private var header: some View {
         VStack(spacing: 6) {
-            Text("Total Across All Chains")
+            Text(NSLocalizedString("portfolio.totalAcrossAllChains",
+                                   value: "Total Across All Chains",
+                                   comment: ""))
                 .font(.caption)
                 .foregroundStyle(HorcruxTheme.subtleText)
             Text(Self.fiatFormatter.string(from: NSNumber(value: totalUSD)) ?? "$—")
@@ -2031,10 +2040,14 @@ struct PortfolioBreakdownSheet: View {
             Image(systemName: "chart.pie")
                 .font(.largeTitle)
                 .foregroundStyle(HorcruxTheme.subtleText)
-            Text("No balances yet")
+            Text(NSLocalizedString("portfolio.emptyTitle",
+                                   value: "No balances yet",
+                                   comment: ""))
                 .font(.subheadline.weight(.medium))
                 .foregroundStyle(.white)
-            Text("Pull to refresh on the main screen once your wallets are funded.")
+            Text(NSLocalizedString("portfolio.emptyBody",
+                                   value: "Pull to refresh on the main screen once your wallets are funded.",
+                                   comment: ""))
                 .font(.caption)
                 .foregroundStyle(HorcruxTheme.subtleText)
                 .multilineTextAlignment(.center)
@@ -2095,7 +2108,10 @@ struct PortfolioBreakdownSheet: View {
             .frame(height: 6)
 
             HStack {
-                Text(String(format: "%.1f%% of portfolio", pct * 100))
+                Text(String(format: NSLocalizedString("portfolio.pctOfPortfolio",
+                                                      value: "%.1f%% of portfolio",
+                                                      comment: ""),
+                            pct * 100))
                     .font(.caption2.monospacedDigit())
                     .foregroundStyle(HorcruxTheme.subtleText)
                 Spacer()
