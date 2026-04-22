@@ -145,7 +145,12 @@ jobs:
           # Sanity-check the build-host probe GMP will run
           echo "=== Probing CC_FOR_BUILD ==="
           echo 'int main(){return 0;}' > /tmp/probe.c
-          "$CC_FOR_BUILD" /tmp/probe.c -o /tmp/probe && /tmp/probe && echo "probe ok" || { echo "probe FAILED"; exit 1; }
+          "$CC_FOR_BUILD" /tmp/probe.c -o /tmp/probe
+          file /tmp/probe
+          codesign -dv /tmp/probe 2>&1 || true
+          ls -la /tmp/probe
+          xattr /tmp/probe || true
+          /tmp/probe && echo "probe ok" || { echo "probe FAILED (exit=$?)"; exit 1; }
           echo "=== End probe ==="
 
           cargo build --lib -p horcrux-core --target aarch64-apple-ios-sim || {
