@@ -57,6 +57,7 @@ struct ContentView: View {
 struct MainTabView: View {
     @EnvironmentObject private var walletStore: WalletStore
     @EnvironmentObject private var appState: AppState
+    @ObservedObject private var approvalStore = ApprovalRequestStore.shared
     @State private var selectedTab = 0
 
     var body: some View {
@@ -86,7 +87,7 @@ struct MainTabView: View {
                         Image(systemName: selectedTab == 3 ? "checkmark.seal.fill" : "checkmark.seal")
                         Text(L10n.Tab.approvals)
                     }
-                    .badge(ApprovalRequestStore.shared.pending.count + ApprovalRequestStore.shared.stalePending.count)
+                    .badge(approvalStore.pending.count + approvalStore.stalePending.count)
                     .tag(3)
             }
 
