@@ -101,11 +101,7 @@ fn drive_to_completion<F>(
 }
 
 /// Full `t == n` DKG + signing round. Returns (public_key, shard_data_per_party).
-fn run_full_dkg(
-    tag: &str,
-    session_id: &str,
-    n: u16,
-) -> (Vec<u8>, Vec<Vec<u8>>) {
+fn run_full_dkg(tag: &str, session_id: &str, n: u16) -> (Vec<u8>, Vec<Vec<u8>>) {
     let mut sessions: Vec<SessionManager> = (0..n).map(|_| SessionManager::new()).collect();
     let mut initial: Vec<Vec<MpcMessage>> = Vec::with_capacity(n as usize);
 
@@ -120,7 +116,8 @@ fn run_full_dkg(
 
     let session_id_owned = session_id.to_string();
     drive_to_completion(tag, n, &mut sessions, initial, |ss| {
-        ss.iter().all(|s| s.keygen_result(&session_id_owned).is_some())
+        ss.iter()
+            .all(|s| s.keygen_result(&session_id_owned).is_some())
     });
 
     let results: Vec<_> = sessions
@@ -164,7 +161,8 @@ fn run_sign_all(
 
     let session_id_owned = session_id.to_string();
     drive_to_completion(tag, n, &mut sessions, initial, |ss| {
-        ss.iter().all(|s| s.signing_result(&session_id_owned).is_some())
+        ss.iter()
+            .all(|s| s.signing_result(&session_id_owned).is_some())
     });
 
     let results: Vec<_> = sessions
@@ -200,7 +198,8 @@ fn run_refresh(
 
     let session_id_owned = session_id.to_string();
     drive_to_completion(tag, n, &mut sessions, initial, |ss| {
-        ss.iter().all(|s| s.keygen_result(&session_id_owned).is_some())
+        ss.iter()
+            .all(|s| s.keygen_result(&session_id_owned).is_some())
     });
 
     let results: Vec<_> = sessions
@@ -208,7 +207,10 @@ fn run_refresh(
         .map(|s| s.keygen_result(session_id).expect("refresh"))
         .collect();
     for r in &results {
-        assert_eq!(r.public_key, old_pk, "refresh changed the group public key!");
+        assert_eq!(
+            r.public_key, old_pk,
+            "refresh changed the group public key!"
+        );
     }
     results.into_iter().map(|r| r.shard_data).collect()
 }
@@ -218,13 +220,7 @@ fn run_refresh(
 fn multi_party_3_of_3_dkg_sign() {
     let (pk, shards) = run_full_dkg("DKG-3of3", "mp-dkg-3of3", 3);
     assert!(pk.len() == 33 || pk.len() == 65);
-    let _sig = run_sign_all(
-        "SIGN-3of3",
-        "mp-sign-3of3",
-        3,
-        &shards,
-        vec![0xABu8; 32],
-    );
+    let _sig = run_sign_all("SIGN-3of3", "mp-sign-3of3", 3, &shards, vec![0xABu8; 32]);
 }
 
 #[test]
@@ -254,11 +250,5 @@ fn multi_party_3_of_3_refresh_preserves_pubkey() {
 fn multi_party_5_of_5_dkg_sign() {
     let (pk, shards) = run_full_dkg("DKG-5of5", "mp-dkg-5of5", 5);
     assert!(pk.len() == 33 || pk.len() == 65);
-    let _sig = run_sign_all(
-        "SIGN-5of5",
-        "mp-sign-5of5",
-        5,
-        &shards,
-        vec![0x5Eu8; 32],
-    );
+    let _sig = run_sign_all("SIGN-5of5", "mp-sign-5of5", 5, &shards, vec![0x5Eu8; 32]);
 }

@@ -64,5 +64,8 @@ fn prime_pool_generate_one_benchmark() {
     );
 
     assert!(mean > 0.0);
-    assert!(mean < 600.0, "pair generation unexpectedly slow: {mean:.2}s");
+    assert!(
+        mean < 600.0,
+        "pair generation unexpectedly slow: {mean:.2}s"
+    );
 }

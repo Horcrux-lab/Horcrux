@@ -100,7 +100,15 @@ jobs:
           key: cargo-ios-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}
 
       - name: Build Rust library for iOS Simulator
-        run: cargo build --lib -p horcrux-core --target aarch64-apple-ios-sim
+        env:
+          IPHONEOS_DEPLOYMENT_TARGET: "14.0"
+        run: |
+          IOS_SIM_SDK="$(xcrun --sdk iphonesimulator --show-sdk-path)"
+          CLANG="$(xcrun --find clang)"
+          CC="$CLANG" \
+          CFLAGS="-target arm64-apple-ios14.0-simulator -isysroot $IOS_SIM_SDK -arch arm64" \
+          AR="$(xcrun --find ar)" \
+          cargo build --lib -p horcrux-core --target aarch64-apple-ios-sim
 
       - name: Copy library to Frameworks
         run: |

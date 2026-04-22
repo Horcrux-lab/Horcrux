@@ -285,7 +285,9 @@ impl EcdsaDkgSession {
     pub fn process_message(&mut self, msg: MpcMessage) -> Result<Vec<MpcMessage>, MpcError> {
         let wire: EcdsaWireMsg = serde_json::from_slice(&msg.payload)
             .map_err(|e| MpcError::ProtocolError(format!("deserialize wire: {e}")))?;
-        let driver = self.driver.as_mut()
+        let driver = self
+            .driver
+            .as_mut()
             .ok_or_else(|| MpcError::ProtocolError("driver not initialized".into()))?;
         driver.feed(wire.from - 1, wire.is_broadcast, &wire.payload)?;
         self.drain_outbox()
@@ -294,7 +296,9 @@ impl EcdsaDkgSession {
     fn drain_outbox(&mut self) -> Result<Vec<MpcMessage>, MpcError> {
         let mut messages = Vec::new();
         loop {
-            let driver = self.driver.as_mut()
+            let driver = self
+                .driver
+                .as_mut()
                 .ok_or_else(|| MpcError::ProtocolError("driver not initialized".into()))?;
             match driver.drive()? {
                 DriverAction::Send { recipient, data } => {
@@ -516,7 +520,9 @@ impl EcdsaSigningSession {
     pub fn process_message(&mut self, msg: MpcMessage) -> Result<Vec<MpcMessage>, MpcError> {
         let wire: EcdsaWireMsg = serde_json::from_slice(&msg.payload)
             .map_err(|e| MpcError::ProtocolError(format!("deserialize wire: {e}")))?;
-        let driver = self.driver.as_mut()
+        let driver = self
+            .driver
+            .as_mut()
             .ok_or_else(|| MpcError::ProtocolError("signing driver not initialized".into()))?;
         driver.feed(wire.from - 1, wire.is_broadcast, &wire.payload)?;
         self.drain_outbox()
@@ -525,7 +531,9 @@ impl EcdsaSigningSession {
     fn drain_outbox(&mut self) -> Result<Vec<MpcMessage>, MpcError> {
         let mut messages = Vec::new();
         loop {
-            let driver = self.driver.as_mut()
+            let driver = self
+                .driver
+                .as_mut()
                 .ok_or_else(|| MpcError::ProtocolError("signing driver not initialized".into()))?;
             match driver.drive()? {
                 DriverAction::Send { recipient, data } => {
@@ -672,6 +680,7 @@ fn scalar_to_bytes(s: &NonZero<Scalar<Secp256k1>>) -> [u8; 32] {
     out
 }
 
+#[allow(dead_code)]
 fn uuid_v4() -> String {
     let mut bytes = [0u8; 16];
     rand::RngCore::fill_bytes(&mut OsRng, &mut bytes);

@@ -132,7 +132,8 @@ mod tests {
     #[test]
     fn test_wrong_device_key_fails() {
         let shard_data = b"secret-shard-data";
-        let encrypted = encrypt_shard(shard_data, b"device-key-A--------------------", b"pin").unwrap();
+        let encrypted =
+            encrypt_shard(shard_data, b"device-key-A--------------------", b"pin").unwrap();
         let result = decrypt_shard(&encrypted, b"device-key-B--------------------", b"pin");
         assert!(result.is_err());
     }
@@ -152,13 +153,17 @@ mod tests {
 
     #[test]
     fn test_ciphertext_tamper_rejected() {
-        let encrypted = encrypt_shard(b"sensitive", b"device-key".repeat(4).as_slice(), b"pin").unwrap();
+        let encrypted =
+            encrypt_shard(b"sensitive", b"device-key".repeat(4).as_slice(), b"pin").unwrap();
         let mut tampered = encrypted.clone();
         // Flip a bit in the middle of the ciphertext.
         let mid = tampered.ciphertext.len() / 2;
         tampered.ciphertext[mid] ^= 0x01;
         let result = decrypt_shard(&tampered, b"device-key".repeat(4).as_slice(), b"pin");
-        assert!(result.is_err(), "AES-GCM must reject bitflips (MAC failure)");
+        assert!(
+            result.is_err(),
+            "AES-GCM must reject bitflips (MAC failure)"
+        );
     }
 
     #[test]

@@ -187,10 +187,7 @@ impl RelayConfig {
             // but boot. Anything else is almost certainly production and
             // we refuse to expose `/admin/rooms` + `/metrics` publicly
             // unless the operator opts in explicitly.
-            let loopback_bind = matches!(
-                self.host.as_str(),
-                "127.0.0.1" | "::1" | "localhost"
-            );
+            let loopback_bind = matches!(self.host.as_str(), "127.0.0.1" | "::1" | "localhost");
             let override_env = std::env::var("RELAY_ALLOW_UNAUTHENTICATED_ADMIN")
                 .map(|v| v == "1" || v.eq_ignore_ascii_case("true"))
                 .unwrap_or(false);

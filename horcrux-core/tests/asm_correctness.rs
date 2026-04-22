@@ -76,9 +76,8 @@ fn run_one(n: usize, seed: u64) {
     let c_ref = addmul_1_ref(&mut rp_ref, &up, v0);
 
     let mut rp_asm = rp_init.clone();
-    let c_asm = unsafe {
-        horcrux_asm_addmul_1_test(rp_asm.as_mut_ptr(), up.as_ptr(), n as u64, v0)
-    };
+    let c_asm =
+        unsafe { horcrux_asm_addmul_1_test(rp_asm.as_mut_ptr(), up.as_ptr(), n as u64, v0) };
 
     assert_eq!(
         c_asm, c_ref,
@@ -94,9 +93,8 @@ fn run_one(n: usize, seed: u64) {
     let b_ref = submul_1_ref(&mut rp_ref, &up, v0);
 
     let mut rp_asm = rp_init.clone();
-    let b_asm = unsafe {
-        horcrux_asm_submul_1_test(rp_asm.as_mut_ptr(), up.as_ptr(), n as u64, v0)
-    };
+    let b_asm =
+        unsafe { horcrux_asm_submul_1_test(rp_asm.as_mut_ptr(), up.as_ptr(), n as u64, v0) };
 
     assert_eq!(
         b_asm, b_ref,
@@ -125,7 +123,10 @@ fn differential_small_sizes() {
 fn differential_paillier_sizes() {
     for &n in &[6usize, 7, 8, 9, 10, 12, 14, 16] {
         for seed in 0..5_000u64 {
-            run_one(n, 0xdeadbeef ^ (n as u64).rotate_left(13).wrapping_mul(seed));
+            run_one(
+                n,
+                0xdeadbeef ^ (n as u64).rotate_left(13).wrapping_mul(seed),
+            );
         }
     }
 }
@@ -151,17 +152,15 @@ fn differential_edge_cases() {
         let mut rp_ref = rp_init.clone();
         let c_ref = addmul_1_ref(&mut rp_ref, up, *v0);
         let mut rp_asm = rp_init.clone();
-        let c_asm = unsafe {
-            horcrux_asm_addmul_1_test(rp_asm.as_mut_ptr(), up.as_ptr(), n as u64, *v0)
-        };
+        let c_asm =
+            unsafe { horcrux_asm_addmul_1_test(rp_asm.as_mut_ptr(), up.as_ptr(), n as u64, *v0) };
         assert_eq!((c_asm, &rp_asm), (c_ref, &rp_ref), "addmul edge n={n}");
 
         let mut rp_ref = rp_init.clone();
         let b_ref = submul_1_ref(&mut rp_ref, up, *v0);
         let mut rp_asm = rp_init.clone();
-        let b_asm = unsafe {
-            horcrux_asm_submul_1_test(rp_asm.as_mut_ptr(), up.as_ptr(), n as u64, *v0)
-        };
+        let b_asm =
+            unsafe { horcrux_asm_submul_1_test(rp_asm.as_mut_ptr(), up.as_ptr(), n as u64, *v0) };
         assert_eq!((b_asm, &rp_asm), (b_ref, &rp_ref), "submul edge n={n}");
     }
 }

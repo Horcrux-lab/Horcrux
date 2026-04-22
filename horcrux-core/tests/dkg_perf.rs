@@ -124,10 +124,7 @@ fn run_dkg(
                     if to >= 1 && to <= total as usize && to as u16 != party_id {
                         queues[to - 1].push_back(m);
                     } else {
-                        eprintln!(
-                            "[{tag}]   p{party_id} emitted msg to={} (dropped)",
-                            m.to
-                        );
+                        eprintln!("[{tag}]   p{party_id} emitted msg to={} (dropped)", m.to);
                     }
                 }
                 progressed = true;
@@ -141,9 +138,7 @@ fn run_dkg(
             break;
         }
         if !progressed {
-            panic!(
-                "DKG deadlock at iter {iter}: all queues empty but not all parties complete"
-            );
+            panic!("DKG deadlock at iter {iter}: all queues empty but not all parties complete");
         }
     }
 
@@ -163,11 +158,7 @@ fn run_dkg(
         eprintln!("[{tag}] slowest: iter={it} p{who} elapsed={el:.2}s");
     }
     for pid in 1..=total {
-        let party_sum: f64 = round_log
-            .iter()
-            .filter(|e| e.1 == pid)
-            .map(|e| e.2)
-            .sum();
+        let party_sum: f64 = round_log.iter().filter(|e| e.1 == pid).map(|e| e.2).sum();
         eprintln!("[{tag}] p{pid} handle sum: {:.2}s", party_sum);
     }
 

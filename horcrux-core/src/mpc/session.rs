@@ -141,8 +141,10 @@ impl SessionManager {
         }
         let mut session = EcdsaRefreshSession::new(config, shard_data)?;
         let msgs = session.start(&session_id)?;
-        self.keygen_sessions
-            .insert(session_id, (DkgSessionKind::EcdsaRefresh(session), Instant::now()));
+        self.keygen_sessions.insert(
+            session_id,
+            (DkgSessionKind::EcdsaRefresh(session), Instant::now()),
+        );
         Ok(msgs)
     }
 
