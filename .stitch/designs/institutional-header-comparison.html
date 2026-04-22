@@ -1,0 +1,1159 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Horcrux — Wallet Header: Consumer vs Institutional</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --deep-black: #0A0E1A;
+    --dark-navy:  #111827;
+    --card:       #1A1F33;
+    --card-hi:    #222844;
+    --border:     rgba(255,255,255,0.08);
+    --border-hi:  rgba(255,255,255,0.12);
+    --text:       #F4F6FB;
+    --subtle:     #8B93A8;
+    --muted:      #5A6176;
+    --purple:     #7C3AED;
+    --blue:       #2563EB;
+    --cyan:       #10D0E0;
+    --green:      #29D770;
+    --amber:      #FFB81A;
+    --red:        #F54259;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body {
+    background: radial-gradient(ellipse at 20% 0%, #141A2E 0%, var(--deep-black) 55%) no-repeat var(--deep-black);
+    color: var(--text);
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    font-size: 16px;
+    min-height: 100vh;
+    -webkit-font-smoothing: antialiased;
+    padding: 40px 32px 80px;
+  }
+
+  .page-title {
+    font-size: 22px;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+    margin-bottom: 6px;
+  }
+  .page-subtitle {
+    font-size: 13px;
+    color: var(--subtle);
+    margin-bottom: 36px;
+    max-width: 720px;
+    line-height: 1.55;
+  }
+
+  .grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 28px;
+    max-width: 1720px;
+  }
+  .col {
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+  }
+  .col-head {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+  }
+  .col-head h2 {
+    font-size: 15px;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+  }
+  .col-head .tag {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    font-weight: 500;
+    color: var(--subtle);
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 2px 6px;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+  }
+  .col-lead {
+    font-size: 12px;
+    color: var(--subtle);
+    line-height: 1.5;
+    margin-top: -6px;
+    margin-bottom: 4px;
+  }
+
+  /* Phone frame */
+  .phone {
+    width: 100%;
+    max-width: 430px;
+    aspect-ratio: 430 / 720;
+    background: linear-gradient(180deg, #0E1322 0%, var(--deep-black) 100%);
+    border: 1px solid var(--border);
+    border-radius: 28px;
+    padding: 18px 16px 16px;
+    overflow: hidden;
+    position: relative;
+  }
+  .status-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text);
+    padding: 0 6px 12px;
+  }
+  .status-bar .right { display: flex; gap: 6px; color: var(--subtle); font-size: 11px; }
+  .nav {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 4px 4px 16px;
+  }
+  .nav-title {
+    font-size: 22px;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+  }
+  .nav-actions { display: flex; gap: 10px; color: var(--subtle); font-size: 18px; }
+  .nav-actions .dot {
+    width: 32px; height: 32px;
+    display: inline-flex; align-items: center; justify-content: center;
+    background: var(--card); border: 1px solid var(--border); border-radius: 50%;
+  }
+
+  /* Row container (card) */
+  .row {
+    background: linear-gradient(180deg, rgba(255,255,255,0.025), rgba(255,255,255,0.008));
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 14px 14px 12px;
+    margin-bottom: 10px;
+  }
+
+  /* ─────────────────── CONSUMER (current) ─────────────────── */
+  .row-consumer .head {
+    display: flex; align-items: center; gap: 10px;
+  }
+  .avatar-circle {
+    width: 32px; height: 32px; border-radius: 50%;
+    display: inline-flex; align-items: center; justify-content: center;
+    font-weight: 700; color: white; font-size: 14px;
+    box-shadow: 0 3px 4px rgba(0,0,0,0.25);
+    border: 1px solid rgba(255,255,255,0.15);
+    font-family: 'Inter', sans-serif;
+  }
+  .g-green { background: linear-gradient(135deg, #14D67A 0%, #0C9E72 100%); }
+  .g-purple { background: linear-gradient(135deg, #9D5CFF 0%, #6B2DE0 100%); }
+  .g-orange { background: linear-gradient(135deg, #FFA84D 0%, #E0671D 100%); }
+  .g-blue   { background: linear-gradient(135deg, #4D8FFF 0%, #2A5ED8 100%); }
+
+  .row-consumer .name {
+    font-size: 15px; font-weight: 600;
+  }
+  .row-consumer .thresh-cap {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px; font-weight: 500;
+    color: var(--subtle);
+    background: rgba(139,147,168,0.12);
+    border-radius: 999px;
+    padding: 3px 8px;
+  }
+  .row-consumer .spacer { flex: 1; }
+  .row-consumer .summary {
+    font-size: 11px; color: var(--subtle);
+  }
+  .row-consumer .chev {
+    width: 28px; height: 28px; border-radius: 50%;
+    background: rgba(139,147,168,0.08);
+    display: inline-flex; align-items: center; justify-content: center;
+    color: var(--subtle); font-size: 12px;
+  }
+  .row-consumer .addr {
+    margin-top: 8px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px; color: var(--subtle);
+    background: rgba(255,255,255,0.03);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 6px 10px;
+    display: inline-block;
+  }
+
+  /* ─────────────────── INSTITUTIONAL (plan G) ─────────────────── */
+  .row-inst {
+    padding: 13px 14px 12px;
+  }
+  .row-inst .head {
+    display: flex; align-items: center; gap: 12px;
+  }
+  .vault-badge {
+    position: relative;
+    width: 38px; height: 38px;
+    background: #1C2134;
+    border: 1px solid var(--border-hi);
+    border-radius: 9px;
+    display: inline-flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+  }
+  .vault-badge .mono {
+    font-family: 'JetBrains Mono', monospace;
+    font-weight: 600;
+    font-size: 13px;
+    letter-spacing: 0.04em;
+    color: var(--text);
+  }
+  .vault-badge .status-dot {
+    position: absolute;
+    top: -2px; right: -2px;
+    width: 10px; height: 10px;
+    border-radius: 50%;
+    border: 2px solid var(--deep-black);
+  }
+  .status-dot.healthy { background: var(--green); box-shadow: 0 0 6px rgba(41,215,112,0.6); }
+  .status-dot.degraded { background: var(--amber); box-shadow: 0 0 6px rgba(255,184,26,0.55); }
+  .status-dot.offline  { background: var(--red);   box-shadow: 0 0 6px rgba(245,66,89,0.55); }
+  .status-dot.idle     { background: var(--muted); }
+
+  .row-inst .body {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+  .row-inst .name-line {
+    display: flex; align-items: baseline; gap: 6px;
+  }
+  .row-inst .vault-code {
+    font-family: 'JetBrains Mono', monospace;
+    font-weight: 600;
+    font-size: 14px;
+    letter-spacing: 0.02em;
+    color: var(--text);
+  }
+  .row-inst .env {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    font-weight: 500;
+    letter-spacing: 0.08em;
+    color: var(--subtle);
+    text-transform: uppercase;
+    background: rgba(139,147,168,0.1);
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    padding: 1px 5px;
+  }
+  .row-inst .env.prod { color: var(--cyan); border-color: rgba(16,208,224,0.25); background: rgba(16,208,224,0.08); }
+  .row-inst .env.test { color: var(--amber); border-color: rgba(255,184,26,0.25); background: rgba(255,184,26,0.08); }
+
+  .row-inst .meta {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: var(--subtle);
+    letter-spacing: 0.01em;
+    line-height: 1.3;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    flex-wrap: wrap;
+  }
+  .meta-seg { display: inline-flex; align-items: center; gap: 4px; }
+  .meta-seg .sep { color: var(--muted); }
+  .meta-seg.ok     { color: var(--subtle); }
+  .meta-seg.warn   { color: var(--amber); }
+  .meta-seg.err    { color: var(--red); }
+  .meta-seg .pulse {
+    width: 6px; height: 6px; border-radius: 50%;
+    background: currentColor;
+    display: inline-block;
+  }
+
+  .row-inst .right {
+    display: flex; flex-direction: column; align-items: flex-end; gap: 2px;
+    margin-left: 10px;
+  }
+  .row-inst .amount {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text);
+    letter-spacing: 0.01em;
+  }
+  .row-inst .amount.hidden { color: var(--muted); letter-spacing: 0.1em; }
+  .row-inst .amount-sub {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    color: var(--subtle);
+  }
+  .row-inst .chev-rect {
+    margin-left: 10px;
+    width: 24px; height: 40px;
+    color: var(--muted);
+    display: inline-flex; align-items: center; justify-content: center;
+    font-size: 11px;
+  }
+
+  /* Wallet list rows (chain) */
+  .chain-row {
+    display: flex; align-items: center;
+    padding: 10px 8px;
+    border-top: 1px solid var(--border);
+    gap: 10px;
+  }
+  .chain-row:first-of-type { border-top: none; margin-top: 6px; }
+  .chain-icon {
+    width: 24px; height: 24px; border-radius: 50%;
+    display: inline-flex; align-items: center; justify-content: center;
+    font-size: 10px; font-weight: 700;
+    color: white;
+  }
+  .c-eth { background: #627EEA; }
+  .c-btc { background: #F7931A; }
+  .c-sol { background: linear-gradient(135deg, #9945FF 0%, #14F195 100%); }
+  .c-pol { background: #8247E5; }
+  .chain-name {
+    font-size: 13px; font-weight: 500;
+  }
+  .chain-meta {
+    margin-left: auto;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px; font-weight: 500;
+    text-align: right;
+  }
+  .chain-meta .sub {
+    font-size: 10px; color: var(--subtle); font-weight: 400;
+    display: block;
+  }
+
+  /* Annotations panel */
+  .notes {
+    margin-top: 18px;
+    background: rgba(255,255,255,0.02);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 14px 16px;
+    font-size: 12px;
+    line-height: 1.6;
+    color: var(--subtle);
+  }
+  .notes h3 {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text);
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    margin-bottom: 8px;
+  }
+  .notes ul { list-style: none; }
+  .notes li { padding-left: 14px; position: relative; margin-bottom: 4px; }
+  .notes li::before { content: '·'; position: absolute; left: 4px; color: var(--muted); }
+  .notes code {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    background: rgba(255,255,255,0.05);
+    border-radius: 3px;
+    padding: 1px 5px;
+    color: var(--text);
+  }
+  .kbd {
+    background: var(--card); border: 1px solid var(--border-hi);
+    border-radius: 4px; padding: 1px 5px;
+    font-family: 'JetBrains Mono', monospace; font-size: 10px;
+  }
+
+  /* Vault Mode: top portfolio banner */
+  .total-banner {
+    padding: 4px 6px 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .total-banner .cap {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    font-weight: 600;
+    color: var(--subtle);
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .total-banner .cap .eye {
+    color: var(--muted);
+    font-size: 13px;
+    cursor: pointer;
+    margin-left: auto;
+  }
+  .total-banner .amount {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 30px;
+    font-weight: 700;
+    color: var(--text);
+    letter-spacing: -0.01em;
+    line-height: 1.15;
+  }
+  .total-banner .amount.hidden { color: var(--muted); letter-spacing: 0.1em; }
+  .total-banner .sub {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: var(--subtle);
+  }
+  .total-banner .sub .err { color: var(--red); }
+  .total-banner-divider {
+    height: 1px;
+    background: var(--border);
+    margin: 0 2px 14px;
+  }
+
+  /* ─────── Settings screen ─────── */
+  .settings-group-label {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--subtle);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    padding: 4px 6px 8px;
+  }
+  .settings-card {
+    background: linear-gradient(180deg, rgba(255,255,255,0.03), rgba(255,255,255,0.01));
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    overflow: hidden;
+    margin-bottom: 14px;
+  }
+  .settings-row {
+    display: flex;
+    align-items: center;
+    padding: 13px 14px;
+    gap: 12px;
+    border-top: 1px solid var(--border);
+  }
+  .settings-row:first-child { border-top: none; }
+  .settings-icon {
+    width: 30px; height: 30px;
+    border-radius: 8px;
+    display: inline-flex; align-items: center; justify-content: center;
+    font-size: 14px; color: white;
+    flex-shrink: 0;
+  }
+  .settings-icon.indigo { background: linear-gradient(135deg, #6D5BFF 0%, #4430D9 100%); }
+  .settings-icon.teal   { background: linear-gradient(135deg, #10D0E0 0%, #0C96A6 100%); }
+  .settings-icon.slate  { background: linear-gradient(135deg, #4A5368 0%, #2A3145 100%); }
+  .settings-label { flex: 1; min-width: 0; }
+  .settings-label .title {
+    font-size: 14px; font-weight: 500;
+    color: var(--text);
+  }
+  .settings-label .sub {
+    font-size: 11px; color: var(--subtle);
+    margin-top: 2px;
+    line-height: 1.4;
+  }
+  .settings-value {
+    font-size: 12px; color: var(--subtle);
+  }
+  .seg-picker {
+    display: flex;
+    background: rgba(255,255,255,0.05);
+    border-radius: 10px;
+    padding: 3px;
+    margin: 0 14px 14px;
+    gap: 2px;
+  }
+  .seg-picker .seg {
+    flex: 1;
+    text-align: center;
+    padding: 8px 10px;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--subtle);
+    border-radius: 7px;
+  }
+  .seg-picker .seg.active {
+    background: var(--card-hi);
+    color: var(--text);
+    box-shadow: 0 1px 2px rgba(0,0,0,0.25);
+    border: 1px solid var(--border-hi);
+  }
+  .ios-toggle {
+    width: 44px; height: 26px;
+    border-radius: 13px;
+    background: #39394C;
+    position: relative;
+    flex-shrink: 0;
+  }
+  .ios-toggle.on { background: var(--green); }
+  .ios-toggle::after {
+    content: '';
+    position: absolute;
+    top: 2px; left: 2px;
+    width: 22px; height: 22px;
+    border-radius: 50%;
+    background: white;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+  }
+  .ios-toggle.on::after { left: 20px; }
+
+  .preview-strip {
+    padding: 14px;
+    background: rgba(255,255,255,0.02);
+    border-top: 1px solid var(--border);
+  }
+  .preview-strip .cap {
+    font-size: 10px;
+    color: var(--muted);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    margin-bottom: 10px;
+    font-weight: 600;
+  }
+  .mini-row {
+    display: flex; align-items: center; gap: 10px;
+    padding: 10px 10px;
+    background: rgba(255,255,255,0.03);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+  }
+  .mini-row + .mini-row { margin-top: 6px; }
+  .mini-row .mini-name-main { font-size: 12px; font-weight: 600; color: var(--text); }
+  .mini-row .mini-code {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px; font-weight: 600; color: var(--text);
+    letter-spacing: 0.02em;
+  }
+  .mini-row .mini-env {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 9px;
+    color: var(--cyan);
+    border: 1px solid rgba(16,208,224,0.25);
+    background: rgba(16,208,224,0.08);
+    border-radius: 3px;
+    padding: 0 4px;
+    letter-spacing: 0.08em;
+  }
+  .mini-row .mini-thresh {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 9px; color: var(--subtle);
+    background: rgba(139,147,168,0.12);
+    border-radius: 999px;
+    padding: 1px 6px;
+  }
+  .mini-row .mini-meta {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 9px; color: var(--subtle);
+  }
+  .mini-row .mini-sub {
+    margin-left: auto;
+    font-size: 10px;
+    color: var(--subtle);
+  }
+  .mini-row .mini-col { display: flex; flex-direction: column; gap: 2px; }
+  .mini-row .mini-line { display: flex; align-items: baseline; gap: 5px; }
+
+  /* small circular avatar inside mini-row */
+  .mini-avatar {
+    width: 24px; height: 24px; border-radius: 50%;
+    display: inline-flex; align-items: center; justify-content: center;
+    font-size: 11px; font-weight: 700; color: white;
+  }
+  .mini-badge {
+    position: relative;
+    width: 28px; height: 28px;
+    background: #1C2134;
+    border: 1px solid var(--border-hi);
+    border-radius: 7px;
+    display: inline-flex; align-items: center; justify-content: center;
+  }
+  .mini-badge .mono {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px; font-weight: 600;
+    letter-spacing: 0.04em;
+    color: var(--text);
+  }
+  .mini-badge .status-dot {
+    position: absolute;
+    top: -2px; right: -2px;
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    border: 2px solid var(--deep-black);
+  }
+</style>
+</head>
+<body>
+
+<div class="page-title">Horcrux — Wallet Header: Standard vs Vault Mode (user-selectable)</div>
+<div class="page-subtitle">
+  Proposal: ship <strong>both</strong> header styles and let each user pick. Left column is the current Standard (v0.4.4, no change). Middle column is the proposed Vault Mode for institutional / treasury-ops users. Right column shows where the toggle lives in Settings.
+</div>
+
+<div class="grid">
+
+<!-- ============ LEFT: Consumer (current) ============ -->
+<div class="col">
+  <div class="col-head">
+    <h2>A · Standard (current)</h2>
+    <span class="tag">DEFAULT</span>
+  </div>
+  <div class="col-lead">v0.4.4 as-is. Gradient avatar + headline name + threshold capsule. Stays the default so existing users see no regression.</div>
+
+  <div class="phone">
+    <div class="status-bar"><span>9:41</span><span class="right">●●● 5G ▮</span></div>
+    <div class="nav">
+      <span class="nav-title">Wallet</span>
+      <div class="nav-actions">
+        <span class="dot">⊙</span>
+        <span class="dot">⚙</span>
+      </div>
+    </div>
+
+    <!-- Row 1 -->
+    <div class="row row-consumer">
+      <div class="head">
+        <span class="avatar-circle g-green">M</span>
+        <span class="name">Main</span>
+        <span class="thresh-cap">2/3</span>
+        <span class="spacer"></span>
+        <span class="summary">4 chains · 2 with balance</span>
+        <span class="chev">›</span>
+      </div>
+    </div>
+
+    <!-- Row 2 -->
+    <div class="row row-consumer">
+      <div class="head">
+        <span class="avatar-circle g-purple">T</span>
+        <span class="name">Trading Hot</span>
+        <span class="thresh-cap">2/2</span>
+        <span class="spacer"></span>
+        <span class="summary">3 chains · 1 with balance</span>
+        <span class="chev">›</span>
+      </div>
+    </div>
+
+    <!-- Row 3 -->
+    <div class="row row-consumer">
+      <div class="head">
+        <span class="avatar-circle g-orange">O</span>
+        <span class="name">Ops Reserve</span>
+        <span class="thresh-cap">3/5</span>
+        <span class="spacer"></span>
+        <span class="summary">5 chains · 4 with balance</span>
+        <span class="chev">›</span>
+      </div>
+    </div>
+
+    <!-- Row 4 -->
+    <div class="row row-consumer">
+      <div class="head">
+        <span class="avatar-circle g-blue">B</span>
+        <span class="name">Backup Cold</span>
+        <span class="thresh-cap">2/3</span>
+        <span class="spacer"></span>
+        <span class="summary">2 chains · 0 with balance</span>
+        <span class="chev">›</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="notes">
+    <h3>Current signals per row</h3>
+    <ul>
+      <li>Identity: colored gradient circle with 1-char monogram</li>
+      <li>Threshold: decorative capsule, second place after the name</li>
+      <li>Status: implicit (green = connected, no per-vault feedback)</li>
+      <li>Environment (prod/testnet): not shown at header level</li>
+      <li>Balance: total USD not shown; surfaced only after expanding</li>
+    </ul>
+  </div>
+</div>
+
+<!-- ============ RIGHT: Institutional (plan G) ============ -->
+<div class="col">
+  <div class="col-head">
+    <h2>B · Vault Mode</h2>
+    <span class="tag">OPT-IN</span>
+  </div>
+  <div class="col-lead">Flat square vault badge · monospace vault code · environment tag · quorum + total signers + last-signed · optional hidden balance. All data derivable locally from existing ceremony history (no relay changes).</div>
+
+  <div class="phone">
+    <div class="status-bar"><span>9:41</span><span class="right">●●● 5G ▮</span></div>
+    <div class="nav">
+      <span class="nav-title">Vaults</span>
+      <div class="nav-actions">
+        <span class="dot">⊙</span>
+        <span class="dot">⚙</span>
+      </div>
+    </div>
+
+    <!-- Top portfolio total (Vault Mode only) -->
+    <div class="total-banner">
+      <span class="cap">
+        TOTAL
+        <span class="eye">◉</span>
+      </span>
+      <span class="amount">$170,485.89</span>
+      <span class="sub">across 5 vaults · 4 chains · <span class="err">1 vault offline</span></span>
+    </div>
+    <div class="total-banner-divider"></div>
+
+    <!-- Row 1: healthy, prod, balance visible -->
+    <div class="row row-inst">
+      <div class="head">
+        <div class="vault-badge">
+          <span class="mono">MA</span>
+          <span class="status-dot healthy"></span>
+        </div>
+        <div class="body">
+          <div class="name-line">
+            <span class="vault-code">MAIN</span>
+            <span class="env prod">PROD</span>
+          </div>
+          <div class="meta">
+            <span class="meta-seg ok"><span class="pulse"></span>2-of-3</span>
+            <span class="sep">·</span>
+            <span class="meta-seg ok">3 signers</span>
+            <span class="sep">·</span>
+            <span class="meta-seg ok">last signed 3d ago</span>
+          </div>
+        </div>
+        <div class="right">
+          <span class="amount">$142,380.12</span>
+          <span class="amount-sub">4 chains</span>
+        </div>
+        <span class="chev-rect">›</span>
+      </div>
+    </div>
+
+    <!-- Row 2: degraded (1 signer offline), prod, balance visible -->
+    <div class="row row-inst">
+      <div class="head">
+        <div class="vault-badge">
+          <span class="mono">TH</span>
+          <span class="status-dot degraded"></span>
+        </div>
+        <div class="body">
+          <div class="name-line">
+            <span class="vault-code">TRADING-HOT</span>
+            <span class="env prod">PROD</span>
+          </div>
+          <div class="meta">
+            <span class="meta-seg ok"><span class="pulse"></span>2-of-2</span>
+            <span class="sep">·</span>
+            <span class="meta-seg ok">2 signers</span>
+            <span class="sep">·</span>
+            <span class="meta-seg warn">last signed 34d ago</span>
+          </div>
+        </div>
+        <div class="right">
+          <span class="amount">$28,105.77</span>
+          <span class="amount-sub">3 chains</span>
+        </div>
+        <span class="chev-rect">›</span>
+      </div>
+    </div>
+
+    <!-- Row 3: healthy, prod, balance HIDDEN (privacy toggle) -->
+    <div class="row row-inst">
+      <div class="head">
+        <div class="vault-badge">
+          <span class="mono">OP</span>
+          <span class="status-dot healthy"></span>
+        </div>
+        <div class="body">
+          <div class="name-line">
+            <span class="vault-code">OPS-RESERVE</span>
+            <span class="env prod">PROD</span>
+          </div>
+          <div class="meta">
+            <span class="meta-seg ok"><span class="pulse"></span>3-of-5</span>
+            <span class="sep">·</span>
+            <span class="meta-seg ok">5 signers</span>
+            <span class="sep">·</span>
+            <span class="meta-seg ok">last signed 12d ago</span>
+          </div>
+        </div>
+        <div class="right">
+          <span class="amount hidden">••••••</span>
+          <span class="amount-sub">5 chains</span>
+        </div>
+        <span class="chev-rect">›</span>
+      </div>
+    </div>
+
+    <!-- Row 4: offline / RPC fail, testnet -->
+    <div class="row row-inst">
+      <div class="head">
+        <div class="vault-badge">
+          <span class="mono">BK</span>
+          <span class="status-dot offline"></span>
+        </div>
+        <div class="body">
+          <div class="name-line">
+            <span class="vault-code">BACKUP-COLD</span>
+            <span class="env test">TESTNET</span>
+          </div>
+          <div class="meta">
+            <span class="meta-seg ok"><span class="pulse"></span>2-of-3</span>
+            <span class="sep">·</span>
+            <span class="meta-seg ok">3 signers</span>
+            <span class="sep">·</span>
+            <span class="meta-seg err">RPC unreachable</span>
+          </div>
+        </div>
+        <div class="right">
+          <span class="amount">—</span>
+          <span class="amount-sub">2 chains</span>
+        </div>
+        <span class="chev-rect">›</span>
+      </div>
+    </div>
+
+    <!-- Row 5 expanded (to show downstream look) -->
+    <div class="row row-inst">
+      <div class="head">
+        <div class="vault-badge">
+          <span class="mono">SE</span>
+          <span class="status-dot idle"></span>
+        </div>
+        <div class="body">
+          <div class="name-line">
+            <span class="vault-code">SETTLEMENT</span>
+            <span class="env prod">PROD</span>
+          </div>
+          <div class="meta">
+            <span class="meta-seg ok"><span class="pulse"></span>3-of-4</span>
+            <span class="sep">·</span>
+            <span class="meta-seg ok">4 signers</span>
+            <span class="sep">·</span>
+            <span class="meta-seg">never signed</span>
+          </div>
+        </div>
+        <div class="right">
+          <span class="amount">$0.00</span>
+          <span class="amount-sub">1 chain</span>
+        </div>
+        <span class="chev-rect">⌄</span>
+      </div>
+      <!-- Nested chain rows on expand -->
+      <div class="chain-row">
+        <span class="chain-icon c-eth">Ξ</span>
+        <span class="chain-name">Ethereum</span>
+        <span class="chain-meta">0.000 ETH<span class="sub">$0.00</span></span>
+      </div>
+    </div>
+  </div>
+
+  <div class="notes">
+    <h3>Signals per row (plan G)</h3>
+    <ul>
+      <li>Top <strong>TOTAL</strong> banner: portfolio sum · vault/chain count · offline warnings — first-glance treasury health</li>
+      <li>Identity: flat square badge, 2-char monospace monogram (<code>MA</code> / <code>TH</code> / <code>OP</code>)</li>
+      <li>Status dot (vault health): <span style="color:var(--green)">●</span> signed &lt; 30d · <span style="color:var(--amber)">●</span> signed 30–90d ago · <span style="color:var(--red)">●</span> RPC/last attempt failed · <span style="color:var(--muted)">●</span> never signed (cold)</li>
+      <li>Vault code: monospace, uppercase — maps to org naming (<code>TRADING-HOT</code>, <code>OPS-RESERVE</code>)</li>
+      <li>Environment tag: <code>PROD</code> / <code>TESTNET</code> in the accent color — eliminates wrong-env mistakes</li>
+      <li>Meta line: <code>quorum · signers total · last signed</code> — all three come from existing local data; no relay change needed</li>
+      <li>Balance: right-aligned monospace; tap <span class="kbd">••••••</span> to hide (over-the-shoulder defense)</li>
+      <li>No emoji in default path — still available as optional custom label</li>
+    </ul>
+  </div>
+</div>
+
+<!-- ============ 3rd column: Settings toggle ============ -->
+<div class="col">
+  <div class="col-head">
+    <h2>C · Settings — Appearance</h2>
+    <span class="tag">TOGGLE</span>
+  </div>
+  <div class="col-lead">New Settings section lets each user pick their preference. Defaults to <strong>Standard</strong> so existing individual users see no change. Org admins can switch to <strong>Vault Mode</strong> on their fleet devices.</div>
+
+  <div class="phone">
+    <div class="status-bar"><span>9:41</span><span class="right">●●● 5G ▮</span></div>
+    <div class="nav">
+      <span class="nav-title">Settings</span>
+      <div class="nav-actions"></div>
+    </div>
+
+    <!-- Appearance section -->
+    <div class="settings-group-label">Appearance</div>
+    <div class="settings-card">
+      <div class="settings-row">
+        <div class="settings-icon indigo">◐</div>
+        <div class="settings-label">
+          <div class="title">Display mode <span class="tag-new">New</span></div>
+          <div class="sub">Standard for individuals · Vault Mode for organizations &amp; treasury ops.</div>
+        </div>
+      </div>
+      <div class="seg-picker">
+        <div class="seg">Standard</div>
+        <div class="seg active">Vault Mode</div>
+      </div>
+      <div class="settings-row">
+        <div class="settings-icon teal">⊘</div>
+        <div class="settings-label">
+          <div class="title">Hide balances by default</div>
+          <div class="sub">Only affects Vault Mode. Tap any balance to reveal.</div>
+        </div>
+        <div class="ios-toggle on"></div>
+      </div>
+      <div class="settings-row">
+        <div class="settings-icon slate">⟳</div>
+        <div class="settings-label">
+          <div class="title">Environment tag</div>
+          <div class="sub">Show PROD / TESTNET label next to each vault name.</div>
+        </div>
+        <div class="ios-toggle on"></div>
+      </div>
+
+      <!-- Live preview -->
+      <div class="preview-strip">
+        <div class="cap">Preview</div>
+        <div class="mini-row">
+          <div class="mini-badge">
+            <span class="mono">MA</span>
+            <span class="status-dot healthy"></span>
+          </div>
+          <div class="mini-col">
+            <div class="mini-line">
+              <span class="mini-code">MAIN</span>
+              <span class="mini-env">PROD</span>
+            </div>
+            <span class="mini-meta">2-of-3 · 3 signers · 3d ago</span>
+          </div>
+          <span class="mini-sub">$142k · 4 chains</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Contrast: Standard preview as well -->
+    <div class="settings-group-label">Standard Mode — for reference</div>
+    <div class="settings-card">
+      <div class="preview-strip" style="border-top: none;">
+        <div class="cap">If you switch back</div>
+        <div class="mini-row">
+          <span class="mini-avatar g-green">M</span>
+          <span class="mini-name-main">Main</span>
+          <span class="mini-thresh">2/3</span>
+          <span class="mini-sub">4 chains · 2 with balance</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Other typical settings groups for context -->
+    <div class="settings-group-label">Security</div>
+    <div class="settings-card">
+      <div class="settings-row">
+        <div class="settings-icon indigo">🔒</div>
+        <div class="settings-label">
+          <div class="title">App lock</div>
+        </div>
+        <span class="settings-value">Face ID ›</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="notes">
+    <h3>Behavior summary</h3>
+    <ul>
+      <li>Scope: only affects <code>WalletGroupHeader</code> in v1 — signing flow, settings layout, copy stay unchanged</li>
+      <li>Stored as <code>UserDefaults</code> key <code>walletDisplayMode</code> ∈ {<code>.standard</code>, <code>.vault</code>}</li>
+      <li>Default = <code>.standard</code> (existing behavior preserved)</li>
+      <li>Changing mode is purely visual — no data migration, no server call, instantaneous</li>
+      <li>Vault Mode unlocks two additional toggles: <em>Hide balances</em> · <em>Environment tag</em></li>
+      <li>v2 could add onboarding question "Using this device personally or for your org?" to auto-select</li>
+    </ul>
+  </div>
+</div>
+
+</div>
+
+<!-- ============ Bottom section: Portfolio subpage — preserved in both modes ============ -->
+<div class="page-title" style="margin-top: 56px;">Portfolio Subpage — Preserved in Both Modes</div>
+<div class="page-subtitle">
+  The existing Portfolio subpage (reached from the wallet detail view) is untouched by Vault Mode. It continues to show the full cross-chain breakdown with pie chart. This is the "detail view"; the Vault Mode TOTAL banner at the top of the wallet list is just the "at-a-glance number".
+</div>
+
+<div class="portfolio-section">
+  <div class="portfolio-phone">
+    <div class="status-bar"><span>9:41</span><span class="right">●●● 5G ▮</span></div>
+    <div class="nav">
+      <span class="nav-title" style="font-size: 17px; font-weight: 600;">Portfolio</span>
+      <div class="nav-actions"><span style="color: var(--subtle); font-size: 15px;">Done</span></div>
+    </div>
+
+    <div class="portfolio-total">
+      <span class="cap">Total Across All Chains</span>
+      <span class="amount">$170,485.89</span>
+    </div>
+
+    <div class="pie-wrap">
+      <svg viewBox="0 0 200 200" class="pie">
+        <!-- ETH 52% -->
+        <circle cx="100" cy="100" r="70" fill="none" stroke="#627EEA" stroke-width="40"
+                stroke-dasharray="228.8 439.8" stroke-dashoffset="0" transform="rotate(-90 100 100)"/>
+        <!-- BTC 28% -->
+        <circle cx="100" cy="100" r="70" fill="none" stroke="#F7931A" stroke-width="40"
+                stroke-dasharray="123.2 439.8" stroke-dashoffset="-228.8" transform="rotate(-90 100 100)"/>
+        <!-- SOL 14% -->
+        <circle cx="100" cy="100" r="70" fill="none" stroke="#9945FF" stroke-width="40"
+                stroke-dasharray="61.6 439.8" stroke-dashoffset="-352" transform="rotate(-90 100 100)"/>
+        <!-- MATIC 6% -->
+        <circle cx="100" cy="100" r="70" fill="none" stroke="#8247E5" stroke-width="40"
+                stroke-dasharray="26.4 439.8" stroke-dashoffset="-413.6" transform="rotate(-90 100 100)"/>
+      </svg>
+    </div>
+
+    <div class="slice-list">
+      <div class="slice-row">
+        <span class="slice-dot" style="background: #627EEA"></span>
+        <span class="slice-name">Ethereum</span>
+        <span class="slice-pct">52%</span>
+        <span class="slice-amt">$88,652.66</span>
+      </div>
+      <div class="slice-row">
+        <span class="slice-dot" style="background: #F7931A"></span>
+        <span class="slice-name">Bitcoin</span>
+        <span class="slice-pct">28%</span>
+        <span class="slice-amt">$47,736.04</span>
+      </div>
+      <div class="slice-row">
+        <span class="slice-dot" style="background: #9945FF"></span>
+        <span class="slice-name">Solana</span>
+        <span class="slice-pct">14%</span>
+        <span class="slice-amt">$23,868.02</span>
+      </div>
+      <div class="slice-row">
+        <span class="slice-dot" style="background: #8247E5"></span>
+        <span class="slice-name">Polygon</span>
+        <span class="slice-pct">6%</span>
+        <span class="slice-amt">$10,229.17</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="portfolio-notes">
+    <h3>Portfolio subpage — untouched</h3>
+    <ul>
+      <li>Same design, same data source (<code>PortfolioView</code>), same entry points</li>
+      <li>Complements (doesn't replace) the Vault Mode top TOTAL banner</li>
+      <li>Layers of information:
+        <ul style="margin-top: 6px; padding-left: 16px;">
+          <li><strong>L1 · Glance:</strong> Vault Mode top banner — one number, always visible</li>
+          <li><strong>L2 · Browse:</strong> Per-vault rows with meta line (quorum, signers, last signed)</li>
+          <li><strong>L3 · Drill:</strong> This Portfolio subpage — chain-level breakdown + pie</li>
+        </ul>
+      </li>
+      <li>No code changes to this page in v1 — purely shown here for context</li>
+    </ul>
+  </div>
+</div>
+
+<style>
+  .portfolio-section {
+    display: grid;
+    grid-template-columns: 430px 1fr;
+    gap: 40px;
+    max-width: 1100px;
+    align-items: start;
+  }
+  .portfolio-phone {
+    width: 100%;
+    max-width: 430px;
+    aspect-ratio: 430 / 720;
+    background: linear-gradient(180deg, #0E1322 0%, var(--deep-black) 100%);
+    border: 1px solid var(--border);
+    border-radius: 28px;
+    padding: 18px 16px 16px;
+    overflow: hidden;
+    position: relative;
+  }
+  .portfolio-total {
+    text-align: center;
+    padding: 6px 0 18px;
+  }
+  .portfolio-total .cap {
+    display: block;
+    font-size: 12px;
+    color: var(--subtle);
+    margin-bottom: 6px;
+  }
+  .portfolio-total .amount {
+    display: block;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 30px;
+    font-weight: 700;
+    color: var(--text);
+    letter-spacing: -0.01em;
+  }
+  .pie-wrap { display: flex; justify-content: center; padding: 8px 0 20px; }
+  .pie { width: 200px; height: 200px; }
+  .slice-list {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    margin-top: 8px;
+  }
+  .slice-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 12px;
+    background: rgba(255,255,255,0.03);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+  }
+  .slice-dot {
+    width: 10px; height: 10px; border-radius: 50%;
+    flex-shrink: 0;
+  }
+  .slice-name { font-size: 14px; font-weight: 500; }
+  .slice-pct {
+    margin-left: auto;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px; color: var(--subtle);
+  }
+  .slice-amt {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px; font-weight: 600; color: var(--text);
+    min-width: 96px; text-align: right;
+  }
+  .portfolio-notes {
+    background: rgba(255,255,255,0.02);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 18px 22px;
+    font-size: 13px;
+    line-height: 1.7;
+    color: var(--subtle);
+  }
+  .portfolio-notes h3 {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text);
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    margin-bottom: 10px;
+  }
+  .portfolio-notes ul { list-style: none; }
+  .portfolio-notes li { padding-left: 14px; position: relative; margin-bottom: 6px; }
+  .portfolio-notes li::before { content: '·'; position: absolute; left: 4px; color: var(--muted); }
+  .portfolio-notes code {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    background: rgba(255,255,255,0.05);
+    border-radius: 3px;
+    padding: 1px 5px;
+    color: var(--text);
+  }
+</style>
+
+</body>
+</html>

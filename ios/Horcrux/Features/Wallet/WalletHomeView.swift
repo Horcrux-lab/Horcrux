@@ -782,7 +782,10 @@ struct WalletGroupHeader: View {
     var wallets: [Wallet] = []
 
     @EnvironmentObject private var appState: AppState
+    @StateObject private var priceService = PriceService.shared
+    @ObservedObject private var balanceCache = BalanceCache.shared
     @State private var copied = false
+    @State private var balanceRevealed = false
 
     var body: some View {
         switch appState.walletDisplayMode {
@@ -918,6 +921,9 @@ struct WalletGroupHeader: View {
                         .lineLimit(1)
                 }
                 Spacer(minLength: 8)
+                if !wallets.isEmpty {
+                    vaultBalanceReadout
+                }
                 if isCollapsed == true, let summary = collapsedSummary {
                     Text(summary)
                         .font(.caption2.monospacedDigit())
@@ -991,6 +997,51 @@ struct WalletGroupHeader: View {
         return parts.joined(separator: " · ")
     }
 
+
+    // Vault-mode USD readout for this group. Tap toggles a session-scoped
+    // reveal when the user has opted into "Hide balances by default".
+    @ViewBuilder
+    private var vaultBalanceReadout: some View {
+        let usd = groupUSD
+        let hidden = appState.hideBalancesByDefault && !balanceRevealed
+        VStack(alignment: .trailing, spacing: 2) {
+            Text(hidden ? "••••" : Self.vaultFiatFormatter.string(from: NSNumber(value: usd)) ?? "$—")
+                .font(.system(.subheadline, design: .monospaced).weight(.semibold))
+                .foregroundStyle(.white)
+                .lineLimit(1)
+                .contentTransition(.numericText())
+            Text(String(format: NSLocalizedString("vaultMode.chainsSuffix",
+                                                  value: "%d chains",
+                                                  comment: ""),
+                        Set(wallets.map { $0.chain }).count))
+                .font(.system(size: 10, design: .monospaced))
+                .foregroundStyle(HorcruxTheme.subtleText)
+                .lineLimit(1)
+        }
+        .contentShape(Rectangle())
+        .onTapGesture {
+            if appState.hideBalancesByDefault {
+                withAnimation(.easeInOut(duration: 0.18)) { balanceRevealed.toggle() }
+                Haptics.selection()
+            }
+        }
+        .accessibilityLabel(hidden ? "Balance hidden" : "Vault balance")
+    }
+
+    private var groupUSD: Double {
+        wallets.reduce(0.0) { acc, w in
+            let amount = balanceCache.nativeAmount(walletId: w.id) ?? 0
+            return acc + amount * (priceService.usdPrice(symbol: w.chain.symbol) ?? 0)
+        }
+    }
+
+    private static let vaultFiatFormatter: NumberFormatter = {
+        let f = NumberFormatter()
+        f.numberStyle = .currency
+        f.currencyCode = "USD"
+        f.maximumFractionDigits = 2
+        return f
+    }()
 
     private func shortAddress(_ a: String) -> String {
         guard a.count > 12 else { return a }
