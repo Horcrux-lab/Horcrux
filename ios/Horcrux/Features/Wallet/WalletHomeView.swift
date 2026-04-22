@@ -941,7 +941,7 @@ struct WalletGroupHeader: View {
 
         return VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 10) {
-                VaultBadge(monogram: monogram, health: health, size: 36)
+                VaultBadge(monogram: monogram, health: health, accountId: accountId, size: 36)
                 VStack(alignment: .leading, spacing: 2) {
                     HStack(spacing: 6) {
                         Text(code)

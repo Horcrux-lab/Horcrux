@@ -11,11 +11,26 @@ struct VaultBadge: View {
 
     let monogram: String
     let health: VaultDisplay.Health
+    /// When provided, the badge consults `WalletAvatarStore` and — if the
+    /// user picked an emoji — renders it in place of the monogram. Keeps
+    /// Vault Mode's square/flat identity but honours the same avatar the
+    /// user sees in Standard Mode, so picking an icon doesn't feel like
+    /// a no-op.
+    var accountId: String? = nil
 
     /// 36×36 is the smallest size that still fits two wide ASCII
     /// letters at the 15pt weight we use for the monogram, with
     /// the status dot overhanging the corner cleanly.
     var size: CGFloat = 36
+
+    @ObservedObject private var avatarStore = WalletAvatarStore.shared
+
+    private var emoji: String? {
+        guard let id = accountId,
+              let e = avatarStore.avatar(for: id)?.emoji,
+              !e.isEmpty else { return nil }
+        return e
+    }
 
     var body: some View {
         ZStack(alignment: .topTrailing) {
@@ -27,13 +42,19 @@ struct VaultBadge: View {
                 )
                 .frame(width: size, height: size)
 
-            Text(monogram)
-                .font(.system(size: size * 0.42, weight: .semibold, design: .monospaced))
-                .foregroundStyle(Color.white.opacity(0.92))
-                .frame(width: size, height: size)
-                .allowsTightening(true)
-                .minimumScaleFactor(0.6)
-                .lineLimit(1)
+            if let emoji {
+                Text(emoji)
+                    .font(.system(size: size * 0.56))
+                    .frame(width: size, height: size)
+            } else {
+                Text(monogram)
+                    .font(.system(size: size * 0.42, weight: .semibold, design: .monospaced))
+                    .foregroundStyle(Color.white.opacity(0.92))
+                    .frame(width: size, height: size)
+                    .allowsTightening(true)
+                    .minimumScaleFactor(0.6)
+                    .lineLimit(1)
+            }
 
             // Status dot — sits slightly outside the badge corner so it
             // reads even when the row is dense.
