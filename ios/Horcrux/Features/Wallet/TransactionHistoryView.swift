@@ -189,7 +189,7 @@ struct TransactionHistoryView: View {
                     NavigationLink {
                         TransactionDetailView(transaction: tx)
                     } label: {
-                        TransactionRow(transaction: tx)
+                        TransactionRow(transaction: tx, walletAddress: wallet.address)
                             .glassCard()
                     }
                 }
@@ -204,7 +204,22 @@ struct TransactionHistoryView: View {
 
 struct TransactionRow: View {
     let transaction: TransactionRecord
+    let walletAddress: String
     @State private var ensName: String?
+
+    /// A record counts as incoming when its `toAddress` matches our
+    /// wallet address (case-insensitive — EVM checksummed hex + Solana
+    /// base58 are both safe to lowercase for equality). Locally-signed
+    /// outgoing records always take the opposite branch because we
+    /// record `fromAddress = wallet.address` when we sign.
+    private var isIncoming: Bool {
+        transaction.toAddress.lowercased() == walletAddress.lowercased()
+            && transaction.fromAddress.lowercased() != walletAddress.lowercased()
+    }
+
+    private var counterparty: String {
+        isIncoming ? transaction.fromAddress : transaction.toAddress
+    }
 
     var body: some View {
         HStack(spacing: 12) {
@@ -213,7 +228,7 @@ struct TransactionRow: View {
                     .fill(statusColor.opacity(0.15))
                     .frame(width: 36, height: 36)
 
-                Image(systemName: transaction.statusIcon)
+                Image(systemName: iconName)
                     .font(.system(size: 16, weight: .semibold))
                     .foregroundStyle(statusColor)
 
@@ -227,7 +242,9 @@ struct TransactionRow: View {
 
             VStack(alignment: .leading, spacing: 4) {
                 HStack {
-                    Text(L10n.TxHistory.sendSymbol(transaction.chain.symbol))
+                    Text(isIncoming
+                         ? L10n.Receive.receiveSymbol(transaction.chain.symbol)
+                         : L10n.TxHistory.sendSymbol(transaction.chain.symbol))
                         .font(.subheadline.bold())
                         .foregroundStyle(.white)
                     if transaction.status == .broadcast {
@@ -239,18 +256,18 @@ struct TransactionRow: View {
                             .background(HorcruxTheme.accentBlue.opacity(0.15), in: Capsule())
                     }
                     Spacer()
-                    Text(CurrencyFormatter.crypto(Double(transaction.amount) ?? 0, symbol: transaction.chain.symbol))
+                    Text((isIncoming ? "+" : "-") + CurrencyFormatter.crypto(Double(transaction.amount) ?? 0, symbol: transaction.chain.symbol))
                         .font(.subheadline.bold().monospacedDigit())
-                        .foregroundStyle(.white)
+                        .foregroundStyle(isIncoming ? HorcruxTheme.successGreen : .white)
                 }
 
                 HStack {
                     Group {
                         if let ens = ensName {
-                            Text("→ " + ens)
+                            Text((isIncoming ? "← " : "→ ") + ens)
                                 .foregroundStyle(HorcruxTheme.accentBlue)
                         } else {
-                            Text("→ " + shortAddress(AddressFormatter.canonical(transaction.toAddress, chain: transaction.chain)))
+                            Text((isIncoming ? "← " : "→ ") + shortAddress(AddressFormatter.canonical(counterparty, chain: transaction.chain)))
                                 .foregroundStyle(HorcruxTheme.subtleText)
                                 .monospaced()
                         }
@@ -263,16 +280,30 @@ struct TransactionRow: View {
                 }
             }
         }
-        .task(id: transaction.toAddress) {
+        .task(id: counterparty) {
             // Only Ethereum mainnet has ENS. Kick off a best-effort reverse
             // lookup once per row; results are memoised in ENSResolver so
             // this won't hammer the RPC on re-renders.
             guard transaction.chain == .ethereum else { return }
-            ensName = await ENSResolver.reverse(transaction.toAddress)
+            ensName = await ENSResolver.reverse(counterparty)
         }
     }
 
+    /// Override the status icon for confirmed incoming records — the
+    /// default `checkmark.seal.fill` reads as "I sent this"; an arrow
+    /// down into a tray reads as "received". Other statuses keep the
+    /// existing icon so pending/failed semantics stay unchanged.
+    private var iconName: String {
+        if isIncoming && transaction.status == .confirmed {
+            return "arrow.down.circle.fill"
+        }
+        return transaction.statusIcon
+    }
+
     private var statusColor: Color {
+        if isIncoming && transaction.status == .confirmed {
+            return HorcruxTheme.successGreen
+        }
         switch transaction.status {
         case .signed:    return HorcruxTheme.warningAmber
         case .broadcast: return HorcruxTheme.accentBlue

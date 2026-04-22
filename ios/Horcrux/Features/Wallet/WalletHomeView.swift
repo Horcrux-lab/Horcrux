@@ -1473,7 +1473,7 @@ struct WalletDetailView: View {
                                 NavigationLink {
                                     TransactionDetailView(transaction: tx)
                                 } label: {
-                                    TransactionRow(transaction: tx)
+                                    TransactionRow(transaction: tx, walletAddress: wallet.address)
                                 }
                                 .padding(.vertical, 8)
                                 if tx.id != recentTxs.last?.id {
