@@ -919,17 +919,14 @@ struct WalletGroupHeader: View {
                         .font(.caption2.monospacedDigit())
                         .foregroundStyle(HorcruxTheme.subtleText)
                         .lineLimit(1)
+                        .truncationMode(.tail)
                 }
-                Spacer(minLength: 8)
+                .layoutPriority(0)
+                Spacer(minLength: 6)
                 if !wallets.isEmpty {
                     vaultBalanceReadout
-                }
-                if isCollapsed == true, let summary = collapsedSummary {
-                    Text(summary)
-                        .font(.caption2.monospacedDigit())
-                        .foregroundStyle(HorcruxTheme.subtleText)
-                        .lineLimit(1)
-                        .truncationMode(.tail)
+                        .layoutPriority(1)
+                        .fixedSize(horizontal: true, vertical: false)
                 }
                 if let collapsed = isCollapsed {
                     Image(systemName: "chevron.down")
@@ -991,10 +988,6 @@ struct WalletGroupHeader: View {
                                                  comment: "Signing threshold, e.g. '2-of-3' in English or '2/3' in zh-Hans")
             parts.append(String(format: thresholdFmt, threshold, total))
         }
-        if total > 0 {
-            let signersFmt = NSLocalizedString("vaultMode.signersSuffix", value: "%d signers", comment: "")
-            parts.append(String(format: signersFmt, total))
-        }
         let signedFmt = NSLocalizedString("vaultMode.lastSignedPrefix", value: "last signed %@", comment: "")
         parts.append(String(format: signedFmt, VaultDisplay.relativeSignedLabel(lastSigned: lastSigned)))
         return parts.joined(separator: " · ")
@@ -1007,28 +1000,19 @@ struct WalletGroupHeader: View {
     private var vaultBalanceReadout: some View {
         let usd = groupUSD
         let hidden = appState.hideBalancesByDefault && !balanceRevealed
-        VStack(alignment: .trailing, spacing: 2) {
-            Text(hidden ? "••••" : Self.vaultFiatFormatter.string(from: NSNumber(value: usd)) ?? "$—")
-                .font(.system(.subheadline, design: .monospaced).weight(.semibold))
-                .foregroundStyle(.white)
-                .lineLimit(1)
-                .contentTransition(.numericText())
-            Text(String(format: NSLocalizedString("vaultMode.chainsSuffix",
-                                                  value: "%d chains",
-                                                  comment: ""),
-                        Set(wallets.map { $0.chain }).count))
-                .font(.system(size: 10, design: .monospaced))
-                .foregroundStyle(HorcruxTheme.subtleText)
-                .lineLimit(1)
-        }
-        .contentShape(Rectangle())
-        .onTapGesture {
-            if appState.hideBalancesByDefault {
-                withAnimation(.easeInOut(duration: 0.18)) { balanceRevealed.toggle() }
-                Haptics.selection()
+        Text(hidden ? "••••" : Self.vaultFiatFormatter.string(from: NSNumber(value: usd)) ?? "$—")
+            .font(.system(.subheadline, design: .monospaced).weight(.semibold))
+            .foregroundStyle(.white)
+            .lineLimit(1)
+            .contentTransition(.numericText())
+            .contentShape(Rectangle())
+            .onTapGesture {
+                if appState.hideBalancesByDefault {
+                    withAnimation(.easeInOut(duration: 0.18)) { balanceRevealed.toggle() }
+                    Haptics.selection()
+                }
             }
-        }
-        .accessibilityLabel(hidden ? "Balance hidden" : "Vault balance")
+            .accessibilityLabel(hidden ? "Balance hidden" : "Vault balance")
     }
 
     private var groupUSD: Double {
