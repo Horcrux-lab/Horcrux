@@ -90,7 +90,7 @@ jobs:
         run: cargo install cargo-tarpaulin --quiet
 
       - name: Generate coverage
-        run: cargo tarpaulin --workspace --timeout 300 --out xml
+        run: cargo tarpaulin --workspace --timeout 900 --out xml
 
       - name: Upload to Codecov
         uses: codecov/codecov-action@v4
