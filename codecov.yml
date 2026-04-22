@@ -1,0 +1,38 @@
+# Codecov configuration — https://docs.codecov.com/docs/codecovyml-reference
+#
+# Phase 1d gate: block PRs that drop project coverage by more than 2pp.
+# The threshold is deliberately loose (2%, not 0.1%) so normal refactors
+# aren't blocked; it's here to catch obvious regressions, not to enforce a
+# specific coverage floor.
+
+coverage:
+  status:
+    project:
+      default:
+        target: auto          # compare against base branch, not a fixed %
+        threshold: 2%         # allow small dips from refactors; fail on larger drops
+        if_ci_failed: error   # don't silently mask a broken build
+        informational: false  # required status — blocks merge
+        only_pulls: true      # don't block direct pushes to main
+    patch:
+      default:
+        # New code in a PR should come with tests. 70% is a pragmatic bar
+        # given the large proportion of pure SwiftUI view code that's
+        # exercised through snapshot/UI tests rather than XCTest.
+        target: 70%
+        threshold: 5%
+        if_ci_failed: error
+        informational: false
+        only_pulls: true
+
+# Quiet the noisy "coverage comment" on every PR — the status check is
+# sufficient signal, and the comment churns notifications.
+comment: false
+
+# Only measure files we own. Third-party vendored code (if any enters the
+# workspace in the future) is pre-filtered here so it doesn't skew numbers.
+ignore:
+  - "third_party/**"
+  - "target/**"
+  - "**/tests/**"
+  - "**/build.rs"
