@@ -1155,11 +1155,16 @@ struct WalletRow: View {
                 .accessibilityHidden(true)
 
             VStack(alignment: .leading, spacing: 4) {
-                Text(wallet.chain.displayName)
-                    .font(.headline)
-                    .foregroundStyle(isZeroBalance ? HorcruxTheme.subtleText : .white)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.85)
+                HStack(spacing: 6) {
+                    Text(wallet.chain.displayName)
+                        .font(.headline)
+                        .foregroundStyle(isZeroBalance ? HorcruxTheme.subtleText : .white)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.85)
+                    if let badge = appState.networkConfig.testnetBadge(for: wallet.chain) {
+                        TestnetBadge(text: badge, compact: true)
+                    }
+                }
 
                 if !hideAddress {
                     Text(shortAddress(wallet.address))
@@ -1325,8 +1330,13 @@ struct WalletDetailView: View {
                     .accessibilityHint(L10n.WalletDetail.copiesAddressHint)
                     .accessibilityIdentifier("walletDetail_copyAddressButton")
 
-                    ShardStatusBadge(threshold: wallet.threshold, total: wallet.totalParties)
-                        .accessibilityLabel(L10n.Shards.shardThreshold(Int(wallet.threshold), Int(wallet.totalParties)))
+                    HStack(spacing: 8) {
+                        ShardStatusBadge(threshold: wallet.threshold, total: wallet.totalParties)
+                            .accessibilityLabel(L10n.Shards.shardThreshold(Int(wallet.threshold), Int(wallet.totalParties)))
+                        if let badge = appState.networkConfig.testnetBadge(for: wallet.chain) {
+                            TestnetBadge(text: badge)
+                        }
+                    }
                 }
                 .frame(maxWidth: .infinity)
                 .tintedGlassCard(color: wallet.chain.color, padding: 24)
@@ -2243,5 +2253,30 @@ struct PortfolioBreakdownSheet: View {
         .tintedGlassCard(color: slice.chain.color, padding: 14)
         .accessibilityElement(children: .combine)
         .accessibilityLabel("\(slice.chain.displayName): \(Self.fiatFormatter.string(from: NSNumber(value: slice.usdValue)) ?? ""), \(String(format: "%.1f", pct * 100)) percent of portfolio")
+    }
+}
+
+/// Small amber capsule rendered next to a chain/wallet label when the
+/// current network selection is a testnet / devnet. Keeps the visual
+/// language separate from the shard-status pill (which is tinted
+/// per-chain) so users can't confuse "shards OK" with "real money".
+struct TestnetBadge: View {
+    let text: String
+    var compact: Bool = false
+
+    var body: some View {
+        HStack(spacing: 4) {
+            Image(systemName: "flask.fill")
+                .font(compact ? .system(size: 9, weight: .bold) : .caption2.weight(.bold))
+            Text(text)
+                .font(compact ? .system(size: 10, weight: .semibold) : .caption.weight(.semibold))
+                .lineLimit(1)
+        }
+        .foregroundStyle(Color.orange)
+        .padding(.horizontal, compact ? 6 : 10)
+        .padding(.vertical, compact ? 2 : 4)
+        .background(Color.orange.opacity(0.16), in: Capsule())
+        .overlay(Capsule().stroke(Color.orange.opacity(0.35), lineWidth: 0.5))
+        .accessibilityLabel("\(text) testnet")
     }
 }

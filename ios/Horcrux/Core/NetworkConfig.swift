@@ -351,6 +351,34 @@ final class NetworkConfig: ObservableObject, @unchecked Sendable {
         applyPreset(.mainnet)
     }
 
+    /// Short testnet badge for a given chain, or nil when the current
+    /// network selection for that chain is mainnet.
+    ///
+    /// Used by wallet UI (list rows + detail hero) so users can tell at
+    /// a glance whether they're looking at real-value funds. Labels stay
+    /// short so they fit in a capsule next to the chain name. For EVM
+    /// chains other than Ethereum (Polygon, Base, Arbitrum, Optimism,
+    /// BNB, Avalanche, zkSync Era, Linea, Scroll) we only have a single
+    /// mainnet wiring today, so this returns nil. Litecoin/Tron detect
+    /// testnet purely from the API URL (no dedicated flag).
+    func testnetBadge(for chain: Chain) -> String? {
+        switch chain {
+        case .ethereum:
+            return EVMNetwork(rawValue: evmChainId) == .sepolia ? "Sepolia" : nil
+        case .bitcoin:
+            return btcTestnet ? "Testnet" : nil
+        case .litecoin:
+            return litecoinAPI.lowercased().contains("testnet") ? "Testnet" : nil
+        case .solana:
+            return solDevnet ? "Devnet" : nil
+        case .tron:
+            let api = tronAPI.lowercased()
+            return (api.contains("shasta") || api.contains("nile")) ? "Shasta" : nil
+        default:
+            return nil
+        }
+    }
+
     /// Apply a named network preset (mainnet or testnet).
     func applyPreset(_ preset: NetworkPreset) {
         ethereumRPC = preset.ethereumRPC
