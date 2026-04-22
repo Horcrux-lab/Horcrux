@@ -1446,6 +1446,10 @@ final class SigningViewModel: ObservableObject {
                         }
                         Haptics.success()
                         step = .complete
+                        if let sid = sessionId,
+                           let queued = ApprovalRequestStore.shared.pendingRequest(forSessionId: sid) {
+                            ApprovalRequestStore.shared.resolve(id: queued.id, as: .approved)
+                        }
                         return
                     }
                 }
