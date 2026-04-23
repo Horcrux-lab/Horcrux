@@ -1129,7 +1129,43 @@ mod tests {
         );
     }
 
-    // ----- bool / bytes / bytesN / signed-int code paths -----------
+    /// Exercises `salt: bytes32` as a 5th field in the domain
+    /// separator — the rarest but spec-permitted domain field.
+    /// Cross-verified against ethers.js v6.
+    #[test]
+    fn domain_with_salt_bytes32() {
+        let json = r#"{
+            "types": {
+                "EIP712Domain": [
+                    {"name":"name","type":"string"},
+                    {"name":"chainId","type":"uint256"},
+                    {"name":"verifyingContract","type":"address"},
+                    {"name":"salt","type":"bytes32"}
+                ],
+                "Order": [
+                    {"name":"user","type":"address"},
+                    {"name":"amount","type":"uint256"}
+                ]
+            },
+            "primaryType": "Order",
+            "domain": {
+                "name": "X",
+                "chainId": 1,
+                "verifyingContract": "0xCcCCccccCCCCcCCCCCCcCcCccCcCCCcCcccccccC",
+                "salt": "0xabcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789"
+            },
+            "message": {
+                "user": "0xCD2a3d9F938E13CD947Ec05AbC7FE734Df8DD826",
+                "amount": "42"
+            }
+        }"#;
+        let d = eip712_digest_from_typed_data_json(json).unwrap();
+        // Cross-verified against ethers.js v6 TypedDataEncoder.hash().
+        assert_eq!(
+            hex(&d),
+            "a721afd649edbb8aaf1d2c6c89629ce844b3ae401205873e0e766ba74c97a5a2"
+        );
+    }
 
     /// DAI mainnet Permit — uses `allowed: bool` instead of
     /// `value: uint256`, exercising the bool encoding path (not

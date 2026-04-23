@@ -1387,4 +1387,93 @@ mod tests {
         assert!(!st.access_token.is_empty());
         assert!(!st.room_id.is_empty());
     }
+
+    // ---- horcrux_eip712_digest_from_typed_data FFI roundtrip ----
+
+    #[test]
+    fn test_ffi_eip712_typed_data_happy_path() {
+        // Canonical EIP-712 §5 Mail vector. The FFI export must
+        // produce the same bytes as the underlying pure-Rust helper,
+        // wrapped as `Vec<u8>` of length 32. This guards against
+        // accidental encoding changes at the FFI boundary (e.g.
+        // returning hex instead of raw bytes).
+        let json = r#"{
+            "types": {
+                "EIP712Domain": [
+                    {"name":"name","type":"string"},
+                    {"name":"version","type":"string"},
+                    {"name":"chainId","type":"uint256"},
+                    {"name":"verifyingContract","type":"address"}
+                ],
+                "Person": [
+                    {"name":"name","type":"string"},
+                    {"name":"wallet","type":"address"}
+                ],
+                "Mail": [
+                    {"name":"from","type":"Person"},
+                    {"name":"to","type":"Person"},
+                    {"name":"contents","type":"string"}
+                ]
+            },
+            "primaryType": "Mail",
+            "domain": {
+                "name": "Ether Mail",
+                "version": "1",
+                "chainId": 1,
+                "verifyingContract": "0xCcCCccccCCCCcCCCCCCcCcCccCcCCCcCcccccccC"
+            },
+            "message": {
+                "from": {"name":"Cow","wallet":"0xCD2a3d9F938E13CD947Ec05AbC7FE734Df8DD826"},
+                "to":   {"name":"Bob","wallet":"0xbBbBBBBbbBBBbbbBbbBbbbbBBbBbbbbBbBbbBBbB"},
+                "contents": "Hello, Bob!"
+            }
+        }"#;
+        let out = horcrux_eip712_digest_from_typed_data(json.to_string())
+            .expect("canonical spec vector must succeed");
+        assert_eq!(out.len(), 32, "FFI must return 32 raw bytes");
+        // Canonical EIP-712 spec digest, cross-verified against
+        // ethers.js v6 TypedDataEncoder.hash.
+        let hex: String = out.iter().map(|b| format!("{b:02x}")).collect();
+        assert_eq!(
+            hex,
+            "be609aee343fb3c4b28e1df9e632fca64fcfaede20f02e86244efddf30957bd2"
+        );
+    }
+
+    #[test]
+    fn test_ffi_eip712_typed_data_rejects_zero_chain_id() {
+        // Audit H8: zero chainId must be rejected identically on the
+        // FFI-bound path. Verifies the error surfaces as
+        // ChainError (not a panic).
+        let json = r#"{
+            "types": {
+                "EIP712Domain": [
+                    {"name":"name","type":"string"},
+                    {"name":"chainId","type":"uint256"},
+                    {"name":"verifyingContract","type":"address"}
+                ],
+                "Tx": [{"name":"amount","type":"uint256"}]
+            },
+            "primaryType": "Tx",
+            "domain": {"name":"X","chainId":0,"verifyingContract":"0xCcCCccccCCCCcCCCCCCcCcCccCcCCCcCcccccccC"},
+            "message": {"amount":"1"}
+        }"#;
+        let err = horcrux_eip712_digest_from_typed_data(json.to_string())
+            .expect_err("chain_id=0 must be rejected");
+        let msg = format!("{err:?}");
+        assert!(
+            msg.to_ascii_lowercase().contains("chain"),
+            "unexpected error: {msg}"
+        );
+    }
+
+    #[test]
+    fn test_ffi_eip712_typed_data_rejects_malformed_json() {
+        // Arbitrary garbage must return an Err — the FFI must never
+        // panic and crash the iOS host process.
+        let err = horcrux_eip712_digest_from_typed_data("not json {{{".to_string())
+            .expect_err("malformed JSON must be rejected");
+        let msg = format!("{err:?}");
+        assert!(!msg.is_empty());
+    }
 }
