@@ -9,6 +9,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security
 
+- **EIP-712 address fields — EIP-55 checksum validation**.
+  `chain::eip712_typed::parse_address` now validates the EIP-55
+  checksum when the input address has mixed case. All-lowercase
+  and all-uppercase inputs are still accepted as "unchecked"
+  (spec-compliant), but a mixed-case string with a wrong checksum
+  byte — the signature of a copy-paste typo — is now rejected with
+  `EIP-55 checksum mismatch`. Without this, a single-nibble typo
+  in a WalletConnect-sourced address silently decodes to a valid
+  (but unintended) 20-byte recipient, and the signed EIP-712 digest
+  binds the transaction to the wrong party. 4 new tests cover the
+  accept / reject matrix. 18/18 `chain::eip712_typed` tests pass.
+
 - **EIP-712 typed-data helper — Seaport-style regression vector**.
   Added a dynamic-array-of-struct regression test to
   `chain::eip712_typed` exercising `OfferItem[]` + `ConsiderationItem[]`

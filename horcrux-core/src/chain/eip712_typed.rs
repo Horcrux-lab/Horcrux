@@ -234,7 +234,53 @@ fn parse_address(v: &Value, ctx: &str) -> Result<[u8; 20], ChainError> {
     let raw = hex_decode(hex).map_err(|e| ChainError::Other(format!("{ctx}: {e}")))?;
     let mut out = [0u8; 20];
     out.copy_from_slice(&raw);
+
+    // EIP-55 checksum validation: when the input has *mixed* case
+    // (i.e. the dApp / WalletConnect client explicitly encoded the
+    // checksum) we MUST verify it. A single-character typo in a
+    // mixed-case address silently decodes to a valid 20-byte address
+    // under pure hex decoding — the digest would then bind the
+    // signature to the wrong recipient. All-lowercase and all-
+    // uppercase inputs are accepted as-is (spec: "no checksum
+    // information").
+    let has_upper = hex.bytes().any(|b| b.is_ascii_uppercase());
+    let has_lower = hex.bytes().any(|b| (b'a'..=b'f').contains(&b));
+    if has_upper && has_lower && !eip55_matches(&out, hex) {
+        return Err(ChainError::Other(format!(
+            "{ctx}: EIP-55 checksum mismatch (address was given with \
+             mixed case but the checksum does not match; check for typos)"
+        )));
+    }
     Ok(out)
+}
+
+/// EIP-55 checksum check. Returns true iff the case pattern of
+/// `input_hex` (40 lowercase/uppercase hex chars, no `0x` prefix)
+/// matches the canonical EIP-55 case of `addr`.
+fn eip55_matches(addr: &[u8; 20], input_hex: &str) -> bool {
+    // Canonical address is the *lowercase* hex of the 20 bytes.
+    let lowered: String = addr.iter().map(|b| format!("{b:02x}")).collect();
+    let hash = keccak256(lowered.as_bytes());
+    // For each nibble position i in 0..40, the canonical case is
+    // uppercase iff the i-th nibble of `hash` is >= 8.
+    let hash_bytes = &hash[..];
+    for (i, (in_ch, low_ch)) in input_hex.bytes().zip(lowered.bytes()).enumerate() {
+        let nibble = if i & 1 == 0 {
+            hash_bytes[i / 2] >> 4
+        } else {
+            hash_bytes[i / 2] & 0x0f
+        };
+        // Non-alpha nibbles (0-9) have no case — pass through.
+        let canonical = if low_ch.is_ascii_alphabetic() && nibble >= 8 {
+            low_ch.to_ascii_uppercase()
+        } else {
+            low_ch
+        };
+        if in_ch != canonical {
+            return false;
+        }
+    }
+    true
 }
 
 fn hex_decode(s: &str) -> Result<Vec<u8>, String> {
@@ -745,7 +791,7 @@ mod tests {
             "from": {"name":"Cow","wallet":"0xCD2a3d9F938E13CD947Ec05AbC7FE734Df8DD826"},
             "to": [
               {"name":"Bob","wallet":"0xbBbBBBBbbBBBbbbBbbBbbbbBBbBbbbbBbBbbBBbB"},
-              {"name":"Alice","wallet":"0xAaAaaAaAAaAAAAAAaAaaaAAAAAAaaaAAaAaAaAaA"}
+              {"name":"Alice","wallet":"0xaAaAaAaaAaAaAaaAaAAAAAAAAaaaAaAaAaaAaaAa"}
             ],
             "contents": "Hello!"
           }
@@ -1011,6 +1057,75 @@ mod tests {
         assert_eq!(
             s,
             "PermitSingle(PermitDetails details,address spender,uint256 sigDeadline)PermitDetails(address token,uint160 amount,uint48 expiration,uint48 nonce)"
+        );
+    }
+
+    // ----- EIP-55 checksum validation on address fields ----------
+
+    fn mk_permit_json_with_owner(owner_hex: &str) -> String {
+        format!(
+            r#"{{
+                "types": {{
+                    "EIP712Domain": [
+                        {{"name":"name","type":"string"}},
+                        {{"name":"version","type":"string"}},
+                        {{"name":"chainId","type":"uint256"}},
+                        {{"name":"verifyingContract","type":"address"}}
+                    ],
+                    "Permit": [
+                        {{"name":"owner","type":"address"}},
+                        {{"name":"value","type":"uint256"}}
+                    ]
+                }},
+                "primaryType": "Permit",
+                "domain": {{
+                    "name": "X", "version": "1", "chainId": 1,
+                    "verifyingContract": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48"
+                }},
+                "message": {{ "owner": "{owner_hex}", "value": "1" }}
+            }}"#
+        )
+    }
+
+    #[test]
+    fn eip55_canonical_address_accepted() {
+        // Canonical EIP-55 form of a well-known address.
+        let canonical = "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed";
+        eip712_digest_from_typed_data_json(&mk_permit_json_with_owner(canonical))
+            .expect("canonical EIP-55 form must be accepted");
+    }
+
+    #[test]
+    fn eip55_all_lowercase_accepted() {
+        // All-lowercase: spec says "no checksum information", accept.
+        let lowered = "0x5aaeb6053f3e94c9b9a09f33669435e7ef1beaed";
+        eip712_digest_from_typed_data_json(&mk_permit_json_with_owner(lowered))
+            .expect("all-lowercase address must be accepted");
+    }
+
+    #[test]
+    fn eip55_all_uppercase_accepted() {
+        let upper = "0x5AAEB6053F3E94C9B9A09F33669435E7EF1BEAED";
+        eip712_digest_from_typed_data_json(&mk_permit_json_with_owner(upper))
+            .expect("all-uppercase address must be accepted");
+    }
+
+    #[test]
+    fn eip55_mixed_case_typo_rejected() {
+        // Flip one nibble's case from the canonical form — a typical
+        // copy-paste typo. Must be rejected so the user doesn't sign
+        // a digest binding to an unintended (but valid) recipient.
+        // Canonical:  0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed
+        // Corrupted:  0x5aaEb6053F3E94C9b9A09f33669435E7Ef1BeAed  ('A' -> 'a')
+        let bad = "0x5aaeB6053F3E94C9b9A09f33669435E7Ef1BeAed";
+        let err = eip712_digest_from_typed_data_json(&mk_permit_json_with_owner(bad))
+            .expect_err("mixed-case address with bad EIP-55 checksum must be rejected");
+        let ChainError::Other(m) = err else {
+            panic!("unexpected error variant");
+        };
+        assert!(
+            m.contains("EIP-55 checksum mismatch"),
+            "unexpected error message: {m}"
         );
     }
 }
