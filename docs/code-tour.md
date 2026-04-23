@@ -180,7 +180,7 @@ with four entry points, each paired with a matching fast-CI proptest:
 | `evm_calldata` | `chain::evm::prop_tests::prop_decode_evm_calldata_never_panics` | UI previews attacker-supplied tx calldata |
 | `shard_decrypt` | `shard::crypto::prop_tests::{prop_roundtrip_any_inputs, prop_wrong_pin_rejected}` | Malformed backup import |
 | `noise_handshake` | `transport::e2e::prop_tests::prop_read_handshake_never_panics` | Network-delivered handshake bytes |
-| `mpc_payload` | `mpc::prop_tests` (9 parsers: Schnorr + Feldman DKG + FROST + CGGMP21) | Peer-delivered MPC wire payloads during keygen/signing |
+| `mpc_payload` | `mpc::prop_tests` (9 parsers: Schnorr + Feldman DKG + FROST + CGGMP21) + `mpc::session::prop_tests` (routing, C1 identity guard, `MpcMessage` roundtrip) | Peer-delivered MPC wire payloads and session-router entry point |
 
 Proptests (256–512 cases each) run under every `cargo test`; the fuzz
 targets require `cargo install cargo-fuzz` + `rustup toolchain install

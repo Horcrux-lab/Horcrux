@@ -9,6 +9,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security
 
+- **MPC session-router robustness** (round 19). New
+  `mpc::session::prop_tests` module with three properties
+  (256 cases each) on `SessionManager`:
+    - `prop_unknown_session_is_routing_error` — any arbitrary
+      `MpcMessage` against a fresh manager must surface as
+      `SessionError("unknown session: ...")`, never a panic and
+      never a stray `Ok`.
+    - `prop_identity_mismatch_rejected` — `handle_authenticated_message`
+      must reject any claimed `msg.from ≠ authenticated_from` with
+      `ProtocolError("sender identity mismatch: ...")` before any
+      routing happens (audit finding **C1** guard).
+    - `prop_mpc_message_roundtrip` — `MpcMessage` survives a JSON
+      serde round-trip for every well-formed value; asymmetry here
+      would brick cross-device signing.
+
 - **MPC wire-payload robustness** (round 19). Added nine per-type
   proptests in `mpc::prop_tests` covering every attacker-reachable
   `serde_json::from_slice` call along the signing / keygen message

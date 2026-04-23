@@ -370,3 +370,102 @@ mod tests {
         }
     }
 }
+
+/// Property-based robustness tests for the session router.
+///
+/// `dispatch_message` is the first entry point peer bytes hit after the
+/// Noise E2E channel decrypts them. Even before per-protocol payload
+/// parsers run, an attacker can ship wildly malformed `MpcMessage`
+/// envelopes (unknown `session_id`, spoofed `from`, absurd `round`
+/// numbers, empty / giant payloads). The router must degrade gracefully
+/// — unknown sessions return `SessionError`, identity mismatches return
+/// `ProtocolError`, everything else falls through to the protocol
+/// layer which has its own panic-free proptests (`mpc::prop_tests`).
+///
+/// Round 19 hardening.
+#[cfg(test)]
+mod prop_tests {
+    use super::{MpcMessage, SessionManager};
+    use crate::mpc::MpcError;
+    use proptest::prelude::*;
+
+    fn arb_message() -> impl Strategy<Value = MpcMessage> {
+        (
+            any::<u16>(),
+            any::<u16>(),
+            any::<u32>(),
+            "[a-zA-Z0-9_-]{0,40}",
+            proptest::collection::vec(any::<u8>(), 0..2048),
+        )
+            .prop_map(|(from, to, round, session_id, payload)| MpcMessage {
+                from,
+                to,
+                round,
+                session_id,
+                payload,
+            })
+    }
+
+    proptest! {
+        #![proptest_config(ProptestConfig { cases: 256, .. ProptestConfig::default() })]
+
+        /// With no sessions registered, every message the router sees
+        /// must surface as `SessionError("unknown session: ...")` — never
+        /// a panic, never a stray `Ok`.
+        #[test]
+        fn prop_unknown_session_is_routing_error(msg in arb_message()) {
+            let mut mgr = SessionManager::new();
+            let expected_id = msg.session_id.clone();
+            match mgr.handle_message(msg) {
+                Err(MpcError::SessionError(s)) => {
+                    prop_assert!(
+                        s.contains(&expected_id) || expected_id.is_empty(),
+                        "error should mention the unknown session id, got: {}",
+                        s
+                    );
+                }
+                other => prop_assert!(false, "expected SessionError, got {:?}", other),
+            }
+        }
+
+        /// `handle_authenticated_message` rejects identity spoofing
+        /// before any routing happens. When the claimed `msg.from`
+        /// disagrees with the Noise-authenticated peer identity, we
+        /// must see `ProtocolError("sender identity mismatch: ...")`
+        /// no matter what payload the attacker chose.
+        #[test]
+        fn prop_identity_mismatch_rejected(
+            msg in arb_message(),
+            auth_delta in 1u16..=256u16,
+        ) {
+            let mut mgr = SessionManager::new();
+            let authenticated_from = msg.from.wrapping_add(auth_delta);
+            match mgr.handle_authenticated_message(msg, authenticated_from) {
+                Err(MpcError::ProtocolError(s)) => {
+                    prop_assert!(
+                        s.contains("sender identity mismatch"),
+                        "expected identity-mismatch error, got: {}",
+                        s
+                    );
+                }
+                other => prop_assert!(false, "expected ProtocolError, got {:?}", other),
+            }
+        }
+
+        /// `MpcMessage` must survive a serde round-trip for any
+        /// well-formed value. This is the wire format the iOS host
+        /// builds before Noise encryption and the receiver reads after
+        /// Noise decryption — a serde asymmetry would brick cross-
+        /// device signing in a way unit tests would miss.
+        #[test]
+        fn prop_mpc_message_roundtrip(msg in arb_message()) {
+            let bytes = serde_json::to_vec(&msg).expect("serialize");
+            let back: MpcMessage = serde_json::from_slice(&bytes).expect("deserialize");
+            prop_assert_eq!(back.from, msg.from);
+            prop_assert_eq!(back.to, msg.to);
+            prop_assert_eq!(back.round, msg.round);
+            prop_assert_eq!(&back.session_id, &msg.session_id);
+            prop_assert_eq!(&back.payload, &msg.payload);
+        }
+    }
+}

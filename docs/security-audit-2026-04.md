@@ -70,6 +70,9 @@ The in-loop `switch` in every call-site delegates to the pure function and prese
 
 This was the single most important finding in this audit.
 
+**Round 19 close-out — Rust-side router proptest (✅)**:
+The C1 identity guard on the Rust side (`SessionManager::handle_authenticated_message` in `horcrux-core/src/mpc/session.rs`) is now covered by a 256-case proptest (`mpc::session::prop_tests::prop_identity_mismatch_rejected`) that asserts: for any arbitrary `MpcMessage` and any non-zero `authenticated_from` delta, the router must return `ProtocolError("sender identity mismatch: ...")` before dispatching to any protocol handler. Paired with the pre-existing `test_authenticated_message_rejects_impersonation` unit test, this closes the branch-coverage gap on the Rust half of the bilateral C1 gate.
+
 ### C2 — iOS PIN string not zeroized in memory ✅
 **Location**: `ios/Horcrux/Security/SecureKeyVault.swift:109`
 (`unwrapWithPin(_ pin: String)`) and the entire SWK-unwrap call chain.
