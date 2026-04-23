@@ -806,3 +806,59 @@ mod tests {
         assert!(result.is_ok());
     }
 }
+
+/// Property-based robustness tests for the relay's wire-facing JSON
+/// parser.
+///
+/// `ws::inbound_message` calls `serde_json::from_slice::<RoomMessage>`
+/// on every inbound WebSocket frame (after size + rate-limit gates).
+/// The relay deliberately can't read the `payload` field (it's
+/// Noise-ciphertext-base64 from the client's perspective) but the
+/// envelope itself is attacker-controlled and must not panic the
+/// relay process — a crashing relay would drop every other
+/// concurrent room's ceremony.
+///
+/// Round 19 hardening (relay side). Paired with core-side
+/// `mpc::prop_tests` / `mpc::session::prop_tests`.
+#[cfg(test)]
+mod prop_tests {
+    use super::RoomMessage;
+    use proptest::prelude::*;
+
+    proptest! {
+        #![proptest_config(ProptestConfig { cases: 256, .. ProptestConfig::default() })]
+
+        /// Arbitrary bytes through the wire parser must not panic. A
+        /// panic inside axum's message handler aborts the task and can
+        /// poison a mutex or leave a half-joined room behind — the
+        /// only hard invariant here is "never panic, return Err
+        /// instead".
+        #[test]
+        fn prop_room_message_decode_never_panics(
+            bytes in proptest::collection::vec(any::<u8>(), 0..4096),
+        ) {
+            let _ = serde_json::from_slice::<RoomMessage>(&bytes);
+        }
+
+        /// Any well-formed RoomMessage must survive a JSON round-trip
+        /// unchanged. Asymmetry here would silently corrupt relayed
+        /// Noise ciphertexts — the peer's session would fail to
+        /// handshake but the relay would report nothing because it
+        /// never decodes the payload itself.
+        #[test]
+        fn prop_room_message_roundtrip(
+            from in "[a-zA-Z0-9_-]{0,64}",
+            to in "[a-zA-Z0-9_-]{0,64}",
+            payload in "[A-Za-z0-9+/=]{0,1024}",
+            seq in any::<u64>(),
+        ) {
+            let msg = RoomMessage { from: from.clone(), to: to.clone(), payload: payload.clone(), seq };
+            let bytes = serde_json::to_vec(&msg).expect("serialize");
+            let back: RoomMessage = serde_json::from_slice(&bytes).expect("deserialize");
+            prop_assert_eq!(&back.from, &from);
+            prop_assert_eq!(&back.to, &to);
+            prop_assert_eq!(&back.payload, &payload);
+            prop_assert_eq!(back.seq, seq);
+        }
+    }
+}

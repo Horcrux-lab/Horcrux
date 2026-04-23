@@ -9,6 +9,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security
 
+- **Relay `RoomMessage` wire-parser robustness** (round 19).
+  New `horcrux_relay::room::prop_tests` module (256 cases each):
+    - `prop_room_message_decode_never_panics` — arbitrary byte
+      inputs (≤ 4 KiB) through `serde_json::from_slice::<RoomMessage>`
+      must not panic. A panic inside the axum message handler
+      aborts the task and can poison a mutex or orphan a
+      half-joined room, so a crashing relay would drop every
+      other concurrent room's ceremony.
+    - `prop_room_message_roundtrip` — any well-formed
+      `RoomMessage` survives a JSON round-trip unchanged;
+      asymmetry here would silently corrupt relayed Noise
+      ciphertexts. `proptest = "1"` added as a relay
+      dev-dependency.
+
 - **MPC session-router robustness** (round 19). New
   `mpc::session::prop_tests` module with three properties
   (256 cases each) on `SessionManager`:
