@@ -812,3 +812,82 @@ mod tests {
         assert!(verify_utxo_provenance(&input, &raw, 0).is_err());
     }
 }
+
+/// Property-based robustness tests for the Bitcoin UTXO-amount
+/// verifier (audit finding H9).
+///
+/// `verify_utxo_provenance` is called with `prev_tx_raw` bytes sourced
+/// from an external block explorer API — an attacker who can MITM or
+/// phish the RPC endpoint controls these bytes directly. Any panic
+/// inside the parser (slice OOB, arithmetic overflow, alloc blowup)
+/// would crash the iOS host during PSBT import and hand the attacker
+/// a cheap DoS primitive. The only invariant enforced here is
+/// "never panic"; structurally invalid inputs must surface as
+/// `Err(ChainError)`.
+///
+/// Round 19 hardening. Companion to the core-side MPC-parser
+/// coverage.
+#[cfg(test)]
+mod prop_tests {
+    use super::{verify_utxo_provenance, BtcInput};
+    use proptest::prelude::*;
+
+    proptest! {
+        #![proptest_config(ProptestConfig { cases: 512, ..ProptestConfig::default() })]
+
+        /// Arbitrary bytes through `verify_utxo_provenance` must not
+        /// panic. Most inputs will fail txid-match and return early;
+        /// a minority will have a coincidentally matching computed
+        /// txid (within the 2^-256 collision bound on random bytes)
+        /// and reach `extract_output_value`, where the varint /
+        /// output-count / value / script-len parsers all need to be
+        /// panic-free too. To force coverage of the second path, we
+        /// also test the branch where the caller pre-computes the
+        /// txid — that's what `prop_matching_txid_never_panics`
+        /// exercises below.
+        #[test]
+        fn prop_arbitrary_raw_never_panics(
+            raw in prop::collection::vec(any::<u8>(), 0..4096),
+            vout in any::<u32>(),
+            value in any::<u64>(),
+            claimed_txid in "[0-9a-f]{64}",
+        ) {
+            let input = BtcInput {
+                txid: claimed_txid,
+                vout,
+                value,
+                pubkey_hash: None,
+                prev_tx_raw: None,
+            };
+            let _ = verify_utxo_provenance(&input, &raw, 0);
+        }
+
+        /// Force the `extract_output_value` path by computing the
+        /// correct txid for the fuzzed bytes, so the varint/output
+        /// parsing code is actually reached rather than short-
+        /// circuited on txid mismatch. This is also the realistic
+        /// attacker path: they control both the bytes *and* the
+        /// PSBT's claimed txid string, and the relay/explorer is
+        /// untrusted.
+        #[test]
+        fn prop_matching_txid_never_panics(
+            raw in prop::collection::vec(any::<u8>(), 0..4096),
+            vout in any::<u32>(),
+            value in any::<u64>(),
+        ) {
+            use sha2::{Digest, Sha256};
+            let inner = Sha256::digest(Sha256::digest(&raw));
+            let mut txid_bytes = inner.to_vec();
+            txid_bytes.reverse();
+            let txid = hex::encode(&txid_bytes);
+            let input = BtcInput {
+                txid,
+                vout,
+                value,
+                pubkey_hash: None,
+                prev_tx_raw: None,
+            };
+            let _ = verify_utxo_provenance(&input, &raw, 0);
+        }
+    }
+}

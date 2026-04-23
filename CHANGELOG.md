@@ -9,6 +9,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security
 
+- **Bitcoin UTXO-amount verifier robustness** (round 19).
+  `chain::bitcoin::prop_tests` — two 512-case properties over
+  `verify_utxo_provenance` (audit finding H9). `prop_arbitrary_raw_never_panics`
+  fuzzes `prev_tx_raw` bytes with an independent random claimed
+  txid (short-circuit path). `prop_matching_txid_never_panics`
+  pre-computes the correct txid for the fuzzed bytes to force
+  the `extract_output_value` varint / output-count / script-len
+  parsers onto the hot path — panicing there would crash the iOS
+  host during PSBT import.
+
+- **Shard-encryption single-byte tamper coverage** (round 19).
+  New `shard::crypto::prop_tests::prop_single_byte_tamper_rejected`
+  (256 cases) flips a single byte at a randomized position in
+  `ciphertext`, `nonce`, or `salt` and asserts decrypt fails.
+  Extends the existing mid-ciphertext unit test to the full
+  `(field × offset × bit_mask)` space — a regression that stops
+  binding `salt` into the HKDF output would be caught immediately.
+
 - **Relay `RoomMessage` wire-parser robustness** (round 19).
   New `horcrux_relay::room::prop_tests` module (256 cases each):
     - `prop_room_message_decode_never_panics` — arbitrary byte

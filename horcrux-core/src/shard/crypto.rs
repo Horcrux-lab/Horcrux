@@ -254,5 +254,52 @@ mod prop_tests {
             prop_assert_ne!(&e1.salt, &e2.salt);
             prop_assert_ne!(&e1.ciphertext, &e2.ciphertext);
         }
+
+        /// AES-GCM authenticates every byte of ciphertext + nonce + salt
+        /// (salt is mixed into HKDF output that keys the cipher). Any
+        /// single-byte flip at any position must cause MAC failure on
+        /// decrypt. Unit test `test_ciphertext_tamper_rejected` covers
+        /// one mid-ciphertext flip; this property sweeps the whole
+        /// `(field, byte_index, bit_mask)` space to catch an authenticity
+        /// regression — e.g. a future refactor that accidentally stops
+        /// binding the salt to the derived key.
+        #[test]
+        fn prop_single_byte_tamper_rejected(
+            plaintext in prop::collection::vec(any::<u8>(), 1..128),
+            device_key in prop::collection::vec(any::<u8>(), 16..32),
+            pin in prop::collection::vec(any::<u8>(), 4..16),
+            field_sel in 0u8..3,
+            bit_mask in 1u8..=255,
+            offset_seed in any::<usize>(),
+        ) {
+            let enc = encrypt_shard(&plaintext, &device_key, &pin).unwrap();
+            let mut tampered = enc.clone();
+            match field_sel {
+                0 => {
+                    let len = tampered.ciphertext.len();
+                    if len == 0 { return Ok(()); }
+                    let idx = offset_seed % len;
+                    tampered.ciphertext[idx] ^= bit_mask;
+                }
+                1 => {
+                    let len = tampered.nonce.len();
+                    if len == 0 { return Ok(()); }
+                    let idx = offset_seed % len;
+                    tampered.nonce[idx] ^= bit_mask;
+                }
+                _ => {
+                    let len = tampered.salt.len();
+                    if len == 0 { return Ok(()); }
+                    let idx = offset_seed % len;
+                    tampered.salt[idx] ^= bit_mask;
+                }
+            }
+            prop_assert!(
+                decrypt_shard(&tampered, &device_key, &pin).is_err(),
+                "single-byte tamper must fail decrypt (field_sel={}, mask={:#04x})",
+                field_sel,
+                bit_mask
+            );
+        }
     }
 }
