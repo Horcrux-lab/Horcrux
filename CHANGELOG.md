@@ -9,6 +9,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security
 
+- **cargo-deny supply-chain CI gate**.
+  New `deny.toml` + `.github/workflows/cargo-deny.yml` workflow adds
+  four supply-chain checks that run on every push / PR and weekly
+  via cron:
+    - `advisories` — RustSec CVE gate (ignore list mirrors the
+      existing `cargo audit` justifications + adds RUSTSEC-2023-0089
+      for `atomic-polyfill` unmaintained: sound on our targets,
+      clears on frost-core → heapless 0.8 bump).
+    - `licenses` — MIT-compatible allow-list (includes LGPL-3.0
+      with a written justification for `gmp-mpfr-sys` / `rug` used
+      via cggmp21 Paillier ZK — dynamic-linked, no modifications).
+    - `bans` — duplicate + wildcard gate (workspace path deps
+      allowed via `allow-wildcard-paths`).
+    - `sources` — only crates.io + explicit allowed git remotes.
+  Verified locally: `cargo deny check` → `advisories ok, bans ok,
+  licenses ok, sources ok`.
+- **`uniffi-bindgen` crate — explicit license**.
+  Added `license = "MIT"` + `publish = false` to the workspace
+  member's `Cargo.toml` so the license gate passes and the crate
+  can never be accidentally published to crates.io.
+
+### Security
+
 - **EIP-712 helper — 1inch Limit Order Protocol v3 vector**.
   `chain::eip712_typed::tests::oneinch_limit_order_v3` covers the
   Aggregation Router v5 (`0x1111111254EEB25477B68fb85Ed929f73A960582`)
