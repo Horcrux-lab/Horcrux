@@ -1,0 +1,67 @@
+name: cargo-audit
+
+# Daily RUSTSEC advisory scan — complements cargo-deny's weekly
+# full check with same-day detection of newly-published CVEs.
+# cargo-deny still owns bans / licenses / sources; this job is
+# advisories-only and failing it means a dependency has an open
+# security advisory that MUST be addressed before the next release.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "**/Cargo.toml"
+      - "**/Cargo.lock"
+      - ".github/workflows/cargo-audit.yml"
+  pull_request:
+    branches: [main]
+    paths:
+      - "**/Cargo.toml"
+      - "**/Cargo.lock"
+      - ".github/workflows/cargo-audit.yml"
+  schedule:
+    # 05:23 UTC every day — offset from cargo-deny's Monday 06:17 to
+    # avoid thundering-herd on GH runners.
+    - cron: "23 5 * * *"
+
+concurrency:
+  group: cargo-audit-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  audit:
+    name: RUSTSEC advisory scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@29eef336d9b2848a0b548edc03f92a220660cdb8 # stable
+
+      - name: Cache cargo-audit install
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: ~/.cargo/bin/cargo-audit
+          key: cargo-audit-bin-v1
+
+      - name: Install cargo-audit
+        run: |
+          if ! command -v cargo-audit > /dev/null; then
+            cargo install cargo-audit --locked
+          fi
+
+      - name: Run cargo-audit
+        # Ignore list mirrors deny.toml [advisories].ignore — keep in sync.
+        # Each ID has documented rationale in deny.toml; cargo-audit uses
+        # CLI flags because it does not share deny.toml's schema.
+        run: |
+          cargo audit \
+            --ignore RUSTSEC-2025-0141 \
+            --ignore RUSTSEC-2024-0436 \
+            --ignore RUSTSEC-2026-0097 \
+            --ignore RUSTSEC-2025-0127 \
+            --ignore RUSTSEC-2023-0089

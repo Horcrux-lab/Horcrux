@@ -429,3 +429,49 @@ firm and depth tier.
 **This document is living.** Update the verification-status column
 (`✅` / `⚠️` / `❌`) as P0/P1 fixes land and as the external audit
 confirms or disputes findings.
+
+---
+
+## Round 19 — property-test hardening pass (pre-audit close-out)
+
+Round 19 shipped between `v0.5.0-rc.2` and the audit hand-off. It
+does not introduce new findings; it adds systematic property-based
+(`proptest`) coverage on every attacker-reachable entry point so
+the audit firm can focus on novel issues rather than panic-on-malformed-input
+busywork.
+
+| Wave | Surface | Property count | Cases | Commit |
+|:---:|---|:---:|:---:|---|
+| 1 | MPC wire parsers — 9 types (`SignRound1/2`, Feldman `Round1Broadcast` / `Round2Share`, `FrostDkgRound1/2`, `FrostSignRound1/2`, `EcdsaWireMsg`) | 9 | 256 each | `2823e34` |
+| 2 | `mpc::session` router — unknown-session, identity-mismatch (C1 Rust-side), MPC message round-trip | 3 | 256 each | `f97bd05` |
+| 3 | `horcrux-relay::room::RoomMessage` — decode-never-panics + round-trip | 2 | 256 each | `de9ef09` |
+| 4 | `chain::bitcoin::verify_utxo_provenance` (audit H9) — arbitrary raw + matching-txid forced onto hot path; `shard::crypto` — single-byte tamper across ciphertext/nonce/salt | 3 | 512/512/256 | `32c9207` |
+| 5 | External-audit RFP scaffold (`docs/audit-rfp/`) | — | — | `b917827` |
+| 6 | `transport::e2e` — full 3-round XX with payloads, bit-flip tamper on rounds 2–3, transport-mode ciphertext tamper | 3 | 256 each | `5e8f289` |
+| 7 | `chain::solana` — Base58 pubkey never-panics + roundtrip, builder never-panics, C5 stale-blockhash invariant | 4 | 256 each | `394e0b4` |
+| 8 | CODEOWNERS validator + `RELEASE.md` + checked-in proptest regression seeds | — | — | `fbe23d3` |
+| 9 | `chain::evm::build` — EIP-1559 RLP cross-verification vs third-party `rlp` crate | 1 | 256 | `dab2e5e` |
+| 10 | `horcrux-relay::config::validate` — zero-field rejection, ping/pong ordering, never-panics | 3 | 256 each | (this commit) |
+
+**Totals after round 19**: `horcrux-core` 173 → 196 lib tests,
+`horcrux-relay` 36 → 41 lib tests, workspace 209 → 237. Fuzz-target
+register grows from 3 to 4 harnesses (`mpc_payload` added; see
+`horcrux-core/fuzz/README.md`).
+
+**Bugs caught during round 19** (documented as test-level comments,
+not issues):
+- **Wave 6** — initial `prop_handshake_bit_flip_rejected` asserted
+  round-1 (`→ e`) tamper was immediately rejected; this is false
+  because Noise XX sends the bare ephemeral public key on round 1
+  with no AEAD MAC — any 32-byte string is a valid Curve25519 point.
+  Fix: restrict the property to rounds 2–3 (the MAC-guarded frames)
+  and document the round-1 asymmetry in the test.
+- **Wave 8** — the `scripts/validate-codeowners.sh` script flagged
+  real drift on first execution: `.github/CODEOWNERS` and
+  `docs/audit-rfp/scope.md` referenced the non-existent
+  `scripts/relay-smoke.sh`. The real script is
+  `scripts/verify-relay-deploy.sh`. Both references corrected.
+
+**No new findings were surfaced.** Round 19 is a pure quality-ratchet
+pass: any future regression in the covered surfaces now fails CI
+rather than reaching a released binary.

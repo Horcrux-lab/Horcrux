@@ -1,0 +1,105 @@
+# Dependabot configuration for Horcrux.
+#
+# Dependency PRs are reviewed by the same owners that appear in
+# `.github/CODEOWNERS` and must pass the same CI gates (`cargo test`,
+# `cargo clippy -D warnings`, `cargo-deny`, and daily `cargo-audit`).
+#
+# All ecosystems are grouped to avoid PR spam. Security updates bypass
+# the grouping and ship as individual PRs so each one can be triaged
+# and released on its own timeline.
+#
+# Commit-trailer policy (`Co-authored-by: Copilot`) does not apply to
+# dependabot — the bot commits directly and is exempt.
+
+version: 2
+updates:
+  # Workspace Cargo manifest (root) — covers horcrux-core, horcrux-relay,
+  # and uniffi-bindgen via the [workspace] definition in /Cargo.toml.
+  - package-ecosystem: "cargo"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "08:00"
+      timezone: "UTC"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+      - "rust"
+    commit-message:
+      prefix: "deps"
+      include: "scope"
+    groups:
+      patch-and-minor:
+        update-types:
+          - "minor"
+          - "patch"
+      # Paillier ZK, frost, cggmp — MPC crypto deps are high-blast-radius.
+      # Keep them ungrouped so each bump gets an individual PR + manual review.
+      mpc-crypto:
+        patterns:
+          - "cggmp*"
+          - "frost*"
+          - "k256"
+          - "generic-ec*"
+          - "paillier-zk*"
+          - "givre*"
+        update-types:
+          - "minor"
+          - "patch"
+
+  # Fuzz sub-crate — isolated cargo manifest, different dep graph (libfuzzer-sys).
+  - package-ecosystem: "cargo"
+    directory: "/horcrux-core/fuzz"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "08:00"
+      timezone: "UTC"
+    open-pull-requests-limit: 2
+    labels:
+      - "dependencies"
+      - "fuzz"
+    commit-message:
+      prefix: "deps(fuzz)"
+    groups:
+      fuzz-patch-and-minor:
+        update-types:
+          - "minor"
+          - "patch"
+
+  # GitHub Actions — keep our pinned-to-SHA third-party actions current.
+  # Dependabot preserves the `# v4` style comment when bumping the SHA.
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "08:00"
+      timezone: "UTC"
+    open-pull-requests-limit: 3
+    labels:
+      - "dependencies"
+      - "github-actions"
+    commit-message:
+      prefix: "ci"
+    groups:
+      actions-patch-and-minor:
+        update-types:
+          - "minor"
+          - "patch"
+
+  # Dockerfile + docker-compose.yml — relay image base updates.
+  - package-ecosystem: "docker"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "08:00"
+      timezone: "UTC"
+    open-pull-requests-limit: 2
+    labels:
+      - "dependencies"
+      - "docker"
+    commit-message:
+      prefix: "docker"

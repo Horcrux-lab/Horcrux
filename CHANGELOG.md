@@ -9,6 +9,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Governance
 
+- **Dependabot** (`.github/dependabot.yml`, round 19 wave 10 / L).
+  Weekly PRs every Monday 08:00 UTC for (1) the root cargo workspace
+  (grouped patch+minor; MPC-crypto crates — `cggmp*`, `frost*`,
+  `k256`, `generic-ec*`, `paillier-zk*`, `givre*` — split into their
+  own group so each blast-radius-heavy bump gets an individual PR),
+  (2) `horcrux-core/fuzz` (its own cargo-fuzz workspace), (3)
+  GitHub Actions (preserves our pinned-to-SHA style), and (4)
+  Docker images. Security advisories bypass grouping.
+
+- **`cargo-audit` CI workflow** (`.github/workflows/cargo-audit.yml`,
+  round 19 wave 10 / K). Daily 05:23 UTC RUSTSEC advisory scan,
+  complementary to the weekly `cargo-deny check advisories`. Fails
+  the build on any new CVE. Ignore-list mirrors `deny.toml`
+  `[advisories].ignore` (RUSTSEC-2025-0127 cggmp21 presignature
+  misuse — we never use presignatures; RUSTSEC-2025-0141 bincode 1
+  build-time-only via uniffi 0.28; RUSTSEC-2024-0436 paste unmaintained
+  via uniffi_core; RUSTSEC-2026-0097 rand 0.8 custom-logger
+  unsoundness — we install none; RUSTSEC-2023-0089 atomic-polyfill
+  no-op on our iOS-arm64 + Linux x86_64/arm64 targets). Verified
+  locally with `cargo audit` — 0 unignored findings on
+  `v0.5.0-rc.2` lockfile.
+
 - **CODEOWNERS validator** (`scripts/validate-codeowners.sh` + CI
   workflow `.github/workflows/codeowners.yml`). Fails the PR if any
   path-anchored rule no longer matches a path on disk or any owner
@@ -26,6 +48,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `docs/audit-rfp/`). Closes the operational **P0 #3** blocker.
 
 ### Documentation
+
+- **`docs/security-audit-2026-04.md` — Round 19 close-out section**
+  (round 19 wave 10 / J). New trailing section tabulating all 10
+  waves of the property-test hardening pass (wire parsers, session
+  router, relay RoomMessage, Bitcoin H9 / shard tamper, audit-RFP
+  scaffold, Noise XX 3-round, Solana C5 + Base58, CODEOWNERS
+  validator, EVM RLP cross-verify, relay `config::validate`) with
+  their proptest counts (1024 cases × 21 properties) and commit
+  SHAs. Documents the two test-level quirks surfaced during the
+  round: Noise XX round-1 tamper is un-detectable because `→ e` is
+  an un-MAC'd ephemeral pubkey, and the CODEOWNERS validator caught
+  `relay-smoke.sh` drift on first run. Framed explicitly as a
+  quality ratchet, not new findings.
 
 - **`RELEASE.md`** — top-level release checklist covering pre-flight
   (test/clippy/fmt/deny/build + CODEOWNERS validator + TODO sweep),
@@ -46,6 +81,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   round 18 retirement.
 
 ### Security
+
+- **`horcrux-relay::config::RelayConfig::validate` property tests**
+  (round 19 wave 10). New `prop_tests` module:
+  `prop_zero_field_always_rejected` (5 field slots × 256 cases — any
+  zero-valued limit → matching typed `ConfigError` variant),
+  `prop_ping_pong_ordering` (`ping_interval_secs > pong_timeout_secs`
+  iff `validate` succeeds), and `prop_validate_never_panics` over a
+  wide `0..=2^32` range for every numeric field. All cases force
+  `admin_token = Some(..)` so the env-var branch is never touched
+  and the tests run in parallel. +3 relay lib tests (41 → 44 under
+  future head; 38 → 41 on main).
 
 - **EVM RLP encoder cross-verification** (round 19).
   `chain::evm::prop_tests::prop_eip1559_rlp_matches_third_party`

@@ -356,3 +356,109 @@ mod tests {
         ));
     }
 }
+
+#[cfg(test)]
+mod prop_tests {
+    //! Property-based robustness for `RelayConfig::validate`.
+    //!
+    //! Does NOT exercise `from_env` — that path mutates process-wide
+    //! env vars and must stay single-threaded to avoid racing with
+    //! `config_validation_covers_admin_exposure` (which is the reason
+    //! all env-touching tests in this crate are serialised into a
+    //! single `#[test]` function).
+    //!
+    //! All properties force `admin_token = Some("x")` so validate
+    //! never falls into the env-var branch — this module runs fully
+    //! in parallel with no env-var reads.
+    use super::*;
+    use proptest::prelude::*;
+
+    fn baseline() -> RelayConfig {
+        RelayConfig {
+            admin_token: Some("test-token".to_string()),
+            ..Default::default()
+        }
+    }
+
+    proptest! {
+        #![proptest_config(ProptestConfig { cases: 256, ..ProptestConfig::default() })]
+
+        /// Zeroing out any of the five "must be > 0" fields must
+        /// return the matching typed error. Guards against a future
+        /// edit accidentally skipping one of the checks.
+        #[test]
+        fn prop_zero_field_always_rejected(field_sel in 0u8..5) {
+            let mut cfg = baseline();
+            match field_sel {
+                0 => {
+                    cfg.max_participants = 0;
+                    prop_assert!(matches!(cfg.validate(), Err(ConfigError::InvalidMaxParticipants)));
+                }
+                1 => {
+                    cfg.max_message_size = 0;
+                    prop_assert!(matches!(cfg.validate(), Err(ConfigError::InvalidMaxMessageSize)));
+                }
+                2 => {
+                    cfg.rate_limit_count = 0;
+                    prop_assert!(matches!(cfg.validate(), Err(ConfigError::InvalidRateLimitCount)));
+                }
+                3 => {
+                    cfg.ip_rate_limit_creates = 0;
+                    prop_assert!(matches!(cfg.validate(), Err(ConfigError::InvalidIpRateLimitCreates)));
+                }
+                _ => {
+                    cfg.max_rooms = 0;
+                    prop_assert!(matches!(cfg.validate(), Err(ConfigError::InvalidMaxRooms)));
+                }
+            }
+        }
+
+        /// `ping_interval > pong_timeout` is the invariant — validate
+        /// must reject the equal / reversed cases with the matching
+        /// typed error regardless of the absolute values.
+        #[test]
+        fn prop_ping_pong_ordering(
+            ping_secs in 0u64..3600,
+            pong_secs in 0u64..3600,
+        ) {
+            let mut cfg = baseline();
+            cfg.ping_interval = Duration::from_secs(ping_secs);
+            cfg.pong_timeout = Duration::from_secs(pong_secs);
+
+            let res = cfg.validate();
+            if ping_secs > pong_secs {
+                prop_assert!(res.is_ok(), "{ping_secs} > {pong_secs} must validate");
+            } else {
+                let bad = matches!(res, Err(ConfigError::InvalidPingPongTiming));
+                prop_assert!(bad, "{ping_secs} <= {pong_secs} must be rejected");
+            }
+        }
+
+        /// `validate` must never panic on arbitrary-but-shape-valid
+        /// configs. Combines random values for every numeric bound
+        /// with random durations.
+        #[test]
+        fn prop_validate_never_panics(
+            max_participants in 0usize..1_000,
+            max_message_size in 0usize..1_000_000,
+            rate_limit_count in 0u32..1_000,
+            ip_rate_limit_creates in 0u32..1_000,
+            max_rooms in 0usize..10_000,
+            ping_secs in 0u64..3600,
+            pong_secs in 0u64..3600,
+        ) {
+            let cfg = RelayConfig {
+                admin_token: Some("test-token".to_string()),
+                max_participants,
+                max_message_size,
+                rate_limit_count,
+                ip_rate_limit_creates,
+                max_rooms,
+                ping_interval: Duration::from_secs(ping_secs),
+                pong_timeout: Duration::from_secs(pong_secs),
+                ..Default::default()
+            };
+            let _ = cfg.validate();
+        }
+    }
+}
