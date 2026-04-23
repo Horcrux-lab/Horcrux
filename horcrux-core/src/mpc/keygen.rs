@@ -28,12 +28,31 @@ pub struct Round1Broadcast {
 }
 
 /// Serializable round-2 point-to-point: secret share for the recipient.
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+///
+/// `share` is the evaluated polynomial share — a long-term secret. M4
+/// (audit `docs/security-audit-2026-04.md`): redacted in `Debug`,
+/// zeroized on drop.
+#[derive(Clone, serde::Serialize, serde::Deserialize, zeroize::Zeroize, zeroize::ZeroizeOnDrop)]
 pub struct Round2Share {
+    #[zeroize(skip)]
     pub from: u16,
+    #[zeroize(skip)]
     pub to: u16,
     /// The evaluated polynomial share f_i(j) as scalar bytes
     pub share: Vec<u8>,
+}
+
+impl std::fmt::Debug for Round2Share {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Round2Share")
+            .field("from", &self.from)
+            .field("to", &self.to)
+            .field(
+                "share",
+                &format_args!("<redacted: {} bytes>", self.share.len()),
+            )
+            .finish()
+    }
 }
 
 /// State machine for the DKG protocol.
@@ -631,7 +650,7 @@ mod tests {
         // All complete with same public key
         let pubkeys: Vec<Vec<u8>> = sessions
             .iter()
-            .map(|s| s.result().unwrap().public_key)
+            .map(|s| s.result().unwrap().public_key.clone())
             .collect();
 
         for pk in &pubkeys {

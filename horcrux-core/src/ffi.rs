@@ -251,13 +251,15 @@ pub struct FfiMpcMessage {
 }
 
 impl From<MpcMessage> for FfiMpcMessage {
-    fn from(m: MpcMessage) -> Self {
+    fn from(mut m: MpcMessage) -> Self {
+        // ZeroizeOnDrop blocks partial moves; std::mem::take leaves
+        // owned defaults in `m` so its Drop runs over zeroed buffers.
         FfiMpcMessage {
             from_party: m.from,
             to_party: m.to,
             round: m.round,
-            session_id: m.session_id,
-            payload: m.payload,
+            session_id: std::mem::take(&mut m.session_id),
+            payload: std::mem::take(&mut m.payload),
         }
     }
 }
@@ -285,10 +287,13 @@ pub struct FfiKeygenResult {
 }
 
 impl From<KeygenResult> for FfiKeygenResult {
-    fn from(r: KeygenResult) -> Self {
+    fn from(mut r: KeygenResult) -> Self {
+        // ZeroizeOnDrop blocks partial moves; std::mem::take hands the
+        // owned buffers to the FFI struct and leaves zeroed defaults
+        // for the dropping `r`.
         FfiKeygenResult {
-            public_key: r.public_key,
-            shard_data: r.shard_data,
+            public_key: std::mem::take(&mut r.public_key),
+            shard_data: std::mem::take(&mut r.shard_data),
             party_index: r.party_index,
             threshold: r.threshold,
             total_parties: r.total_parties,

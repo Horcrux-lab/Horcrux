@@ -7,6 +7,63 @@ use super::{ChainError, ChainType, Transaction, TransactionBuilder};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
+/// Bitcoin fee rate (M8 — audit `docs/security-audit-2026-04.md`):
+/// the unit is **satoshis per virtual byte** (sat/vB).
+///
+/// External APIs and exchanges variously quote `sat/B` (legacy bytes),
+/// `sat/vB` (post-SegWit virtual bytes), or `sat/kB` (1,000 bytes), and
+/// confusing two of them in the same code path leads to either dust
+/// transactions that won't relay or miner-tip-of-the-century overpays.
+///
+/// This newtype documents the unit at every API surface that consumes
+/// a fee rate. Conversion helpers are provided for the other two units
+/// so callers translate explicitly rather than inferring from naming.
+///
+/// Construction is `From<u64>` (sat/vB) plus the explicit
+/// `from_sat_per_kvbyte` / `from_sat_per_byte` helpers.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[serde(transparent)]
+pub struct SatPerVbyte(u64);
+
+impl SatPerVbyte {
+    /// Construct directly from sat/vB.
+    pub const fn new(sat_per_vbyte: u64) -> Self {
+        Self(sat_per_vbyte)
+    }
+
+    /// Construct from sat/kvB (sat per 1,000 vBytes), rounding up so
+    /// fee-rate-too-low relay rejection is avoided.
+    pub fn from_sat_per_kvbyte(sat_per_kvbyte: u64) -> Self {
+        Self(sat_per_kvbyte.div_ceil(1000))
+    }
+
+    /// Construct from sat/B (sat per legacy serialized byte). Pre-SegWit
+    /// callers used this; in current consensus it's identical to sat/vB
+    /// for non-witness-bearing inputs but understates fee for SegWit.
+    /// Treated as sat/vB here to keep relay above the floor — callers
+    /// that genuinely mean "sat per legacy byte and willing to under-pay"
+    /// should compute and pass the explicit sat/vB themselves.
+    pub fn from_sat_per_byte(sat_per_byte: u64) -> Self {
+        Self(sat_per_byte)
+    }
+
+    /// Raw value in sat/vB.
+    pub const fn as_sat_per_vbyte(self) -> u64 {
+        self.0
+    }
+
+    /// Convert to sat/kvB for callers that need the unit elsewhere.
+    pub const fn as_sat_per_kvbyte(self) -> u64 {
+        self.0.saturating_mul(1000)
+    }
+}
+
+impl std::fmt::Display for SatPerVbyte {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{} sat/vB", self.0)
+    }
+}
+
 /// Bitcoin P2WPKH transaction parameters (inputs + outputs).
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BtcTxParams {
@@ -446,6 +503,37 @@ fn push_var_bytes(buf: &mut Vec<u8>, data: &[u8]) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    // ---- M8 SatPerVbyte newtype tests ----
+
+    #[test]
+    fn sat_per_vbyte_direct_construction() {
+        let r = SatPerVbyte::new(15);
+        assert_eq!(r.as_sat_per_vbyte(), 15);
+        assert_eq!(r.as_sat_per_kvbyte(), 15_000);
+    }
+
+    #[test]
+    fn sat_per_vbyte_from_kvbyte_rounds_up() {
+        // 1500 sat/kvB → 2 sat/vB (rounded up so we don't underpay)
+        assert_eq!(SatPerVbyte::from_sat_per_kvbyte(1500).as_sat_per_vbyte(), 2);
+        // 1000 sat/kvB → exactly 1 sat/vB
+        assert_eq!(SatPerVbyte::from_sat_per_kvbyte(1000).as_sat_per_vbyte(), 1);
+        // 1 sat/kvB → 1 sat/vB (rounded up from 0.001)
+        assert_eq!(SatPerVbyte::from_sat_per_kvbyte(1).as_sat_per_vbyte(), 1);
+    }
+
+    #[test]
+    fn sat_per_vbyte_display_includes_unit() {
+        assert_eq!(SatPerVbyte::new(42).to_string(), "42 sat/vB");
+    }
+
+    #[test]
+    fn sat_per_vbyte_kvbyte_saturates_on_overflow() {
+        let r = SatPerVbyte::new(u64::MAX);
+        // saturating_mul(1000) → u64::MAX, not panic
+        assert_eq!(r.as_sat_per_kvbyte(), u64::MAX);
+    }
 
     fn dummy_params() -> BtcTxParams {
         BtcTxParams {

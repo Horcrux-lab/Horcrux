@@ -128,7 +128,7 @@ fn run_full_dkg(tag: &str, session_id: &str, n: u16) -> (Vec<u8>, Vec<Vec<u8>>) 
     for r in &results[1..] {
         assert_eq!(r.public_key, pk, "pubkey mismatch across parties");
     }
-    let shards: Vec<Vec<u8>> = results.into_iter().map(|r| r.shard_data).collect();
+    let shards: Vec<Vec<u8>> = results.into_iter().map(|r| r.shard_data.clone()).collect();
     (pk, shards)
 }
 
@@ -212,7 +212,7 @@ fn run_refresh(
             "refresh changed the group public key!"
         );
     }
-    results.into_iter().map(|r| r.shard_data).collect()
+    results.into_iter().map(|r| r.shard_data.clone()).collect()
 }
 
 #[test]

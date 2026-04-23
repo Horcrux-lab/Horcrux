@@ -230,10 +230,29 @@ pub enum EcdsaPhase {
     Refresh,
 }
 
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+/// CGGMP21 shard data: incomplete share + auxiliary info. Both fields
+/// contain long-term secret material. M4 (audit
+/// `docs/security-audit-2026-04.md`): redacted in `Debug`, zeroized
+/// on drop.
+#[derive(Clone, serde::Serialize, serde::Deserialize, zeroize::Zeroize, zeroize::ZeroizeOnDrop)]
 pub struct EcdsaShardData {
     pub incomplete_key_share: Vec<u8>,
     pub aux_info: Vec<u8>,
+}
+
+impl std::fmt::Debug for EcdsaShardData {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("EcdsaShardData")
+            .field(
+                "incomplete_key_share",
+                &format_args!("<redacted: {} bytes>", self.incomplete_key_share.len()),
+            )
+            .field(
+                "aux_info",
+                &format_args!("<redacted: {} bytes>", self.aux_info.len()),
+            )
+            .finish()
+    }
 }
 
 // =============================================================================

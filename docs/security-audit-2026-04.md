@@ -195,8 +195,12 @@ Failures → typed error, never panic.
   nanosecond. Filename nonce now includes a 64-bit `OsRng` salt
   alongside the wall-clock so collisions are cryptographically
   unlikely; atomic `tmp → final` rename remains.
-- **M4** MPC structs derive `Debug` — debug logs may dump secret
-  fields. Custom `Debug` + `#[derive(Zeroize)]` on secret wrappers.
+- **M4** ✅ (round 9) MPC structs derive `Debug` — debug logs may dump
+  secret fields. `MpcMessage`, `KeygenResult`, `Round2Share`,
+  `FrostShardData`, `EcdsaShardData` got `Zeroize` + `ZeroizeOnDrop`
+  + custom `Debug` that prints `<redacted: N bytes>` in place of
+  secret payloads. FFI `From` impls switched to `std::mem::take` to
+  extract owned buffers past `Drop`.
 - **M5** ✅ (round 8) FFI `Error::to_string()` could leak internal
   state to Swift. New `sanitize_ffi_msg()` helper at the
   `MpcError → HorcruxError` and `chain::ChainError → ChainError`
@@ -209,8 +213,13 @@ Failures → typed error, never panic.
   screens. Add blurred overlay on `willResignActive`.
 - **M7** Deep-link handlers (`joinSession`) require no confirmation —
   phishing page can trigger an auto-join.
-- **M8** Bitcoin fee-rate unit confusion (sat/vB vs sat/B vs sat/kB)
-  — encode via new-type wrapper.
+- **M8** ✅ (round 9) Bitcoin fee-rate unit confusion (sat/vB vs
+  sat/B vs sat/kB). New `SatPerVbyte` newtype in `chain::bitcoin`
+  with explicit `from_sat_per_kvbyte` (rounds up via `div_ceil`),
+  `from_sat_per_byte`, and `as_sat_per_vbyte` / `as_sat_per_kvbyte`
+  accessors plus `Display` (`"42 sat/vB"`). Currently no API surface
+  consumes it — adopted proactively so any future fee-rate parameter
+  lands as a unit-encoded type rather than a bare `u64`.
 - **M9** Clipboard 60s auto-clear unreliable when app backgrounds.
 - **M10** `PrivacyInfo.xcprivacy` Required-Reason API list may be
   incomplete — App Store reject risk.

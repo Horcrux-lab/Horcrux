@@ -9,6 +9,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security
 
+- **Audit P0 round 9** — M4/M8 secret-type hygiene + BTC fee-rate unit safety.
+  - **M4** (medium) — MPC structs derive `Debug` could leak secret material
+    into logs. `MpcMessage`, `KeygenResult`, `Round2Share`,
+    `FrostShardData`, and `EcdsaShardData` now derive
+    `Zeroize` + `ZeroizeOnDrop` and have a hand-written `Debug` that
+    prints `<redacted: N bytes>` in place of any secret payload while
+    still showing benign metadata (party indices, session ids,
+    serializable pubkey packages). Non-secret fields are marked
+    `#[zeroize(skip)]`. The two FFI `From` impls that consumed these
+    structs by field move (`FfiMpcMessage`, `FfiKeygenResult`) were
+    updated to use `std::mem::take` so the owned buffers escape the
+    `Drop` cycle into the C ABI without a copy.
+  - **M8** (medium) — BTC fee-rate unit confusion. Added
+    `chain::bitcoin::SatPerVbyte` newtype with `new`,
+    `from_sat_per_kvbyte` (rounds up via `u64::div_ceil` so we never
+    underpay), `from_sat_per_byte`, and `as_sat_per_vbyte` /
+    `as_sat_per_kvbyte` accessors plus `Display` (`"42 sat/vB"`).
+    Currently no API surface consumes it — adopted proactively so any
+    future fee-rate parameter lands as a unit-encoded type rather
+    than a bare `u64`. 4 unit tests cover construction, kvB rounding,
+    Display, and `u64::MAX` saturation on conversion.
+
 - **Audit P0 round 1** (internal audit `docs/security-audit-2026-04.md`).
   - **C1** (critical) — MPC sender identity binding. Added
     `HorcruxSessionManager::handle_authenticated_message(msg, authenticated_from)`

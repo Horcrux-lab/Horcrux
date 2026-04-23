@@ -307,10 +307,27 @@ impl FrostDkgSession {
 }
 
 /// Serialized shard data: contains both key_package and pubkey_package.
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+///
+/// `key_package` is the FROST signing key share — a long-term secret.
+/// M4 (audit `docs/security-audit-2026-04.md`): redacted in `Debug`,
+/// zeroized on drop.
+#[derive(Clone, serde::Serialize, serde::Deserialize, zeroize::Zeroize, zeroize::ZeroizeOnDrop)]
 pub struct FrostShardData {
     pub key_package: Vec<u8>,
+    #[zeroize(skip)]
     pub pubkey_package: Vec<u8>,
+}
+
+impl std::fmt::Debug for FrostShardData {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("FrostShardData")
+            .field(
+                "key_package",
+                &format_args!("<redacted: {} bytes>", self.key_package.len()),
+            )
+            .field("pubkey_package_len", &self.pubkey_package.len())
+            .finish()
+    }
 }
 
 // =============================================================================

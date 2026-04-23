@@ -168,7 +168,7 @@ fn run_dkg(
         let r = session
             .keygen_result(session_id)
             .unwrap_or_else(|| panic!("p{} missing keygen_result", idx + 1));
-        pks.push(r.public_key);
+        pks.push(r.public_key.clone());
     }
     for pk in &pks[1..] {
         assert_eq!(pk, &pks[0], "group public key mismatch across parties");

@@ -165,7 +165,7 @@ async fn run_party(
     // Pump the inbox until the session completes or we time out.
     loop {
         if let Some(result) = mgr.keygen_result(&session_id) {
-            return result.public_key;
+            return result.public_key.clone();
         }
         let msg = tokio::time::timeout(Duration::from_secs(15), inbound.recv())
             .await
