@@ -423,11 +423,6 @@ RustBuffer uniffi_horcrux_core_fn_func_horcrux_decode_evm_calldata(RustBuffer da
 RustBuffer uniffi_horcrux_core_fn_func_horcrux_decrypt_shard(RustBuffer encrypted, RustBuffer device_key, RustBuffer pin, RustCallStatus *_Nonnull out_status
 );
 #endif
-#ifndef UNIFFI_FFIDEF_UNIFFI_HORCRUX_CORE_FN_FUNC_HORCRUX_EIP712_DIGEST
-#define UNIFFI_FFIDEF_UNIFFI_HORCRUX_CORE_FN_FUNC_HORCRUX_EIP712_DIGEST
-RustBuffer uniffi_horcrux_core_fn_func_horcrux_eip712_digest(RustBuffer domain, RustBuffer struct_hash, RustCallStatus *_Nonnull out_status
-);
-#endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_HORCRUX_CORE_FN_FUNC_HORCRUX_ENCRYPT_SHARD
 #define UNIFFI_FFIDEF_UNIFFI_HORCRUX_CORE_FN_FUNC_HORCRUX_ENCRYPT_SHARD
 RustBuffer uniffi_horcrux_core_fn_func_horcrux_encrypt_shard(RustBuffer plaintext, RustBuffer device_key, RustBuffer pin, RustCallStatus *_Nonnull out_status
@@ -790,12 +785,6 @@ uint16_t uniffi_horcrux_core_checksum_func_horcrux_decode_evm_calldata(void
 #ifndef UNIFFI_FFIDEF_UNIFFI_HORCRUX_CORE_CHECKSUM_FUNC_HORCRUX_DECRYPT_SHARD
 #define UNIFFI_FFIDEF_UNIFFI_HORCRUX_CORE_CHECKSUM_FUNC_HORCRUX_DECRYPT_SHARD
 uint16_t uniffi_horcrux_core_checksum_func_horcrux_decrypt_shard(void
-    
-);
-#endif
-#ifndef UNIFFI_FFIDEF_UNIFFI_HORCRUX_CORE_CHECKSUM_FUNC_HORCRUX_EIP712_DIGEST
-#define UNIFFI_FFIDEF_UNIFFI_HORCRUX_CORE_CHECKSUM_FUNC_HORCRUX_EIP712_DIGEST
-uint16_t uniffi_horcrux_core_checksum_func_horcrux_eip712_digest(void
     
 );
 #endif

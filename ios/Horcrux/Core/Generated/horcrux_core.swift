@@ -1526,99 +1526,6 @@ public func FfiConverterTypeFfiBtcTxParams_lower(_ value: FfiBtcTxParams) -> Rus
 
 
 /**
- * FFI-friendly EIP-712 domain. Mirrors `chain::evm::Eip712Domain`
- * except `verifying_contract` is passed as a hex/0x-prefixed string
- * (uniffi Record types cannot carry fixed-size byte arrays directly).
- */
-public struct FfiEip712Domain {
-    public var name: String
-    public var version: String
-    public var chainId: UInt64
-    /**
-     * 20-byte address, hex or 0x-prefixed hex.
-     */
-    public var verifyingContract: String
-
-    // Default memberwise initializers are never public by default, so we
-    // declare one manually.
-    public init(name: String, version: String, chainId: UInt64, 
-        /**
-         * 20-byte address, hex or 0x-prefixed hex.
-         */verifyingContract: String) {
-        self.name = name
-        self.version = version
-        self.chainId = chainId
-        self.verifyingContract = verifyingContract
-    }
-}
-
-
-
-extension FfiEip712Domain: Equatable, Hashable {
-    public static func ==(lhs: FfiEip712Domain, rhs: FfiEip712Domain) -> Bool {
-        if lhs.name != rhs.name {
-            return false
-        }
-        if lhs.version != rhs.version {
-            return false
-        }
-        if lhs.chainId != rhs.chainId {
-            return false
-        }
-        if lhs.verifyingContract != rhs.verifyingContract {
-            return false
-        }
-        return true
-    }
-
-    public func hash(into hasher: inout Hasher) {
-        hasher.combine(name)
-        hasher.combine(version)
-        hasher.combine(chainId)
-        hasher.combine(verifyingContract)
-    }
-}
-
-
-#if swift(>=5.8)
-@_documentation(visibility: private)
-#endif
-public struct FfiConverterTypeFfiEip712Domain: FfiConverterRustBuffer {
-    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> FfiEip712Domain {
-        return
-            try FfiEip712Domain(
-                name: FfiConverterString.read(from: &buf), 
-                version: FfiConverterString.read(from: &buf), 
-                chainId: FfiConverterUInt64.read(from: &buf), 
-                verifyingContract: FfiConverterString.read(from: &buf)
-        )
-    }
-
-    public static func write(_ value: FfiEip712Domain, into buf: inout [UInt8]) {
-        FfiConverterString.write(value.name, into: &buf)
-        FfiConverterString.write(value.version, into: &buf)
-        FfiConverterUInt64.write(value.chainId, into: &buf)
-        FfiConverterString.write(value.verifyingContract, into: &buf)
-    }
-}
-
-
-#if swift(>=5.8)
-@_documentation(visibility: private)
-#endif
-public func FfiConverterTypeFfiEip712Domain_lift(_ buf: RustBuffer) throws -> FfiEip712Domain {
-    return try FfiConverterTypeFfiEip712Domain.lift(buf)
-}
-
-#if swift(>=5.8)
-@_documentation(visibility: private)
-#endif
-public func FfiConverterTypeFfiEip712Domain_lower(_ value: FfiEip712Domain) -> RustBuffer {
-    return FfiConverterTypeFfiEip712Domain.lower(value)
-}
-
-
-/**
  * AES-256-GCM encrypted shard with nonce and PBKDF2 salt.
  */
 public struct FfiEncryptedShard {
@@ -3584,27 +3491,6 @@ public func horcruxDecryptShard(encrypted: FfiEncryptedShard, deviceKey: Data, p
 })
 }
 /**
- * Compute the EIP-712 typed-data digest (audit H8).
- *
- * This is the sanctioned entry point for any EIP-712 signing flow:
- * it hard-fails when the domain is missing chain-id / contract /
- * name bindings that would let a signature be replayed on another
- * chain or another contract. The UI must have already displayed and
- * obtained user consent for the decoded domain fields before
- * invoking this — see `docs/security-audit-2026-04.md` H8.
- *
- * `struct_hash` is the 32-byte `hashStruct(message)` value the UI
- * already computed from the typed-data payload.
- */
-public func horcruxEip712Digest(domain: FfiEip712Domain, structHash: Data)throws  -> Data {
-    return try  FfiConverterData.lift(try rustCallWithError(FfiConverterTypeChainError.lift) {
-    uniffi_horcrux_core_fn_func_horcrux_eip712_digest(
-        FfiConverterTypeFfiEip712Domain.lower(domain),
-        FfiConverterData.lower(structHash),$0
-    )
-})
-}
-/**
  * Encrypt a key shard using AES-256-GCM with an HKDF-SHA256-derived key.
  *
  * The key derivation mixes `device_key` (host-managed, e.g. SE-sealed on iOS)
@@ -3736,9 +3622,6 @@ private var initializationResult: InitializationResult = {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_horcrux_core_checksum_func_horcrux_decrypt_shard() != 36161) {
-        return InitializationResult.apiChecksumMismatch
-    }
-    if (uniffi_horcrux_core_checksum_func_horcrux_eip712_digest() != 44480) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_horcrux_core_checksum_func_horcrux_encrypt_shard() != 48434) {
