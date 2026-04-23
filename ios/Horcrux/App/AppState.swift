@@ -592,6 +592,18 @@ struct Wallet: Identifiable, Codable {
     let createdAt: Date
     /// Optional so legacy wallets (pre-0.3.0-dev.13) decode with nil == not hidden.
     let isHidden: Bool?
+    /// Audit C1 round-16 — persisted counterparty registry captured at
+    /// DKG time. Maps each remote peer's stable transport identifier
+    /// (Peer.id — relay UUID or WiFi-LAN service name) to the party
+    /// index that peer received during `autoAssignPartyIndex`. Refresh
+    /// uses this to enforce `authenticatedFrom` instead of the previous
+    /// TOFU-per-session binding, so a long-lived compromise of the
+    /// first-contact channel can no longer assert an arbitrary party
+    /// index. `nil` for wallets created before the registry was
+    /// introduced; refresh falls back to TOFU on those (one-time, with
+    /// a plan to upgrade on next refresh by persisting the TOFU map
+    /// after a successful ceremony).
+    let peerRegistry: [String: UInt16]?
 
     var hidden: Bool { isHidden ?? false }
 

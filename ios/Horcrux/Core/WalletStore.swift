@@ -58,7 +58,8 @@ final class WalletStore: ObservableObject {
             totalParties: wallets[idx].totalParties,
             partyIndex: wallets[idx].partyIndex,
             createdAt: wallets[idx].createdAt,
-            isHidden: wallets[idx].isHidden
+            isHidden: wallets[idx].isHidden,
+            peerRegistry: wallets[idx].peerRegistry
         )
         save()
     }
@@ -80,7 +81,8 @@ final class WalletStore: ObservableObject {
             totalParties: w.totalParties,
             partyIndex: w.partyIndex,
             createdAt: w.createdAt,
-            isHidden: hidden ? true : nil
+            isHidden: hidden ? true : nil,
+            peerRegistry: w.peerRegistry
         )
         save()
     }
@@ -88,6 +90,39 @@ final class WalletStore: ObservableObject {
     func move(from source: IndexSet, to destination: Int) {
         wallets.move(fromOffsets: source, toOffset: destination)
         save()
+    }
+
+    /// Audit C1 round-16 — upgrade a wallet's persisted peer-registry.
+    /// Called after a successful refresh ceremony on wallets that were
+    /// created before the registry existed, so the TOFU map observed
+    /// during refresh is retained for all subsequent ceremonies.
+    /// No-op if the wallet already has a registry (caller must clear
+    /// it first via a separate API if an intentional rewrite is
+    /// needed). Applies to all sibling wallets sharing the same
+    /// accountId, since the DKG roster is an account-level property.
+    func setPeerRegistryIfAbsent(accountId: String, registry: [String: UInt16]) {
+        guard !registry.isEmpty else { return }
+        var didChange = false
+        for idx in wallets.indices where wallets[idx].accountId == accountId {
+            if wallets[idx].peerRegistry == nil {
+                let w = wallets[idx]
+                wallets[idx] = Wallet(
+                    id: w.id,
+                    name: w.name,
+                    chain: w.chain,
+                    address: w.address,
+                    groupPublicKey: w.groupPublicKey,
+                    threshold: w.threshold,
+                    totalParties: w.totalParties,
+                    partyIndex: w.partyIndex,
+                    createdAt: w.createdAt,
+                    isHidden: w.isHidden,
+                    peerRegistry: registry
+                )
+                didChange = true
+            }
+        }
+        if didChange { save() }
     }
 
     // MARK: - Key Share Storage (Keychain)

@@ -218,13 +218,17 @@ final class RefreshShardCoordinator: ObservableObject {
         // tuple false-matches successive rounds as duplicates. The
         // underlying CGGMP21 payload bytes are distinct across rounds,
         // so hashing them is both safe and correct.
-        // Refresh C1 (audit): refresh is n-of-n and does not carry an
-        // explicit roster registry, so we use a TOFU policy per session
-        // — the first MPC message from each channel peer fixes that
-        // peer's asserted party_index, and any later divergence is
-        // treated as impersonation and rejected. Also reject any
-        // message that claims to be from ourselves.
-        var refreshPeerPartyIndex: [String: UInt16] = [:]
+        // Refresh C1: prefer the persisted peer-registry captured at
+        // DKG time (audit round 16). Each peer.id maps to a fixed
+        // party index that was assigned deterministically during the
+        // original ceremony; any inbound message from a known peer
+        // claiming a different index = impersonation. For legacy
+        // wallets created before the registry existed (peerRegistry
+        // == nil), fall back to TOFU-per-session (round 14 behaviour)
+        // and persist the observed map on successful completion so
+        // the next refresh no longer needs the TOFU fallback.
+        let persistedRegistry: [String: UInt16] = wallet.peerRegistry ?? [:]
+        var refreshPeerPartyIndex: [String: UInt16] = persistedRegistry
         var seenPayloads: Set<Data> = []
         do {
             for await (peer, data) in stream {
@@ -257,10 +261,17 @@ final class RefreshShardCoordinator: ObservableObject {
                 }
                 if let already = refreshPeerPartyIndex[peer.id] {
                     if already != inbound.fromParty {
-                        SecureLog.error("[Refresh] C1 reject: peer \(peer.id) previously claimed party \(already) but now claims \(inbound.fromParty) — impersonation attempt")
+                        SecureLog.error("[Refresh] C1 reject: peer \(peer.id) bound to party \(already) but now claims \(inbound.fromParty) — impersonation attempt")
                         continue
                     }
+                } else if wallet.peerRegistry != nil {
+                    // Strict mode: the wallet has a persisted registry
+                    // captured at DKG time. Any peer.id outside that
+                    // roster is not a legitimate counterparty.
+                    SecureLog.error("[Refresh] C1 reject: peer \(peer.id) not in persisted DKG roster — refusing to bind")
+                    continue
                 } else {
+                    // Legacy TOFU fallback for pre-round-16 wallets.
                     refreshPeerPartyIndex[peer.id] = inbound.fromParty
                 }
                 let responses = try bridge.handleAuthenticatedMessage(inbound, authenticatedFrom: inbound.fromParty)
@@ -275,6 +286,14 @@ final class RefreshShardCoordinator: ObservableObject {
                 if let result = bridge.getRefreshResult(sessionId: sessionId!) {
                     NSLog("[Refresh] got refresh result, persisting")
                     await persist(result: result, deviceKey: deviceKey, swk: swkLocal, bridge: bridge, walletStore: walletStore)
+                    if wallet.peerRegistry == nil && !refreshPeerPartyIndex.isEmpty {
+                        let observed = refreshPeerPartyIndex
+                        let accountId = wallet.accountId
+                        await MainActor.run {
+                            walletStore.setPeerRegistryIfAbsent(accountId: accountId, registry: observed)
+                        }
+                        SecureLog.info("[Refresh] C1 round-16 — upgraded legacy wallet \(accountId.prefix(8)) with observed peer registry (\(observed.count) peers)")
+                    }
                     return
                 }
             }

@@ -715,6 +715,7 @@ final class CreateShardViewModel: ObservableObject {
         }
 
         // Save one wallet entry per derived chain address.
+        let registrySnapshot: [String: UInt16]? = dkgPeerPartyIndex.isEmpty ? nil : dkgPeerPartyIndex
         for (index, entry) in generatedAddresses.enumerated() {
             // Use rawValue (unique per chain) to avoid ID/name collisions
             // between EVM chains that share the same symbol (ETH).
@@ -730,7 +731,8 @@ final class CreateShardViewModel: ObservableObject {
                 totalParties: UInt16(totalParties),
                 partyIndex: UInt16(partyIndex),
                 createdAt: .now,
-                isHidden: nil
+                isHidden: nil,
+                peerRegistry: registrySnapshot
             )
 
             appState.walletStore.add(wallet)

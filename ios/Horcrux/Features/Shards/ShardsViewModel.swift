@@ -121,7 +121,8 @@ final class ShardsViewModel: ObservableObject {
                 encryptedShard: envelope,
                 groupPublicKey: anchor.groupPublicKey,
                 wallets: walletEntries,
-                exportedAt: Date()
+                exportedAt: Date(),
+                peerRegistry: anchor.peerRegistry
             )
 
             let encoder = JSONEncoder()
@@ -221,7 +222,8 @@ final class ShardsViewModel: ObservableObject {
                 totalParties: backup.totalParties,
                 partyIndex: backup.partyIndex,
                 createdAt: entry.createdAt,
-                isHidden: nil
+                isHidden: nil,
+                peerRegistry: backup.peerRegistry
             )
             appState.walletStore.add(wallet)
         }
@@ -257,7 +259,8 @@ final class ShardsViewModel: ObservableObject {
             totalParties: backup.totalParties,
             partyIndex: backup.partyIndex,
             createdAt: Date(),
-            isHidden: nil
+            isHidden: nil,
+            peerRegistry: nil
         )
 
         try appState.walletStore.storeKeyShare(encoded, accountId: wallet.accountId)
@@ -324,6 +327,11 @@ struct AccountBackup: Codable {
     let groupPublicKey: Data
     let wallets: [WalletEntry]
     let exportedAt: Date
+    /// Audit C1 round-16 — counterparty registry captured at DKG
+    /// (peer.id → party_index). Backed up so a restored wallet can
+    /// still enforce refresh C1 binding without relying on TOFU.
+    /// Optional: backups exported before v3 decode with `nil`.
+    let peerRegistry: [String: UInt16]?
 
     struct WalletEntry: Codable {
         let id: String
@@ -380,6 +388,13 @@ enum BackupPreview {
         switch self {
         case .account(let b): return b.partyIndex
         case .legacy(let b): return b.partyIndex
+        }
+    }
+
+    var peerRegistry: [String: UInt16]? {
+        switch self {
+        case .account(let b): return b.peerRegistry
+        case .legacy: return nil
         }
     }
 }

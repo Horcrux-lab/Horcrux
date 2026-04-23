@@ -9,6 +9,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security
 
+- **Audit P0 round 16** — Refresh explicit peer-registry (eliminates
+  TOFU residual risk for C1). `Wallet` now carries an optional
+  `peerRegistry: [String: UInt16]?` populated at DKG time from the
+  `dkgPeerPartyIndex` map built by `autoAssignPartyIndex`. On every
+  refresh, `RefreshShardCoordinator` loads this registry and enforces
+  it in strict mode — inbound messages from a `peer.id` outside the
+  DKG roster are rejected, and index mismatches are still flagged as
+  impersonation. `AccountBackup` v4 carries the registry so restored
+  accounts inherit the strict roster. Legacy wallets created before
+  this round (`peerRegistry == nil`) fall back to the round-14 TOFU
+  path and, on the first successful refresh, have the observed map
+  persisted via `WalletStore.setPeerRegistryIfAbsent`, so every
+  subsequent ceremony runs in strict mode with no TOFU window.
+
 - **Audit P0 round 15** — Cold-signing v2 scan-session TOFU + fingerprint.
   Closes the round-14 follow-up for `ColdSigningCoordinatorV2`:
   - **sessionId enforcement**: `feedInbound` rejects any inbound
