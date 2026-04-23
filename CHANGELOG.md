@@ -9,6 +9,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security
 
+- **Audit H8 follow-up** — iOS FFI binding smoke tests for
+  `horcruxEip712Digest`. Adds `HorcruxTests/Eip712BindingTests.swift`
+  with 7 tests covering determinism, chain_id replay-binding,
+  verifyingContract replay-binding, struct-hash binding, hex parsing
+  with/without `0x` prefix, and propagation of the Rust-side guards
+  (zero chain_id, zero verifyingContract, non-hex input) as Swift
+  throws. Proves the uniffi surface is reachable end-to-end before
+  building the consumer UI.
+
 - **Audit P0 round 16** — Refresh explicit peer-registry (eliminates
   TOFU residual risk for C1). `Wallet` now carries an optional
   `peerRegistry: [String: UInt16]?` populated at DKG time from the
