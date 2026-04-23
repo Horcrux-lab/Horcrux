@@ -234,6 +234,41 @@ and obtain explicit user consent before invoking this digest; the
 Rust layer only enforces the cryptographic binding, not what the
 user actually saw on screen.
 
+**Round 17 close-out — typed-data JSON helper with real dApp regression vectors (✅)**:
+`horcrux-core/src/chain/eip712_typed.rs::eip712_digest_from_typed_data_json`
+consumes a canonical `eth_signTypedData_v4` JSON blob (the same shape
+WalletConnect / dApps emit) and returns the 32-byte signable digest.
+Supports `string`, `bytes`, `bytesN` (N∈1..=32), `address`, `bool`,
+`uintN`/`intN` (N multiple of 8), nested structs, `T[]` and `T[N]`
+arrays. Rejects circular type graphs and unknown field types.
+
+**Correctness fix landed mid-round**: the first draft delegated to
+the pre-existing `eip712_digest` primitive which hard-codes a
+4-field `EIP712Domain`. Real-world dApps — notably **Uniswap's
+Permit2** — declare a 3-field domain (no `version`), so the
+separator (and therefore the digest) was wrong for those payloads.
+The fix rebuilds the domain separator from the exact
+`types.EIP712Domain` field list declared in the payload, applying
+the H8 replay-binding guards (non-zero `chainId`, non-zero
+`verifyingContract`, non-empty `name`) directly on the JSON domain
+object whenever those fields are declared. This was caught
+pre-release by cross-validating against `ethers.js v6
+TypedDataEncoder.hash`.
+
+14 unit tests pass; the following regression vectors are each
+cross-verified against `ethers.js v6`:
+
+| Payload | Domain fields | Digest |
+|---|---|---|
+| Canonical EIP-712 `Mail` (spec §5) | name, version, chainId, verifyingContract | `0xbe609aee…0957bd2` |
+| EIP-2612 `Permit` — USDC mainnet | name, version, chainId, verifyingContract | `0x7e8c9eab…1c0031` |
+| Permit2 `PermitSingle` — Uniswap | name, chainId, verifyingContract *(no version)* | `0x498b3319…1644518` |
+| Seaport-style `OrderComponents` | name, version, chainId, verifyingContract | `0xabebe4fd…9ec9f4da` |
+
+Exported via FFI as `horcrux_eip712_digest_from_typed_data` (string
+JSON in → 32-byte digest out; iOS Swift bindings regenerate on next
+XCFramework rebuild).
+
 ### H9 — Bitcoin UTXO provenance not verified ✅ (core)
 `chain/bitcoin.rs` (PSBT handling). A malicious UI can craft a PSBT
 where the claimed input amount differs from the actual on-chain UTXO

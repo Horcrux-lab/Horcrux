@@ -892,6 +892,96 @@ mod tests {
         );
     }
 
+    /// Seaport-style `OrderComponents` — exercises dynamic arrays of
+    /// struct (`OfferItem[]`, `ConsiderationItem[]`), the exact
+    /// pattern real NFT marketplaces use. Cross-verified against
+    /// ethers.js v6 `TypedDataEncoder.hash`.
+    #[test]
+    fn seaport_style_order_components() {
+        let json = r#"{
+            "types": {
+                "EIP712Domain": [
+                    {"name":"name","type":"string"},
+                    {"name":"version","type":"string"},
+                    {"name":"chainId","type":"uint256"},
+                    {"name":"verifyingContract","type":"address"}
+                ],
+                "OfferItem": [
+                    {"name":"itemType","type":"uint8"},
+                    {"name":"token","type":"address"},
+                    {"name":"identifierOrCriteria","type":"uint256"},
+                    {"name":"startAmount","type":"uint256"},
+                    {"name":"endAmount","type":"uint256"}
+                ],
+                "ConsiderationItem": [
+                    {"name":"itemType","type":"uint8"},
+                    {"name":"token","type":"address"},
+                    {"name":"identifierOrCriteria","type":"uint256"},
+                    {"name":"startAmount","type":"uint256"},
+                    {"name":"endAmount","type":"uint256"},
+                    {"name":"recipient","type":"address"}
+                ],
+                "OrderComponents": [
+                    {"name":"offerer","type":"address"},
+                    {"name":"zone","type":"address"},
+                    {"name":"offer","type":"OfferItem[]"},
+                    {"name":"consideration","type":"ConsiderationItem[]"},
+                    {"name":"startTime","type":"uint256"},
+                    {"name":"endTime","type":"uint256"},
+                    {"name":"salt","type":"uint256"}
+                ]
+            },
+            "primaryType": "OrderComponents",
+            "domain": {
+                "name": "Seaport",
+                "version": "1.5",
+                "chainId": 1,
+                "verifyingContract": "0x00000000000000ADc04C56Bf30aC9d3c0aAF14dC"
+            },
+            "message": {
+                "offerer": "0xCD2a3d9F938E13CD947Ec05AbC7FE734Df8DD826",
+                "zone": "0x0000000000000000000000000000000000000000",
+                "offer": [
+                    {
+                        "itemType": "2",
+                        "token": "0xBC4CA0EdA7647A8aB7C2061c2E118A18a936f13D",
+                        "identifierOrCriteria": "1234",
+                        "startAmount": "1",
+                        "endAmount": "1"
+                    }
+                ],
+                "consideration": [
+                    {
+                        "itemType": "0",
+                        "token": "0x0000000000000000000000000000000000000000",
+                        "identifierOrCriteria": "0",
+                        "startAmount": "975000000000000000",
+                        "endAmount": "975000000000000000",
+                        "recipient": "0xCD2a3d9F938E13CD947Ec05AbC7FE734Df8DD826"
+                    },
+                    {
+                        "itemType": "0",
+                        "token": "0x0000000000000000000000000000000000000000",
+                        "identifierOrCriteria": "0",
+                        "startAmount": "25000000000000000",
+                        "endAmount": "25000000000000000",
+                        "recipient": "0x0000a26b00c1F0DF003000390027140000fAa719"
+                    }
+                ],
+                "startTime": "1700000000",
+                "endTime": "1800000000",
+                "salt": "12345678901234567890"
+            }
+        }"#;
+
+        let d = eip712_digest_from_typed_data_json(json).unwrap();
+        // Cross-verified against ethers.js v6 TypedDataEncoder.hash().
+        assert_eq!(
+            hex(&d),
+            "abebe4fd35078828d1bc2336fbce059a03ca54902ca998e3a60debfe9ec9f4da"
+        );
+    }
+
     #[test]
     fn encode_type_dependency_ordering_is_alphabetical() {
         // Spec: encodeType = primaryDef ++ deps-sorted-alphabetically.

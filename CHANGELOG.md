@@ -9,6 +9,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security
 
+- **EIP-712 typed-data helper — Seaport-style regression vector**.
+  Added a dynamic-array-of-struct regression test to
+  `chain::eip712_typed` exercising `OfferItem[]` + `ConsiderationItem[]`
+  on a Seaport-style `OrderComponents` payload. Digest
+  `0xabebe4fd…9ec9f4da` is cross-verified against ethers.js v6
+  `TypedDataEncoder.hash`. Brings `chain::eip712_typed` to 14/14
+  tests with 4 cross-impl-verified real-world vectors (canonical
+  Mail, EIP-2612 USDC Permit, Permit2 PermitSingle, Seaport
+  OrderComponents). Security-audit H8 doc updated with the round-17
+  close-out (typed-data JSON helper + Permit2 domain-separator fix).
+
 - **EIP-712 typed-data JSON helper — cross-impl correctness fix**.
   The new `chain::eip712_typed::eip712_digest_from_typed_data_json`
   originally delegated to the fixed 4-field `eip712_digest` primitive,
