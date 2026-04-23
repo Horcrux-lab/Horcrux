@@ -9,6 +9,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security
 
+- **EIP-712 helper — `salt` domain field + FFI roundtrip tests**.
+  Closes the last untested code paths:
+  - `domain_with_salt_bytes32` — EIP712Domain with the rare 5th
+    field (`salt: bytes32`). Digest `0xa721afd6…74c97a5a2`,
+    cross-verified against ethers.js v6.
+  - `test_ffi_eip712_typed_data_{happy_path, rejects_zero_chain_id,
+    rejects_malformed_json}` — FFI boundary (`horcrux_eip712_digest
+    _from_typed_data`) now has unit-test coverage proving it returns
+    32 raw bytes on the canonical spec vector, surfaces H8 rejection
+    as `ChainError`, and never panics on malformed JSON.
+  22 hand-crafted + 5 property-based + 3 FFI = **30 EIP-712 tests pass**.
+
+### Governance / repo hygiene
+
+- **Issue & PR templates, docs index**.
+  Adds structured GitHub forms for bug reports + feature requests,
+  a security-first `ISSUE_TEMPLATE/config.yml` that routes
+  vulnerability reports to `SECURITY.md`, a PR checklist covering
+  cargo test / clippy / CHANGELOG / audit-doc cross-reference, and
+  a `docs/README.md` index giving external auditors a suggested
+  reading order through the threat model, protocol, EIP-712 helper,
+  and audit record.
+
+### Security
+
 - **EIP-712 helper — external-audit-facing documentation**.
   Adds [`docs/eip712-typed-data.md`](docs/eip712-typed-data.md) — a
   comprehensive reference covering the public API (Rust + Swift

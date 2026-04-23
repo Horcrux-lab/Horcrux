@@ -1,0 +1,76 @@
+name: 🐛 Bug report
+description: Report a reproducible bug in Horcrux core, relay, or iOS app.
+title: "bug: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        **Before filing, please confirm:**
+        - [ ] You are NOT reporting a security vulnerability. (Security reports go to SECURITY.md, not here.)
+        - [ ] You've checked existing [open issues](https://github.com/Horcrux-lab/Horcrux/issues?q=is%3Aissue) for duplicates.
+        - [ ] You are on the latest `main` (or a tagged release ≥ the one listed in CHANGELOG).
+
+  - type: dropdown
+    id: component
+    attributes:
+      label: Affected component
+      options:
+        - horcrux-core (Rust MPC library)
+        - horcrux-relay (WebSocket relay)
+        - iOS app
+        - Docs / CI / tooling
+        - Unsure
+    validations:
+      required: true
+
+  - type: textarea
+    id: what_happened
+    attributes:
+      label: What happened?
+      description: What did you observe? Include exact commands, error messages, and relevant log excerpts.
+      placeholder: |
+        Example:
+        When running `cargo test -p horcrux-core --lib chain::eip712_typed`, test
+        `permit2_permit_single_uniswap` fails with digest mismatch on macOS arm64.
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: What did you expect to happen?
+    validations:
+      required: true
+
+  - type: textarea
+    id: repro
+    attributes:
+      label: Minimal reproduction steps
+      description: Exact commands a maintainer can run from a fresh clone.
+      render: shell
+      placeholder: |
+        git clone https://github.com/Horcrux-lab/Horcrux.git
+        cd Horcrux
+        cargo test -p horcrux-core --lib chain::eip712_typed::tests::permit2_permit_single_uniswap
+    validations:
+      required: true
+
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: OS + version, Rust/Xcode version, hardware, commit SHA.
+      placeholder: |
+        - OS: macOS 14.4 (arm64)
+        - rustc: 1.78.0
+        - Xcode: 15.3 (for iOS issues)
+        - Commit SHA: fb8c8e3
+    validations:
+      required: true
+
+  - type: textarea
+    id: extra
+    attributes:
+      label: Additional context
+      description: Screenshots, stack traces, or anything else relevant.

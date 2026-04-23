@@ -1,0 +1,44 @@
+name: ✨ Feature request
+description: Suggest a new capability or enhancement.
+title: "feat: "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        **Before filing:**
+        - [ ] You've checked existing [open issues](https://github.com/Horcrux-lab/Horcrux/issues?q=is%3Aissue) for duplicates.
+        - [ ] This is NOT a security finding — security work follows SECURITY.md instead.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem does this solve?
+      description: Describe the user/operator/developer pain point in concrete terms.
+      placeholder: |
+        Example:
+        When a dApp sends an eth_signTypedData_v4 payload via WalletConnect,
+        the iOS app currently can't compute the digest offline — we have to
+        round-trip through the relay, which breaks on captive-portal networks.
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: What do you want built? If you have strong opinions on API shape or UX, include them.
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Other designs / workarounds, and why you rejected them.
+
+  - type: textarea
+    id: extra
+    attributes:
+      label: Additional context
+      description: Links to related specs, dApp docs, prior-art implementations, etc.

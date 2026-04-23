@@ -1,0 +1,10 @@
+blank_issues_enabled: false
+contact_links:
+  - name: 🔐 Security vulnerability
+    url: https://github.com/Horcrux-lab/Horcrux/blob/main/SECURITY.md
+    about: |
+      Do NOT open a public issue for security vulnerabilities.
+      Follow SECURITY.md for the private disclosure process.
+  - name: 💬 General question / discussion
+    url: https://github.com/Horcrux-lab/Horcrux/discussions
+    about: Ask a question or discuss ideas with the community.
