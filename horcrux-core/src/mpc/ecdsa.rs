@@ -109,14 +109,19 @@ where
             msg_type,
             msg,
         };
-        self.sm
-            .received_msg(incoming)
-            .map_err(|_| {
-                MpcError::ProtocolError(format!(
-                    "state machine rejected message from party {sender} (is_broadcast={is_broadcast}, {} bytes)",
-                    data.len()
-                ))
-            })?;
+        self.sm.received_msg(incoming).map_err(|_| {
+            // L2 (audit `docs/security-audit-2026-04.md`): emit
+            // sender / shape via tracing for operators, but keep
+            // the error returned to the caller (and ultimately the
+            // UI) free of party indices.
+            tracing::warn!(
+                sender,
+                is_broadcast,
+                bytes = data.len(),
+                "state machine rejected message"
+            );
+            MpcError::ProtocolError("state machine rejected message".into())
+        })?;
         Ok(())
     }
 }

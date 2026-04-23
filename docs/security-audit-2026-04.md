@@ -197,8 +197,14 @@ Failures → typed error, never panic.
   unlikely; atomic `tmp → final` rename remains.
 - **M4** MPC structs derive `Debug` — debug logs may dump secret
   fields. Custom `Debug` + `#[derive(Zeroize)]` on secret wrappers.
-- **M5** FFI `Error::to_string()` can leak internal state to Swift;
-  whitelist user-facing messages in `HorcruxError::display()`.
+- **M5** ✅ (round 8) FFI `Error::to_string()` could leak internal
+  state to Swift. New `sanitize_ffi_msg()` helper at the
+  `MpcError → HorcruxError` and `chain::ChainError → ChainError`
+  boundaries (and at the `shard_crypto` `to_string` sites): emits
+  the full message via `tracing::error!`, then strips control
+  bytes / newlines, truncates to 256 chars, and redacts contiguous
+  hex runs ≥ 64 chars (likely accidental key/digest material)
+  before returning to the caller.
 - **M6** iOS screenshot / screen-recording not blocked on sensitive
   screens. Add blurred overlay on `willResignActive`.
 - **M7** Deep-link handlers (`joinSession`) require no confirmation —
@@ -221,8 +227,11 @@ Failures → typed error, never panic.
   and `OsRng`; round 6 unified all five callsites onto
   `rand::rngs::OsRng` so reviewers no longer have to verify the
   RNG's cryptographic provenance per occurrence.
-- **L2** Error messages leak party indices. Low impact but external
-  auditors will comment.
+- **L2** ✅ (round 8) Error messages leak party indices. Three call
+  sites in `mpc::keygen` + `mpc::ecdsa` reformatted to log party
+  index via `tracing::warn!` while returning a generic message —
+  party identifiers no longer cross the FFI boundary inside
+  `MpcError::ProtocolError` strings.
 - **L3** ✅ (round 7) Dockerfile build stage runs as root. Builder
   stage now runs as uid 1000 (`builder` user); runtime stage was
   already non-root. Eliminates the malicious-build-script-as-root

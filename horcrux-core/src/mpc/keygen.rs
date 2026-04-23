@@ -278,10 +278,17 @@ impl KeygenSession {
         let rhs = r_point + c0 * challenge;
 
         if lhs != rhs {
-            return Err(MpcError::ProtocolError(format!(
-                "Schnorr proof failed for party {}",
-                broadcast.party_index
-            )));
+            // L2 (audit `docs/security-audit-2026-04.md`): keep party
+            // index in operator telemetry but out of the error string
+            // so it never crosses the FFI boundary into a UI toast or
+            // user-visible log.
+            tracing::warn!(
+                party = broadcast.party_index,
+                "Schnorr proof verification failed"
+            );
+            return Err(MpcError::ProtocolError(
+                "Schnorr proof verification failed".into(),
+            ));
         }
 
         Ok(())
@@ -354,10 +361,8 @@ impl KeygenSession {
                 .map_err(|_| MpcError::ProtocolError("invalid share size".into()))?;
             let s = Scalar::from_repr(s_bytes.into());
             if s.is_none().into() {
-                return Err(MpcError::ProtocolError(format!(
-                    "invalid share from party {}",
-                    share.from
-                )));
+                tracing::warn!(party = share.from, "invalid share scalar");
+                return Err(MpcError::ProtocolError("invalid share scalar".into()));
             }
 
             // Verify share against commitments from round 1
@@ -366,7 +371,8 @@ impl KeygenSession {
                 .iter()
                 .find(|b| b.party_index == share.from)
                 .ok_or_else(|| {
-                    MpcError::ProtocolError(format!("missing broadcast from party {}", share.from))
+                    tracing::warn!(party = share.from, "missing broadcast for share sender");
+                    MpcError::ProtocolError("missing broadcast for share sender".into())
                 })?;
 
             self.verify_share_against_commitments(

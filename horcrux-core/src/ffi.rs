@@ -57,15 +57,83 @@ pub enum HorcruxError {
 impl From<MpcError> for HorcruxError {
     fn from(e: MpcError) -> Self {
         match e {
-            MpcError::InvalidConfig(msg) => HorcruxError::InvalidConfig { msg },
-            MpcError::KeygenFailed(msg) => HorcruxError::KeygenFailed { msg },
-            MpcError::SigningFailed(msg) => HorcruxError::SigningFailed { msg },
-            MpcError::SessionError(msg) => HorcruxError::SessionError { msg },
-            MpcError::ProtocolError(msg) => HorcruxError::ProtocolError { msg },
+            MpcError::InvalidConfig(msg) => HorcruxError::InvalidConfig {
+                msg: sanitize_ffi_msg("InvalidConfig", &msg),
+            },
+            MpcError::KeygenFailed(msg) => HorcruxError::KeygenFailed {
+                msg: sanitize_ffi_msg("KeygenFailed", &msg),
+            },
+            MpcError::SigningFailed(msg) => HorcruxError::SigningFailed {
+                msg: sanitize_ffi_msg("SigningFailed", &msg),
+            },
+            MpcError::SessionError(msg) => HorcruxError::SessionError {
+                msg: sanitize_ffi_msg("SessionError", &msg),
+            },
+            MpcError::ProtocolError(msg) => HorcruxError::ProtocolError {
+                msg: sanitize_ffi_msg("ProtocolError", &msg),
+            },
             MpcError::InsufficientParties { needed, got } => {
                 HorcruxError::InsufficientParties { needed, got }
             }
         }
+    }
+}
+
+/// M5 (audit `docs/security-audit-2026-04.md`): scrub error messages
+/// before they cross the FFI boundary into Swift / Kotlin UI.
+///
+/// MPC and chain layers occasionally embed transient internal state
+/// (cipher-suite strings, library version stubs, raw byte counts) in
+/// error messages. None of those are secret per se, but they have no
+/// value to the end-user and they widen the attack surface for
+/// fingerprinting + targeted exploit selection. We:
+///
+/// 1. Emit the full original message via `tracing::error!` so
+///    operator-side telemetry retains the diagnostic detail.
+/// 2. Truncate to 256 chars and strip newlines / control bytes so a
+///    multi-line panic-style trace can't smuggle structured data
+///    into a single-line UI toast.
+/// 3. Reject byte sequences that look hex-encoded (>=64 contiguous
+///    hex chars) — likely a leaked key, hash, or signature material.
+pub(crate) fn sanitize_ffi_msg(category: &'static str, raw: &str) -> String {
+    tracing::error!(category, msg = raw, "ffi error");
+
+    let cleaned: String = raw
+        .chars()
+        .map(|c| {
+            if c == '\n' || c == '\r' || c == '\t' {
+                ' '
+            } else if (c as u32) < 0x20 {
+                '?'
+            } else {
+                c
+            }
+        })
+        .collect();
+
+    // Detect long contiguous hex runs (likely accidental key / digest leak)
+    let mut hex_run = 0usize;
+    let mut had_long_hex = false;
+    for c in cleaned.chars() {
+        if c.is_ascii_hexdigit() {
+            hex_run += 1;
+            if hex_run >= 64 {
+                had_long_hex = true;
+                break;
+            }
+        } else {
+            hex_run = 0;
+        }
+    }
+    if had_long_hex {
+        return format!("{category}: <redacted: long hex run>");
+    }
+
+    if cleaned.chars().count() > 256 {
+        let truncated: String = cleaned.chars().take(253).collect();
+        format!("{truncated}...")
+    } else {
+        cleaned
     }
 }
 
@@ -88,16 +156,22 @@ pub enum ChainError {
 impl From<chain::ChainError> for ChainError {
     fn from(e: chain::ChainError) -> Self {
         match e {
-            chain::ChainError::InvalidAddress(msg) => ChainError::InvalidAddress { msg },
-            chain::ChainError::EncodingError(msg) => ChainError::EncodingError { msg },
+            chain::ChainError::InvalidAddress(msg) => ChainError::InvalidAddress {
+                msg: sanitize_ffi_msg("InvalidAddress", &msg),
+            },
+            chain::ChainError::EncodingError(msg) => ChainError::EncodingError {
+                msg: sanitize_ffi_msg("EncodingError", &msg),
+            },
             chain::ChainError::InsufficientBalance => ChainError::InsufficientBalance,
             chain::ChainError::BlockhashExpired { age_ms, max_ms } => {
                 ChainError::BlockhashExpired { age_ms, max_ms }
             }
             chain::ChainError::ArithmeticOverflow(msg) => ChainError::ArithmeticOverflow {
-                msg: msg.to_string(),
+                msg: sanitize_ffi_msg("ArithmeticOverflow", msg),
             },
-            chain::ChainError::Other(msg) => ChainError::Other { msg },
+            chain::ChainError::Other(msg) => ChainError::Other {
+                msg: sanitize_ffi_msg("Other", &msg),
+            },
         }
     }
 }
@@ -604,7 +678,9 @@ pub fn horcrux_encrypt_shard(
 ) -> Result<FfiEncryptedShard, HorcruxError> {
     shard_crypto::encrypt_shard(&plaintext, &device_key, &pin)
         .map(Into::into)
-        .map_err(|e| HorcruxError::EncryptionFailed { msg: e.to_string() })
+        .map_err(|e| HorcruxError::EncryptionFailed {
+            msg: sanitize_ffi_msg("EncryptionFailed", &e.to_string()),
+        })
 }
 
 /// Decrypt a previously encrypted key shard. See `horcrux_encrypt_shard` for
@@ -616,8 +692,11 @@ pub fn horcrux_decrypt_shard(
     pin: Vec<u8>,
 ) -> Result<Vec<u8>, HorcruxError> {
     let es: EncryptedShard = encrypted.into();
-    let decrypted = shard_crypto::decrypt_shard(&es, &device_key, &pin)
-        .map_err(|e| HorcruxError::DecryptionFailed { msg: e.to_string() })?;
+    let decrypted = shard_crypto::decrypt_shard(&es, &device_key, &pin).map_err(|e| {
+        HorcruxError::DecryptionFailed {
+            msg: sanitize_ffi_msg("DecryptionFailed", &e.to_string()),
+        }
+    })?;
     // Zeroizing<Vec<u8>> → Vec<u8> for FFI; caller (iOS) must zero the result.
     Ok(decrypted.to_vec())
 }
@@ -1043,6 +1122,35 @@ impl HorcruxNoiseChannel {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    // ---- M5 sanitize_ffi_msg tests ----
+
+    #[test]
+    fn sanitize_passes_normal_messages() {
+        let s = sanitize_ffi_msg("Cat", "invalid party index");
+        assert_eq!(s, "invalid party index");
+    }
+
+    #[test]
+    fn sanitize_strips_newlines_and_control_bytes() {
+        let s = sanitize_ffi_msg("Cat", "line1\nline2\twith\x07bell");
+        assert_eq!(s, "line1 line2 with?bell");
+    }
+
+    #[test]
+    fn sanitize_truncates_long_messages() {
+        let raw = "x".repeat(1024);
+        let s = sanitize_ffi_msg("Cat", &raw);
+        assert!(s.ends_with("..."));
+        assert_eq!(s.chars().count(), 256);
+    }
+
+    #[test]
+    fn sanitize_redacts_long_hex_runs() {
+        let raw = format!("decryption failed at {}", "deadbeef".repeat(8));
+        let s = sanitize_ffi_msg("DecryptionFailed", &raw);
+        assert!(s.contains("redacted"), "expected redaction, got: {s}");
+    }
 
     // ---- EVM transaction tests ----
 

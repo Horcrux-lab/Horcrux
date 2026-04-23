@@ -149,6 +149,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     readability. Closes the supply-chain window where a maintainer
     of a dependent action could ship a malicious release under an
     existing tag.
+- **Audit P0 round 8** — P2 error-hygiene batch.
+  - **M5** (medium) — FFI error sanitizer. New `sanitize_ffi_msg()`
+    helper sits at every `From<…> for HorcruxError|ChainError`
+    conversion: emits the full original message via
+    `tracing::error!` (operators keep diagnostic detail), then
+    strips control bytes / newlines, truncates to 256 chars, and
+    redacts contiguous hex runs ≥ 64 chars before crossing into
+    Swift. Closes the leak class where transient cipher-suite
+    strings, library version stubs, or accidental key / digest
+    bytes could surface in a UI toast. Four unit tests cover the
+    pass-through, control-byte, truncation, and hex-redaction
+    paths.
+  - **L2** (low) — Three production sites in `mpc::keygen` +
+    `mpc::ecdsa` that previously embedded party indices in
+    `MpcError::ProtocolError` strings now log the index via
+    `tracing::warn!` and return a generic message — party
+    identifiers no longer cross the FFI boundary in error text.
 
 ### Added
 
