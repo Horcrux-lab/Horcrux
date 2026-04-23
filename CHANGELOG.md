@@ -42,6 +42,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     `serde_json::from_slice` calls across `horcrux-core/src/mpc/*.rs` use
     `.map_err(…)?` rather than `.unwrap()` / `.expect()`. Test-only
     `.unwrap()`s gated by `#[cfg(test)]` left as-is.
+  - **C2** (critical) — PIN zeroization. `SecureKeyVault` gained a
+    byte-oriented API (`provision(pinBytes:)`, `unwrapWithPin(pinBytes:)`,
+    `rewrapPinWrapped(swk:newPinBytes:)`) that lets callers own PIN
+    lifetime and wipe the buffer with `memset_s` via the new
+    `SecureKeyVault.zeroize(_:)` helpers. `AppState.setPin` /
+    `verifyPin` / `changePin` and `SecurityDetailView` backup flow
+    migrated; each wraps the PIN in a local `[UInt8]` and `defer`s a
+    zeroize. The String-based entry points remain as
+    `@available(*, deprecated)` shims for source compat; full
+    mitigation still requires the SwiftUI PIN field to hand the byte
+    buffer down directly (tracked as a follow-up — Swift `String` is
+    copy-on-write and cannot be reliably zeroed).
+  - **C3** (critical) — legacy v1 PIN-wrap cleanup. A successful v2
+    unwrap now proactively deletes any lingering v1 blob so the 100k
+    PBKDF2 offline-attack surface closes the moment the user unlocks
+    once under v2. Previously a partial-migration edge case (v2
+    stored, v1 delete failed) could leave the weak blob on-device
+    indefinitely.
 
 ### Added
 

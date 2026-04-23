@@ -81,8 +81,27 @@ enum SecureKeyVault {
 
     /// Create a fresh random SWK and persist both wraps.
     /// Used by onboarding (first PIN set) and by the legacy-install migration path.
+    ///
+    /// Prefer [`provision(pinBytes:)`] — passing `[UInt8]` lets the caller
+    /// control PIN byte lifetime and zeroize after use (audit finding C2).
+    /// Swift `String` cannot be zeroed: it is copy-on-write, may be
+    /// interned into the constant pool, and its bridging into `Data`
+    /// produces additional copies we cannot track.
     @discardableResult
+    @available(*, deprecated, message: "Use provision(pinBytes:) and zeroize the buffer yourself — C2")
     static func provision(pin: String) throws -> Data {
+        var pinBytes = Array(pin.utf8)
+        defer { zeroize(&pinBytes) }
+        return try provision(pinBytes: pinBytes)
+    }
+
+    /// Create a fresh random SWK and persist both wraps. The caller retains
+    /// ownership of `pinBytes` and is responsible for zeroizing the buffer
+    /// once the call returns (use a `defer { zeroize(&bytes) }` block at
+    /// the PIN-entry site). No copy of the PIN is kept inside this routine
+    /// once control returns.
+    @discardableResult
+    static func provision(pinBytes: [UInt8]) throws -> Data {
         var swk = Data(count: 32)
         let status = swk.withUnsafeMutableBytes { buf -> Int32 in
             guard let base = buf.baseAddress else { return errSecAllocate }
@@ -91,7 +110,7 @@ enum SecureKeyVault {
         guard status == errSecSuccess else {
             throw VaultError.randomFailed
         }
-        try storePinWrapped(swk: swk, pin: pin)
+        try storePinWrapped(swk: swk, pinBytes: pinBytes)
         if SecureEnclaveManager.shared.isAvailable {
             try? storeSealed(swk: swk) // non-fatal; PIN wrap is enough
         }
@@ -100,16 +119,31 @@ enum SecureKeyVault {
 
     // MARK: - Unwrap
 
-    /// Unwrap the SWK using a plaintext PIN. Caller must have already
+    /// Unwrap the SWK using a plaintext PIN. See [`unwrapWithPin(pinBytes:)`]
+    /// for the zeroization-safe entry point. Caller must have already
     /// validated the PIN via `AppState.verifyPin` — this routine does NOT
     /// rate-limit incorrect PINs on its own.
     ///
     /// Transparently migrates legacy (v1 / 100k PBKDF2) blobs to v2 (600k)
     /// the first time they're unwrapped after install.
+    @available(*, deprecated, message: "Use unwrapWithPin(pinBytes:) and zeroize the buffer yourself — C2")
     static func unwrapWithPin(_ pin: String) throws -> Data {
+        var pinBytes = Array(pin.utf8)
+        defer { zeroize(&pinBytes) }
+        return try unwrapWithPin(pinBytes: pinBytes)
+    }
+
+    /// Zeroization-safe unwrap entry point. `pinBytes` is NOT retained past
+    /// return; callers are expected to `defer { zeroize(&pinBytes) }` in
+    /// the PIN-entry code path.
+    static func unwrapWithPin(pinBytes: [UInt8]) throws -> Data {
         if let blob = try KeychainManager.shared.retrieve(key: keychainPinWrapped),
            blob.count > saltSize {
-            return try decryptPinBlob(blob, pin: pin, iterations: pbkdf2Iterations)
+            let swk = try decryptPinBlob(blob, pinBytes: pinBytes, iterations: pbkdf2Iterations)
+            // Legacy v1 blob lingering after a prior partial migration —
+            // delete it now that v2 has unwrapped cleanly.
+            try? KeychainManager.shared.delete(key: keychainPinWrappedLegacy)
+            return swk
         }
 
         // Fall back to legacy v1 wrap (100k PBKDF2). If it unwraps cleanly,
@@ -118,9 +152,9 @@ enum SecureKeyVault {
               legacyBlob.count > saltSize else {
             throw VaultError.notProvisioned
         }
-        let swk = try decryptPinBlob(legacyBlob, pin: pin, iterations: pbkdf2IterationsLegacy)
+        let swk = try decryptPinBlob(legacyBlob, pinBytes: pinBytes, iterations: pbkdf2IterationsLegacy)
         do {
-            try storePinWrapped(swk: swk, pin: pin)
+            try storePinWrapped(swk: swk, pinBytes: pinBytes)
             try? KeychainManager.shared.delete(key: keychainPinWrappedLegacy)
         } catch {
             // Migration failed — leave v1 in place so the next unlock retries.
@@ -141,8 +175,16 @@ enum SecureKeyVault {
 
     /// Replace the PIN-wrapped copy (e.g. after PIN change). SE-sealed copy
     /// is untouched — the SWK itself does not change.
+    @available(*, deprecated, message: "Use rewrapPinWrapped(swk:newPinBytes:) — C2")
     static func rewrapPinWrapped(swk: Data, newPin: String) throws {
-        try storePinWrapped(swk: swk, pin: newPin)
+        var bytes = Array(newPin.utf8)
+        defer { zeroize(&bytes) }
+        try rewrapPinWrapped(swk: swk, newPinBytes: bytes)
+    }
+
+    /// Zeroization-safe PIN rewrap. Caller retains `newPinBytes` ownership.
+    static func rewrapPinWrapped(swk: Data, newPinBytes: [UInt8]) throws {
+        try storePinWrapped(swk: swk, pinBytes: newPinBytes)
     }
 
     /// Ensure an SE-sealed copy exists. No-op if it already does or SE is
@@ -182,39 +224,47 @@ enum SecureKeyVault {
 
     // MARK: - Private helpers
 
-    private static func storePinWrapped(swk: Data, pin: String) throws {
+    /// Best-effort in-place zeroization of a mutable byte buffer. Uses
+    /// `memset_s` (which the compiler is forbidden from optimising away,
+    /// per C11) through Swift's unsafe pointer bridge. Callers should
+    /// `defer { zeroize(&bytes) }` at the PIN-entry site.
+    static func zeroize(_ bytes: inout [UInt8]) {
+        bytes.withUnsafeMutableBufferPointer { buf in
+            guard let base = buf.baseAddress else { return }
+            memset_s(base, buf.count, 0, buf.count)
+        }
+    }
+
+    /// Zeroize a `Data` buffer in place. Note: because `Data` is a
+    /// copy-on-write struct, this only wipes the storage backing *this*
+    /// instance; prior copies (made before the zeroize) are unaffected.
+    /// Prefer `[UInt8]` for PIN handling where zeroization must be reliable.
+    static func zeroize(_ data: inout Data) {
+        data.withUnsafeMutableBytes { buf in
+            guard let base = buf.baseAddress else { return }
+            memset_s(base, buf.count, 0, buf.count)
+        }
+    }
+
+    private static func storePinWrapped(swk: Data, pinBytes: [UInt8]) throws {
         var saltBytes = [UInt8](repeating: 0, count: saltSize)
         guard SecRandomCopyBytes(kSecRandomDefault, saltBytes.count, &saltBytes) == errSecSuccess else {
             throw VaultError.randomFailed
         }
         let salt = Data(saltBytes)
-        let wrapKey = try deriveWrapKey(pin: pin, salt: salt, iterations: pbkdf2Iterations)
-        defer {
-            var k = wrapKey
-            k.withUnsafeMutableBytes { buf in
-                if let base = buf.baseAddress {
-                    memset_s(base, buf.count, 0, buf.count)
-                }
-            }
-        }
+        var wrapKey = try deriveWrapKey(pinBytes: pinBytes, salt: salt, iterations: pbkdf2Iterations)
+        defer { zeroize(&wrapKey) }
         let box = try AES.GCM.seal(swk, using: SymmetricKey(data: wrapKey))
         guard let combined = box.combined else { throw VaultError.wrapFailed }
         let blob = salt + combined
         try KeychainManager.shared.storeSecure(key: keychainPinWrapped, data: blob)
     }
 
-    private static func decryptPinBlob(_ blob: Data, pin: String, iterations: UInt32) throws -> Data {
+    private static func decryptPinBlob(_ blob: Data, pinBytes: [UInt8], iterations: UInt32) throws -> Data {
         let salt = blob.prefix(saltSize)
         let sealedData = blob.dropFirst(saltSize)
-        let wrapKey = try deriveWrapKey(pin: pin, salt: Data(salt), iterations: iterations)
-        defer {
-            var k = wrapKey
-            k.withUnsafeMutableBytes { buf in
-                if let base = buf.baseAddress {
-                    memset_s(base, buf.count, 0, buf.count)
-                }
-            }
-        }
+        var wrapKey = try deriveWrapKey(pinBytes: pinBytes, salt: Data(salt), iterations: iterations)
+        defer { zeroize(&wrapKey) }
         let box = try AES.GCM.SealedBox(combined: sealedData)
         return try AES.GCM.open(box, using: SymmetricKey(data: wrapKey))
     }
@@ -224,11 +274,10 @@ enum SecureKeyVault {
         try KeychainManager.shared.storeSecure(key: keychainSESealed, data: sealed)
     }
 
-    private static func deriveWrapKey(pin: String, salt: Data, iterations: UInt32) throws -> Data {
-        let pinData = Data(pin.utf8)
+    private static func deriveWrapKey(pinBytes: [UInt8], salt: Data, iterations: UInt32) throws -> Data {
         var out = Data(count: 32)
         let status = out.withUnsafeMutableBytes { outBuf -> Int32 in
-            pinData.withUnsafeBytes { pinBuf -> Int32 in
+            pinBytes.withUnsafeBufferPointer { pinBuf -> Int32 in
                 salt.withUnsafeBytes { saltBuf -> Int32 in
                     guard let outBase = outBuf.baseAddress,
                           let pinBase = pinBuf.baseAddress,
@@ -237,8 +286,12 @@ enum SecureKeyVault {
                     }
                     return Int32(CCKeyDerivationPBKDF(
                         CCPBKDFAlgorithm(kCCPBKDF2),
-                        pinBase.assumingMemoryBound(to: Int8.self),
-                        pinData.count,
+                        // CCKeyDerivationPBKDF's `password` parameter is
+                        // `const char *` historically, but it treats the
+                        // buffer as opaque bytes of the given length —
+                        // passing a UInt8 pointer is safe.
+                        UnsafeRawPointer(pinBase).assumingMemoryBound(to: Int8.self),
+                        pinBytes.count,
                         saltBase.assumingMemoryBound(to: UInt8.self),
                         salt.count,
                         CCPseudoRandomAlgorithm(kCCPRFHmacAlgSHA256),

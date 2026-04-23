@@ -42,7 +42,9 @@ struct SecurityDetailView: View {
                     return L10n.ShardsVM.pinWrong
                 }
                 do {
-                    let swk = try SecureKeyVault.unwrapWithPin(entered)
+                    var enteredBytes = Array(entered.utf8)
+                    defer { SecureKeyVault.zeroize(&enteredBytes) }
+                    let swk = try SecureKeyVault.unwrapWithPin(pinBytes: enteredBytes)
                     try SecureKeyVault.sealBackupNow(swk: swk)
                     backupRefreshToken &+= 1
                     return nil

@@ -223,7 +223,14 @@ final class AppState: ObservableObject {
             // only hit this branch during a recovery flow.
             SecureKeyVault.wipe()
         }
-        cachedShardKeyMaterial = try SecureKeyVault.provision(pin: pin)
+        // Convert PIN to a mutable byte buffer inside this scope so we can
+        // zeroize it on return. The caller's String copy is still present
+        // upstream (audit finding C2 — full mitigation requires converting
+        // the SwiftUI PIN field to `[UInt8]`), but this closes the
+        // in-vault exposure window.
+        var pinBytes = Array(pin.utf8)
+        defer { SecureKeyVault.zeroize(&pinBytes) }
+        cachedShardKeyMaterial = try SecureKeyVault.provision(pinBytes: pinBytes)
     }
 
     /// Verify a PIN against the stored salt||hash. Returns false if locked out.
@@ -255,12 +262,14 @@ final class AppState: ObservableObject {
         // only be created after PIN is set and an SWK exists), provision
         // one now using this PIN and continue as normal. This keeps the
         // lock screen from turning into a dead end.
+        var pinBytes = Array(pin.utf8)
+        defer { SecureKeyVault.zeroize(&pinBytes) }
         guard SecureKeyVault.hasPinWrapped else {
             SecureLog.info("SWK vault missing — provisioning fresh vault with verified PIN")
-            cachedShardKeyMaterial = try? SecureKeyVault.provision(pin: pin)
+            cachedShardKeyMaterial = try? SecureKeyVault.provision(pinBytes: pinBytes)
             return true
         }
-        cachedShardKeyMaterial = try? SecureKeyVault.unwrapWithPin(pin)
+        cachedShardKeyMaterial = try? SecureKeyVault.unwrapWithPin(pinBytes: pinBytes)
         if let swk = cachedShardKeyMaterial {
             SecureKeyVault.ensureSealed(swk: swk)
         }
@@ -317,7 +326,9 @@ final class AppState: ObservableObject {
         if let cached = cachedShardKeyMaterial {
             swk = cached
         } else if SecureKeyVault.hasPinWrapped {
-            swk = try SecureKeyVault.unwrapWithPin(currentPin)
+            var currentBytes = Array(currentPin.utf8)
+            defer { SecureKeyVault.zeroize(&currentBytes) }
+            swk = try SecureKeyVault.unwrapWithPin(pinBytes: currentBytes)
         } else {
             throw AppError.keychainUnavailable("Shard Wrap Key not provisioned")
         }
@@ -328,7 +339,9 @@ final class AppState: ObservableObject {
         resetFailedAttempts()
 
         // Re-wrap SWK under the new PIN. SE-sealed copy is left alone.
-        try SecureKeyVault.rewrapPinWrapped(swk: swk, newPin: newPin)
+        var newBytes = Array(newPin.utf8)
+        defer { SecureKeyVault.zeroize(&newBytes) }
+        try SecureKeyVault.rewrapPinWrapped(swk: swk, newPinBytes: newBytes)
 
         cachedShardKeyMaterial = swk
     }

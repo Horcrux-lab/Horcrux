@@ -71,6 +71,51 @@ final class SecureKeyVaultTests: XCTestCase {
         XCTAssertThrowsError(try SecureKeyVault.unwrapWithPin("oldpin"))
     }
 
+    // MARK: - Byte-based API (C2 zeroize path)
+
+    func testProvisionAndUnwrapWithPinBytes() throws {
+        var pinBytes: [UInt8] = [0x31, 0x32, 0x33, 0x34, 0x35, 0x36] // "123456"
+        let swk = try SecureKeyVault.provision(pinBytes: pinBytes)
+        XCTAssertEqual(swk.count, 32)
+
+        let recovered = try SecureKeyVault.unwrapWithPin(pinBytes: pinBytes)
+        XCTAssertEqual(recovered, swk)
+
+        // String API should interoperate with bytes API (same UTF-8).
+        XCTAssertEqual(try SecureKeyVault.unwrapWithPin("123456"), swk)
+
+        SecureKeyVault.zeroize(&pinBytes)
+        XCTAssertTrue(pinBytes.allSatisfy { $0 == 0 })
+    }
+
+    func testZeroizeClearsBuffer() {
+        var bytes: [UInt8] = [1, 2, 3, 4, 5, 6, 7, 8]
+        SecureKeyVault.zeroize(&bytes)
+        XCTAssertEqual(bytes, Array(repeating: 0, count: 8))
+    }
+
+    // MARK: - v1 cleanup on successful v2 unwrap (C3)
+
+    func testV2UnwrapDeletesLingeringV1Blob() throws {
+        // Provision v2.
+        _ = try SecureKeyVault.provision(pin: "123456")
+
+        // Plant an unrelated v1 blob that simulates a partial migration
+        // where v2 was created but v1 was not deleted (e.g., a prior
+        // keychain delete failure).
+        let legacyBlob = try makeLegacyPinWrappedBlob(
+            swk: Data(repeating: 0x77, count: 32),
+            pin: "unrelated"
+        )
+        try KeychainManager.shared.storeSecure(key: v1Key, data: legacyBlob)
+        XCTAssertNotNil(try KeychainManager.shared.retrieve(key: v1Key))
+
+        // A successful v2 unwrap with the correct PIN should proactively
+        // clean up the lingering v1 blob.
+        _ = try SecureKeyVault.unwrapWithPin("123456")
+        XCTAssertNil(try KeychainManager.shared.retrieve(key: v1Key))
+    }
+
     // MARK: - v1 → v2 migration
 
     func testLegacyV1BlobIsMigratedToV2OnUnwrap() throws {
