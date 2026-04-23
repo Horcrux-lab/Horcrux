@@ -5,6 +5,163 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.0-rc.1] - 2026-04-23
+
+Pre-audit release candidate. Consolidates everything shipped between
+`v0.3.0` and the `v0.5.0-dev.1` … `v0.5.0-dev.6` tag series, plus two
+phases of engineering-quality and security hardening done on top of
+`dev.6` to make the codebase audit-ready.
+
+Individual `v0.4.x` and `v0.5.0-dev.x` git tags are preserved for
+granular history, but changelog entries below are consolidated.
+
+### Added
+
+- **Vault Mode** (institutional display) — Settings-configurable layout
+  rendering wallets as institutional vaults (square badge + vault code +
+  env tag + health meta), with optional "hide balances by default" and
+  per-vault USD in the header. Individual users keep the default
+  Standard layout. (`v0.5.0-dev.1` … `dev.3`)
+- **Per-vault metadata** — name, notes, role tag (Treasury / Hot / Cold
+  / Operating / Personal) rendered as chip + subtitle in both Standard
+  and Vault group headers, editable from "Edit Vault Info". (`dev.3`)
+- **Approval Queue** — new "Approvals" tab (checkmark.seal icon) with
+  pending / stale / recent sections, badge count, and a tap-to-open
+  detail sheet with full tx metadata. `ApprovalRequestStore` persists
+  decisions to Documents JSON with 24h pending TTL + 180-day retention
+  sweep. JoinSigningView now offers "Save for later" alongside
+  Approve / Reject; pending rows show "Resume signing" that reroutes
+  the cosigner back into `JoinSigningView` via DeepLink. (`dev.4`, `dev.5`)
+- **Audit Log export** — Settings → Diagnostics → Export Audit Log.
+  Two share-sheet cards (Transactions, Approvals) each with CSV +
+  JSON. CSV is RFC-4180-quoted UTF-8 BOM; JSON is pretty-printed with
+  sorted keys + ISO-8601 dates matching the on-disk schema so auditors
+  can diff raw stores. (`dev.6`)
+- **Testnet badges** — amber "flask" capsule on wallet list rows, chain
+  detail hero, and Portfolio Breakdown rows when the current network is
+  testnet (Ethereum Sepolia, BTC/LTC testnet, Solana Devnet, TRON
+  Shasta/Nile). (`dev.5`, `dev.6`)
+- **Post-broadcast balance refresh** — force-refresh sender native
+  balance (+ selected token) immediately and again at 12s after every
+  successful broadcast on all chains. (`dev.5`)
+- **Paid RPC providers** — added Tenderly Gateway, 1RPC, GetBlock to
+  the EVM/Solana picker; one-tap preset chips for Tron
+  (TronGrid / TronStack / Shasta / Nile) and BTC/LTC (Esplora
+  mainnet/testnet). Infura / Alchemy API keys now share across
+  EVM + Solana. (`v0.4.x`)
+
+### Changed
+
+- **Portfolio metrics unified** across Standard + Vault banners
+  (sparkline + 24h), extracted into a reusable `PortfolioMetrics`
+  component. (Phase 1b)
+- **Transaction History** distinguishes incoming vs outgoing records:
+  "Send SYMBOL" / "Receive SYMBOL" labels, signed amounts with green
+  tint on incoming, flipped counterparty arrow. (`dev.5`)
+- **Compose flow** prefetches balance on screen open (not on amount
+  entry); shows current-asset balance inline on the transfer screen.
+  (`v0.4.x`)
+- **Settings layout** — lifted API keys to the top section, merged
+  status badges, collapsed advanced fields; chain picker on its own
+  row; import/export moved to a sub-screen. (`v0.4.x`)
+- **Wallet header avatar** (plan F) — when the user hasn't picked an
+  emoji, the fallback renders the MPC threshold as a typographic
+  fraction (e.g. `2⁄3` via U+2044). The separate threshold capsule is
+  removed, folded into the name's accessibility label. Earlier header
+  experiments (plans D/E) were reverted. (`v0.4.2` … `v0.4.5`)
+
+### Fixed
+
+- **Signing — control-plane DTO decode noise** (`dev.6`): MPC receive
+  loop was decoding every relay payload as `MpcMessageDTO`, turning
+  normal control-plane re-broadcasts (`SignRequestDTO`,
+  `SignBeginDTO`, `SignPresenceDTO`, `RoomPresenceDTO`,
+  `SessionBeginDTO`) into decode errors that ate the
+  `decodingFailures` budget and spuriously tripped "Protocol
+  communication failure". Ported the `MagicPeek` filter from the
+  DKG loop — 5 control magics (`HSP-v1`, `HSG-v1`, `HSQ-v1`,
+  `HRP-v1`, `HSB-v1`) now silently bypass the `MpcMessageDTO` path.
+- **Signing — cosigner FROST round stalls** — closed a subscription
+  race where `signingTask` subscribed to `mpcStream` *after*
+  broadcasting `SignBeginDTO`, so the first round-0 messages were
+  dropped by `yielding to 0 subscriber(s)`. Subscription now happens
+  at the top of the task before any broadcast. (`v0.4.x`)
+- **Signing — duplicate tasks + iterator eviction** on cosigner, LAN
+  peer id mapping for inbound-stub presence, `SignBeginDTO`
+  participant list source of truth. (`v0.4.x`)
+- **Approvals — reactive tab badge**, clean resume path (dismiss-first,
+  per-code sheet identity, `prefillJoinCode` cleared on dismiss),
+  auto-resolve on MPC complete, wipe on factory reset. (`dev.5`)
+- **RPC / pinning** — poller uses fallbacks; stale SPKI pins
+  auto-rotate; gas-estimation failures surface with retry in the EVM
+  flow; fee preview shown when wallet has zero native balance.
+  (`v0.4.x`)
+- **Localization** — `SecureKeyVault` error messages localized;
+  chain-aware token empty-state copy; Vault Mode + Portfolio Breakdown
+  strings (zh / en); dropped "US$" prefix from USD amounts (pinned
+  `en_US` locale). (`v0.4.x`)
+
+### Security
+
+- **PBKDF2 iteration bump** — iOS `SecureKeyVault` PIN-wrap
+  key-stretching moved from 100 000 → **600 000** iterations per
+  OWASP 2023 guidance. Legacy `swk.pin.v1` keychain blobs are silently
+  re-wrapped as `swk.pin.v2` on first successful unlock and the v1
+  entry deleted; migration failure leaves v1 intact so the next unlock
+  retries. (Phase 2a — `81ccfe5`)
+- **FFI doc correctness** — `horcrux_encrypt_shard` /
+  `horcrux_decrypt_shard` doc comments now accurately state that the
+  `pin` parameter carries the SWK (not the user's numeric PIN) on iOS,
+  and that the KDF is HKDF-SHA256, not PBKDF2. The ABI name is
+  preserved for UniFFI Swift-binding compatibility. (`81ccfe5`)
+- **Auditor-ready docs** — new top-level `SECURITY.md` (disclosure
+  policy, scope, safe-harbor language, response SLAs); new
+  `docs/code-tour.md` (17 FFI entry points mapped, trust boundaries,
+  Mermaid keygen/signing state-machine diagram, first-hour reading
+  order); refreshed `docs/security-model.md` Layer 3 diagram to show
+  the real SWK + SE + PBKDF2 architecture. (Phase 2b — `a61c1e3`)
+- **RUSTSEC-2025-0127 (cggmp21 presignature misuse)** — added to the
+  CI `cargo audit` ignore list with explicit rationale: both exploit
+  paths require calling `Presignature::set_derivation_path` or
+  `Presignature::issue_partial_signature` with hash-only inputs; our
+  signing flow never instantiates presignatures. (`3acb043`)
+
+### Engineering Quality
+
+- **CI green-up** — fmt + Clippy + cargo-audit + iOS xbuild +
+  tarpaulin coverage + release build all stable on macOS / Linux
+  runners. Independent Clippy gate (`if: ${{ !cancelled() }}`) so a
+  fmt blip no longer hides lint regressions. (Phase 1a)
+- **iOS test coverage** — 60 new unit tests covering
+  `PortfolioMetrics`, `RelayConfig`, `AddressFormatter`, and
+  `NodeErrorMapper`. `PortfolioMetrics` extracted out of
+  `WalletHomeView` for testability. (Phase 1b — `44457be`)
+- **Relay end-to-end test** — `horcrux-relay/tests/dkg_end_to_end.rs`
+  runs a 2-party FROST Ed25519 DKG over a real in-process relay bound
+  to `127.0.0.1:0`. (Phase 1c — `3157523`)
+- **Codecov gate** — `codecov.yml` with project threshold 2% / patch
+  target 70% (5% informational), `only_pulls: true` to suppress noise
+  on `main`, `third_party/` + `target/` + `tests/` + `build.rs`
+  ignored. Badge added to `README.md`. (Phase 1d — `110dae8`)
+- **Security tests** — 6 new `SecureKeyVaultTests` covering provision
+  / unwrap roundtrip, wrong-PIN failure, not-provisioned, rewrap with
+  new PIN, wipe, and the v1 → v2 PBKDF2-iteration migration path using
+  a test-only legacy-blob fixture. (Phase 2a)
+
+### Known Limitations
+
+- **Formal audit**: not yet started. This is the release candidate
+  *for* audit, not a post-audit build.
+- **Reproducible build** manifest is published for this RC (see
+  `docs/reproducible-build.md`) but has only been verified on macOS
+  hosts. Linux cross-build parity is on the post-audit roadmap.
+- **Approval-queue resume** requires live co-signers on the same
+  relay session; stashed DTOs cannot reactivate offline.
+- **CGGMP21 key_refresh** still limited to 2-of-2 wallets; N-of-M
+  refresh is tracked on the 0.5.x roadmap.
+
+
+
 ## [0.3.0] - 2026-04-21
 
 First stable release of the Horcrux MPC wallet. Consolidates everything
