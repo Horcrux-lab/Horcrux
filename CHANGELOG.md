@@ -31,6 +31,42 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   ~30-line pure functions instead of three inline async loops. See
   `docs/security-audit-2026-04.md` → C1 → "Round 17 close-out".
 
+- **EIP-712 typed-data JSON helper** (core + FFI). New module
+  `horcrux-core/src/chain/eip712_typed.rs` implements the EIP-712 v4
+  `hashStruct` + `encodeType` / `encodeData` pipeline from pure Rust
+  (no `alloy` / `ethers` dependency) and exposes one entry point:
+  `eip712_digest_from_typed_data_json(json: &str) -> Result<[u8;32], ChainError>`
+  accepting the canonical `eth_signTypedData_v4` JSON shape
+  (`{types, primaryType, domain, message}`) as produced by
+  MetaMask / WalletConnect. Reuses the existing `eip712_digest`
+  primitive for the final `0x19 0x01 || ds || struct_hash` step, so
+  every audit-H8 rejection (zero `chainId`, zero
+  `verifyingContract`, empty `name`) applies identically to the
+  UI-bound and JSON-bound call-sites. Supports `string`, `bytes`,
+  `bytesN` (1..=32), `address`, `bool`, `uintN` / `intN` (8..=256,
+  multiples of 8), nested structs, and dynamic/fixed arrays. Rejects
+  circular type graphs and unknown field types. Also exported
+  through `ffi.rs` as `horcrux_eip712_digest_from_typed_data(json)`
+  so iOS (and any future consumer) can get the signable digest from
+  a dApp's raw JSON payload without hand-rolling the encoder. Ten
+  unit tests: the canonical EIP-712 spec vector
+  (`0xbe609aee…0957bd2`), `encodeType` golden string, chain_id=0
+  reject, verifyingContract=0x0 reject, missing-primaryType reject,
+  unknown-field-type reject, circular-types reject, determinism
+  round-trip, dynamic `Person[]` struct-array, and
+  `uint256` decimal-string-equals-number equivalence.
+
+- **DKG registrySnapshot helper** (round 16 save path). Extract the
+  nil-on-empty ternary from `CreateShardViewModel.saveWallet` into
+  a pure, nonisolated static function
+  `registrySnapshot(from:) -> [String: UInt16]?`. The invariant —
+  `Wallet.peerRegistry` is either `nil` (pre-round-16, cold, or
+  standalone) or a populated map — is now enforced at the boundary
+  rather than inlined; persisting `[:]` would falsely signal strict
+  mode with zero acceptable peers (every inbound message would hit
+  `rejectUnknownPeer`). 3 new tests in `DkgPeerBindingTests.swift`:
+  empty-map→nil, populated-map passthrough, input-not-mutated.
+
 - **DKG C1 second-gate tests** — complete the extract-and-test triad
   (DKG / Refresh / Signing) for the C1 roster-binding check in
   `CreateShardViewModel`. Pull the per-inbound-message `fromParty`

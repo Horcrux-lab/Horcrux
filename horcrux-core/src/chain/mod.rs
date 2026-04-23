@@ -1,6 +1,7 @@
 //! Multi-chain transaction abstraction layer.
 
 pub mod bitcoin;
+pub mod eip712_typed;
 pub mod evm;
 pub mod solana;
 

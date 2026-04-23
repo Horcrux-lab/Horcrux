@@ -700,6 +700,19 @@ pub fn horcrux_eip712_digest(
         .map_err(Into::into)
 }
 
+/// Compute an EIP-712 v4 digest directly from an `eth_signTypedData_v4`
+/// JSON payload (the canonical dApp / WalletConnect shape:
+/// `{types, primaryType, domain, message}`). Delegates every
+/// domain-binding check to `eip712_digest` so the audit-H8 guards
+/// (non-zero `chainId`, non-zero `verifyingContract`, non-empty
+/// `name`) apply identically to the UI-bound and JSON-bound paths.
+#[uniffi::export]
+pub fn horcrux_eip712_digest_from_typed_data(json: String) -> Result<Vec<u8>, ChainError> {
+    chain::eip712_typed::eip712_digest_from_typed_data_json(&json)
+        .map(|d| d.to_vec())
+        .map_err(Into::into)
+}
+
 // ============================================================================
 // Paillier prime pool — see mpc::prime_pool for rationale.
 // ============================================================================
