@@ -10,12 +10,17 @@
 #      (when --expect-version is passed or running inside the repo).
 #   2. GET /metrics — rejects an unauthenticated request (admin-
 #      only), accepts a request carrying the expected admin token
-#      when --admin-token is provided.
+#      when --admin-token is provided, and the returned body is
+#      valid Prometheus text-exposition format.
 #   3. GET /admin/rooms — same admin-token enforcement.
 #   4. GET /ws/smoke-$RANDOM — WebSocket upgrade (101 Switching
 #      Protocols) with a correctly computed Sec-WebSocket-Accept.
-#   5. TLS certificate validity (https:// URLs only) — rejects
-#      expired / name-mismatched / self-signed certificates.
+#   5. TLS negotiation (https:// URLs only) — rejects expired /
+#      name-mismatched / self-signed certificates AND rejects TLS
+#      versions below 1.2 (TLS 1.0 / 1.1 / SSLv3 must be disabled
+#      server-side).
+#   6. HSTS header (https:// URLs only) — Strict-Transport-Security
+#      is present with a max-age of at least 6 months.
 #
 # Usage:
 #   scripts/verify-relay-deploy.sh <base-url> [--admin-token TOKEN]
@@ -131,14 +136,46 @@ if [[ $SKIP_ADMIN -eq 0 ]]; then
 
     if [[ -n "$ADMIN_TOKEN" ]]; then
         step "GET /metrics (with admin token)"
-        STATUS=$(curl --silent --max-time 10 -o /dev/null -w '%{http_code}' \
+        METRICS_TMP=$(mktemp 2>/dev/null || mktemp -t metrics)
+        STATUS=$(curl --silent --max-time 10 -o "$METRICS_TMP" -w '%{http_code}' \
             -H "X-Admin-Token: $ADMIN_TOKEN" \
             "$BASE_URL/metrics" 2>/dev/null || echo 000)
         if [[ "$STATUS" == "200" ]]; then
             ok "admin-token accepted"
+            # Prometheus text-exposition format sanity check:
+            #   - at least one '# HELP <name> <text>' line
+            #   - at least one '# TYPE <name> (counter|gauge|histogram|summary|untyped)' line
+            #   - at least one non-comment sample line of shape
+            #     '<name>{...} <float>' or '<name> <float>'.
+            HELP_LINES=$(grep -c '^# HELP ' "$METRICS_TMP" 2>/dev/null || echo 0)
+            TYPE_LINES=$(grep -c '^# TYPE ' "$METRICS_TMP" 2>/dev/null || echo 0)
+            # Sample lines: start with [a-zA-Z_:], end with a number
+            # (possibly with fractional/scientific parts or timestamps).
+            SAMPLE_LINES=$(grep -cE '^[a-zA-Z_:][a-zA-Z0-9_:]*(\{[^}]*\})?[[:space:]]+[-+0-9eE.NaIinf]+([[:space:]]+[0-9]+)?[[:space:]]*$' \
+                "$METRICS_TMP" 2>/dev/null || echo 0)
+            if [[ "$HELP_LINES" -ge 1 && "$TYPE_LINES" -ge 1 && "$SAMPLE_LINES" -ge 1 ]]; then
+                ok "Prometheus exposition format valid (HELP=$HELP_LINES TYPE=$TYPE_LINES samples=$SAMPLE_LINES)"
+            else
+                bad "not valid Prometheus exposition (HELP=$HELP_LINES TYPE=$TYPE_LINES samples=$SAMPLE_LINES)"
+            fi
+            # Spot-check for a handful of metrics we expect the
+            # relay to always export. Missing any of these usually
+            # means the relay was built with a feature flag off.
+            for expected in \
+                horcrux_relay_active_rooms \
+                horcrux_relay_active_connections \
+                horcrux_relay_messages_total
+            do
+                if grep -q "^# TYPE $expected " "$METRICS_TMP"; then
+                    ok "exports metric: $expected"
+                else
+                    bad "missing expected metric: $expected"
+                fi
+            done
         else
             bad "admin-token rejected (HTTP $STATUS) — token wrong or relay mis-configured"
         fi
+        rm -f "$METRICS_TMP"
     fi
 
     step "GET /admin/rooms (without admin token)"
@@ -211,6 +248,53 @@ if [[ "$BASE_URL" == https://* ]]; then
             bad "TLS handshake failed — certificate is untrusted, expired, or name-mismatched"
         else
             bad "TLS handshake failed and server did not respond on -k retry (HTTP $STATUS_INSECURE)"
+        fi
+    fi
+
+    # ---------- 4a. Minimum TLS version ----------
+    step "TLS minimum version (reject <1.2)"
+    # Probe with --tls-max 1.1 — a properly configured server MUST
+    # refuse the handshake, so curl exits non-zero.
+    if curl --silent --max-time 10 --tls-max 1.1 -o /dev/null \
+        "$BASE_URL/health" 2>/dev/null; then
+        bad "server accepted TLS 1.1 or lower (TLS 1.2+ must be enforced)"
+    else
+        ok "server refuses TLS 1.1 and below"
+    fi
+    # Positive check that TLS 1.2 or 1.3 is the actual negotiated
+    # version.
+    if command -v openssl >/dev/null 2>&1; then
+        HOST_PORT=$(echo "$BASE_URL" | sed -E 's|^https?://||; s|/.*$||')
+        case "$HOST_PORT" in *:*) : ;; *) HOST_PORT="$HOST_PORT:443" ;; esac
+        TLS_INFO=$(echo | openssl s_client -connect "$HOST_PORT" \
+            -servername "${HOST_PORT%%:*}" -brief 2>&1 | head -20 || true)
+        TLS_VER=$(echo "$TLS_INFO" \
+            | awk -F': ' '/^Protocol[[:space:]]*:/{print $2; exit} /Protocol version:/{print $2; exit}' \
+            | tr -d ' \r\n')
+        case "$TLS_VER" in
+            TLSv1.2|TLSv1.3) ok "negotiated $TLS_VER" ;;
+            "") echo "  (openssl probe returned no Protocol line — skipping)" ;;
+            *) bad "server negotiated $TLS_VER (expected TLSv1.2 or TLSv1.3)" ;;
+        esac
+    fi
+
+    # ---------- 4b. HSTS header ----------
+    step "Strict-Transport-Security header"
+    HSTS=$(curl --silent --max-time 10 --include -o - \
+        "$BASE_URL/health" 2>/dev/null \
+        | awk -F': ' 'tolower($1)=="strict-transport-security"{gsub(/\r/,"",$2);print $2; exit}')
+    if [[ -z "$HSTS" ]]; then
+        bad "Strict-Transport-Security header missing on /health response"
+    else
+        MAX_AGE=$(echo "$HSTS" | sed -n 's/.*max-age=\([0-9][0-9]*\).*/\1/p')
+        # Six months in seconds.
+        MIN_MAX_AGE=15552000
+        if [[ -z "$MAX_AGE" ]]; then
+            bad "HSTS header present but missing max-age directive: '$HSTS'"
+        elif (( MAX_AGE < MIN_MAX_AGE )); then
+            bad "HSTS max-age=$MAX_AGE is below 6-month floor ($MIN_MAX_AGE)"
+        else
+            ok "HSTS present with max-age=$MAX_AGE ($(( MAX_AGE / 86400 )) days)"
         fi
     fi
 fi

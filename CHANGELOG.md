@@ -9,6 +9,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security
 
+- **Relay deploy smoke script — Prometheus / TLS / HSTS hardening**.
+  `scripts/verify-relay-deploy.sh` now performs three additional
+  post-deploy gates an operator can't forget:
+    - **Prometheus exposition format validation** — when the
+      admin-token path returns `/metrics`, the script parses the
+      body for `# HELP …`, `# TYPE …`, and sample lines of the
+      RFC-9000-ish exposition shape, and also asserts the presence
+      of three canonical metric names (`horcrux_relay_active_rooms`,
+      `horcrux_relay_active_connections`, `horcrux_relay_messages_total`).
+      Catches a misconfigured Prometheus registry that would otherwise
+      silently ship an empty metrics surface.
+    - **TLS 1.2+ enforcement** — negative probe with
+      `curl --tls-max 1.1` (must be refused) plus a positive
+      `openssl s_client -brief` probe asserting the negotiated
+      protocol is `TLSv1.2` or `TLSv1.3`. Any relay still accepting
+      TLS 1.0 / 1.1 now fails the gate.
+    - **HSTS header check** — `Strict-Transport-Security` must be
+      present on `/health` with `max-age ≥ 6 months` (15 552 000 s).
+      Refuses deploy when a reverse-proxy change silently drops the
+      header.
+
+### Docs
+
+- **`scripts/README.md`** — new operator-facing index for the
+  `scripts/` directory. Lists `verify-build.sh` and
+  `verify-relay-deploy.sh` with canonical invocations, documents
+  exit-code conventions (0 pass / 1 soft-fail / 2 usage), and
+  gives a checklist for adding a new script (header banner, chmod
+  +x, inventory row, CI wiring).
+
+### Security
+
 - **cargo-deny supply-chain CI gate**.
   New `deny.toml` + `.github/workflows/cargo-deny.yml` workflow adds
   four supply-chain checks that run on every push / PR and weekly
