@@ -108,6 +108,9 @@ enum L10n {
         static let securityWarning = NSLocalizedString("app.securityWarning", comment: "")
         static let understandRisk = NSLocalizedString("app.understandRisk", comment: "")
         static let deviceCompromised = NSLocalizedString("app.deviceCompromised", comment: "")
+        static let deepLinkJoinTitle = NSLocalizedString("app.deepLinkJoinTitle", comment: "")
+        static let deepLinkJoinMessage = NSLocalizedString("app.deepLinkJoinMessage", comment: "")
+        static let deepLinkJoinContinue = NSLocalizedString("app.deepLinkJoinContinue", comment: "")
     }
 
     // MARK: - Tabs

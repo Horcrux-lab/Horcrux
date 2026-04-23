@@ -1806,7 +1806,7 @@ struct ChainFieldActions: View {
         HStack(spacing: 12) {
             if let url = config.fieldValue(for: chain), !url.isEmpty {
                 Button {
-                    UIPasteboard.general.string = url
+                    SecureClipboard.copy(url)
                 } label: {
                     Label(L10n.NodeStatus.copyURL, systemImage: "doc.on.doc")
                         .font(.caption2)
@@ -2184,7 +2184,7 @@ private struct RPCConfigExportSheet: View {
                 }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button {
-                        UIPasteboard.general.string = json
+                        SecureClipboard.copy(json)
                         copied = true
                         DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) { copied = false }
                     } label: {

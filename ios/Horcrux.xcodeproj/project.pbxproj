@@ -44,6 +44,7 @@
 		45DA893F35C68A553D0E1CA0 /* DKGTestView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9BC6D798ADA312303C951B6D /* DKGTestView.swift */; };
 		4B7B6F204D8AFDEB4EACE5EB /* ShardsViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 18E722F82F4851FF4C37CDA4 /* ShardsViewModel.swift */; };
 		4C4F745DC9B848647BC3F360 /* JoinSigningView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5918A98EB3F7837001C759F5 /* JoinSigningView.swift */; };
+		4D0C0D0EECAC11F0DECDCA11 /* DecodedCallView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4D0C0D0FECAC11F0DECDCA11 /* DecodedCallView.swift */; };
 		4D5DD751835A8DA3C47BAE55 /* PortableBackupCrypto.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6FFA4225B41BFAAD41678A18 /* PortableBackupCrypto.swift */; };
 		514981C1384F66B055401254 /* ModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9E84BAFAE73EC309601D40C /* ModelTests.swift */; };
 		52FD2C971898C344961F87A6 /* CertificatePinner.swift in Sources */ = {isa = PBXBuildFile; fileRef = 36BF7F56D454A6F78D4A2F37 /* CertificatePinner.swift */; };
@@ -196,6 +197,7 @@
 		559B2D1CE5F41320F4A9A870 /* AppState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppState.swift; sourceTree = "<group>"; };
 		576275CC33EBC4584CF819DB /* ShardHealthView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShardHealthView.swift; sourceTree = "<group>"; };
 		5918A98EB3F7837001C759F5 /* JoinSigningView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JoinSigningView.swift; sourceTree = "<group>"; };
+		4D0C0D0FECAC11F0DECDCA11 /* DecodedCallView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DecodedCallView.swift; sourceTree = "<group>"; };
 		5A4BDFACE7DEA79E19B70432 /* ApprovalRequest.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ApprovalRequest.swift; sourceTree = "<group>"; };
 		5AAA4CE2B20BD8B486004E08 /* AuditExport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuditExport.swift; sourceTree = "<group>"; };
 		60602609EBFD9982939E260C /* SecureEnclaveManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SecureEnclaveManager.swift; sourceTree = "<group>"; };
@@ -532,6 +534,7 @@
 				6A13DA00F146F4337A259CB9 /* ColdSigningCoordinatorV2.swift */,
 				409A638953BCE50F889E264D /* ColdSigningView.swift */,
 				44CC7FC6007AA9598B0D3F86 /* ColdSigningViewV2.swift */,
+				4D0C0D0FECAC11F0DECDCA11 /* DecodedCallView.swift */,
 				5918A98EB3F7837001C759F5 /* JoinSigningView.swift */,
 				F44672820EB366ADC39D77A8 /* QRScannerView.swift */,
 				49A262F731DB964A68E24B04 /* SigningView.swift */,
@@ -775,6 +778,7 @@
 				1A286F0E6C2F3FD1B7669F57 /* HorcruxBridge.swift in Sources */,
 				1FF4562440BA4836269A35B4 /* HorcruxTheme.swift in Sources */,
 				4C4F745DC9B848647BC3F360 /* JoinSigningView.swift in Sources */,
+				4D0C0D0EECAC11F0DECDCA11 /* DecodedCallView.swift in Sources */,
 				7796AADB086F4ADF8D3A1DAE /* KeychainManager.swift in Sources */,
 				0E15ADD6494B3153BDE72E33 /* L10n.swift in Sources */,
 				028A13F10A6E097C2E34B82E /* LanguageSettingsView.swift in Sources */,

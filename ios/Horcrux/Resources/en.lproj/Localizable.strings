@@ -19,6 +19,9 @@
 "app.securityWarning" = "Security Warning";
 "app.understandRisk" = "I Understand the Risk";
 "app.deviceCompromised" = "This device may be compromised. Your key shards may be at risk. Use a secure device for production wallets.";
+"app.deepLinkJoinTitle" = "Join signing session?";
+"app.deepLinkJoinMessage" = "An external link wants to open a signing / key-generation ceremony in this wallet. Only continue if you started this yourself — tapping Continue will connect your shard to the session.";
+"app.deepLinkJoinContinue" = "Continue";
 
 /* Tabs */
 "tab.wallet" = "Wallet";

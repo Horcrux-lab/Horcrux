@@ -155,6 +155,22 @@ struct HorcruxApp: App {
                 } message: {
                     Text(L10n.App.debuggerDetected)
                 }
+                .alert(
+                    L10n.App.deepLinkJoinTitle,
+                    isPresented: Binding(
+                        get: { deepLinkRouter.pendingConfirmation != nil },
+                        set: { if !$0 { deepLinkRouter.cancelPending() } }
+                    )
+                ) {
+                    Button(L10n.Common.cancel, role: .cancel) {
+                        deepLinkRouter.cancelPending()
+                    }
+                    Button(L10n.App.deepLinkJoinContinue) {
+                        deepLinkRouter.confirmPending()
+                    }
+                } message: {
+                    Text(L10n.App.deepLinkJoinMessage)
+                }
         }
     }
 }

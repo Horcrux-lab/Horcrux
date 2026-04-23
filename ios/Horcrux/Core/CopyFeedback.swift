@@ -19,10 +19,12 @@ final class CopyFeedback: ObservableObject {
 
     /// Copy `value` to the clipboard and flash a transient toast.
     /// Pass an optional `label` to override the toast text (e.g. "地址已复制").
+    ///
+    /// Routed through `SecureClipboard.copy` so every app-wide copy gets the
+    /// `UIPasteboard.expirationDate` auto-clear (60 s default). Call
+    /// `SecureClipboard.copy` directly if you need a non-default expiration.
     static func copy(_ value: String, label: String = L10n.Common.copied) {
-        UIPasteboard.general.string = value
-        Haptics.selection()
-        shared.show(label)
+        SecureClipboard.copy(value, toast: label)
     }
 
     /// Emits the toast without touching the clipboard. Used by `SecureClipboard`

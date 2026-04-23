@@ -136,12 +136,21 @@ session manager and takes down every in-flight ceremony.
 validation on pin rotation. If true → MITM window during rotation.
 **Fix**: dual-pin (current + next), hard-fail on mismatch.
 
-### H5 — Keychain ACL not uniformly passcode-gated ⚠️
+### H5 — Keychain ACL not uniformly passcode-gated ✅
 `KeychainManager.swift`. Some items may not carry
 `kSecAttrAccessibleWhenPasscodeSetThisDeviceOnly` +
 `.biometryCurrentSet`, allowing extraction on devices without
 passcode set.
-**Fix**: single policy helper; apply across every `SecItemAdd` site.
+**Fix shipped (round 10)**: `AppState.setPin`, `AppState.changePin`
+(new-PIN write), and `AppState.persistFailedAttempts` now route
+through `KeychainManager.storeSecure` — passcode-gated ACL via
+`SecAccessControlCreateWithFlags(kSecAttrAccessibleWhenPasscodeSetThisDeviceOnly, [])`
+with the existing no-passcode fallback. Existing installs migrate
+opportunistically on the next successful `verifyPin` (we re-store the
+hash through `storeSecure`). The only Keychain entries still using
+plain `.store` are user configuration (relay URL, RPC endpoints) —
+intentional, not security-critical. Shard-wrap key and device key
+were already passcode-gated via `storeSecure`.
 
 ### H6 — Relay IP rate-limit ignores `X-Forwarded-For` ✅
 `horcrux-relay/src/ip_ratelimit.rs`. Behind Caddy, source IP seen by
@@ -209,10 +218,23 @@ Failures → typed error, never panic.
   bytes / newlines, truncates to 256 chars, and redacts contiguous
   hex runs ≥ 64 chars (likely accidental key/digest material)
   before returning to the caller.
-- **M6** iOS screenshot / screen-recording not blocked on sensitive
-  screens. Add blurred overlay on `willResignActive`.
-- **M7** Deep-link handlers (`joinSession`) require no confirmation —
-  phishing page can trigger an auto-join.
+- **M6** ✅ (already closed) iOS screenshot / screen-recording not
+  blocked on sensitive screens. Verified in round 10:
+  `HorcruxApp.swift:67-82` attaches `.blur(radius: 30)` on
+  `UIApplication.willResignActiveNotification` and clears it on
+  `didBecomeActive`, with an accessibility label swap. This is the
+  textbook `willResignActive` overlay approach and covers both the
+  app-switcher snapshot and the screen-record indicator state.
+- **M7** ✅ (round 10) Deep-link handlers (`joinSession`) require no
+  confirmation — phishing page can trigger an auto-join.
+  `DeepLinkRouter` now parks `joinSession` URLs in a new
+  `pendingConfirmation` slot instead of activating them.
+  `HorcruxApp` shows a two-button alert ("Cancel" / "Continue") whose
+  message explicitly warns the user that an external link is trying
+  to open a signing / DKG ceremony. Only `confirmPending()` promotes
+  the link to `pendingLink`. Read-only deep links (`transactionDetail`,
+  `receive`) still auto-activate since they don't expose the user to
+  cryptographic operations.
 - **M8** ✅ (round 9) Bitcoin fee-rate unit confusion (sat/vB vs
   sat/B vs sat/kB). New `SatPerVbyte` newtype in `chain::bitcoin`
   with explicit `from_sat_per_kvbyte` (rounds up via `div_ceil`),
@@ -220,9 +242,29 @@ Failures → typed error, never panic.
   accessors plus `Display` (`"42 sat/vB"`). Currently no API surface
   consumes it — adopted proactively so any future fee-rate parameter
   lands as a unit-encoded type rather than a bare `u64`.
-- **M9** Clipboard 60s auto-clear unreliable when app backgrounds.
-- **M10** `PrivacyInfo.xcprivacy` Required-Reason API list may be
-  incomplete — App Store reject risk.
+- **M9** ✅ (round 10) Clipboard 60s auto-clear unreliable when app
+  backgrounds. `CopyFeedback.copy` (the app-wide copy-to-clipboard
+  entry point) now routes through `SecureClipboard.copy` so every
+  call gets the OS-level `UIPasteboard.OptionsKey.expirationDate`
+  auto-clear. Three direct `UIPasteboard.general.string = …` call
+  sites (audit-export JSON, RPC URL copy, and the
+  `Signing.recipient-address` button via `CopyFeedback.copy`) were
+  rerouted to `SecureClipboard.copy`. Expiration is 60 s default and
+  survives app backgrounding because it's enforced by the pasteboard
+  daemon, not our process.
+- **M10** ✅ (round 10 — verified complete, no changes needed)
+  `PrivacyInfo.xcprivacy` Required-Reason API list may be incomplete
+  — App Store reject risk. Manifest currently declares
+  `NSPrivacyAccessedAPICategoryUserDefaults` / `CA92.1` (for
+  `UserDefaults` usage in `RelayConfig`, `AddressBook`, etc.). Full
+  Swift tree scan confirms no uses of the other Required-Reason API
+  categories: file timestamps (no `modificationDate` /
+  `attributesOfItem` / `contentModificationDateKey`), system boot
+  time (no `systemUptime` / `CACurrentMediaTime` / `mach_absolute_time`),
+  disk space (no `volumeAvailableCapacity` / `NSFileSystemFreeSize`),
+  or active keyboards (no `activeInputModes`). No third-party SPM /
+  CocoaPods dependencies (only the in-house `HorcruxCore.xcframework`
+  and `libhorcrux_core.a`).
 
 ---
 

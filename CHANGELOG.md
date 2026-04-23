@@ -9,6 +9,53 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security
 
+- **Audit P0 round 10** — iOS batch: M7 / M9 / H5 / M6+M10 verified.
+  First iOS-side round (rounds 1-9 were Rust/infra). Verified via
+  `xcodebuild` against an arm64 simulator; pre-existing target
+  membership bug for `DecodedCallView.swift` (dangling from round 4)
+  fixed by registering the file in `Horcrux.xcodeproj`.
+  - **M7** (medium) — Deep-link handlers (`joinSession`) require no
+    confirmation. `DeepLinkRouter` now routes `joinSession` URLs
+    into a new `pendingConfirmation` slot instead of activating
+    them. `HorcruxApp` shows a two-button alert ("Cancel" /
+    "Continue") whose message warns the user that an external link
+    is trying to open a signing / DKG ceremony. Only
+    `confirmPending()` promotes the link to `pendingLink`.
+    Read-only deep links (`transactionDetail`, `receive`)
+    still auto-activate since they can't trigger MPC work.
+  - **M9** (medium) — Clipboard 60 s auto-clear unreliable when
+    app backgrounds. `CopyFeedback.copy` — the app-wide copy entry
+    point — now delegates to `SecureClipboard.copy`, giving every
+    call site the OS-level `UIPasteboard.expirationDate` auto-clear
+    (60 s default). Three remaining direct
+    `UIPasteboard.general.string = …` sites (audit-export JSON,
+    per-chain RPC URL copy, signing recipient-address copy) were
+    routed through `SecureClipboard.copy`. Because expiration is
+    enforced by the pasteboard daemon, auto-clear survives app
+    backgrounding — unlike a GCD / Timer approach.
+  - **H5** (high) — Keychain ACL not uniformly passcode-gated.
+    `AppState.setPin`, `changePin` (new-PIN write path), and
+    `persistFailedAttempts` now route through
+    `KeychainManager.storeSecure` — passcode-gated ACL via
+    `SecAccessControlCreateWithFlags(kSecAttrAccessibleWhenPasscodeSetThisDeviceOnly, [])`
+    with the existing no-passcode fallback
+    (`kSecAttrAccessibleWhenUnlockedThisDeviceOnly`). Existing
+    installs migrate opportunistically on the next successful
+    `verifyPin` by re-storing the hash through `storeSecure`. The
+    only Keychain entries still on plain `.store` are user config
+    (relay URL, RPC endpoints) — intentional, not security-critical.
+  - **M6** (medium — verified already closed) Screenshot /
+    screen-recording blur on sensitive screens. `HorcruxApp.swift`
+    already applies `.blur(radius: 30)` on
+    `UIApplication.willResignActiveNotification` and clears on
+    `didBecomeActive`, with an accessibility label swap.
+  - **M10** (medium — verified complete, no changes needed)
+    `PrivacyInfo.xcprivacy` manifest. Swift tree scan confirms only
+    `NSPrivacyAccessedAPICategoryUserDefaults` / `CA92.1` applies.
+    No uses of file-timestamp, system-uptime, disk-space, or
+    active-keyboard Required-Reason APIs; no third-party SPM /
+    CocoaPods dependencies.
+
 - **Audit P0 round 9** — M4/M8 secret-type hygiene + BTC fee-rate unit safety.
   - **M4** (medium) — MPC structs derive `Debug` could leak secret material
     into logs. `MpcMessage`, `KeygenResult`, `Round2Share`,

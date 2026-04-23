@@ -19,6 +19,9 @@
 "app.securityWarning" = "安全警告";
 "app.understandRisk" = "我了解风险";
 "app.deviceCompromised" = "此设备可能已被入侵，您的密钥分片可能存在风险。请使用安全设备管理正式钱包。";
+"app.deepLinkJoinTitle" = "加入签名会话？";
+"app.deepLinkJoinMessage" = "外部链接请求在本钱包中打开签名 / 密钥生成流程。只有在您自己发起时才应继续 —— 点击「继续」后您的分片将接入该会话。";
+"app.deepLinkJoinContinue" = "继续";
 
 /* Tabs */
 "tab.wallet" = "钱包";

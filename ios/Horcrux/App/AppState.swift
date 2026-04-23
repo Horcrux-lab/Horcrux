@@ -211,7 +211,9 @@ final class AppState: ObservableObject {
     /// re-wraps the SWK and leaves shard ciphertexts untouched.
     func setPin(_ pin: String) throws {
         let saltedHash = Self.hashPin(pin)
-        try KeychainManager.shared.store(key: KeychainKeys.pinHash, data: saltedHash)
+        // Passcode-gated ACL (audit H5) — falls back to WhenUnlockedThisDeviceOnly
+        // on devices without a passcode (e.g. simulators).
+        try KeychainManager.shared.storeSecure(key: KeychainKeys.pinHash, data: saltedHash)
         resetFailedAttempts()
 
         // Provision SWK on first PIN set. If one already exists (user wiped
@@ -255,6 +257,12 @@ final class AppState: ObservableObject {
             return false
         }
         resetFailedAttempts()
+
+        // Opportunistic H5 migration: older installs stored the PIN hash
+        // under `WhenUnlockedThisDeviceOnly` without an ACL. Re-write it
+        // through `storeSecure` so it picks up the passcode-gated ACL on
+        // devices with a passcode. Silent — failures fall back silently.
+        try? KeychainManager.shared.storeSecure(key: KeychainKeys.pinHash, data: stored)
 
         // Unwrap the SWK. The vault is always provisioned by setPin,
         // so a missing vault indicates a device onboarded before the SWK
@@ -333,9 +341,11 @@ final class AppState: ObservableObject {
             throw AppError.keychainUnavailable("Shard Wrap Key not provisioned")
         }
 
-        // Write the new PIN hash (new salt).
+        // Write the new PIN hash (new salt). `storeSecure` gates this behind
+        // the device passcode when one is set (audit H5), falling back to
+        // `WhenUnlockedThisDeviceOnly` on devices without a passcode.
         let newPinHash = Self.hashPin(newPin)
-        try KeychainManager.shared.store(key: KeychainKeys.pinHash, data: newPinHash)
+        try KeychainManager.shared.storeSecure(key: KeychainKeys.pinHash, data: newPinHash)
         resetFailedAttempts()
 
         // Re-wrap SWK under the new PIN. SE-sealed copy is left alone.
@@ -393,7 +403,9 @@ final class AppState: ObservableObject {
     private func persistFailedAttempts() {
         let data = Data("\(failedAttempts)".utf8)
         do {
-            try KeychainManager.shared.store(key: KeychainKeys.failedAttempts, data: data)
+            // Passcode-gated ACL (audit H5) — attackers who briefly gain
+            // unlocked-device access shouldn't be able to reset the counter.
+            try KeychainManager.shared.storeSecure(key: KeychainKeys.failedAttempts, data: data)
         } catch {
             SecureLog.error("Failed to persist attempt count: \(error.localizedDescription)")
         }

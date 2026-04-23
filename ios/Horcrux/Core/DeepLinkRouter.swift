@@ -19,23 +19,45 @@ enum DeepLink: Equatable {
 final class DeepLinkRouter: ObservableObject {
     static let shared = DeepLinkRouter()
 
+    /// Sensitive links (e.g. `joinSession`) park here until the user
+    /// explicitly confirms. A phishing page can open `horcrux://join?...`
+    /// to try to pull the wallet into an attacker's ceremony — the
+    /// confirmation dialog is the user-presence gate that blocks silent
+    /// auto-join. See audit finding M7.
+    @Published var pendingConfirmation: DeepLink?
+
+    /// Activated links — either confirmed by the user or non-sensitive
+    /// navigation (transactionDetail / receive) that bypasses confirmation.
     @Published var pendingLink: DeepLink?
     @Published var selectedTab: Int = 0
 
     private init() {}
 
     func handle(_ link: DeepLink) {
-        pendingLink = link
-
         switch link {
         case .joinSession:
-            // Navigate to signing tab (index 0 = Wallet, but we'll handle via overlay)
+            // Require explicit user confirmation before auto-joining a
+            // signing / DKG ceremony from an external URL.
+            pendingConfirmation = link
             selectedTab = 0
-        case .transactionDetail:
-            selectedTab = 0
-        case .receive:
+        case .transactionDetail, .receive:
+            // Read-only navigation — safe to auto-activate.
+            pendingLink = link
             selectedTab = 0
         }
+    }
+
+    /// Promote the pending confirmation to an active link (user tapped
+    /// "Continue"). Callers should immediately route off `pendingLink`.
+    func confirmPending() {
+        guard let link = pendingConfirmation else { return }
+        pendingConfirmation = nil
+        pendingLink = link
+    }
+
+    /// Discard the pending confirmation (user tapped "Cancel" or dismissed).
+    func cancelPending() {
+        pendingConfirmation = nil
     }
 
     func parseURL(_ url: URL) -> DeepLink? {
