@@ -465,7 +465,17 @@ pub fn horcrux_prime_pool_generate_one() -> Result<(), HorcruxError> {
     crate::mpc::prime_pool::generate_one().map_err(|msg| HorcruxError::StorageError { msg })
 }
 
-/// Encrypt a key shard using AES-256-GCM with PBKDF2-derived key (device_key + PIN).
+/// Encrypt a key shard using AES-256-GCM with an HKDF-SHA256-derived key.
+///
+/// The key derivation mixes `device_key` (host-managed, e.g. SE-sealed on iOS)
+/// and `pin` (a second user-supplied secret) as IKM via
+/// `HKDF(ikm = device_key || pin, salt = random 16 B, info = b"horcrux-shard-encryption")`.
+///
+/// Note: on iOS the `pin` parameter is NOT the user's numeric PIN — it is the
+/// Shard Wrap Key (SWK) unwrapped via either Face ID (Secure Enclave) or the
+/// PIN-wrapped blob. The original `pin` name is preserved for ABI stability
+/// with existing UniFFI Swift bindings. See
+/// `ios/Horcrux/Security/SecureKeyVault.swift` for the full architecture.
 #[uniffi::export]
 pub fn horcrux_encrypt_shard(
     plaintext: Vec<u8>,
@@ -477,7 +487,8 @@ pub fn horcrux_encrypt_shard(
         .map_err(|e| HorcruxError::EncryptionFailed { msg: e.to_string() })
 }
 
-/// Decrypt a previously encrypted key shard.
+/// Decrypt a previously encrypted key shard. See `horcrux_encrypt_shard` for
+/// the semantics of `device_key` / `pin`.
 #[uniffi::export]
 pub fn horcrux_decrypt_shard(
     encrypted: FfiEncryptedShard,

@@ -97,6 +97,7 @@
 		A4A201AC92EB06E94030380A /* BlockchainServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5DC97913C4CE8685D3D981E /* BlockchainServiceTests.swift */; };
 		AD348005CA4C2DFFACF04FA8 /* SecureLog.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0E78608F2CD0ED1CADF94547 /* SecureLog.swift */; };
 		AE38F5EE8CB8B850EA1CBBDD /* AddressBook.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2F16FEAB7A7D83404E721639 /* AddressBook.swift */; };
+		AF36FB7F85B0E8E9F35D2AA1 /* SecureKeyVaultTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F00104BD55BFFC248C99EE8E /* SecureKeyVaultTests.swift */; };
 		B09B759BCA36CB1D85881A8B /* TransactionHistorySyncer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 982A6DAFE2C3A7D0597486B8 /* TransactionHistorySyncer.swift */; };
 		B0EC72ECD24C2209F5A88423 /* WiFiDirectTransport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 422C50490783824C211D1A4E /* WiFiDirectTransport.swift */; };
 		B4374A6122DD8F1F31AAE802 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BE6DF0A887F8A0C59358C3CA /* ContentView.swift */; };
@@ -273,6 +274,7 @@
 		EB9476C366E0DC0DE88A9E3D /* RefreshShardSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RefreshShardSheet.swift; sourceTree = "<group>"; };
 		EBE439C22E1CABB66A71A4AF /* PinHashTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PinHashTests.swift; sourceTree = "<group>"; };
 		EC37A890669AF1C1B40C4352 /* ApprovalsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ApprovalsView.swift; sourceTree = "<group>"; };
+		F00104BD55BFFC248C99EE8E /* SecureKeyVaultTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SecureKeyVaultTests.swift; sourceTree = "<group>"; };
 		F01AE22958DB93BC491B9519 /* ShardsListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShardsListView.swift; sourceTree = "<group>"; };
 		F14FEC5E558EE767A4A6A091 /* SecureClipboard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SecureClipboard.swift; sourceTree = "<group>"; };
 		F44672820EB366ADC39D77A8 /* QRScannerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QRScannerView.swift; sourceTree = "<group>"; };
@@ -513,6 +515,7 @@
 				2C2DFEADD4C7F811A28CE435 /* RelayConfigTests.swift */,
 				B66CCA676948C54B9CDFAC20 /* SecureClipboardTests.swift */,
 				2B1F155AE9F080060144E472 /* SecureEnclaveManagerTests.swift */,
+				F00104BD55BFFC248C99EE8E /* SecureKeyVaultTests.swift */,
 				76F29DB893748A79B8E50F7E /* SecurityEnvironmentTests.swift */,
 				E7480F0578841135C2CBB740 /* SigningViewModelTests.swift */,
 				DD030979CCAA127E220D7660 /* TokenModelsTests.swift */,
@@ -715,6 +718,7 @@
 				9E2D32680EC22207F40539A1 /* RelayConfigTests.swift in Sources */,
 				8B0BAADE9F87B21FC65B8E04 /* SecureClipboardTests.swift in Sources */,
 				9E8647FFD4DDA1C050E77ADE /* SecureEnclaveManagerTests.swift in Sources */,
+				AF36FB7F85B0E8E9F35D2AA1 /* SecureKeyVaultTests.swift in Sources */,
 				C155C37C38CDD7B6F4AB0AFE /* SecurityEnvironmentTests.swift in Sources */,
 				7C44D37A130193DFEF2393D7 /* SigningViewModelTests.swift in Sources */,
 				27ABF8D1668FCF1FDB9C8F91 /* TokenModelsTests.swift in Sources */,

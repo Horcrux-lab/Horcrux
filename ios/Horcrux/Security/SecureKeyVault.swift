@@ -40,20 +40,36 @@ enum SecureKeyVault {
 
     // MARK: Keychain keys
 
-    static let keychainPinWrapped = "com.horcrux.swk.pin.v1"
+    /// Current-format (v2) PIN-wrapped SWK blob. Uses 600k PBKDF2 iterations
+    /// per OWASP 2023 guidance (up from 100k in v1).
+    static let keychainPinWrapped = "com.horcrux.swk.pin.v2"
+
+    /// Legacy (v1) PIN-wrapped SWK blob — 100k PBKDF2 iterations. Kept only
+    /// for transparent migration when a user returns after the upgrade; we
+    /// unwrap with v1 iters, rewrap as v2, and delete v1 in one step.
+    static let keychainPinWrappedLegacy = "com.horcrux.swk.pin.v1"
+
     static let keychainSESealed   = "com.horcrux.swk.se.v1"
 
     // MARK: PBKDF2 params (must match across wrap / unwrap)
 
-    private static let pbkdf2Iterations: UInt32 = 100_000
+    /// OWASP 2023 recommendation for PBKDF2-HMAC-SHA256.
+    /// https://cheatsheetseries.owasp.org/cheatsheets/Password_Storage_Cheat_Sheet.html
+    private static let pbkdf2Iterations: UInt32 = 600_000
+    /// Iteration count used by pre-upgrade (v1) wrap blobs. Only referenced
+    /// by the legacy-unwrap path.
+    private static let pbkdf2IterationsLegacy: UInt32 = 100_000
     private static let saltSize = 16
 
     // MARK: - State
 
     /// Whether the PIN-wrapped SWK exists. Used to decide between first-time
-    /// provisioning (onboarding) and existing-install unlock.
+    /// provisioning (onboarding) and existing-install unlock. Returns true
+    /// for both the current v2 format and the legacy v1 format (which is
+    /// migrated on first successful unwrap).
     static var hasPinWrapped: Bool {
         (try? KeychainManager.shared.retrieve(key: keychainPinWrapped)) != nil
+            || (try? KeychainManager.shared.retrieve(key: keychainPinWrappedLegacy)) != nil
     }
 
     /// Whether the biometric-sealed SWK exists.
@@ -87,24 +103,30 @@ enum SecureKeyVault {
     /// Unwrap the SWK using a plaintext PIN. Caller must have already
     /// validated the PIN via `AppState.verifyPin` — this routine does NOT
     /// rate-limit incorrect PINs on its own.
+    ///
+    /// Transparently migrates legacy (v1 / 100k PBKDF2) blobs to v2 (600k)
+    /// the first time they're unwrapped after install.
     static func unwrapWithPin(_ pin: String) throws -> Data {
-        guard let blob = try KeychainManager.shared.retrieve(key: keychainPinWrapped),
-              blob.count > saltSize else {
+        if let blob = try KeychainManager.shared.retrieve(key: keychainPinWrapped),
+           blob.count > saltSize {
+            return try decryptPinBlob(blob, pin: pin, iterations: pbkdf2Iterations)
+        }
+
+        // Fall back to legacy v1 wrap (100k PBKDF2). If it unwraps cleanly,
+        // rewrap as v2 and delete v1 so future unlocks use the stronger KDF.
+        guard let legacyBlob = try KeychainManager.shared.retrieve(key: keychainPinWrappedLegacy),
+              legacyBlob.count > saltSize else {
             throw VaultError.notProvisioned
         }
-        let salt = blob.prefix(saltSize)
-        let sealedData = blob.dropFirst(saltSize)
-        let wrapKey = try deriveWrapKey(pin: pin, salt: Data(salt))
-        defer {
-            var k = wrapKey
-            k.withUnsafeMutableBytes { buf in
-                if let base = buf.baseAddress {
-                    memset_s(base, buf.count, 0, buf.count)
-                }
-            }
+        let swk = try decryptPinBlob(legacyBlob, pin: pin, iterations: pbkdf2IterationsLegacy)
+        do {
+            try storePinWrapped(swk: swk, pin: pin)
+            try? KeychainManager.shared.delete(key: keychainPinWrappedLegacy)
+        } catch {
+            // Migration failed — leave v1 in place so the next unlock retries.
+            // The caller still gets a valid SWK.
         }
-        let box = try AES.GCM.SealedBox(combined: sealedData)
-        return try AES.GCM.open(box, using: SymmetricKey(data: wrapKey))
+        return swk
     }
 
     /// Unwrap the SWK via Secure Enclave (triggers Face ID / Touch ID).
@@ -151,9 +173,10 @@ enum SecureKeyVault {
 
     // MARK: - Teardown
 
-    /// Delete both wraps. Called from `wipeAllData()`.
+    /// Delete both wraps (current and legacy). Called from `wipeAllData()`.
     static func wipe() {
         try? KeychainManager.shared.delete(key: keychainPinWrapped)
+        try? KeychainManager.shared.delete(key: keychainPinWrappedLegacy)
         try? KeychainManager.shared.delete(key: keychainSESealed)
     }
 
@@ -165,7 +188,7 @@ enum SecureKeyVault {
             throw VaultError.randomFailed
         }
         let salt = Data(saltBytes)
-        let wrapKey = try deriveWrapKey(pin: pin, salt: salt)
+        let wrapKey = try deriveWrapKey(pin: pin, salt: salt, iterations: pbkdf2Iterations)
         defer {
             var k = wrapKey
             k.withUnsafeMutableBytes { buf in
@@ -180,12 +203,28 @@ enum SecureKeyVault {
         try KeychainManager.shared.storeSecure(key: keychainPinWrapped, data: blob)
     }
 
+    private static func decryptPinBlob(_ blob: Data, pin: String, iterations: UInt32) throws -> Data {
+        let salt = blob.prefix(saltSize)
+        let sealedData = blob.dropFirst(saltSize)
+        let wrapKey = try deriveWrapKey(pin: pin, salt: Data(salt), iterations: iterations)
+        defer {
+            var k = wrapKey
+            k.withUnsafeMutableBytes { buf in
+                if let base = buf.baseAddress {
+                    memset_s(base, buf.count, 0, buf.count)
+                }
+            }
+        }
+        let box = try AES.GCM.SealedBox(combined: sealedData)
+        return try AES.GCM.open(box, using: SymmetricKey(data: wrapKey))
+    }
+
     private static func storeSealed(swk: Data) throws {
         let sealed = try SecureEnclaveManager.shared.seal(swk)
         try KeychainManager.shared.storeSecure(key: keychainSESealed, data: sealed)
     }
 
-    private static func deriveWrapKey(pin: String, salt: Data) throws -> Data {
+    private static func deriveWrapKey(pin: String, salt: Data, iterations: UInt32) throws -> Data {
         let pinData = Data(pin.utf8)
         var out = Data(count: 32)
         let status = out.withUnsafeMutableBytes { outBuf -> Int32 in
@@ -203,7 +242,7 @@ enum SecureKeyVault {
                         saltBase.assumingMemoryBound(to: UInt8.self),
                         salt.count,
                         CCPseudoRandomAlgorithm(kCCPRFHmacAlgSHA256),
-                        pbkdf2Iterations,
+                        iterations,
                         outBase.assumingMemoryBound(to: UInt8.self),
                         32
                     ))
