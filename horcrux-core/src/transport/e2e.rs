@@ -569,5 +569,108 @@ mod prop_tests {
             // Either Ok (parser over-reads into nothing) or Err — but no panic.
             let _ = responder.read_handshake(truncated);
         }
+
+        /// Full 3-round XX transcript with arbitrary payloads in each
+        /// handshake round must complete, transition to transport mode,
+        /// and round-trip an arbitrary application message both ways.
+        /// This is the end-to-end "happy path" invariant under fuzzing.
+        #[test]
+        fn prop_full_handshake_roundtrip(
+            hs_payload_1 in prop::collection::vec(any::<u8>(), 0..256),
+            hs_payload_2 in prop::collection::vec(any::<u8>(), 0..256),
+            hs_payload_3 in prop::collection::vec(any::<u8>(), 0..256),
+            app_msg in prop::collection::vec(any::<u8>(), 0..4096),
+        ) {
+            let kp_i = NoiseKeypair::generate().unwrap();
+            let kp_r = NoiseKeypair::generate().unwrap();
+            let mut initiator = NoiseChannel::initiator(&kp_i).unwrap();
+            let mut responder = NoiseChannel::responder(&kp_r).unwrap();
+
+            // → e (+ optional payload)
+            let m1 = initiator.write_handshake(&hs_payload_1).unwrap();
+            let p1 = responder.read_handshake(&m1).unwrap();
+            prop_assert_eq!(&p1, &hs_payload_1);
+
+            // ← e, ee, s, es
+            let m2 = responder.write_handshake(&hs_payload_2).unwrap();
+            let p2 = initiator.read_handshake(&m2).unwrap();
+            prop_assert_eq!(&p2, &hs_payload_2);
+
+            // → s, se
+            let m3 = initiator.write_handshake(&hs_payload_3).unwrap();
+            let p3 = responder.read_handshake(&m3).unwrap();
+            prop_assert_eq!(&p3, &hs_payload_3);
+
+            let mut initiator = initiator.into_transport().unwrap();
+            let mut responder = responder.into_transport().unwrap();
+
+            // Transport-mode roundtrip both directions.
+            let env = initiator.seal(&app_msg).unwrap();
+            let decrypted = responder.open(&env).unwrap();
+            prop_assert_eq!(&decrypted, &app_msg);
+
+            let env2 = responder.seal(&app_msg).unwrap();
+            let decrypted2 = initiator.open(&env2).unwrap();
+            prop_assert_eq!(&decrypted2, &app_msg);
+        }
+
+        /// A single-bit tamper in the encrypted XX handshake frames
+        /// (rounds 2 and 3) must be rejected by the ChaCha-Poly AEAD
+        /// inside snow. Round 1 (`→ e`) is a bare ephemeral pubkey
+        /// with no MAC — any 32-byte string is a valid Curve25519
+        /// point, so tampering there is only detected at round 2
+        /// decryption. This property covers the MAC-guarded rounds.
+        #[test]
+        fn prop_handshake_bit_flip_rejected(
+            round in 1u8..3,
+            offset_seed in any::<usize>(),
+            bit_mask in 1u8..=255,
+        ) {
+            let kp_i = NoiseKeypair::generate().unwrap();
+            let kp_r = NoiseKeypair::generate().unwrap();
+            let mut initiator = NoiseChannel::initiator(&kp_i).unwrap();
+            let mut responder = NoiseChannel::responder(&kp_r).unwrap();
+
+            let m1 = initiator.write_handshake(&[]).unwrap();
+            responder.read_handshake(&m1).unwrap();
+
+            let m2_orig = responder.write_handshake(&[]).unwrap();
+            if round == 1 {
+                let mut tampered = m2_orig.clone();
+                let idx = offset_seed % tampered.len();
+                tampered[idx] ^= bit_mask;
+                prop_assert!(initiator.read_handshake(&tampered).is_err());
+                return Ok(());
+            }
+            initiator.read_handshake(&m2_orig).unwrap();
+
+            // round == 2
+            let m3_orig = initiator.write_handshake(&[]).unwrap();
+            let mut tampered = m3_orig.clone();
+            let idx = offset_seed % tampered.len();
+            tampered[idx] ^= bit_mask;
+            prop_assert!(responder.read_handshake(&tampered).is_err());
+        }
+
+        /// Transport-mode ciphertext tamper: flipping any bit in a
+        /// sealed envelope must cause `open` to return Err (ChaCha-Poly
+        /// MAC rejection). Protects against on-path relay tampering
+        /// after handshake completion.
+        #[test]
+        fn prop_transport_tamper_rejected(
+            plaintext in prop::collection::vec(any::<u8>(), 1..2048),
+            offset_seed in any::<usize>(),
+            bit_mask in 1u8..=255,
+        ) {
+            let kp_i = NoiseKeypair::generate().unwrap();
+            let kp_r = NoiseKeypair::generate().unwrap();
+            let (mut initiator, mut responder) =
+                complete_xx_handshake(&kp_i, &kp_r).unwrap();
+
+            let mut env = initiator.seal(&plaintext).unwrap();
+            let idx = offset_seed % env.ciphertext.len();
+            env.ciphertext[idx] ^= bit_mask;
+            prop_assert!(responder.open(&env).is_err());
+        }
     }
 }

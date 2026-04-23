@@ -29,6 +29,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security
 
+- **Noise XX transport full-handshake robustness** (round 19).
+  Three new proptests in `transport::e2e::prop_tests` (256 cases each):
+  `prop_full_handshake_roundtrip` drives all 3 XX rounds with random
+  handshake-payload bytes and asserts transport-mode seal/open
+  roundtrips both ways; `prop_handshake_bit_flip_rejected` flips a
+  random bit in the MAC-guarded round-2 / round-3 frames and asserts
+  rejection (round-1 `→ e` is a bare ephemeral so flips surface at
+  round-2 decryption — documented in the test); `prop_transport_tamper_rejected`
+  flips a bit in a sealed envelope and asserts `open` returns Err.
+  Complements the existing single-side `prop_read_handshake_never_panics`
+  / `prop_truncation_rejected` with end-to-end MAC-binding coverage.
+
 - **Bitcoin UTXO-amount verifier robustness** (round 19).
   `chain::bitcoin::prop_tests` — two 512-case properties over
   `verify_utxo_provenance` (audit finding H9). `prop_arbitrary_raw_never_panics`
