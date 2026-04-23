@@ -1,5 +1,6 @@
 import Foundation
 import SwiftUI
+import CryptoKit
 
 /// Cold-signing coordinator **v2** — generic `t-of-n` ceremony over QR.
 ///
@@ -102,6 +103,19 @@ final class ColdSigningCoordinatorV2: ObservableObject {
     private var invitedPeers: Set<UInt16> = []
     /// How many QR hops happened so far (display only).
     private var stepCounter: Int = 0
+    /// Audit C1 (round-14 follow-up) — scan-session fingerprint TOFU.
+    /// The first MPC message we observe from each `fromParty` during
+    /// this ceremony is hashed (session_id ‖ from_party_be ‖ payload)
+    /// and stashed here. Every later message from the same party must
+    /// carry the same `sessionId`; divergence means a different
+    /// ceremony was spliced in (attacker re-using a valid party slot
+    /// mid-scan). The fingerprint itself is also written to SecureLog
+    /// so an audit export can reconstruct who said what in which
+    /// ceremony — useful both for operator triage after a failed
+    /// signing and for external auditors reviewing cold-flow traces.
+    private var peerScanFingerprint: [UInt16: Data] = [:]
+    /// First-seen session id per party (for sessionId-stickiness).
+    private var peerFirstSessionId: [UInt16: String] = [:]
 
     init(bridge: HorcruxBridge) {
         self.bridge = bridge
@@ -135,6 +149,8 @@ final class ColdSigningCoordinatorV2: ObservableObject {
         self.orderCursor = 0
         self.outbox = [:]
         self.invitedPeers = []
+        self.peerScanFingerprint = [:]
+        self.peerFirstSessionId = [:]
         self.stepCounter = 0
         self.finalSignature = nil
         self.errorMessage = nil
@@ -173,6 +189,8 @@ final class ColdSigningCoordinatorV2: ObservableObject {
         self.messageHash = nil
         self.outbox = [:]
         self.invitedPeers = []
+        self.peerScanFingerprint = [:]
+        self.peerFirstSessionId = [:]
         self.stepCounter = 0
         self.finalSignature = nil
         self.errorMessage = nil
@@ -303,13 +321,45 @@ final class ColdSigningCoordinatorV2: ObservableObject {
             let msg = dto.toFfi()
             // Audit C1: cold-signing v2 is QR-scan authenticated — there
             // is no Noise channel to bind transport identity to the
-            // claimed `fromParty`. The strongest check we can apply
-            // at this layer is that the message doesn't claim to come
-            // from ourselves (which would indicate a QR-to-QR loop bug
-            // or a replay). Stronger binding (scan-session-wide
-            // fingerprint tracking) is out of scope for the MVP v2.
+            // claimed `fromParty`. Three layers of defence at this
+            // level, on top of the Rust session-state machine that
+            // rejects cryptographically inconsistent transitions:
+            //
+            //   1. Reject messages claiming to come from ourselves —
+            //      either a QR-loop bug, a replay, or a hostile scan.
+            //   2. Enforce that `msg.sessionId` matches the coordinator's
+            //      active ceremony sessionId. This prevents an attacker
+            //      from splicing in valid MPC traffic from a *different*
+            //      ceremony during the scan flow.
+            //   3. Scan-session fingerprint TOFU. On first contact with
+            //      each party we stash the message fingerprint and the
+            //      asserted sessionId; subsequent messages from the same
+            //      `fromParty` must keep the same sessionId, i.e. the
+            //      party can't "jump" ceremonies mid-scan. The
+            //      fingerprint is also written to SecureLog for audit
+            //      export.
             if msg.fromParty == myIndex {
                 throw ColdSigningCoordinator.ColdError.walletMismatch
+            }
+            if let activeSid = self.sessionId, msg.sessionId != activeSid {
+                SecureLog.error("[ColdV2] C1 reject: msg.sessionId=\(msg.sessionId) does not match active ceremony \(activeSid)")
+                throw ColdSigningCoordinator.ColdError.walletMismatch
+            }
+            if let pinned = peerFirstSessionId[msg.fromParty] {
+                if pinned != msg.sessionId {
+                    SecureLog.error("[ColdV2] C1 reject: party \(msg.fromParty) previously bound to sessionId \(pinned) but now asserts \(msg.sessionId) — ceremony splice")
+                    throw ColdSigningCoordinator.ColdError.walletMismatch
+                }
+            } else {
+                peerFirstSessionId[msg.fromParty] = msg.sessionId
+                var fromBE = msg.fromParty.bigEndian
+                var hasher = SHA256()
+                hasher.update(data: Data(msg.sessionId.utf8))
+                withUnsafeBytes(of: &fromBE) { hasher.update(bufferPointer: $0) }
+                hasher.update(data: msg.payload)
+                let fp = Data(hasher.finalize())
+                peerScanFingerprint[msg.fromParty] = fp
+                SecureLog.info("[ColdV2] scan-session fingerprint party=\(msg.fromParty) sid=\(msg.sessionId) fp=\(fp.prefix(8).map { String(format: "%02x", $0) }.joined())")
             }
             if msg.toParty == 0 || msg.toParty == myIndex {
                 let out = try bridge.handleAuthenticatedMessage(msg, authenticatedFrom: msg.fromParty)

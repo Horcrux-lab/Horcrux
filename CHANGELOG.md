@@ -9,6 +9,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security
 
+- **Audit P0 round 15** — Cold-signing v2 scan-session TOFU + fingerprint.
+  Closes the round-14 follow-up for `ColdSigningCoordinatorV2`:
+  - **sessionId enforcement**: `feedInbound` rejects any inbound
+    message whose `sessionId` does not match the coordinator's
+    active ceremony. Previously only Rust session-state machine
+    would catch mismatches, which produced a confusing error; the
+    coordinator-level check gives a clear `walletMismatch`
+    diagnostic and avoids feeding off-ceremony payloads into the
+    MPC engine at all.
+  - **Per-party sessionId stickiness (TOFU)**: the first inbound
+    message from each `fromParty` within a ceremony binds that
+    party's asserted `sessionId`. Any later message from the same
+    party with a different `sessionId` is treated as a ceremony
+    splice (attacker re-using a valid party slot to inject traffic
+    from a parallel ceremony) and rejected.
+  - **Scan-session fingerprint**: on first contact with each party
+    the coordinator computes
+    `SHA256(sessionId ‖ fromParty_be ‖ first_payload)` and writes
+    the first 8 bytes + metadata to SecureLog. Audit-export
+    consumers can cross-reference fingerprints between devices to
+    verify that both ends of a cold ceremony observed the same
+    party set. State is wiped on every `startAsInitiator` /
+    `startAsCosigner` entry.
+  iOS build green on arm64 simulator. No behaviour change on happy
+  path — only hostile / bug paths observe the new rejections.
+
 - **Audit P0 round 14** — C1 iOS call-site migration to
   `handleAuthenticatedMessage`. The core-side rejection (round 1)
   only fires if call-sites actually pass the channel-authenticated
