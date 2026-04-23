@@ -9,7 +9,14 @@ final class NetworkConfigTests: XCTestCase {
     @MainActor
     func test_rpcURL_forEthereum_returnsEthereumRPC() {
         let config = NetworkConfig.shared
-        XCTAssertEqual(config.rpcURL(for: .ethereum), config.ethereumRPC)
+        // `rpcURL` may substitute a `{KEY}` placeholder or fall back to
+        // a public endpoint when no key is set, so the two values are
+        // allowed to differ — but the returned URL must never contain
+        // an unsubstituted placeholder (which would be sent to the
+        // server literally and 404).
+        let resolved = config.rpcURL(for: .ethereum)
+        XCTAssertFalse(resolved.contains("{KEY}"))
+        XCTAssertFalse(resolved.isEmpty)
     }
 
     @MainActor
@@ -21,7 +28,9 @@ final class NetworkConfigTests: XCTestCase {
     @MainActor
     func test_rpcURL_forSolana_returnsSolanaRPC() {
         let config = NetworkConfig.shared
-        XCTAssertEqual(config.rpcURL(for: .solana), config.solanaRPC)
+        let resolved = config.rpcURL(for: .solana)
+        XCTAssertFalse(resolved.contains("{KEY}"))
+        XCTAssertFalse(resolved.isEmpty)
     }
 
     // MARK: - NetworkPreset.mainnet
@@ -30,9 +39,12 @@ final class NetworkConfigTests: XCTestCase {
         let p = NetworkPreset.mainnet
         XCTAssertEqual(p.id, "mainnet")
         XCTAssertEqual(p.name, "Mainnet")
-        XCTAssertEqual(p.ethereumRPC, "https://ethereum-rpc.publicnode.com")
+        // Defaults now point at the Alchemy paid-provider template — the
+        // free public URL is used only as a last-resort fallback inside
+        // `substituteAPIKey` when no API key is configured.
+        XCTAssertEqual(p.ethereumRPC, "https://eth-mainnet.g.alchemy.com/v2/{KEY}")
         XCTAssertEqual(p.bitcoinAPI, "https://mempool.space/api")
-        XCTAssertEqual(p.solanaRPC, "https://solana-rpc.publicnode.com")
+        XCTAssertEqual(p.solanaRPC, "https://solana-mainnet.g.alchemy.com/v2/{KEY}")
         XCTAssertEqual(p.evmChainId, 1)
         XCTAssertFalse(p.btcTestnet)
         XCTAssertFalse(p.solDevnet)
@@ -44,9 +56,9 @@ final class NetworkConfigTests: XCTestCase {
         let p = NetworkPreset.testnet
         XCTAssertEqual(p.id, "testnet")
         XCTAssertEqual(p.name, "Testnet")
-        XCTAssertEqual(p.ethereumRPC, "https://ethereum-sepolia-rpc.publicnode.com")
+        XCTAssertEqual(p.ethereumRPC, "https://eth-sepolia.g.alchemy.com/v2/{KEY}")
         XCTAssertEqual(p.bitcoinAPI, "https://mempool.space/testnet/api")
-        XCTAssertEqual(p.solanaRPC, "https://api.devnet.solana.com")
+        XCTAssertEqual(p.solanaRPC, "https://solana-devnet.g.alchemy.com/v2/{KEY}")
         XCTAssertEqual(p.evmChainId, 11155111)
         XCTAssertTrue(p.btcTestnet)
         XCTAssertTrue(p.solDevnet)
@@ -87,9 +99,9 @@ final class NetworkConfigTests: XCTestCase {
         config.applyPreset(.testnet)
 
         config.resetToDefaults()
-        XCTAssertEqual(config.ethereumRPC, "https://ethereum-rpc.publicnode.com")
+        XCTAssertEqual(config.ethereumRPC, "https://eth-mainnet.g.alchemy.com/v2/{KEY}")
         XCTAssertEqual(config.bitcoinAPI, "https://mempool.space/api")
-        XCTAssertEqual(config.solanaRPC, "https://solana-rpc.publicnode.com")
+        XCTAssertEqual(config.solanaRPC, "https://solana-mainnet.g.alchemy.com/v2/{KEY}")
         XCTAssertEqual(config.evmChainId, 1)
         XCTAssertFalse(config.btcTestnet)
         XCTAssertFalse(config.solDevnet)
@@ -109,9 +121,24 @@ final class NetworkConfigTests: XCTestCase {
         let config = NetworkConfig.shared
         config.applyPreset(.testnet)
 
-        XCTAssertEqual(config.rpcURL(for: .ethereum), "https://ethereum-sepolia-rpc.publicnode.com")
+        // Stored URLs are the Alchemy paid templates; the resolved URL
+        // used by actual RPC calls falls back to the public endpoint when
+        // no key is present. Both are valid outputs — assert on the
+        // fallback since that's what unit tests see.
+        XCTAssertEqual(config.ethereumRPC, "https://eth-sepolia.g.alchemy.com/v2/{KEY}")
+        let ethResolved = config.rpcURL(for: .ethereum)
+        XCTAssertTrue(
+            ethResolved == "https://ethereum-sepolia-rpc.publicnode.com"
+                || ethResolved.hasPrefix("https://eth-sepolia.g.alchemy.com/v2/"),
+            "Unexpected resolved Ethereum URL: \(ethResolved)"
+        )
         XCTAssertEqual(config.rpcURL(for: .bitcoin), "https://mempool.space/testnet/api")
-        XCTAssertEqual(config.rpcURL(for: .solana), "https://api.devnet.solana.com")
+        let solResolved = config.rpcURL(for: .solana)
+        XCTAssertTrue(
+            solResolved == "https://api.devnet.solana.com"
+                || solResolved.hasPrefix("https://solana-devnet.g.alchemy.com/v2/"),
+            "Unexpected resolved Solana URL: \(solResolved)"
+        )
 
         // Restore
         config.resetToDefaults()

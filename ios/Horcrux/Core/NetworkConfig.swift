@@ -301,8 +301,14 @@ final class NetworkConfig: ObservableObject, @unchecked Sendable {
     /// per-provider Keychain-stored API key. The provider is picked by URL
     /// host so a user who stores both Alchemy and Infura keys can freely
     /// paste either provider's URL and have the substitution route to the
-    /// right key. Returns the raw URL unchanged if no placeholder is
-    /// present, the host is unrecognised, or the relevant key is empty.
+    /// right key.
+    ///
+    /// When the URL contains `{KEY}` but the matched key is empty, we fall
+    /// back to the free public endpoint for that (chain, network) so the
+    /// app remains usable out-of-the-box while strongly preferring the
+    /// paid provider once a key is configured. Without this fallback the
+    /// templated URL would be sent to the server with `{KEY}` literal in
+    /// the path, producing cryptic HTTP 404 / 401 errors.
     func substituteAPIKey(in url: String, chain: Chain) -> String {
         guard url.contains("{KEY}") else { return url }
         let host = URL(string: url)?.host?.lowercased() ?? ""
@@ -343,8 +349,27 @@ final class NetworkConfig: ObservableObject, @unchecked Sendable {
             default: key = ""
             }
         }
-        guard !key.isEmpty else { return url }
+        if key.isEmpty {
+            return publicFallbackURL(for: chain) ?? url
+        }
         return url.replacingOccurrences(of: "{KEY}", with: key)
+    }
+
+    /// Free public endpoint to use when a paid-provider template is
+    /// selected but no API key is configured. Returns nil for chains
+    /// without a known fallback (the caller then leaves the templated
+    /// URL unchanged, preserving legacy behaviour).
+    private func publicFallbackURL(for chain: Chain) -> String? {
+        switch chain {
+        case .ethereum:
+            return EVMNetwork(rawValue: evmChainId)?.publicDefaultRPC
+        case .solana:
+            return (solDevnet ? SolanaNetwork.devnet : SolanaNetwork.mainnet).publicDefaultRPC
+        case .polygon, .arbitrum, .base, .optimism, .bnb, .avalanche, .zksync, .linea, .scroll:
+            return chain.defaultEVMNetwork?.publicDefaultRPC
+        default:
+            return nil
+        }
     }
 
     func resetToDefaults() {
@@ -431,16 +456,20 @@ final class NetworkConfig: ObservableObject, @unchecked Sendable {
     /// User-customized URLs are preserved untouched.
     private func autoSwapEthereumRPCIfDefault(previousChainId: UInt64) {
         guard previousChainId != evmChainId else { return }
-        let publicDefaults = Set(EVMNetwork.allCases.map(\.defaultRPC))
+        let publicDefaults = Set(EVMNetwork.allCases.map(\.publicDefaultRPC))
         let alchemyTemplates = Set(EVMNetwork.allCases.compactMap { RPCProviderTemplate.alchemy(evm: $0) })
 
         guard let newNet = EVMNetwork(rawValue: evmChainId) else { return }
 
-        if publicDefaults.contains(ethereumRPC) {
-            ethereumRPC = newNet.defaultRPC
-        } else if alchemyTemplates.contains(ethereumRPC),
-                  let newTmpl = RPCProviderTemplate.alchemy(evm: newNet) {
-            ethereumRPC = newTmpl
+        if alchemyTemplates.contains(ethereumRPC) {
+            // User is on the paid Alchemy default — stay on the Alchemy
+            // template for the new chain if one exists, else fall back to
+            // the new chain's default (which is publicDefaultRPC for BNB).
+            ethereumRPC = RPCProviderTemplate.alchemy(evm: newNet) ?? newNet.defaultRPC
+        } else if publicDefaults.contains(ethereumRPC) {
+            // User deliberately picked a public endpoint; keep them on a
+            // public endpoint for the new chain.
+            ethereumRPC = newNet.publicDefaultRPC
         }
     }
 
@@ -453,9 +482,22 @@ final class NetworkConfig: ObservableObject, @unchecked Sendable {
 
     private func autoSwapSolanaRPCIfDefault(previousDevnet: Bool) {
         guard previousDevnet != solDevnet else { return }
-        let known: Set<String> = [SolanaNetwork.mainnet.defaultRPC, SolanaNetwork.devnet.defaultRPC]
+        let known: Set<String> = [
+            SolanaNetwork.mainnet.defaultRPC,
+            SolanaNetwork.devnet.defaultRPC,
+            SolanaNetwork.mainnet.publicDefaultRPC,
+            SolanaNetwork.devnet.publicDefaultRPC,
+        ]
         guard known.contains(solanaRPC) else { return }
-        solanaRPC = (solDevnet ? SolanaNetwork.devnet : SolanaNetwork.mainnet).defaultRPC
+        let target = solDevnet ? SolanaNetwork.devnet : SolanaNetwork.mainnet
+        // Preserve public-vs-paid choice across the flip.
+        if solanaRPC == SolanaNetwork.mainnet.publicDefaultRPC
+            || solanaRPC == SolanaNetwork.devnet.publicDefaultRPC
+        {
+            solanaRPC = target.publicDefaultRPC
+        } else {
+            solanaRPC = target.defaultRPC
+        }
     }
 
     /// One-shot migration of explicitly-dead public RPC endpoints that
@@ -543,13 +585,34 @@ enum EVMNetwork: UInt64, CaseIterable, Identifiable {
         }
     }
 
+    /// Preferred default: Alchemy paid-provider template with `{KEY}`
+    /// placeholder, substituted from Keychain at RPC-call time. Paid nodes
+    /// are required for reliable production traffic — free public endpoints
+    /// are aggressively rate-limited, geo-throttled, and prone to "empty
+    /// result" / "tenant disabled" errors that manifest as signing or
+    /// balance-check failures for end users.
+    ///
+    /// When no Alchemy key is set, `NetworkConfig.substituteAPIKey` falls
+    /// back to `publicDefaultRPC`, so unconfigured installs still function.
+    /// BNB Chain has no Alchemy coverage, so it keeps the public endpoint.
     var defaultRPC: String {
+        if let tmpl = RPCProviderTemplate.alchemy(evm: self) {
+            return tmpl
+        }
+        return publicDefaultRPC
+    }
+
+    /// Last-resort free public endpoint, used either (a) when the user
+    /// explicitly picks a free provider in Settings, or (b) implicitly as
+    /// a fallback when the templated paid URL is present but no API key
+    /// is configured.
+    ///
+    /// PublicNode runs a well-distributed anycast fleet and is the most
+    /// reliable free option across chains, so we standardise on it where
+    /// it exists. llama / blastapi / polygon-rpc.com have all had regional
+    /// outages or "tenant disabled" errors (observed Apr 2026).
+    var publicDefaultRPC: String {
         switch self {
-        // llama / blastapi / polygon-rpc.com have all had regional outages
-        // or "tenant disabled" errors (observed Apr 2026). PublicNode runs
-        // a well-distributed anycast fleet and is the most reliable free
-        // option across chains, so we standardise on it for the chains
-        // where it exists.
         case .mainnet: return "https://ethereum-rpc.publicnode.com"
         case .sepolia: return "https://ethereum-sepolia-rpc.publicnode.com"
         case .polygon: return "https://polygon-bor-rpc.publicnode.com"
@@ -592,12 +655,20 @@ enum BitcoinNetwork {
 
 enum SolanaNetwork {
     case mainnet, devnet
+
+    /// Preferred default: Alchemy Solana paid-provider template. Same
+    /// rationale as `EVMNetwork.defaultRPC` — free public Solana endpoints
+    /// (including PublicNode and Labs' mainnet-beta) aggressively throttle
+    /// or geo-reject requests, so a paid key is the baseline for a usable
+    /// wallet. When no Alchemy key is set, `substituteAPIKey` falls back
+    /// to `publicDefaultRPC`.
     var defaultRPC: String {
+        return RPCProviderTemplate.alchemySolana(mainnet: self == .mainnet)
+    }
+
+    /// Fallback free endpoint when no paid key is configured.
+    var publicDefaultRPC: String {
         switch self {
-        // api.mainnet-beta.solana.com is the canonical Solana Labs endpoint
-        // but aggressively rate-limits and has regional reachability issues.
-        // PublicNode provides a free, CDN-fronted alternative. Devnet stays
-        // on the labs endpoint — PublicNode does not expose devnet.
         case .mainnet: return "https://solana-rpc.publicnode.com"
         case .devnet: return "https://api.devnet.solana.com"
         }

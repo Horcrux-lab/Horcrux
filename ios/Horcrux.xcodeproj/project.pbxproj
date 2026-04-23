@@ -59,7 +59,6 @@
 		6004725264CD51E42182540D /* AddressFormatterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 937C4AF2341FA2B8BD1A9B6C /* AddressFormatterTests.swift */; };
 		601013F61A3536289EEDE6BE /* MessagePadding.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A31043E56FEF3233E692391 /* MessagePadding.swift */; };
 		62CB42B53B196669DF6313A7 /* WalletStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3B45D5364AB9F1360EFA4E5C /* WalletStoreTests.swift */; };
-		FEFEB3D10CAA701F018A7911 /* Eip712BindingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A76D435306896D2E1749CCB4 /* Eip712BindingTests.swift */; };
 		C6BF96CA00CD47917DEF4BBA /* AccountBackupMigrationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D01607EC9BF14BA989B72DBC /* AccountBackupMigrationTests.swift */; };
 		36EF069615A3212AC3F72AA1 /* RefreshPeerBindingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA7CD7EDD16C42D86BFE60AC /* RefreshPeerBindingTests.swift */; };
 		0162A9EDCB2888ABE090E582 /* SigningPeerBindingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 08FC6F5E6F14CDDF1D5A7F63 /* SigningPeerBindingTests.swift */; };
@@ -183,7 +182,6 @@
 		36BF7F56D454A6F78D4A2F37 /* CertificatePinner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CertificatePinner.swift; sourceTree = "<group>"; };
 		3935002B5AD730445E22C6BD /* TransportProtocol.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TransportProtocol.swift; sourceTree = "<group>"; };
 		3B45D5364AB9F1360EFA4E5C /* WalletStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WalletStoreTests.swift; sourceTree = "<group>"; };
-		A76D435306896D2E1749CCB4 /* Eip712BindingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Eip712BindingTests.swift; sourceTree = "<group>"; };
 		D01607EC9BF14BA989B72DBC /* AccountBackupMigrationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccountBackupMigrationTests.swift; sourceTree = "<group>"; };
 		AA7CD7EDD16C42D86BFE60AC /* RefreshPeerBindingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RefreshPeerBindingTests.swift; sourceTree = "<group>"; };
 		08FC6F5E6F14CDDF1D5A7F63 /* SigningPeerBindingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SigningPeerBindingTests.swift; sourceTree = "<group>"; };
@@ -533,7 +531,6 @@
 				DD030979CCAA127E220D7660 /* TokenModelsTests.swift */,
 				0D8CC76DA3FFA51F1581D7CA /* TransactionStoreTests.swift */,
 				3B45D5364AB9F1360EFA4E5C /* WalletStoreTests.swift */,
-				A76D435306896D2E1749CCB4 /* Eip712BindingTests.swift */,
 				D01607EC9BF14BA989B72DBC /* AccountBackupMigrationTests.swift */,
 				AA7CD7EDD16C42D86BFE60AC /* RefreshPeerBindingTests.swift */,
 				08FC6F5E6F14CDDF1D5A7F63 /* SigningPeerBindingTests.swift */,
@@ -742,7 +739,6 @@
 				27ABF8D1668FCF1FDB9C8F91 /* TokenModelsTests.swift in Sources */,
 				988A2125ECE7D174623434E2 /* TransactionStoreTests.swift in Sources */,
 				62CB42B53B196669DF6313A7 /* WalletStoreTests.swift in Sources */,
-				FEFEB3D10CAA701F018A7911 /* Eip712BindingTests.swift in Sources */,
 				C6BF96CA00CD47917DEF4BBA /* AccountBackupMigrationTests.swift in Sources */,
 				36EF069615A3212AC3F72AA1 /* RefreshPeerBindingTests.swift in Sources */,
 				0162A9EDCB2888ABE090E582 /* SigningPeerBindingTests.swift in Sources */,

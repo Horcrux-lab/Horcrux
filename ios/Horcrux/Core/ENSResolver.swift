@@ -9,8 +9,17 @@ import Foundation
 enum ENSResolver {
     /// ENS Registry contract on mainnet.
     private static let registry = "0x00000000000C2E074eC69A0dFb2997BA6C7d2e1e"
-    /// Default RPC used for ENS lookups. Could be swapped for NetworkConfig.ethereumRPC.
-    private static let rpcURL = "https://ethereum-rpc.publicnode.com"
+    /// Default RPC used for ENS lookups. ENS is deployed on Ethereum
+    /// mainnet only, so we always query the mainnet Alchemy paid template
+    /// (routed through `NetworkConfig.substituteAPIKey`). When no Alchemy
+    /// key is set, the substitution layer falls back to the free public
+    /// endpoint automatically.
+    private static var rpcURL: String {
+        let cfg = NetworkConfig.shared
+        let template = RPCProviderTemplate.alchemy(evm: .mainnet)
+            ?? EVMNetwork.mainnet.publicDefaultRPC
+        return cfg.substituteAPIKey(in: template, chain: .ethereum)
+    }
 
     /// Tiny memoisation so the signing form's "recipient → .eth" badge
     /// doesn't re-hit the RPC on every keystroke once we've resolved.
