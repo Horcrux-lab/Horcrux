@@ -29,6 +29,44 @@ final class RefreshShardCoordinator: ObservableObject {
     /// only for the progress bar.
     let approxTotalRounds: Int = 5
 
+    /// Audit C1 round-16 — outcome of binding a peer.id to a claimed
+    /// MPC party index. Exposed publicly as a pure enum/function so
+    /// the decision branches can be unit-tested without spinning up
+    /// the full ceremony.
+    enum PeerBindingDecision: Equatable {
+        /// `peer.id` is already pinned to this claimed index; accept.
+        case acceptAlreadyBound
+        /// `peer.id` was not previously bound. Caller should record
+        /// the claimed index in the session TOFU map.
+        case acceptTOFU
+        /// `peer.id` was pinned to a different index — impersonation.
+        case rejectIndexMismatch(pinned: UInt16, claimed: UInt16)
+        /// Wallet has a persisted DKG roster and `peer.id` is not in
+        /// it — refusing to bind unknown peers in strict mode.
+        case rejectUnknownPeer
+    }
+
+    /// Pure decision function for refresh peer-binding. Self-
+    /// impersonation (`claimedFromParty == ourPartyIndex`) is
+    /// screened by the caller before this function is reached.
+    nonisolated static func decidePeerBinding(
+        peerId: String,
+        claimedFromParty: UInt16,
+        currentMap: [String: UInt16],
+        hasPersistedRegistry: Bool
+    ) -> PeerBindingDecision {
+        if let pinned = currentMap[peerId] {
+            if pinned != claimedFromParty {
+                return .rejectIndexMismatch(pinned: pinned, claimed: claimedFromParty)
+            }
+            return .acceptAlreadyBound
+        }
+        if hasPersistedRegistry {
+            return .rejectUnknownPeer
+        }
+        return .acceptTOFU
+    }
+
     /// Wallet whose underlying account shard is being refreshed.
     let wallet: Wallet
     private let appState: AppState
@@ -259,19 +297,22 @@ final class RefreshShardCoordinator: ObservableObject {
                     SecureLog.error("[Refresh] C1 reject: inbound claims fromParty=\(inbound.fromParty) which is our own index")
                     continue
                 }
-                if let already = refreshPeerPartyIndex[peer.id] {
-                    if already != inbound.fromParty {
-                        SecureLog.error("[Refresh] C1 reject: peer \(peer.id) bound to party \(already) but now claims \(inbound.fromParty) — impersonation attempt")
-                        continue
-                    }
-                } else if wallet.peerRegistry != nil {
-                    // Strict mode: the wallet has a persisted registry
-                    // captured at DKG time. Any peer.id outside that
-                    // roster is not a legitimate counterparty.
+                let decision = Self.decidePeerBinding(
+                    peerId: peer.id,
+                    claimedFromParty: inbound.fromParty,
+                    currentMap: refreshPeerPartyIndex,
+                    hasPersistedRegistry: wallet.peerRegistry != nil
+                )
+                switch decision {
+                case .rejectIndexMismatch(let pinned, let claimed):
+                    SecureLog.error("[Refresh] C1 reject: peer \(peer.id) bound to party \(pinned) but now claims \(claimed) — impersonation attempt")
+                    continue
+                case .rejectUnknownPeer:
                     SecureLog.error("[Refresh] C1 reject: peer \(peer.id) not in persisted DKG roster — refusing to bind")
                     continue
-                } else {
-                    // Legacy TOFU fallback for pre-round-16 wallets.
+                case .acceptAlreadyBound:
+                    break
+                case .acceptTOFU:
                     refreshPeerPartyIndex[peer.id] = inbound.fromParty
                 }
                 let responses = try bridge.handleAuthenticatedMessage(inbound, authenticatedFrom: inbound.fromParty)

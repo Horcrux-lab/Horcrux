@@ -9,6 +9,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security
 
+- **Refresh C1 round-16 tests** — extract the per-message peer-
+  binding decision from `RefreshShardCoordinator`'s async loop into
+  a pure, nonisolated static function (`decidePeerBinding`) returning
+  a new `PeerBindingDecision` enum (`acceptAlreadyBound`,
+  `acceptTOFU`, `rejectIndexMismatch`, `rejectUnknownPeer`). Adds
+  `HorcruxTests/RefreshPeerBindingTests.swift` with 7 tests covering
+  every branch: legacy-wallet TOFU admit / same-session index flip,
+  and strict-mode accept-known / reject-known-wrong-index / reject-
+  intruder / empty-registry-is-TOFU. Behavior is unchanged; the
+  in-loop logic now delegates to the pure function.
+
 - **Relay deploy smoke script** — `scripts/verify-relay-deploy.sh`.
   Operator-facing PASS/FAIL gate for every public HTTP surface the
   relay exposes: `/health` (200, `status=ok`, version matches
