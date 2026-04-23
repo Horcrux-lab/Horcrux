@@ -637,6 +637,69 @@ pub fn horcrux_decode_evm_calldata(data: Vec<u8>) -> FfiDecodedCall {
     chain::evm::decode_evm_calldata(&data).into()
 }
 
+/// FFI-friendly EIP-712 domain. Mirrors `chain::evm::Eip712Domain`
+/// except `verifying_contract` is passed as a hex/0x-prefixed string
+/// (uniffi Record types cannot carry fixed-size byte arrays directly).
+#[derive(uniffi::Record)]
+pub struct FfiEip712Domain {
+    pub name: String,
+    pub version: String,
+    pub chain_id: u64,
+    /// 20-byte address, hex or 0x-prefixed hex.
+    pub verifying_contract: String,
+}
+
+/// Compute the EIP-712 typed-data digest (audit H8).
+///
+/// This is the sanctioned entry point for any EIP-712 signing flow:
+/// it hard-fails when the domain is missing chain-id / contract /
+/// name bindings that would let a signature be replayed on another
+/// chain or another contract. The UI must have already displayed and
+/// obtained user consent for the decoded domain fields before
+/// invoking this — see `docs/security-audit-2026-04.md` H8.
+///
+/// `struct_hash` is the 32-byte `hashStruct(message)` value the UI
+/// already computed from the typed-data payload.
+#[uniffi::export]
+pub fn horcrux_eip712_digest(
+    domain: FfiEip712Domain,
+    struct_hash: Vec<u8>,
+) -> Result<Vec<u8>, ChainError> {
+    if struct_hash.len() != 32 {
+        return Err(ChainError::Other {
+            msg: format!(
+                "EIP-712 struct_hash must be 32 bytes, got {}",
+                struct_hash.len()
+            ),
+        });
+    }
+    let addr_str = domain
+        .verifying_contract
+        .strip_prefix("0x")
+        .unwrap_or(&domain.verifying_contract);
+    let addr_bytes = hex::decode(addr_str)
+        .map_err(|e| ChainError::InvalidAddress { msg: format!("bad hex: {e}") })?;
+    if addr_bytes.len() != 20 {
+        return Err(ChainError::InvalidAddress {
+            msg: format!("expected 20 bytes, got {}", addr_bytes.len()),
+        });
+    }
+    let mut addr = [0u8; 20];
+    addr.copy_from_slice(&addr_bytes);
+
+    let inner = chain::evm::Eip712Domain {
+        name: domain.name,
+        version: domain.version,
+        chain_id: domain.chain_id,
+        verifying_contract: addr,
+    };
+    let mut sh = [0u8; 32];
+    sh.copy_from_slice(&struct_hash);
+    chain::evm::eip712_digest(&inner, sh)
+        .map(|d| d.to_vec())
+        .map_err(Into::into)
+}
+
 // ============================================================================
 // Paillier prime pool — see mpc::prime_pool for rationale.
 // ============================================================================

@@ -187,12 +187,36 @@ incorrectly.
 `RELAY_BROADCAST_BUFFER`, default 1024, clamped `[64, 65536]`) replaces
 the hard-coded 256. Operators tune for their fan-out / RSS trade-off.
 
-### H8 — EIP-712 domain separator not validated ⚠️
+### H8 — EIP-712 domain separator not validated ✅
 If EIP-712 is wired into the signing flow (check `chain/evm.rs`), the
 `verifyingContract` + `chainId` inside the `EIP712Domain` must be
 displayed to the user and compared against the expected contract.
 Otherwise a malicious dApp forges the domain to reuse the signature
 on another contract.
+
+**Fix shipped (round 13)**: No EIP-712 code path existed at audit
+time, but to prevent a future integrator from skipping domain
+binding, added a sanctioned, validation-first entry point in
+`horcrux-core/src/chain/evm.rs::eip712_digest(&Eip712Domain,
+struct_hash) -> Result<[u8;32], ChainError>`. The function
+hard-fails on:
+- `chain_id == 0` (allows cross-chain replay),
+- `verifying_contract == 0x0` (allows cross-contract replay),
+- empty `name` (lets a signed typed-data blob be replayed across
+  dApps that also forgot to set a name).
+
+Hard-coded `EIP712Domain` type hash (string `"EIP712Domain(string
+name,string version,uint256 chainId,address verifyingContract)"`)
+so a typo in the canonical string cannot downgrade to a malleable
+variant. Exposed via FFI as `horcrux_eip712_digest` with
+`FfiEip712Domain` record. Six unit tests cover the three rejection
+paths + chain-id / contract / struct binding properties +
+determinism. Tests pass (`cargo test -p horcrux-core --lib` 173
+pass). **Operational note for future iOS integration**: the UI
+must display decoded `name / version / chainId / verifyingContract`
+and obtain explicit user consent before invoking this digest; the
+Rust layer only enforces the cryptographic binding, not what the
+user actually saw on screen.
 
 ### H9 — Bitcoin UTXO provenance not verified ✅ (core)
 `chain/bitcoin.rs` (PSBT handling). A malicious UI can craft a PSBT

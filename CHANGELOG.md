@@ -9,6 +9,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security
 
+- **Audit P0 round 13** — H8 EIP-712 domain separator validation.
+  No EIP-712 code path existed at audit time, but to prevent a
+  future integrator from skipping domain binding, added a
+  sanctioned validation-first entry point
+  `chain::evm::eip712_digest(&Eip712Domain, [u8;32]) ->
+  Result<[u8;32], ChainError>` that hard-fails on `chain_id == 0`
+  (cross-chain replay), `verifying_contract == 0x0`
+  (cross-contract replay), and empty `name` (cross-dApp replay).
+  Hard-coded `EIP712Domain` type-hash string to defeat typo-
+  induced malleability. Exposed via FFI as `horcrux_eip712_digest`
+  with `FfiEip712Domain` record. Six unit tests cover rejection
+  paths + chain-id/contract/struct binding properties +
+  determinism. Before any iOS wiring, the UI must display decoded
+  `name / version / chainId / verifyingContract` and obtain
+  explicit user consent — the Rust layer only enforces the
+  cryptographic binding.
+
 - **Audit P0 round 12** — C4 EVM signing second gate. After
   `buildSignHash()` returns `messageHash` in
   `SigningViewModel.startSigning`, the view model now recomputes
