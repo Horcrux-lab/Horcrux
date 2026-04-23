@@ -22,6 +22,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     `RefreshShardCoordinator`, `ColdSigningCoordinator*`) tracked as a
     follow-up — requires the peer registry to plumb the Noise-authenticated
     party index through to each MPC handler invocation.
+  - **C4** (critical, partial) — EVM calldata decoder landed in core.
+    `chain::evm::decode_evm_calldata` + `horcrux_decode_evm_calldata`
+    FFI export recognise `transfer(address,uint256)`,
+    `transferFrom(address,address,uint256)`, `approve(address,uint256)`,
+    and `setApprovalForAll(address,bool)`, flagging unlimited approvals
+    (`is_unlimited` set when the uint256 has bit 255 set). Unknown
+    selectors surface as `DecodedCall::Unknown` so the UI can warn on
+    unrecognised calls. iOS approval-sheet integration (rendering the
+    decoded struct as human-readable intent, hard-blocking
+    `Erc20Approve { is_unlimited: true }` without an explicit override)
+    tracked as a follow-up.
   - **H2** (high) — DoS hardening in `HorcruxConfig::new`. Reject
     `total_parties == 0` and `total_parties > 20` (`MAX_TOTAL_PARTIES`)
     before any allocation. CGGMP21 / FROST costs scale super-linearly;

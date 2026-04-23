@@ -439,6 +439,95 @@ pub fn horcrux_keccak256(data: Vec<u8>) -> Vec<u8> {
 }
 
 // ============================================================================
+// EVM calldata decoder — surfaces what `data` field of an EIP-1559 tx is
+// actually requesting, so the iOS approval sheet can warn on unlimited
+// approvals, NFT blanket grants, and unrecognised selectors (audit C4).
+// ============================================================================
+
+/// Structured view of an outgoing EVM calldata blob. Mirrors
+/// [`chain::evm::DecodedCall`] in an FFI-friendly shape (uniffi doesn't
+/// export Rust enums with struct variants directly from other modules,
+/// hence the translation layer).
+#[derive(uniffi::Enum)]
+pub enum FfiDecodedCall {
+    /// Empty calldata — native value transfer.
+    Transfer,
+    /// `transfer(address,uint256)` — ERC-20 send.
+    Erc20Transfer { to: String, amount_hex: String },
+    /// `transferFrom(address,address,uint256)` — ERC-20 pull.
+    Erc20TransferFrom {
+        from: String,
+        to: String,
+        amount_hex: String,
+    },
+    /// `approve(address,uint256)`. `is_unlimited` flags approvals whose
+    /// amount has bit 255 set (the "effectively infinite" convention).
+    Erc20Approve {
+        spender: String,
+        amount_hex: String,
+        is_unlimited: bool,
+    },
+    /// `setApprovalForAll(address,bool)` — blanket NFT approval.
+    SetApprovalForAll { operator: String, approved: bool },
+    /// Unknown selector — UI should warn the user explicitly.
+    Unknown {
+        selector_hex: String,
+        data_len: u32,
+    },
+}
+
+impl From<chain::evm::DecodedCall> for FfiDecodedCall {
+    fn from(v: chain::evm::DecodedCall) -> Self {
+        match v {
+            chain::evm::DecodedCall::Transfer => FfiDecodedCall::Transfer,
+            chain::evm::DecodedCall::Erc20Transfer { to, amount_hex } => {
+                FfiDecodedCall::Erc20Transfer { to, amount_hex }
+            }
+            chain::evm::DecodedCall::Erc20TransferFrom {
+                from,
+                to,
+                amount_hex,
+            } => FfiDecodedCall::Erc20TransferFrom {
+                from,
+                to,
+                amount_hex,
+            },
+            chain::evm::DecodedCall::Erc20Approve {
+                spender,
+                amount_hex,
+                is_unlimited,
+            } => FfiDecodedCall::Erc20Approve {
+                spender,
+                amount_hex,
+                is_unlimited,
+            },
+            chain::evm::DecodedCall::SetApprovalForAll { operator, approved } => {
+                FfiDecodedCall::SetApprovalForAll { operator, approved }
+            }
+            chain::evm::DecodedCall::Unknown {
+                selector_hex,
+                data_len,
+            } => FfiDecodedCall::Unknown {
+                selector_hex,
+                data_len: data_len as u32,
+            },
+        }
+    }
+}
+
+/// Decode an outgoing EVM `data` field (the calldata that would be sent
+/// to `to`) into a structured [`FfiDecodedCall`]. Never throws: unknown
+/// selectors become `FfiDecodedCall::Unknown` so the UI always has a
+/// deterministic rendering path.
+///
+/// Callers must pass the entire calldata (including the 4-byte selector),
+/// not just the arguments.
+#[uniffi::export]
+pub fn horcrux_decode_evm_calldata(data: Vec<u8>) -> FfiDecodedCall {
+    chain::evm::decode_evm_calldata(&data).into()
+}
+
+// ============================================================================
 // Paillier prime pool — see mpc::prime_pool for rationale.
 // ============================================================================
 

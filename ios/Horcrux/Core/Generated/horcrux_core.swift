@@ -2702,6 +2702,145 @@ extension FfiCurveType: Equatable, Hashable {}
 
 
 
+// Note that we don't yet support `indirect` for enums.
+// See https://github.com/mozilla/uniffi-rs/issues/396 for further discussion.
+/**
+ * Structured view of an outgoing EVM calldata blob. Mirrors
+ * [`chain::evm::DecodedCall`] in an FFI-friendly shape (uniffi doesn't
+ * export Rust enums with struct variants directly from other modules,
+ * hence the translation layer).
+ */
+
+public enum FfiDecodedCall {
+    
+    /**
+     * Empty calldata — native value transfer.
+     */
+    case transfer
+    /**
+     * `transfer(address,uint256)` — ERC-20 send.
+     */
+    case erc20Transfer(to: String, amountHex: String
+    )
+    /**
+     * `transferFrom(address,address,uint256)` — ERC-20 pull.
+     */
+    case erc20TransferFrom(from: String, to: String, amountHex: String
+    )
+    /**
+     * `approve(address,uint256)`. `is_unlimited` flags approvals whose
+     * amount has bit 255 set (the "effectively infinite" convention).
+     */
+    case erc20Approve(spender: String, amountHex: String, isUnlimited: Bool
+    )
+    /**
+     * `setApprovalForAll(address,bool)` — blanket NFT approval.
+     */
+    case setApprovalForAll(`operator`: String, approved: Bool
+    )
+    /**
+     * Unknown selector — UI should warn the user explicitly.
+     */
+    case unknown(selectorHex: String, dataLen: UInt32
+    )
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeFfiDecodedCall: FfiConverterRustBuffer {
+    typealias SwiftType = FfiDecodedCall
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> FfiDecodedCall {
+        let variant: Int32 = try readInt(&buf)
+        switch variant {
+        
+        case 1: return .transfer
+        
+        case 2: return .erc20Transfer(to: try FfiConverterString.read(from: &buf), amountHex: try FfiConverterString.read(from: &buf)
+        )
+        
+        case 3: return .erc20TransferFrom(from: try FfiConverterString.read(from: &buf), to: try FfiConverterString.read(from: &buf), amountHex: try FfiConverterString.read(from: &buf)
+        )
+        
+        case 4: return .erc20Approve(spender: try FfiConverterString.read(from: &buf), amountHex: try FfiConverterString.read(from: &buf), isUnlimited: try FfiConverterBool.read(from: &buf)
+        )
+        
+        case 5: return .setApprovalForAll(operator: try FfiConverterString.read(from: &buf), approved: try FfiConverterBool.read(from: &buf)
+        )
+        
+        case 6: return .unknown(selectorHex: try FfiConverterString.read(from: &buf), dataLen: try FfiConverterUInt32.read(from: &buf)
+        )
+        
+        default: throw UniffiInternalError.unexpectedEnumCase
+        }
+    }
+
+    public static func write(_ value: FfiDecodedCall, into buf: inout [UInt8]) {
+        switch value {
+        
+        
+        case .transfer:
+            writeInt(&buf, Int32(1))
+        
+        
+        case let .erc20Transfer(to,amountHex):
+            writeInt(&buf, Int32(2))
+            FfiConverterString.write(to, into: &buf)
+            FfiConverterString.write(amountHex, into: &buf)
+            
+        
+        case let .erc20TransferFrom(from,to,amountHex):
+            writeInt(&buf, Int32(3))
+            FfiConverterString.write(from, into: &buf)
+            FfiConverterString.write(to, into: &buf)
+            FfiConverterString.write(amountHex, into: &buf)
+            
+        
+        case let .erc20Approve(spender,amountHex,isUnlimited):
+            writeInt(&buf, Int32(4))
+            FfiConverterString.write(spender, into: &buf)
+            FfiConverterString.write(amountHex, into: &buf)
+            FfiConverterBool.write(isUnlimited, into: &buf)
+            
+        
+        case let .setApprovalForAll(`operator`,approved):
+            writeInt(&buf, Int32(5))
+            FfiConverterString.write(`operator`, into: &buf)
+            FfiConverterBool.write(approved, into: &buf)
+            
+        
+        case let .unknown(selectorHex,dataLen):
+            writeInt(&buf, Int32(6))
+            FfiConverterString.write(selectorHex, into: &buf)
+            FfiConverterUInt32.write(dataLen, into: &buf)
+            
+        }
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeFfiDecodedCall_lift(_ buf: RustBuffer) throws -> FfiDecodedCall {
+    return try FfiConverterTypeFfiDecodedCall.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeFfiDecodedCall_lower(_ value: FfiDecodedCall) -> RustBuffer {
+    return FfiConverterTypeFfiDecodedCall.lower(value)
+}
+
+
+
+extension FfiDecodedCall: Equatable, Hashable {}
+
+
+
 
 public enum FfiE2eError {
 
@@ -3189,6 +3328,22 @@ public func horcruxBuildSolanaTransaction(params: FfiSolanaTxParams)throws  -> F
 })
 }
 /**
+ * Decode an outgoing EVM `data` field (the calldata that would be sent
+ * to `to`) into a structured [`FfiDecodedCall`]. Never throws: unknown
+ * selectors become `FfiDecodedCall::Unknown` so the UI always has a
+ * deterministic rendering path.
+ *
+ * Callers must pass the entire calldata (including the 4-byte selector),
+ * not just the arguments.
+ */
+public func horcruxDecodeEvmCalldata(data: Data) -> FfiDecodedCall {
+    return try!  FfiConverterTypeFfiDecodedCall.lift(try! rustCall() {
+    uniffi_horcrux_core_fn_func_horcrux_decode_evm_calldata(
+        FfiConverterData.lower(data),$0
+    )
+})
+}
+/**
  * Decrypt a previously encrypted key shard. See `horcrux_encrypt_shard` for
  * the semantics of `device_key` / `pin`.
  */
@@ -3327,6 +3482,9 @@ private var initializationResult: InitializationResult = {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_horcrux_core_checksum_func_horcrux_build_solana_transaction() != 40488) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_horcrux_core_checksum_func_horcrux_decode_evm_calldata() != 61416) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_horcrux_core_checksum_func_horcrux_decrypt_shard() != 36161) {

@@ -146,6 +146,147 @@ fn rlp_length_prefix(len: usize, offset: u8) -> Vec<u8> {
     }
 }
 
+// ---------------------------------------------------------------------------
+// Calldata decoder — minimal ERC-20 / ERC-721 selector recognition used by
+// the wallet's approval sheet to surface what an EVM transaction actually
+// does, rather than presenting an opaque hex blob to the user.
+//
+// Audit finding C4 ("EVM blind signing"): Ledger / Trezor have been
+// criticised historically for allowing users to sign `approve(spender, max)`
+// calls without understanding them; this is the attack surface that
+// fake-airdrop scams exploit to drain wallets.
+//
+// We do not attempt to be a full ABI parser. We recognise the handful of
+// selectors that account for the vast majority of malicious approvals
+// seen in the wild, and expose a structured enum that the iOS approval
+// sheet can render as human-readable explanations ("Approve UNLIMITED
+// USDT to 0xabc…?").
+// ---------------------------------------------------------------------------
+
+/// Structured view of what an outgoing EVM calldata blob is asking the
+/// signer to do. Anything that is not a recognised selector surfaces as
+/// `Unknown` so the UI can warn: "This transaction cannot be decoded —
+/// are you sure?".
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub enum DecodedCall {
+    /// Plain value transfer (empty calldata) — ETH/native token move.
+    Transfer,
+    /// `transfer(address,uint256)` — ERC-20 token send.
+    Erc20Transfer { to: String, amount_hex: String },
+    /// `transferFrom(address,address,uint256)` — ERC-20 pull.
+    Erc20TransferFrom {
+        from: String,
+        to: String,
+        amount_hex: String,
+    },
+    /// `approve(address,uint256)` — ERC-20 allowance grant.
+    /// `is_unlimited` is true when the amount is at least 2^255 (the
+    /// conventional "infinite approval" pattern; exact 2^256-1 and
+    /// anything near it is treated as unlimited for UX purposes).
+    Erc20Approve {
+        spender: String,
+        amount_hex: String,
+        is_unlimited: bool,
+    },
+    /// `setApprovalForAll(address,bool)` — ERC-721 / ERC-1155 blanket
+    /// approval. Almost always the signature used to drain NFT wallets.
+    SetApprovalForAll { operator: String, approved: bool },
+    /// Calldata present but selector unknown. UI should render as
+    /// "unverified — proceed with caution".
+    Unknown { selector_hex: String, data_len: usize },
+}
+
+/// Threshold at which an approval is flagged as "unlimited" in the UI.
+/// Many tokens normalise max approvals to `type(uint256).max`, but some
+/// approval-bait contracts use `2^255` or similar large constants —
+/// treat any amount with the top bit set as effectively unlimited.
+const UNLIMITED_APPROVAL_THRESHOLD_BIT: usize = 255;
+
+/// Decode an outgoing EVM calldata blob into a structured [`DecodedCall`].
+///
+/// Returns [`DecodedCall::Transfer`] for empty data (value-only send),
+/// [`DecodedCall::Unknown`] for anything we do not recognise. Never
+/// returns an error — the UI must always have *something* to show; an
+/// opaque selector is still better than a hex dump.
+pub fn decode_evm_calldata(data: &[u8]) -> DecodedCall {
+    if data.is_empty() {
+        return DecodedCall::Transfer;
+    }
+    if data.len() < 4 {
+        return DecodedCall::Unknown {
+            selector_hex: hex::encode(data),
+            data_len: data.len(),
+        };
+    }
+
+    let selector = &data[0..4];
+    let args = &data[4..];
+
+    match selector {
+        // transfer(address,uint256) = 0xa9059cbb
+        [0xa9, 0x05, 0x9c, 0xbb] if args.len() >= 64 => {
+            let to = decode_address_arg(&args[0..32]);
+            let amount_hex = hex::encode(&args[32..64]);
+            DecodedCall::Erc20Transfer { to, amount_hex }
+        }
+        // transferFrom(address,address,uint256) = 0x23b872dd
+        [0x23, 0xb8, 0x72, 0xdd] if args.len() >= 96 => {
+            let from = decode_address_arg(&args[0..32]);
+            let to = decode_address_arg(&args[32..64]);
+            let amount_hex = hex::encode(&args[64..96]);
+            DecodedCall::Erc20TransferFrom {
+                from,
+                to,
+                amount_hex,
+            }
+        }
+        // approve(address,uint256) = 0x095ea7b3
+        [0x09, 0x5e, 0xa7, 0xb3] if args.len() >= 64 => {
+            let spender = decode_address_arg(&args[0..32]);
+            let amount_bytes: &[u8; 32] = args[32..64].try_into().unwrap_or(&[0u8; 32]);
+            let is_unlimited = is_amount_unlimited(amount_bytes);
+            DecodedCall::Erc20Approve {
+                spender,
+                amount_hex: hex::encode(amount_bytes),
+                is_unlimited,
+            }
+        }
+        // setApprovalForAll(address,bool) = 0xa22cb465
+        [0xa2, 0x2c, 0xb4, 0x65] if args.len() >= 64 => {
+            let operator = decode_address_arg(&args[0..32]);
+            let approved = args[32..64].iter().any(|&b| b != 0);
+            DecodedCall::SetApprovalForAll { operator, approved }
+        }
+        _ => DecodedCall::Unknown {
+            selector_hex: hex::encode(selector),
+            data_len: data.len(),
+        },
+    }
+}
+
+/// A 32-byte address argument is the low 20 bytes of the word.
+fn decode_address_arg(word: &[u8]) -> String {
+    if word.len() < 32 {
+        return "0x0".into();
+    }
+    format!("0x{}", hex::encode(&word[12..32]))
+}
+
+/// Check whether a uint256 amount qualifies as "unlimited" for UX warning
+/// purposes. We flag anything with bit 255 or higher set — that captures
+/// `type(uint256).max`, the common `2^256-1`, and most of the "practically
+/// infinite" values that approval-bait contracts use.
+fn is_amount_unlimited(amount: &[u8; 32]) -> bool {
+    // Bit 255 is the MSB of the first byte.
+    amount[0] & 0x80 != 0 || {
+        // Also flag the classic `type(uint256).max - k` patterns for
+        // small k, where the top byte is 0xFF even though bit 255 is
+        // also set (already caught above). Fallthrough: if the first 16
+        // bytes are all 0xFF we treat as unlimited regardless.
+        amount[..16].iter().all(|&b| b == 0xff)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -332,5 +473,147 @@ mod tests {
         let tx = builder.build(params).unwrap();
         assert_eq!(tx.raw_data[0], 0x02);
         assert_eq!(tx.sign_hash.len(), 32);
+    }
+}
+
+#[cfg(test)]
+mod decode_tests {
+    use super::*;
+
+    fn hex_decode(s: &str) -> Vec<u8> {
+        hex::decode(s).unwrap()
+    }
+
+    #[test]
+    fn decode_empty_is_transfer() {
+        assert_eq!(decode_evm_calldata(&[]), DecodedCall::Transfer);
+    }
+
+    #[test]
+    fn decode_erc20_transfer() {
+        // transfer(0x1111...1111, 1000)
+        let mut data = vec![0xa9, 0x05, 0x9c, 0xbb];
+        data.extend_from_slice(&[0u8; 12]);
+        data.extend_from_slice(&[0x11u8; 20]);
+        let mut amt = [0u8; 32];
+        amt[30] = 0x03;
+        amt[31] = 0xe8; // 1000
+        data.extend_from_slice(&amt);
+
+        match decode_evm_calldata(&data) {
+            DecodedCall::Erc20Transfer { to, amount_hex } => {
+                assert_eq!(to, "0x1111111111111111111111111111111111111111");
+                assert!(amount_hex.ends_with("03e8"));
+            }
+            x => panic!("expected Erc20Transfer, got {:?}", x),
+        }
+    }
+
+    #[test]
+    fn decode_erc20_approve_unlimited_flagged() {
+        // approve(0xabcd..., 2^256-1)
+        let mut data = vec![0x09, 0x5e, 0xa7, 0xb3];
+        data.extend_from_slice(&[0u8; 12]);
+        data.extend_from_slice(&[0xab; 20]);
+        data.extend_from_slice(&[0xff; 32]);
+
+        match decode_evm_calldata(&data) {
+            DecodedCall::Erc20Approve {
+                is_unlimited,
+                spender,
+                ..
+            } => {
+                assert!(is_unlimited, "max-approval must be flagged");
+                assert!(spender.starts_with("0x"));
+                assert_eq!(spender.len(), 42);
+            }
+            x => panic!("expected Erc20Approve, got {:?}", x),
+        }
+    }
+
+    #[test]
+    fn decode_erc20_approve_small_not_flagged() {
+        // approve(0xabcd..., 100)
+        let mut data = vec![0x09, 0x5e, 0xa7, 0xb3];
+        data.extend_from_slice(&[0u8; 12]);
+        data.extend_from_slice(&[0xab; 20]);
+        let mut amt = [0u8; 32];
+        amt[31] = 0x64; // 100
+        data.extend_from_slice(&amt);
+
+        match decode_evm_calldata(&data) {
+            DecodedCall::Erc20Approve { is_unlimited, .. } => {
+                assert!(!is_unlimited);
+            }
+            x => panic!("expected Erc20Approve, got {:?}", x),
+        }
+    }
+
+    #[test]
+    fn decode_set_approval_for_all_true() {
+        let mut data = vec![0xa2, 0x2c, 0xb4, 0x65];
+        data.extend_from_slice(&[0u8; 12]);
+        data.extend_from_slice(&[0xcd; 20]);
+        let mut flag = [0u8; 32];
+        flag[31] = 1;
+        data.extend_from_slice(&flag);
+
+        match decode_evm_calldata(&data) {
+            DecodedCall::SetApprovalForAll { approved, .. } => assert!(approved),
+            x => panic!("{:?}", x),
+        }
+    }
+
+    #[test]
+    fn decode_unknown_selector() {
+        let data = hex_decode("deadbeef00000000");
+        match decode_evm_calldata(&data) {
+            DecodedCall::Unknown { selector_hex, .. } => {
+                assert_eq!(selector_hex, "deadbeef");
+            }
+            x => panic!("{:?}", x),
+        }
+    }
+
+    #[test]
+    fn decode_short_calldata() {
+        let data = vec![0x12, 0x34];
+        match decode_evm_calldata(&data) {
+            DecodedCall::Unknown { data_len, .. } => assert_eq!(data_len, 2),
+            x => panic!("{:?}", x),
+        }
+    }
+
+    #[test]
+    fn is_amount_unlimited_threshold() {
+        // Exactly 2^255 = top bit set.
+        let mut at_threshold = [0u8; 32];
+        at_threshold[0] = 0x80;
+        assert!(is_amount_unlimited(&at_threshold));
+
+        // Just below threshold.
+        let mut below = [0u8; 32];
+        below[0] = 0x7f;
+        below[1] = 0xff;
+        assert!(!is_amount_unlimited(&below));
+
+        // type(uint256).max
+        assert!(is_amount_unlimited(&[0xff; 32]));
+    }
+
+    #[test]
+    fn decode_handles_trailing_junk() {
+        // approve with extra trailing bytes — real-world calldata sometimes
+        // has padding; the decoder should still return the approval.
+        let mut data = vec![0x09, 0x5e, 0xa7, 0xb3];
+        data.extend_from_slice(&[0u8; 12]);
+        data.extend_from_slice(&[0xab; 20]);
+        data.extend_from_slice(&[0xff; 32]);
+        data.extend_from_slice(b"junk");
+
+        assert!(matches!(
+            decode_evm_calldata(&data),
+            DecodedCall::Erc20Approve { .. }
+        ));
     }
 }

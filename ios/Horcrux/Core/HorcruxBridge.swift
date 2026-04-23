@@ -172,6 +172,16 @@ final class HorcruxBridge: ObservableObject {
     func keccak256(_ data: Data) -> Data {
         horcruxKeccak256(data: data)
     }
+
+    // MARK: - EVM Calldata Decoding (audit finding C4)
+
+    /// Decode an outgoing EVM `data` field into a structured view so the
+    /// approval sheet can render human-readable intent ("Approve UNLIMITED
+    /// USDT to 0xabc…") instead of an opaque hex dump. Never throws;
+    /// unknown selectors surface as `.unknown(...)` for the UI to warn on.
+    func decodeEvmCalldata(_ data: Data) -> FfiDecodedCall {
+        horcruxDecodeEvmCalldata(data: data)
+    }
 }
 
 // MARK: - Generated FFI type Sendable conformance
