@@ -274,6 +274,7 @@ final class CreateShardViewModel: ObservableObject {
         totalRounds = selectedCurve == .ed25519 ? 3 : 9
         partyIndex = myIdx + 1
         sessionId = begin.sessionId
+        installRoster(fromParticipants: begin.participantIds)
         stopDiscoveryTasks()
         startDKG(precomputed: true)
     }
@@ -304,6 +305,7 @@ final class CreateShardViewModel: ObservableObject {
         partyIndex = myIdx + 1
         let sid = roomCode.isEmpty ? UUID().uuidString : roomCode
         sessionId = sid
+        installRoster(fromParticipants: participants)
 
         let begin = SessionBeginDTO(
             threshold: threshold,
@@ -544,6 +546,34 @@ final class CreateShardViewModel: ObservableObject {
         for (i, id) in allIds.enumerated() where id != localId {
             dkgPeerPartyIndex[id] = UInt16(i + 1)
         }
+    }
+
+    /// Seed the C1 roster directly from a `SessionBegin`-style
+    /// authoritative participant list (displayNames). Used on both the
+    /// creator and joiner sides of the `precomputed: true` start path,
+    /// which previously skipped `autoAssignPartyIndex` entirely and
+    /// therefore left `dkgPeerPartyIndex` empty — causing every
+    /// legitimate MPC packet to fall into the `rejectUnknownPeer`
+    /// branch and freezing the ceremony on round 1.
+    ///
+    /// The participants list is canonical `deviceName` strings
+    /// (sorted, self included), which matches the key space used by
+    /// presence packets and by the `resolveChannelKey` alias
+    /// resolution — so there is exactly one namespace for C1 across
+    /// both relay and WiFi-LAN transports in the precomputed path.
+    private func installRoster(fromParticipants participants: [String]) {
+        let localId = DeviceIdentity.displayName
+        // The precomputed path guarantees every participant identifier
+        // is a `deviceName`, so the projection used by
+        // `resolveChannelKey` for outbound peers (`peer.name` on
+        // WiFi-LAN, `peer.name` on relay — both set to `displayName`
+        // by their respective transports) lands in the same space.
+        dkgPeerIdOf = { $0.name }
+        dkgPeerPartyIndex.removeAll()
+        for (i, id) in participants.enumerated() where id != localId {
+            dkgPeerPartyIndex[id] = UInt16(i + 1)
+        }
+        NSLog("[DKG] Install roster (precomputed): localId=\"\(localId)\", participants=\(participants)")
     }
 
     /// Legacy buffer (kept for API compatibility); unused now that the
