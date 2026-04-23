@@ -1105,15 +1105,9 @@ enum L10n {
     enum NodeSettings {
         static let title = NSLocalizedString("nodeSettings.title", comment: "")
         static let quickPresets = NSLocalizedString("nodeSettings.quickPresets", comment: "")
-        static let configureInfo = NSLocalizedString("nodeSettings.configureInfo", comment: "")
         static let ethereumEVM = NSLocalizedString("nodeSettings.ethereumEVM", comment: "")
         static let rpcURL = NSLocalizedString("nodeSettings.rpcURL", comment: "")
         static let networkPicker = NSLocalizedString("nodeSettings.networkPicker", comment: "")
-        static let mainnet = NSLocalizedString("nodeSettings.mainnet", comment: "")
-        static let sepoliaTestnet = NSLocalizedString("nodeSettings.sepoliaTestnet", comment: "")
-        static let polygon = NSLocalizedString("nodeSettings.polygon", comment: "")
-        static let arbitrumOne = NSLocalizedString("nodeSettings.arbitrumOne", comment: "")
-        static let base = NSLocalizedString("nodeSettings.base", comment: "")
         static let bitcoin = NSLocalizedString("nodeSettings.bitcoin", comment: "")
         static let restAPIURL = NSLocalizedString("nodeSettings.restAPIURL", comment: "")
         static let testnet = NSLocalizedString("nodeSettings.testnet", comment: "")
@@ -1133,17 +1127,9 @@ enum L10n {
 
         static let litecoinSection = NSLocalizedString("nodeSettings.litecoinSection", comment: "")
         static let tronSection = NSLocalizedString("nodeSettings.tronSection", comment: "")
-        static let signingUnsupportedNote = NSLocalizedString("nodeSettings.signingUnsupportedNote", comment: "")
-        static let alchemyKeyLabel = NSLocalizedString("nodeSettings.alchemyKeyLabel", comment: "")
-        static let infuraKeyLabel = NSLocalizedString("nodeSettings.infuraKeyLabel", comment: "")
-        static let ankrKeyLabel = NSLocalizedString("nodeSettings.ankrKeyLabel", comment: "")
-        static let blockpiKeyLabel = NSLocalizedString("nodeSettings.blockpiKeyLabel", comment: "")
-        static let drpcKeyLabel = NSLocalizedString("nodeSettings.drpcKeyLabel", comment: "")
-        static let nodeRealKeyLabel = NSLocalizedString("nodeSettings.nodeRealKeyLabel", comment: "")
         static let heliusKeyLabel = NSLocalizedString("nodeSettings.heliusKeyLabel", comment: "")
         static let pasteKeyPlaceholder = NSLocalizedString("nodeSettings.pasteKeyPlaceholder", comment: "")
         static let useHelius = NSLocalizedString("nodeSettings.useHelius", comment: "")
-        static let etherscanKeySection = NSLocalizedString("nodeSettings.etherscanKeySection", comment: "")
         static let etherscanKeyLabel = NSLocalizedString("nodeSettings.etherscanKeyLabel", comment: "")
         static let etherscanKeyHelp = NSLocalizedString("nodeSettings.etherscanKeyHelp", comment: "")
         static let readOnlyTag = NSLocalizedString("nodeSettings.readOnlyTag", comment: "")
@@ -1166,25 +1152,6 @@ enum L10n {
             String(format: NSLocalizedString("nodeSettings.wssOK", comment: ""), ms)
         }
 
-        static func useAlchemyFor(_ name: String) -> String {
-            String(format: NSLocalizedString("nodeSettings.useAlchemyFor", comment: ""), name)
-        }
-        static func useInfuraFor(_ name: String) -> String {
-            String(format: NSLocalizedString("nodeSettings.useInfuraFor", comment: ""), name)
-        }
-        static func useAnkrFor(_ name: String) -> String {
-            String(format: NSLocalizedString("nodeSettings.useAnkrFor", comment: ""), name)
-        }
-        static func useBlockPIFor(_ name: String) -> String {
-            String(format: NSLocalizedString("nodeSettings.useBlockPIFor", comment: ""), name)
-        }
-        static func usedRPCFor(_ name: String) -> String {
-            String(format: NSLocalizedString("nodeSettings.usedRPCFor", comment: ""), name)
-        }
-        static func useNodeRealFor(_ name: String) -> String {
-            String(format: NSLocalizedString("nodeSettings.useNodeRealFor", comment: ""), name)
-        }
-
         static let paidProviderPicker = NSLocalizedString("nodeSettings.paidProviderPicker", comment: "")
 
         static let presetConfirmTitle = NSLocalizedString("nodeSettings.presetConfirmTitle", comment: "")
@@ -1201,7 +1168,6 @@ enum L10n {
         static let advancedFields = NSLocalizedString("nodeSettings.advancedFields", comment: "")
         static let apiKeysSection = NSLocalizedString("nodeSettings.apiKeysSection", comment: "")
         static let apiKeysHint = NSLocalizedString("nodeSettings.apiKeysHint", comment: "")
-        static let sharedAcrossChains = NSLocalizedString("nodeSettings.sharedAcrossChains", comment: "")
 
         static func providerUnsupportedOnChain(_ provider: String, _ chain: String) -> String {
             String(format: NSLocalizedString("nodeSettings.providerUnsupportedOnChain", comment: ""), provider, chain)

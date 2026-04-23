@@ -1096,12 +1096,6 @@ struct BlockchainNodeSettingsView: View {
             }
 
             Section {
-                Text(L10n.NodeSettings.configureInfo)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-
-            Section {
                 VStack(alignment: .leading, spacing: 8) {
                     Picker(L10n.NodeSettings.paidProviderPicker, selection: $selectedEVMProvider) {
                         ForEach(PaidEVMProvider.allCases) { p in
@@ -1262,9 +1256,6 @@ struct BlockchainNodeSettingsView: View {
                         presets: [("litecoinspace", "https://litecoinspace.org/api")],
                         binding: $config.litecoinAPI
                     )
-                    Text(L10n.NodeSettings.signingUnsupportedNote)
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
                 }
 
                 DisclosureGroup(L10n.NodeSettings.advancedFields) {
@@ -1304,11 +1295,6 @@ struct BlockchainNodeSettingsView: View {
                             .font(.caption)
                         }
                     }
-                    if solanaSharesPaidKey {
-                        Text(L10n.NodeSettings.sharedAcrossChains)
-                            .font(.caption2)
-                            .foregroundStyle(HorcruxTheme.successGreen)
-                    }
                 }
 
                 Toggle(L10n.NodeSettings.devnet, isOn: $config.solDevnet)
@@ -1343,9 +1329,6 @@ struct BlockchainNodeSettingsView: View {
                         ],
                         binding: $config.tronAPI
                     )
-                    Text(L10n.NodeSettings.signingUnsupportedNote)
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
                 }
 
                 DisclosureGroup(L10n.NodeSettings.advancedFields) {
@@ -1475,20 +1458,6 @@ struct BlockchainNodeSettingsView: View {
 
     private func presetPreviewMessage(_ p: NetworkPreset) -> String {
         "ETH · \(p.ethereumRPC)\nBTC · \(p.bitcoinAPI)\nSOL · \(p.solanaRPC)"
-    }
-
-    /// True when the current Solana RPC is a template from a paid provider
-    /// (Infura / Alchemy / Ankr) that the user also configured for EVM —
-    /// i.e. the same API key is actively shared across both chains.
-    private var solanaSharesPaidKey: Bool {
-        for p in PaidEVMProvider.allCases {
-            if keyBinding(for: p).wrappedValue.isEmpty { continue }
-            if let tmpl = p.solanaTemplate(mainnet: !config.solDevnet),
-               config.solanaRPC == tmpl {
-                return true
-            }
-        }
-        return false
     }
 }
 
