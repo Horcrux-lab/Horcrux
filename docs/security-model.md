@@ -33,7 +33,7 @@ The adversary **cannot**:
 | **Key secrecy** | MPC protocols never reconstruct the full key. |
 | **Signing integrity** | Only the intended message is signed (display-what-you-sign). |
 | **Confidentiality in transit** | Noise Protocol E2E encryption on all channels. |
-| **Confidentiality at rest** | AES-256-GCM shard encryption with PIN-derived key. |
+| **Confidentiality at rest** | AES-256-GCM shard encryption with HKDF-derived key (SWK + SE). |
 | **Authentication** | Noise_XX mutual authentication via static Curve25519 keys. |
 | **Forward secrecy** | Ephemeral Noise handshake keys are discarded after use. |
 | **Replay protection** | Noise transport nonce counters (built-in). |
@@ -49,7 +49,8 @@ The adversary **cannot**:
 | FROST | Threshold EdDSA (ed25519) | `frost-ed25519` 2.2 (IETF RFC 9591) |
 | Noise_XX_25519_ChaChaPoly_SHA256 | E2E encryption | `snow` 0.10 |
 | AES-256-GCM | Shard encryption at rest | `aes-gcm` |
-| HKDF-SHA256 | PIN → encryption key derivation | `hkdf` + `sha2` |
+| HKDF-SHA256 | Shard key derivation (device_key ‖ SWK → AES key) | `hkdf` + `sha2` |
+| PBKDF2-HMAC-SHA256 | PIN-wrapped SWK key-stretching (600 000 iters, OWASP 2023) | `CommonCrypto` (iOS) |
 | Keccak-256 | EVM address derivation | `sha3` |
 | SHA-256 / RIPEMD-160 | Bitcoin address derivation | `sha2` + `ripemd` |
 
@@ -91,24 +92,44 @@ during face-to-face setup) to prevent MITM attacks.
 
 ### Layer 3: Shard Encryption at Rest
 
-Each shard is encrypted before storage:
+Shards are encrypted with AES-256-GCM using a key derived from **two**
+independent secrets — not from the user PIN directly.
 
 ```
-PIN (user input)
-    │
-    ▼
-HKDF-SHA256(salt, PIN) → 256-bit key
-    │
-    ▼
-AES-256-GCM(key, nonce, shard_bytes) → EncryptedShard {
-    ciphertext: Vec<u8>,
-    nonce: [u8; 12],
-    salt: [u8; 32],
-}
+                   Face ID / Touch ID
+                           │
+                           ▼
+                   ┌────────────────┐
+                   │  SE-sealed SWK │──┐
+                   └────────────────┘  │
+                                       ▼
+                                ┌─────────────┐
+                                │ SWK (32 B)  │──┐    ┌────────────┐
+                                └─────────────┘  │──▶ │   HKDF-    │
+                                       ▲          │    │   SHA256   │──▶ AES-256-GCM(shard)
+                   ┌────────────────┐  │          │    └────────────┘
+     PIN ─PBKDF2─▶ │ PIN-wrapped SWK│──┘    device_key (SE-migrated Keychain blob)
+                   └────────────────┘
+                    600k iterations
 ```
 
-**Future enhancement**: combine PIN with hardware keystore (Secure Enclave on
-iOS, StrongBox on Android) for two-factor shard protection.
+**Shard Wrap Key (SWK)** is a random 256-bit key provisioned once at
+onboarding and persisted in the iOS Keychain under two independent
+wraps pointing at the *same* key material:
+1. **Secure Enclave seal** — ECIES-style envelope using a P-256 SE key
+   with `kSecAttrAccessibleWhenPasscodeSetThisDeviceOnly` +
+   `[.privateKeyUsage, .biometryCurrentSet]`. Biometric re-enrollment
+   invalidates the wrap (Apple best practice).
+2. **PIN wrap** — `salt(16) ‖ AES-GCM(SWK, key = PBKDF2-HMAC-SHA256(pin,
+   salt, 600 000))`. Iteration count meets OWASP 2023 guidance. Blobs
+   produced before the bump (100k iters, "v1") are transparently
+   migrated to 600k on first successful unlock.
+
+Changing the PIN only re-wraps the SWK; shard ciphertexts are untouched.
+
+The Rust FFI (`horcrux_encrypt_shard`) accepts two parameters named
+`device_key` and `pin` for ABI stability — on iOS the `pin` argument is
+actually the SWK, not the user's numeric PIN.
 
 ### Layer 4: Relay Server Zero-Knowledge
 
@@ -130,9 +151,13 @@ Even a fully compromised relay server learns nothing about keys or transactions.
 **Attack**: Adversary steals a device containing one shard.
 
 **Mitigation**:
-- Shard is encrypted with PIN → attacker needs the PIN.
+- Shard is AES-256-GCM-encrypted under a key derived from the SWK.
+  The SWK itself requires either Face ID / Touch ID (Secure Enclave) or
+  the user's PIN (PBKDF2 600k).
 - With *t−1* shards, the attacker still cannot sign (threshold not met).
-- **Key refresh** (planned): rotate shards so stolen shard becomes useless.
+- **Key refresh** (CGGMP21 `key_refresh` FFI, shipped in dev.52): user
+  can rotate shards in-place from Settings so a stolen shard becomes
+  useless without changing the wallet address.
 
 ### 2. Man-in-the-Middle on Transport
 
@@ -177,7 +202,8 @@ CGGMP21 signing. Face-to-face latency makes 4 rounds acceptable.
 **Mitigation**:
 - Underlying curve libraries (`k256`, `curve25519-dalek`) use
   constant-time operations.
-- Shard bytes should be zeroized on drop (planned: `zeroize` crate).
+- Shard bytes are zeroized on drop (`zeroize` + `Zeroizing<Vec<u8>>`
+  wrappers on all plaintext key material crossing the FFI boundary).
 
 ---
 
@@ -194,9 +220,9 @@ CGGMP21 signing. Face-to-face latency makes 4 rounds acceptable.
 
 ## Planned Security Enhancements
 
-- [ ] **Key refresh**: periodically rotate shards without changing the group
-      key, invalidating any previously compromised shards.
+- [x] ~~Key refresh~~ — shipped in dev.52 (`horcrux_refresh_shard` FFI).
 - [ ] **Formal audit**: third-party security review of the full system.
+- [ ] **Android port**: StrongBox-backed SWK wrap (mirrors iOS SE path).
 
 ## Implemented Security Features
 
