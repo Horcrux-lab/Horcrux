@@ -21,8 +21,34 @@ final class HorcruxBridge: ObservableObject {
     }
 
     /// Process a single incoming MPC message and produce outgoing messages.
+    ///
+    /// ⚠️ **DEPRECATED.** Callers in production signing/DKG/refresh paths
+    /// must use `handleAuthenticatedMessage(_:authenticatedFrom:)` so the
+    /// claimed `from_party` is bound to the transport-authenticated peer.
+    /// See audit finding C1. This entry point is retained for cases where
+    /// the caller has no peer registry (local-only flows) and for legacy
+    /// call sites still being migrated.
+    @available(*, deprecated, message: "Use handleAuthenticatedMessage(_:authenticatedFrom:) — C1")
     func handleMessage(_ msg: FfiMpcMessage) throws -> [FfiMpcMessage] {
         try session.handleMessage(msg: msg)
+    }
+
+    /// Process an incoming MPC message, verifying that the claimed sender
+    /// matches the party index bound to the transport-authenticated peer
+    /// (Noise / WiFi-LAN mutual auth / relay session token + signature).
+    ///
+    /// - Parameters:
+    ///   - msg: the FFI message as received after transport decryption.
+    ///   - authenticatedFrom: the party index that the peer registry has
+    ///     bound to the actual Noise static public key or device identity
+    ///     that decrypted the bytes. MUST NOT be derived from `msg.fromParty`.
+    /// - Throws: `HorcruxError.sessionError` if identity mismatches (the
+    ///   Rust core raises ProtocolError, surfaced as a Swift throw here).
+    func handleAuthenticatedMessage(
+        _ msg: FfiMpcMessage,
+        authenticatedFrom: UInt16
+    ) throws -> [FfiMpcMessage] {
+        try session.handleAuthenticatedMessage(msg: msg, authenticatedFrom: authenticatedFrom)
     }
 
     /// Retrieve the keygen result once all rounds are complete. Returns nil if not ready.

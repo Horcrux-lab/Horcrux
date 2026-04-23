@@ -7,6 +7,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security
+
+- **Audit P0 round 1** (internal audit `docs/security-audit-2026-04.md`).
+  - **C1** (critical) — MPC sender identity binding. Added
+    `HorcruxSessionManager::handle_authenticated_message(msg, authenticated_from)`
+    which rejects messages whose claimed `from_party` does not match the
+    transport-authenticated peer's party index. Closes the rogue-party
+    impersonation window where peer `i` could forge messages claiming
+    `from: j` within the same ceremony. The legacy `handle_message` entry
+    point is retained but marked `@available(*, deprecated)` in Swift and
+    documented as unsafe for production use in both Rust and FFI.
+    Callsite migration (iOS `SigningViewModel`, `CreateShardViewModel`,
+    `RefreshShardCoordinator`, `ColdSigningCoordinator*`) tracked as a
+    follow-up — requires the peer registry to plumb the Noise-authenticated
+    party index through to each MPC handler invocation.
+  - **H2** (high) — DoS hardening in `HorcruxConfig::new`. Reject
+    `total_parties == 0` and `total_parties > 20` (`MAX_TOTAL_PARTIES`)
+    before any allocation. CGGMP21 / FROST costs scale super-linearly;
+    unbounded `n` would let a malicious peer pin CPU and exhaust memory
+    on every device that accepts the config.
+  - **H3** (high) — verified all production-path
+    `serde_json::from_slice` calls across `horcrux-core/src/mpc/*.rs` use
+    `.map_err(…)?` rather than `.unwrap()` / `.expect()`. Test-only
+    `.unwrap()`s gated by `#[cfg(test)]` left as-is.
+
 ### Added
 
 - `docker-compose.yml` + `Caddyfile` at the repo root for turnkey
@@ -19,6 +44,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   APNs wake-up architecture (Option B — separate Horcrux-Labs push
   gateway, self-hosted relays remain first-class). Implementation
   deferred to 0.5.1, post-audit.
+- `docs/security-audit-2026-04.md` — internal pre-external-audit review
+  (5 CRITICAL, 10 HIGH, 10 MEDIUM, 4 LOW, verification legend, three-tier
+  remediation plan).
 
 ### Changed
 

@@ -710,9 +710,30 @@ impl HorcruxSessionManager {
     }
 
     /// Process an inbound MPC protocol message and return any outgoing responses.
+    ///
+    /// ⚠️ **DO NOT CALL FROM PRODUCTION SWIFT CODE.** This variant does not
+    /// verify the claimed sender against the transport-authenticated peer.
+    /// Use `handle_authenticated_message` instead — see audit finding C1.
     pub fn handle_message(&self, msg: FfiMpcMessage) -> Result<Vec<FfiMpcMessage>, HorcruxError> {
         let mut mgr = lock_or_err!(self.inner, HorcruxError, SessionError)?;
         let msgs = mgr.handle_message(msg.into())?;
+        Ok(msgs.into_iter().map(Into::into).collect())
+    }
+
+    /// Process an inbound MPC protocol message, verifying that the claimed
+    /// sender (`msg.from_party`) equals `authenticated_from`.
+    ///
+    /// The caller MUST pass the party index bound at keygen time to the
+    /// Noise-authenticated peer that actually decrypted the inbound bytes.
+    /// Passing `msg.from_party` is a vulnerability — it trivially satisfies
+    /// the check and reintroduces the rogue-party impersonation window.
+    pub fn handle_authenticated_message(
+        &self,
+        msg: FfiMpcMessage,
+        authenticated_from: u16,
+    ) -> Result<Vec<FfiMpcMessage>, HorcruxError> {
+        let mut mgr = lock_or_err!(self.inner, HorcruxError, SessionError)?;
+        let msgs = mgr.handle_authenticated_message(msg.into(), authenticated_from)?;
         Ok(msgs.into_iter().map(Into::into).collect())
     }
 

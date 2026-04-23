@@ -25,6 +25,17 @@ pub struct HorcruxConfig {
     pub curve: CurveType,
 }
 
+/// Hard upper bound on the number of parties in an MPC ceremony.
+///
+/// CGGMP21 and FROST both scale as O(n^2) in message count and O(n^3) in
+/// aggregate cryptographic work during DKG. Allowing arbitrarily large `n`
+/// exposes the app (and peers' devices) to denial-of-service by way of
+/// memory exhaustion and CPU pinning before any signature can complete.
+///
+/// A realistic self-custody wallet tops out well below this bound
+/// (3-5 devices per user, maybe 7 for a small org).
+pub const MAX_TOTAL_PARTIES: u16 = 20;
+
 impl HorcruxConfig {
     pub fn new(
         threshold: u16,
@@ -34,6 +45,17 @@ impl HorcruxConfig {
     ) -> Result<Self, MpcError> {
         if threshold < 2 {
             return Err(MpcError::InvalidConfig("threshold must be >= 2".into()));
+        }
+        if total_parties == 0 {
+            return Err(MpcError::InvalidConfig(
+                "total_parties must be >= 1".into(),
+            ));
+        }
+        if total_parties > MAX_TOTAL_PARTIES {
+            return Err(MpcError::InvalidConfig(format!(
+                "total_parties must be <= {} (DoS protection)",
+                MAX_TOTAL_PARTIES
+            )));
         }
         if threshold > total_parties {
             return Err(MpcError::InvalidConfig(
@@ -78,4 +100,31 @@ pub enum MpcError {
     ProtocolError(String),
     #[error("insufficient parties: need {needed}, got {got}")]
     InsufficientParties { needed: u16, got: u16 },
+}
+
+#[cfg(test)]
+mod config_tests {
+    use super::*;
+
+    #[test]
+    fn rejects_total_parties_over_max() {
+        let err =
+            HorcruxConfig::new(2, MAX_TOTAL_PARTIES + 1, 1, CurveType::Secp256k1).unwrap_err();
+        match err {
+            MpcError::InvalidConfig(s) => assert!(s.contains("DoS"), "msg was: {}", s),
+            e => panic!("expected InvalidConfig, got {:?}", e),
+        }
+    }
+
+    #[test]
+    fn rejects_zero_total_parties() {
+        assert!(HorcruxConfig::new(2, 0, 1, CurveType::Secp256k1).is_err());
+    }
+
+    #[test]
+    fn accepts_boundary_total_parties() {
+        assert!(
+            HorcruxConfig::new(2, MAX_TOTAL_PARTIES, 1, CurveType::Secp256k1).is_ok()
+        );
+    }
 }

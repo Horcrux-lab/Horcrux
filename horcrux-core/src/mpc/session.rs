@@ -149,7 +149,45 @@ impl SessionManager {
     }
 
     /// Route an incoming message to the correct session.
+    ///
+    /// **DEPRECATED FOR PRODUCTION USE** — prefer
+    /// [`handle_authenticated_message`] which binds the claimed `msg.from`
+    /// party index to the transport-authenticated peer identity.
+    ///
+    /// This variant does **not** verify the sender and is only safe for
+    /// local-process tests where every party is trusted.
+    #[doc(hidden)]
     pub fn handle_message(&mut self, msg: MpcMessage) -> Result<Vec<MpcMessage>, MpcError> {
+        self.dispatch_message(msg)
+    }
+
+    /// Route an incoming message to the correct session, verifying that
+    /// the claimed sender (`msg.from`) matches the party index that the
+    /// transport layer authenticated via Noise (or equivalent E2E channel).
+    ///
+    /// **Callers must pass `authenticated_from` derived from the Noise
+    /// peer identity that actually decrypted the bytes**, not from the
+    /// message payload itself — passing `msg.from` here defeats the check.
+    ///
+    /// Rejects the message with `ProtocolError` if the claimed sender
+    /// does not match, preventing a malicious party `i` from impersonating
+    /// another party `j` within the same ceremony (the "rogue party
+    /// identity" attack — audit finding C1).
+    pub fn handle_authenticated_message(
+        &mut self,
+        msg: MpcMessage,
+        authenticated_from: u16,
+    ) -> Result<Vec<MpcMessage>, MpcError> {
+        if msg.from != authenticated_from {
+            return Err(MpcError::ProtocolError(format!(
+                "sender identity mismatch: message claims from={}, authenticated peer is {}",
+                msg.from, authenticated_from
+            )));
+        }
+        self.dispatch_message(msg)
+    }
+
+    fn dispatch_message(&mut self, msg: MpcMessage) -> Result<Vec<MpcMessage>, MpcError> {
         if let Some((session, ts)) = self.keygen_sessions.get_mut(&msg.session_id) {
             *ts = Instant::now();
             return match session {
@@ -288,5 +326,47 @@ mod tests {
             payload: vec![],
         };
         assert!(mgr.handle_message(msg).is_err());
+    }
+
+    #[test]
+    fn test_authenticated_message_rejects_impersonation() {
+        // Audit finding C1: a party that holds index 3 must not be able
+        // to inject messages claiming from=2. The unauthenticated entry
+        // point would accept this; the authenticated one must reject.
+        let mut mgr = SessionManager::new();
+        let cfg = make_config(CurveType::Ed25519);
+        let _ = mgr.create_keygen("k1".into(), cfg);
+
+        let impersonation = crate::mpc::types::MpcMessage {
+            session_id: "k1".into(),
+            from: 2, // claimed
+            to: 1,
+            round: 1,
+            payload: vec![0; 32],
+        };
+
+        // Authenticated peer is actually party 3, not 2 — must reject.
+        let err = mgr
+            .handle_authenticated_message(impersonation.clone(), 3)
+            .unwrap_err();
+        match err {
+            crate::mpc::MpcError::ProtocolError(s) => {
+                assert!(s.contains("sender identity mismatch"), "msg was: {}", s);
+            }
+            e => panic!("expected ProtocolError, got {:?}", e),
+        }
+
+        // Sanity: when claimed and authenticated match, the call is
+        // dispatched (though the payload is invalid so dispatch fails).
+        let matched = mgr.handle_authenticated_message(impersonation, 2);
+        // We only care that it did NOT fail with the identity-mismatch
+        // message; any protocol/decode failure is acceptable here.
+        if let Err(crate::mpc::MpcError::ProtocolError(s)) = &matched {
+            assert!(
+                !s.contains("sender identity mismatch"),
+                "should dispatch when from matches: {}",
+                s
+            );
+        }
     }
 }

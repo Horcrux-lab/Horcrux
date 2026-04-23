@@ -829,7 +829,22 @@ public protocol HorcruxSessionManagerProtocol : AnyObject {
     func getSigningResult(sessionId: String)  -> FfiSigningResult?
     
     /**
+     * Process an inbound MPC protocol message, verifying that the claimed
+     * sender (`msg.from_party`) equals `authenticated_from`.
+     *
+     * The caller MUST pass the party index bound at keygen time to the
+     * Noise-authenticated peer that actually decrypted the inbound bytes.
+     * Passing `msg.from_party` is a vulnerability — it trivially satisfies
+     * the check and reintroduces the rogue-party impersonation window.
+     */
+    func handleAuthenticatedMessage(msg: FfiMpcMessage, authenticatedFrom: UInt16) throws  -> [FfiMpcMessage]
+    
+    /**
      * Process an inbound MPC protocol message and return any outgoing responses.
+     *
+     * ⚠️ **DO NOT CALL FROM PRODUCTION SWIFT CODE.** This variant does not
+     * verify the claimed sender against the transport-authenticated peer.
+     * Use `handle_authenticated_message` instead — see audit finding C1.
      */
     func handleMessage(msg: FfiMpcMessage) throws  -> [FfiMpcMessage]
     
@@ -982,7 +997,29 @@ open func getSigningResult(sessionId: String) -> FfiSigningResult? {
 }
     
     /**
+     * Process an inbound MPC protocol message, verifying that the claimed
+     * sender (`msg.from_party`) equals `authenticated_from`.
+     *
+     * The caller MUST pass the party index bound at keygen time to the
+     * Noise-authenticated peer that actually decrypted the inbound bytes.
+     * Passing `msg.from_party` is a vulnerability — it trivially satisfies
+     * the check and reintroduces the rogue-party impersonation window.
+     */
+open func handleAuthenticatedMessage(msg: FfiMpcMessage, authenticatedFrom: UInt16)throws  -> [FfiMpcMessage] {
+    return try  FfiConverterSequenceTypeFfiMpcMessage.lift(try rustCallWithError(FfiConverterTypeHorcruxError.lift) {
+    uniffi_horcrux_core_fn_method_horcruxsessionmanager_handle_authenticated_message(self.uniffiClonePointer(),
+        FfiConverterTypeFfiMpcMessage.lower(msg),
+        FfiConverterUInt16.lower(authenticatedFrom),$0
+    )
+})
+}
+    
+    /**
      * Process an inbound MPC protocol message and return any outgoing responses.
+     *
+     * ⚠️ **DO NOT CALL FROM PRODUCTION SWIFT CODE.** This variant does not
+     * verify the claimed sender against the transport-authenticated peer.
+     * Use `handle_authenticated_message` instead — see audit finding C1.
      */
 open func handleMessage(msg: FfiMpcMessage)throws  -> [FfiMpcMessage] {
     return try  FfiConverterSequenceTypeFfiMpcMessage.lift(try rustCallWithError(FfiConverterTypeHorcruxError.lift) {
@@ -3358,7 +3395,10 @@ private var initializationResult: InitializationResult = {
     if (uniffi_horcrux_core_checksum_method_horcruxsessionmanager_get_signing_result() != 36798) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_horcrux_core_checksum_method_horcruxsessionmanager_handle_message() != 49090) {
+    if (uniffi_horcrux_core_checksum_method_horcruxsessionmanager_handle_authenticated_message() != 22786) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_horcrux_core_checksum_method_horcruxsessionmanager_handle_message() != 30269) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_horcrux_core_checksum_method_horcruxsessionmanager_remove_session() != 27155) {
