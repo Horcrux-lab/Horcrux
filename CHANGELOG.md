@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.0-rc.2] - 2026-04-23
+
+Second pre-audit release candidate. Consolidates the round-16 → round-18
+engineering hardening done on top of `v0.5.0-rc.1`: scope pivot (dApp
+browser / WalletConnect / EIP-712 retired), property-based robustness
+tests, a cargo-fuzz harness scaffold, and a refreshed contributor
+`docs/code-tour.md`.
+
 ### Security
 
 - **Property-based robustness tests** (round 18). Re-introduced
