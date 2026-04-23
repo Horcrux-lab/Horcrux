@@ -63,6 +63,7 @@
 		C6BF96CA00CD47917DEF4BBA /* AccountBackupMigrationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D01607EC9BF14BA989B72DBC /* AccountBackupMigrationTests.swift */; };
 		36EF069615A3212AC3F72AA1 /* RefreshPeerBindingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA7CD7EDD16C42D86BFE60AC /* RefreshPeerBindingTests.swift */; };
 		0162A9EDCB2888ABE090E582 /* SigningPeerBindingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 08FC6F5E6F14CDDF1D5A7F63 /* SigningPeerBindingTests.swift */; };
+		78BE003324C68E4176E2F5E8 /* DkgPeerBindingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3C0B451D3D5445128BEC0A91 /* DkgPeerBindingTests.swift */; };
 		66A9731C91A701400FC53549 /* VaultEditSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 60FEA7C771F39F2C20D8EAC2 /* VaultEditSheet.swift */; };
 		6BD5C3447B5624A11E14BB5B /* AuditExport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5AAA4CE2B20BD8B486004E08 /* AuditExport.swift */; };
 		6C90E3C978702CEEFC4DF8FE /* AddressBookView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D307B5C167392C9CA551EE9E /* AddressBookView.swift */; };
@@ -186,6 +187,7 @@
 		D01607EC9BF14BA989B72DBC /* AccountBackupMigrationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccountBackupMigrationTests.swift; sourceTree = "<group>"; };
 		AA7CD7EDD16C42D86BFE60AC /* RefreshPeerBindingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RefreshPeerBindingTests.swift; sourceTree = "<group>"; };
 		08FC6F5E6F14CDDF1D5A7F63 /* SigningPeerBindingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SigningPeerBindingTests.swift; sourceTree = "<group>"; };
+		3C0B451D3D5445128BEC0A91 /* DkgPeerBindingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DkgPeerBindingTests.swift; sourceTree = "<group>"; };
 		3B9E2972827975B5F14B0356 /* zh-Hans */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = "zh-Hans"; path = "zh-Hans.lproj/Localizable.strings"; sourceTree = "<group>"; };
 		3FF408B4D713C13918899FEE /* CreateShardViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CreateShardViewModel.swift; sourceTree = "<group>"; };
 		405A013BA7EFAD11E4F8F4DA /* SecurityHealthCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SecurityHealthCard.swift; sourceTree = "<group>"; };
@@ -535,6 +537,7 @@
 				D01607EC9BF14BA989B72DBC /* AccountBackupMigrationTests.swift */,
 				AA7CD7EDD16C42D86BFE60AC /* RefreshPeerBindingTests.swift */,
 				08FC6F5E6F14CDDF1D5A7F63 /* SigningPeerBindingTests.swift */,
+				3C0B451D3D5445128BEC0A91 /* DkgPeerBindingTests.swift */,
 			);
 			path = HorcruxTests;
 			sourceTree = "<group>";
@@ -743,6 +746,7 @@
 				C6BF96CA00CD47917DEF4BBA /* AccountBackupMigrationTests.swift in Sources */,
 				36EF069615A3212AC3F72AA1 /* RefreshPeerBindingTests.swift in Sources */,
 				0162A9EDCB2888ABE090E582 /* SigningPeerBindingTests.swift in Sources */,
+				78BE003324C68E4176E2F5E8 /* DkgPeerBindingTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

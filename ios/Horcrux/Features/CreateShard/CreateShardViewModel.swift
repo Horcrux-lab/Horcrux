@@ -398,6 +398,35 @@ final class CreateShardViewModel: ObservableObject {
     /// `fromParty` can be cross-checked against the Noise-authenticated
     /// channel identity (audit C1).
     private var dkgPeerPartyIndex: [String: UInt16] = [:]
+
+    /// Audit C1 — outcome of binding an inbound DKG MPC
+    /// message's `fromParty` claim to the channel peer it arrived
+    /// on. The DKG roster is fixed at ceremony start by
+    /// `autoAssignPartyIndex` (deterministic sort of participant
+    /// identifiers), so any claim that disagrees — or any peer
+    /// not in the roster at all — is a rogue-party attempt.
+    /// Exposed as a pure enum + nonisolated static function so
+    /// every branch is unit-testable without standing up a DKG.
+    enum DkgBindingDecision: Equatable {
+        case acceptAuthenticated(partyIndex: UInt16)
+        case rejectUnknownPeer
+        case rejectIndexMismatch(pinned: UInt16, claimed: UInt16)
+    }
+
+    nonisolated static func decideDkgBinding(
+        channelKey: String,
+        claimedFromParty: UInt16,
+        roster: [String: UInt16]
+    ) -> DkgBindingDecision {
+        guard let pinned = roster[channelKey] else {
+            return .rejectUnknownPeer
+        }
+        if pinned != claimedFromParty {
+            return .rejectIndexMismatch(pinned: pinned, claimed: claimedFromParty)
+        }
+        return .acceptAuthenticated(partyIndex: pinned)
+    }
+
     /// The `peer → identifier` projection used by `autoAssignPartyIndex`.
     /// Captured so the inbound-message handler looks up
     /// `dkgPeerPartyIndex` in the same namespace the assignment used.
@@ -557,13 +586,21 @@ final class CreateShardViewModel: ObservableObject {
                     // rejected. A missing mapping means the peer wasn't in
                     // the ceremony roster — also rejected.
                     let channelKey = self.dkgPeerIdOf(peer)
-                    guard let authenticatedFrom = self.dkgPeerPartyIndex[channelKey] else {
+                    let decision = Self.decideDkgBinding(
+                        channelKey: channelKey,
+                        claimedFromParty: msg.fromParty,
+                        roster: self.dkgPeerPartyIndex
+                    )
+                    let authenticatedFrom: UInt16
+                    switch decision {
+                    case .acceptAuthenticated(let idx):
+                        authenticatedFrom = idx
+                    case .rejectUnknownPeer:
                         SecureLog.warning("[DKG] C1 reject: peer \(channelKey) not in ceremony roster — dropping msg from=\(msg.fromParty)")
                         msgCount -= 1
                         return false
-                    }
-                    if msg.fromParty != authenticatedFrom {
-                        SecureLog.error("[DKG] C1 reject: peer \(channelKey) authenticated as party \(authenticatedFrom) but msg claims fromParty=\(msg.fromParty) — impersonation attempt")
+                    case .rejectIndexMismatch(let pinned, let claimed):
+                        SecureLog.error("[DKG] C1 reject: peer \(channelKey) authenticated as party \(pinned) but msg claims fromParty=\(claimed) — impersonation attempt")
                         msgCount -= 1
                         return false
                     }

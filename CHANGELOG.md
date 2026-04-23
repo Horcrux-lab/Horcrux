@@ -9,6 +9,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security
 
+- **DKG C1 second-gate tests** — complete the extract-and-test triad
+  (DKG / Refresh / Signing) for the C1 roster-binding check in
+  `CreateShardViewModel`. Pull the per-inbound-message `fromParty`
+  cross-check out of the ceremony loop into a pure, nonisolated
+  static function `decideDkgBinding(channelKey:claimedFromParty:roster:)`
+  returning a new `DkgBindingDecision` enum (`acceptAuthenticated`,
+  `rejectUnknownPeer`, `rejectIndexMismatch`). The roster map is
+  fixed at `autoAssignPartyIndex` time by deterministic sort of
+  participant identifiers, so every branch maps to a concrete
+  GG20/CGGMP21 rogue-party failure mode. Adds
+  `HorcruxTests/DkgPeerBindingTests.swift` with 6 tests: roster-peer
+  matching claim, peer-outside-roster, simple index mismatch, empty
+  roster, known-peer-steals-sibling-index (the attack), and decision-
+  is-pure-no-mutation. Behavior unchanged; the in-loop `switch`
+  delegates to the pure function and preserves both `msgCount -= 1`
+  rewinds and all `SecureLog` messages.
+
 - **Signing C1 second-gate tests** — mirror the Refresh extract-and-
   test pattern for `SigningViewModel`'s MPC message handler. Extract
   the per-message binding decision (which gates every inbound packet
