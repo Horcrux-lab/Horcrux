@@ -767,6 +767,13 @@ mod prop_tests {
     //! feeds arbitrary tx payload bytes into before displaying a
     //! decoded preview. It must never panic on any input — a panic
     //! crashes the iOS host process and creates a ceremony-abort DoS.
+    //!
+    //! The second property — `prop_eip1559_rlp_matches_third_party` —
+    //! cross-checks our hand-rolled minimal RLP encoder against the
+    //! independently-implemented `rlp` crate (paritytech). An RLP
+    //! length-prefix bug would cause the two to diverge; this gives
+    //! us a high-confidence equivalence check on every CI run without
+    //! taking on the full `ethers-core` dependency surface.
     use super::*;
     use proptest::prelude::*;
 
@@ -779,5 +786,99 @@ mod prop_tests {
         ) {
             let _ = decode_evm_calldata(&data);
         }
+    }
+
+    proptest! {
+        #![proptest_config(ProptestConfig { cases: 256, ..ProptestConfig::default() })]
+
+        /// Build an EIP-1559 transaction with our encoder, strip the
+        /// 0x02 envelope byte, decode the inner payload with the
+        /// third-party `rlp` crate, and assert every field round-trips
+        /// back to the input values. Exercises the length-prefix and
+        /// integer-minimal-encoding code paths that are the classic
+        /// source of RLP consensus bugs.
+        #[test]
+        fn prop_eip1559_rlp_matches_third_party(
+            to_bytes in prop::array::uniform20(any::<u8>()),
+            value in any::<u128>(),
+            nonce in any::<u64>(),
+            gas_limit in 21_000u64..30_000_000,
+            max_fee in 1u128..1_000_000_000_000,
+            prio_fee_frac in 0u8..=100,
+            chain_id in 1u64..1_000_000,
+            data in prop::collection::vec(any::<u8>(), 0..512),
+        ) {
+            // Keep prio <= max (builder rejects otherwise — H10 sibling check).
+            let max_priority_fee_per_gas =
+                max_fee.saturating_mul(prio_fee_frac as u128) / 100;
+
+            let params = EvmTxParams {
+                to: format!("0x{}", hex::encode(to_bytes)),
+                value,
+                nonce,
+                gas_limit,
+                max_fee_per_gas: max_fee,
+                max_priority_fee_per_gas,
+                chain_id,
+                data: data.clone(),
+            };
+
+            let tx = match EvmTransactionBuilder.build(params) {
+                Ok(t) => t,
+                // max_total_cost overflow (audit H10) — legitimate
+                // rejection, nothing to cross-check.
+                Err(ChainError::ArithmeticOverflow(_)) => return Ok(()),
+                Err(e) => return Err(TestCaseError::fail(format!("unexpected: {e:?}"))),
+            };
+
+            // EIP-2718 envelope: 0x02 || RLP(inner_list)
+            prop_assert_eq!(tx.raw_data[0], 0x02);
+            let inner = &tx.raw_data[1..];
+
+            let rlp = rlp::Rlp::new(inner);
+            prop_assert!(rlp.is_list(), "inner payload must be a list");
+            prop_assert_eq!(rlp.item_count().unwrap(), 9);
+
+            // Fields must decode back to the input exactly.
+            let decoded_chain_id: u64 = rlp.val_at(0).unwrap();
+            prop_assert_eq!(decoded_chain_id, chain_id);
+
+            let decoded_nonce: u64 = rlp.val_at(1).unwrap();
+            prop_assert_eq!(decoded_nonce, nonce);
+
+            // u128 isn't natively supported by rlp; decode as bytes and
+            // big-endian-pad.
+            let prio_bytes: Vec<u8> = rlp.val_at(2).unwrap();
+            prop_assert_eq!(be_bytes_to_u128(&prio_bytes), max_priority_fee_per_gas);
+
+            let max_fee_bytes: Vec<u8> = rlp.val_at(3).unwrap();
+            prop_assert_eq!(be_bytes_to_u128(&max_fee_bytes), max_fee);
+
+            let decoded_gas_limit: u64 = rlp.val_at(4).unwrap();
+            prop_assert_eq!(decoded_gas_limit, gas_limit);
+
+            let decoded_to: Vec<u8> = rlp.val_at(5).unwrap();
+            prop_assert_eq!(&decoded_to, &to_bytes);
+
+            let value_bytes: Vec<u8> = rlp.val_at(6).unwrap();
+            prop_assert_eq!(be_bytes_to_u128(&value_bytes), value);
+
+            let decoded_data: Vec<u8> = rlp.val_at(7).unwrap();
+            prop_assert_eq!(&decoded_data, &data);
+
+            // access_list (empty list).
+            let al = rlp.at(8).unwrap();
+            prop_assert!(al.is_list());
+            prop_assert_eq!(al.item_count().unwrap(), 0);
+        }
+    }
+
+    /// Big-endian variable-length → u128. Used to cross-check our
+    /// minimal-encoded u128 fields against the rlp crate's byte view.
+    fn be_bytes_to_u128(bytes: &[u8]) -> u128 {
+        let mut padded = [0u8; 16];
+        let offset = 16 - bytes.len();
+        padded[offset..].copy_from_slice(bytes);
+        u128::from_be_bytes(padded)
     }
 }

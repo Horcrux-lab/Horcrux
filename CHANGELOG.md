@@ -47,6 +47,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security
 
+- **EVM RLP encoder cross-verification** (round 19).
+  `chain::evm::prop_tests::prop_eip1559_rlp_matches_third_party`
+  (256 cases) feeds random EIP-1559 params into our hand-rolled
+  minimal RLP encoder and decodes the resulting envelope with the
+  independently-implemented `rlp` crate (paritytech). Asserts every
+  one of the 9 inner-list fields (`chain_id`, `nonce`, `max_priority_fee`,
+  `max_fee`, `gas_limit`, `to`, `value`, `data`, `access_list`) round-trips
+  exactly. An RLP length-prefix or minimal-integer-encoding drift bug
+  would now break CI instead of silently producing
+  consensus-invalid signed transactions. `rlp = "0.5"` added as a
+  dev-dep only (not pulled into the iOS binary). `cargo deny check`
+  remains clean.
+
 - **Solana transaction-builder robustness** (round 19).
   Four new proptests in `chain::solana::prop_tests` (256 cases each):
   `prop_decode_pubkey_never_panics` fuzzes the Base58 decoder on

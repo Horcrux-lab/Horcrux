@@ -71,3 +71,4 @@ tokio = { version = "1", features = ["full", "test-util"] }
 tempfile = "3"
 hex = "0.4"
 proptest = "1"
+rlp = "0.5"
