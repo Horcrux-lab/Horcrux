@@ -430,7 +430,7 @@ dependencies = [
  "cggmp21-keygen",
  "digest",
  "futures",
- "generic-ec",
+ "generic-ec 0.4.5",
  "generic-ec-zkp",
  "hd-wallet",
  "hex",
@@ -454,7 +454,7 @@ checksum = "aaa8c850290c494f951abe0350e56c31e4f5664863490197490ff48cb825447d"
 dependencies = [
  "digest",
  "displaydoc",
- "generic-ec",
+ "generic-ec 0.4.5",
  "generic-ec-zkp",
  "hex",
  "key-share",
@@ -1147,8 +1147,8 @@ checksum = "8de1099ac0b4d87261d67ff5d4ed400af617a1da40b58908d759b9cf5fd8ed27"
 dependencies = [
  "curve25519-dalek",
  "digest",
- "generic-ec-core",
- "generic-ec-curves",
+ "generic-ec-core 0.2.3",
+ "generic-ec-curves 0.2.4",
  "hex",
  "phantom-type 0.4.2",
  "rand_core 0.6.4",
@@ -1157,6 +1157,24 @@ dependencies = [
  "serde_with 2.3.3",
  "subtle",
  "udigest",
+ "zeroize",
+]
+
+[[package]]
+name = "generic-ec"
+version = "0.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "508a3270730504f9a5cd1dcd7ac743cb06e9b414db28b3a835554bd1268ebd75"
+dependencies = [
+ "curve25519-dalek",
+ "generic-ec-core 0.3.0",
+ "generic-ec-curves 0.3.0",
+ "hex",
+ "phantom-type 0.4.2",
+ "rand_core 0.6.4",
+ "serde",
+ "serde_with 2.3.3",
+ "subtle",
  "zeroize",
 ]
 
@@ -1174,13 +1192,41 @@ dependencies = [
 ]
 
 [[package]]
+name = "generic-ec-core"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ffea0573b3bdde9a0bbbf17433b19f9628942e075d723702c2f495f0a2f65268"
+dependencies = [
+ "generic-array 0.14.7",
+ "rand_core 0.6.4",
+ "serde",
+ "subtle",
+ "zeroize",
+]
+
+[[package]]
 name = "generic-ec-curves"
 version = "0.2.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4c7c6d23001a5eb60eec2b785a63d2ca965fdfbaf3314b3b46df047398369e28"
 dependencies = [
  "elliptic-curve",
- "generic-ec-core",
+ "generic-ec-core 0.2.3",
+ "k256",
+ "rand_core 0.6.4",
+ "sha2",
+ "subtle",
+ "zeroize",
+]
+
+[[package]]
+name = "generic-ec-curves"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ffbc925fd3e3679dc46eb028029be23f3eb215f9392847d10223d853a459ab3c"
+dependencies = [
+ "elliptic-curve",
+ "generic-ec-core 0.3.0",
  "k256",
  "rand_core 0.6.4",
  "sha2",
@@ -1196,7 +1242,7 @@ checksum = "bd3945c585fdddba3f86bda4e4cfba22d5e255001b3e145c9db305ad096c6d88"
 dependencies = [
  "digest",
  "generic-array 0.14.7",
- "generic-ec",
+ "generic-ec 0.4.5",
  "rand_core 0.6.4",
  "serde",
  "subtle",
@@ -1316,7 +1362,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6522551bb35937363845f39a6d4c49e60bdb35a8f7154ebdd078cab50be97992"
 dependencies = [
  "generic-array 0.14.7",
- "generic-ec",
+ "generic-ec 0.4.5",
  "hmac",
  "sha2",
  "subtle",
@@ -1382,7 +1428,7 @@ dependencies = [
  "cggmp21",
  "ed25519-dalek",
  "frost-ed25519",
- "generic-ec",
+ "generic-ec 0.5.0",
  "gmp-mpfr-sys",
  "hex",
  "hkdf",
@@ -1611,7 +1657,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "206b4474f861dedc6fc38e06f7c52c52f1e01180d5284aa62b58844a044fad7d"
 dependencies = [
  "displaydoc",
- "generic-ec",
+ "generic-ec 0.4.5",
  "generic-ec-zkp",
  "hex",
  "serde",
@@ -1803,7 +1849,7 @@ checksum = "d9963224009a2fd339cffd8f6c5c35fc9a91732b89acd4b0ed34c30afe70a193"
 dependencies = [
  "digest",
  "fast-paillier",
- "generic-ec",
+ "generic-ec 0.4.5",
  "rand_core 0.6.4",
  "rand_hash",
  "rug",
