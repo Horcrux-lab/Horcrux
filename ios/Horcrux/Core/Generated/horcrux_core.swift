@@ -3152,7 +3152,8 @@ public func horcruxBuildSolanaTransaction(params: FfiSolanaTxParams)throws  -> F
 })
 }
 /**
- * Decrypt a previously encrypted key shard.
+ * Decrypt a previously encrypted key shard. See `horcrux_encrypt_shard` for
+ * the semantics of `device_key` / `pin`.
  */
 public func horcruxDecryptShard(encrypted: FfiEncryptedShard, deviceKey: Data, pin: Data)throws  -> Data {
     return try  FfiConverterData.lift(try rustCallWithError(FfiConverterTypeHorcruxError.lift) {
@@ -3164,7 +3165,17 @@ public func horcruxDecryptShard(encrypted: FfiEncryptedShard, deviceKey: Data, p
 })
 }
 /**
- * Encrypt a key shard using AES-256-GCM with PBKDF2-derived key (device_key + PIN).
+ * Encrypt a key shard using AES-256-GCM with an HKDF-SHA256-derived key.
+ *
+ * The key derivation mixes `device_key` (host-managed, e.g. SE-sealed on iOS)
+ * and `pin` (a second user-supplied secret) as IKM via
+ * `HKDF(ikm = device_key || pin, salt = random 16 B, info = b"horcrux-shard-encryption")`.
+ *
+ * Note: on iOS the `pin` parameter is NOT the user's numeric PIN — it is the
+ * Shard Wrap Key (SWK) unwrapped via either Face ID (Secure Enclave) or the
+ * PIN-wrapped blob. The original `pin` name is preserved for ABI stability
+ * with existing UniFFI Swift bindings. See
+ * `ios/Horcrux/Security/SecureKeyVault.swift` for the full architecture.
  */
 public func horcruxEncryptShard(plaintext: Data, deviceKey: Data, pin: Data)throws  -> FfiEncryptedShard {
     return try  FfiConverterTypeFfiEncryptedShard.lift(try rustCallWithError(FfiConverterTypeHorcruxError.lift) {
@@ -3281,10 +3292,10 @@ private var initializationResult: InitializationResult = {
     if (uniffi_horcrux_core_checksum_func_horcrux_build_solana_transaction() != 40488) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_horcrux_core_checksum_func_horcrux_decrypt_shard() != 27530) {
+    if (uniffi_horcrux_core_checksum_func_horcrux_decrypt_shard() != 36161) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_horcrux_core_checksum_func_horcrux_encrypt_shard() != 20571) {
+    if (uniffi_horcrux_core_checksum_func_horcrux_encrypt_shard() != 48434) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_horcrux_core_checksum_func_horcrux_evm_address() != 6260) {

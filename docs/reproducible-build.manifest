@@ -1,0 +1,13 @@
+# Horcrux reproducible-build manifest
+# Generated 2026-04-23T01:05:53Z by scripts/verify-build.sh --update
+# Host: Darwin arm64 — rustc 1.90.0 — Xcode 26.4
+
+95d55223ac1fd1110f55ff9b2c756ba3d22eb37f54a5848f6e34892ec8bda0aa  ios/Horcrux/Core/Generated/horcrux_core.swift
+3ddff7f96f618654bbb6d94170820e23c1d4a25651b674ebbef941d96d513cbc  ios/Horcrux/Core/Generated/horcrux_coreFFI.h
+d7be6e15e369a317c35d107da5123b6c66aae9f67d02e09a4be59a8a02789cc9  ios/Horcrux/Core/Generated/horcrux_coreFFI.modulemap
+3ddff7f96f618654bbb6d94170820e23c1d4a25651b674ebbef941d96d513cbc  ios/Horcrux/Core/Frameworks/HorcruxCore.xcframework/ios-arm64-simulator/Headers/horcrux_coreFFI.h
+d7be6e15e369a317c35d107da5123b6c66aae9f67d02e09a4be59a8a02789cc9  ios/Horcrux/Core/Frameworks/HorcruxCore.xcframework/ios-arm64-simulator/Headers/module.modulemap
+01c00e05e45c96d076e9a29329230fe3c32dc5aa26abfecc751985dea63f9033  ios/Horcrux/Core/Frameworks/HorcruxCore.xcframework/ios-arm64-simulator/libhorcrux_core.a
+3ddff7f96f618654bbb6d94170820e23c1d4a25651b674ebbef941d96d513cbc  ios/Horcrux/Core/Frameworks/HorcruxCore.xcframework/ios-arm64/Headers/horcrux_coreFFI.h
+d7be6e15e369a317c35d107da5123b6c66aae9f67d02e09a4be59a8a02789cc9  ios/Horcrux/Core/Frameworks/HorcruxCore.xcframework/ios-arm64/Headers/module.modulemap
+20b080dd3e666c9e124d25779ed5de4d9bc57209b64e4d79e62db3960f36cc1f  ios/Horcrux/Core/Frameworks/HorcruxCore.xcframework/ios-arm64/libhorcrux_core.a
