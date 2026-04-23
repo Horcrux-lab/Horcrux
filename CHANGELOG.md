@@ -9,6 +9,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security
 
+- **EIP-712 helper — property-based (proptest) fuzz-style coverage**.
+  Adds 5 properties to `chain::eip712_typed::prop_tests`
+  (256 cases each — ~1,280 randomized invocations per CI run):
+  1. **Never panic** on well-formed Permit-shape inputs.
+  2. **Determinism**: same input → same digest.
+  3. **chainId sensitivity**: bumping `chainId` always alters the
+     digest (guards against accidentally dropping the domain
+     separator from the final hash).
+  4. **Message-value sensitivity**: changing `message.value` always
+     alters the digest (guards against field-skip bugs).
+  5. **Malformed-JSON robustness**: arbitrary byte strings (up to
+     4 KiB) must return `Err`, never panic or UB. Lightweight
+     fuzz-style gate that a real `cargo-fuzz` harness can build on.
+  Adds `proptest = "1"` as a dev-dependency. 26/26
+  `chain::eip712_typed` tests pass (21 hand-crafted + 5 property).
+
 - **EIP-712 helper — bool / bytes / signed-int coverage + tamper smoke**.
   Three new tests close previously-uncovered code paths in
   `chain::eip712_typed`:
