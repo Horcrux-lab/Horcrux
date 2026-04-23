@@ -467,3 +467,109 @@ mod tests {
         assert!(builder.build(params).is_ok());
     }
 }
+
+#[cfg(test)]
+mod prop_tests {
+    //! Property-based robustness for the Solana attacker-reachable
+    //! surfaces:
+    //!
+    //! - `decode_pubkey` — invoked on three address strings the
+    //!   caller (UI or RPC response) supplies: `from`, `to`,
+    //!   `recent_blockhash`. Any of them can be adversarial (e.g. a
+    //!   malicious block-explorer API response for the recent
+    //!   blockhash).
+    //! - `SolanaTransactionBuilder::build` — the end-to-end entry
+    //!   point. Panicking here crashes the signing UI.
+    //! - `MAX_BLOCKHASH_AGE_MS` clamp (audit finding C5) — stale
+    //!   blockhashes must always be rejected regardless of how the
+    //!   caller constructs the timestamps.
+    use super::*;
+    use proptest::prelude::*;
+
+    proptest! {
+        #![proptest_config(ProptestConfig { cases: 256, ..ProptestConfig::default() })]
+
+        /// `decode_pubkey` must never panic on arbitrary UTF-8 input.
+        /// Attacker can provide any string for from / to / blockhash.
+        #[test]
+        fn prop_decode_pubkey_never_panics(s in "\\PC{0,128}") {
+            let _ = decode_pubkey(&s);
+        }
+
+        /// Base58 roundtrip: any 32-byte key encodes+decodes back to
+        /// itself. Guards against silent encoding drift.
+        #[test]
+        fn prop_decode_pubkey_roundtrip(key in prop::array::uniform32(any::<u8>())) {
+            let s = bs58::encode(key).into_string();
+            let decoded = decode_pubkey(&s).unwrap();
+            prop_assert_eq!(decoded, key);
+        }
+
+        /// `SolanaTransactionBuilder::build` must never panic on
+        /// arbitrary-but-shape-valid inputs. Feeds random base58
+        /// strings for all three address fields, random lamports,
+        /// and an always-fresh blockhash to skip the C5 gate so we
+        /// exercise the downstream encoder on the widest range of
+        /// inputs.
+        #[test]
+        fn prop_build_never_panics(
+            from in "\\PC{0,64}",
+            to in "\\PC{0,64}",
+            blockhash in "\\PC{0,64}",
+            lamports in any::<u64>(),
+            devnet in any::<bool>(),
+        ) {
+            let builder = SolanaTransactionBuilder;
+            let params = SolanaTxParams {
+                from,
+                to,
+                lamports,
+                recent_blockhash: blockhash,
+                blockhash_mode: Some(SolanaBlockhashMode::Recent {
+                    fetched_at_unix_ms: 1_700_000_000_000,
+                    now_unix_ms: 1_700_000_000_000,
+                }),
+                devnet,
+            };
+            let _ = builder.build(params);
+        }
+
+        /// Audit C5: a blockhash older than `MAX_BLOCKHASH_AGE_MS`
+        /// must always be rejected, no matter what other fields look
+        /// like. Fresh blockhash (delta ≤ cap) must never be rejected
+        /// *because of age* (it can still fail for bad-address
+        /// reasons, so we only assert the error variant, not Ok).
+        #[test]
+        fn prop_stale_blockhash_always_rejected(
+            fetched_at in 0u64..10_000_000_000_000,
+            age_excess in 1u64..1_000_000,
+        ) {
+            let builder = SolanaTransactionBuilder;
+            let now = fetched_at + MAX_BLOCKHASH_AGE_MS + age_excess;
+            let mut params = SolanaTxParams {
+                from: bs58::encode([1u8; 32]).into_string(),
+                to: bs58::encode([2u8; 32]).into_string(),
+                lamports: 1_000_000,
+                recent_blockhash: bs58::encode([3u8; 32]).into_string(),
+                blockhash_mode: Some(SolanaBlockhashMode::Recent {
+                    fetched_at_unix_ms: fetched_at,
+                    now_unix_ms: now,
+                }),
+                devnet: true,
+            };
+            let err = builder.build(params.clone()).unwrap_err();
+            let is_expired = matches!(err, ChainError::BlockhashExpired { .. });
+            prop_assert!(is_expired);
+
+            // Sanity: same params but now_unix_ms at the cap boundary
+            // must not be rejected for staleness.
+            params.blockhash_mode = Some(SolanaBlockhashMode::Recent {
+                fetched_at_unix_ms: fetched_at,
+                now_unix_ms: fetched_at + MAX_BLOCKHASH_AGE_MS,
+            });
+            let res = builder.build(params);
+            let is_expired = matches!(res, Err(ChainError::BlockhashExpired { .. }));
+            prop_assert!(!is_expired);
+        }
+    }
+}

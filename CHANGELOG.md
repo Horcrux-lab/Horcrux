@@ -29,6 +29,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security
 
+- **Solana transaction-builder robustness** (round 19).
+  Four new proptests in `chain::solana::prop_tests` (256 cases each):
+  `prop_decode_pubkey_never_panics` fuzzes the Base58 decoder on
+  arbitrary UTF-8 strings (attacker controls `from`/`to`/`blockhash`);
+  `prop_decode_pubkey_roundtrip` guards against silent Base58
+  encoding drift for any 32-byte key; `prop_build_never_panics`
+  end-to-end fuzzes `SolanaTransactionBuilder::build` on random
+  address strings + random `u64` lamports; `prop_stale_blockhash_always_rejected`
+  asserts audit finding **C5** — any `now - fetched_at > MAX_BLOCKHASH_AGE_MS`
+  must return `ChainError::BlockhashExpired`, and the boundary
+  (`== MAX_BLOCKHASH_AGE_MS`) must not.
+
 - **Noise XX transport full-handshake robustness** (round 19).
   Three new proptests in `transport::e2e::prop_tests` (256 cases each):
   `prop_full_handshake_roundtrip` drives all 3 XX rounds with random

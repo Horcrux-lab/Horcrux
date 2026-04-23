@@ -21,9 +21,7 @@ before the audit starts — the final tag will be frozen at kickoff).
 |---|---|---|
 | EVM (Ethereum + EVM-compatible) | `horcrux-core/src/chain/evm.rs` | RLP encoding, EIP-155 chain-id binding, EIP-1559 fee fields, calldata decoder robustness. |
 | Bitcoin (P2WPKH) | `horcrux-core/src/chain/bitcoin.rs` | BIP-143 sighash, UTXO-amount provenance verification (audit H9), script construction. |
-| Solana | `horcrux-core/src/chain/solana.rs` | Ed25519 signing via FROST, message-hash binding. |
-| Tron (read-only, address derivation) | `horcrux-core/src/chain/tron.rs` | Base58Check round-trip, no-signing guarantee. |
-| Litecoin (read-only, address derivation) | `horcrux-core/src/chain/litecoin.rs` | Prefix + Base58 correctness. |
+| Solana | `horcrux-core/src/chain/solana.rs` | Ed25519 signing via FROST, message-hash binding, audit C5 blockhash-freshness gate. |
 
 ### Relay service
 
