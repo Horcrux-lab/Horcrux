@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Documentation
+
+- **External-audit RFP scaffold** (round 19). New `docs/audit-rfp/`
+  directory with firm-independent `scope.md`, `severity-rubric.md`,
+  and `deliverables.md`. Front-loads the material a candidate
+  audit firm needs so engagement can start with zero additional
+  drafting once the maintainers pick a firm (blocker **P2 #9**).
+  Explicitly scopes out dApp browser / WalletConnect / EIP-712 per
+  round 18 retirement.
+
 ### Security
 
 - **Bitcoin UTXO-amount verifier robustness** (round 19).
