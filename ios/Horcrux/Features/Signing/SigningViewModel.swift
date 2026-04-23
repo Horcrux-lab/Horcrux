@@ -1173,11 +1173,37 @@ final class SigningViewModel: ObservableObject {
                     let expectedSession = sessionId ?? roomCode
                     NSLog("[signing] cosigner waiting for SignBegin session=%@", expectedSession)
                     while !Task.isCancelled {
-                        guard let (_, data) = await mpcIterator.next() else {
+                        guard let (peer, data) = await mpcIterator.next() else {
                             NSLog("[signing] cosigner iterator finished before SignBegin")
                             throw SigningError.notInitialized
                         }
                         NSLog("[signing] cosigner rx %dB while waiting SignBegin", data.count)
+                        // Opportunistically register any SignPresenceDTO
+                        // seen here so the initiator's (deviceName →
+                        // partyIndex) binding is available when MPC
+                        // round-1 packets start flowing right after
+                        // SignBegin. Without this, the cosigner's
+                        // `presenceListenerTask` (cancelled at
+                        // `startSigning`) never sees the initiator's
+                        // presence (cosigners don't ping each other),
+                        // and `C1 second-gate` rejects the very first
+                        // MPC packet from the initiator.
+                        if let pres = try? JSONDecoder().decode(SignPresenceDTO.self, from: data),
+                           pres.magic == SignPresenceDTO.magic,
+                           pres.sessionId == expectedSession,
+                           let idx = pres.partyIndex {
+                            let keyId = pres.deviceName
+                            await MainActor.run {
+                                if let existing = self.inboundPeerAlias[peer.id], existing != keyId {
+                                    SecureLog.warning("[signing] waiting-phase presence: peer \(peer.id.prefix(24)) already aliased to \(existing) — refusing to rebind as \(keyId)")
+                                } else {
+                                    self.inboundPeerAlias[peer.id] = keyId
+                                }
+                                self.peerPartyIndex[keyId] = idx
+                                SecureLog.info("[signing] waiting-phase presence: peer=\(keyId) party=\(idx) (raw=\(peer.id.prefix(12)))")
+                            }
+                            continue
+                        }
                         if let begin = try? JSONDecoder().decode(SignBeginDTO.self, from: data),
                            begin.magic == SignBeginDTO.magic,
                            begin.sessionId == expectedSession {
@@ -1551,8 +1577,30 @@ final class SigningViewModel: ObservableObject {
                     case .acceptAuthenticated(let idx):
                         authenticatedFrom = idx
                     case .rejectNoPresenceClaim:
-                        SecureLog.warning("[signing] C1 reject: peer \(peer.id) has no presence-claimed partyIndex yet — dropping MPC msg from=\(msg.fromParty)")
-                        continue
+                        // Last-chance fallback: the MPC packet's
+                        // self-claimed `fromParty` uniquely identifies a
+                        // roster entry if exactly one device in
+                        // `peerPartyIndex` is registered with that
+                        // partyIndex AND no alias has already been
+                        // pinned for this transport peer.id (which
+                        // would otherwise trigger rejectIndexMismatch).
+                        // This closes the window where the presence
+                        // DTO arrived on a different TCP accept (= a
+                        // different peer.id) than the one carrying
+                        // this MPC packet — common on WiFi-LAN where
+                        // every incoming connection allocates a fresh
+                        // `inbound-<ip>:<port>` stub.
+                        let claimant = peerPartyIndex.first { $0.value == msg.fromParty }
+                        if inboundPeerAlias[peer.id] == nil,
+                           let (deviceName, idx) = claimant,
+                           peerPartyIndex.values.filter({ $0 == msg.fromParty }).count == 1 {
+                            inboundPeerAlias[peer.id] = deviceName
+                            SecureLog.info("[signing] C1 fuzzy-bind: peer \(peer.id.prefix(24)) → \(deviceName) party=\(idx) via fromParty claim")
+                            authenticatedFrom = idx
+                        } else {
+                            SecureLog.warning("[signing] C1 reject: peer \(peer.id) has no presence-claimed partyIndex yet — dropping MPC msg from=\(msg.fromParty) map=\(peerPartyIndex) alias=\(inboundPeerAlias[peer.id] ?? "nil") resolved=\(resolvedPeerId)")
+                            continue
+                        }
                     case .rejectIndexMismatch(let pinned, let claimed):
                         SecureLog.error("[signing] C1 reject: peer \(peer.id) authenticated as party \(pinned) but MPC msg claims fromParty=\(claimed) — impersonation attempt")
                         continue
