@@ -458,6 +458,21 @@ final class SigningViewModel: ObservableObject {
         }
     }
 
+    /// Map any transport `peer` to the canonical roster key
+    /// (`displayName`) used across `peerPartyIndex`. Delegates to the
+    /// `inboundPeerAlias` map populated by the presence handler; falls
+    /// back to `peer.name` (which is the displayName on WiFi-LAN
+    /// outbound and relay Control-derived peers) and finally `peer.id`.
+    private func resolveChannelKey(_ peer: Peer) -> String {
+        if let aliased = inboundPeerAlias[peer.id] { return aliased }
+        if !peer.name.isEmpty,
+           peer.name != "LAN Peer",
+           !peer.name.hasPrefix("Peer ") {
+            return peer.name
+        }
+        return peer.id
+    }
+
     /// Recompute `joinedSigners` from `peerManager.connectedPeers` filtered
     /// by `peerPartyIndex` (explicit opt-in via `SignPresenceDTO`). Called
     /// both when the peer list itself changes and when we get a new
@@ -475,7 +490,7 @@ final class SigningViewModel: ObservableObject {
             // connected peer (LAN neighbor, leftover relay tenant
             // from an earlier ceremony, etc.) would appear in the
             // invite list before they had any intent to cosign.
-            guard peerPartyIndex[peer.id] != nil else { continue }
+            guard peerPartyIndex[resolveChannelKey(peer)] != nil else { continue }
             let base = peer.name.isEmpty ? peer.id : peer.name
             let normalized = base
                 .replacingOccurrences(of: #"\s*\([^)]*\)\s*$"#,
@@ -954,41 +969,29 @@ final class SigningViewModel: ObservableObject {
                 let activeSession = await MainActor.run { self.roomCode }
                 guard dto.sessionId == activeSession, !activeSession.isEmpty else { continue }
                 await MainActor.run {
-                    // wifi-lan presents two peer identities for the same
-                    // remote device: an outbound `Peer(id: <bonjour-id>)`
-                    // used for sending, and an inbound stub
-                    // `Peer(id: "inbound-<endpoint>")` produced by the
-                    // listener's accept callback. Because PeerManager
-                    // filters `inbound-*` stubs out of `connectedPeers`
-                    // (they're receive-only), keying `peerPartyIndex`
-                    // under the inbound id means `rebuildJoinedSigners`
-                    // would never find a match and the cosigner would
-                    // stay invisible on the initiator's invite screen.
-                    // Resolve the canonical outbound peer by matching
-                    // the DTO's `deviceName` against `connectedPeers`.
-                    var keyId = peer.id
-                    if peer.id.hasPrefix("inbound-"),
-                       let pm = self.peerManager {
-                        if let match = pm.connectedPeers.first(where: {
-                            !$0.id.hasPrefix("inbound-") &&
-                            ($0.name == dto.deviceName || $0.id == dto.deviceName)
-                        }) {
-                            keyId = match.id
-                        }
-                        // Remember the inbound→canonical mapping so the
-                        // MPC round handler below can translate
-                        // `inbound-*` peer ids into the canonical id
-                        // used as the `peerPartyIndex` key. Without this
-                        // the C1 second-gate always fires
-                        // `rejectNoPresenceClaim` for WiFi-LAN cosigners
-                        // — the exact symptom that made DKG ceremonies
-                        // freeze on round 1.
-                        if keyId != peer.id {
-                            self.inboundPeerAlias[peer.id] = keyId
-                        }
+                    // Canonicalize the presence key to the remote device's
+                    // displayName (`dto.deviceName`) so every transport —
+                    // WiFi-LAN inbound stub (`inbound-<endpoint>`), WiFi-LAN
+                    // outbound Bonjour peer, relay UUID peer, relay fallback
+                    // `Peer <prefix>` peer — all converge on the same roster
+                    // key space.
+                    //
+                    // Without this, C1 second-gate fires `rejectNoPresenceClaim`
+                    // on MPC packets whose `peer.id` didn't match the
+                    // transport identity used at presence time — e.g.
+                    // presence arrived via one inbound TCP port (:58000)
+                    // but the MPC round-1 packet came in via a fresh
+                    // accept on another port (:58608). Refusing to rebind
+                    // an existing alias preserves the `rejectIndexMismatch`
+                    // firing on NAT reuse / impersonation attempts.
+                    let keyId = dto.deviceName
+                    if let existing = self.inboundPeerAlias[peer.id], existing != keyId {
+                        SecureLog.warning("[signing] presence: peer \(peer.id.prefix(24)) already aliased to \(existing) — refusing to rebind as \(keyId)")
+                    } else {
+                        self.inboundPeerAlias[peer.id] = keyId
                     }
                     self.peerPartyIndex[keyId] = idx
-                    SecureLog.info("[signing] presence: peer=\(keyId.prefix(12)) party=\(idx) (raw=\(peer.id.prefix(12)))")
+                    SecureLog.info("[signing] presence: peer=\(keyId) party=\(idx) (raw=\(peer.id.prefix(12)))")
                     // `joinedSigners` is derived from a snapshot of
                     // `connectedPeers ∩ peerPartyIndex`, and the
                     // `connectedPeers` publisher only fires on peer
@@ -1243,7 +1246,7 @@ final class SigningViewModel: ObservableObject {
                     let joined = Array(joinedSigners.prefix(neededCosigners))
                     var unresolved: [Peer] = []
                     for peer in joined {
-                        if let idx = peerPartyIndex[peer.id],
+                        if let idx = peerPartyIndex[resolveChannelKey(peer)],
                            idx != myIndex,
                            !assigned.contains(idx),
                            idx >= 1, idx <= wallet.totalParties {
@@ -1490,11 +1493,12 @@ final class SigningViewModel: ObservableObject {
                     // the decision to a pure function so every branch is
                     // unit-testable in isolation.
                     //
-                    // WiFi-LAN inbound sockets carry no identity of
-                    // their own (peer.id = `inbound-<endpoint>`), so we
-                    // canonicalize to the outbound peer id recorded by
-                    // the presence reducer before consulting the map.
-                    let resolvedPeerId = inboundPeerAlias[peer.id] ?? peer.id
+                    // Canonicalize to the displayName roster key so that
+                    // the partyIndex claim recorded at presence time
+                    // (keyed on `dto.deviceName`) is found regardless
+                    // of which transport port/UUID carries this MPC
+                    // packet — see `resolveChannelKey` above.
+                    let resolvedPeerId = resolveChannelKey(peer)
                     let decision = Self.decideSigningBinding(
                         peerId: resolvedPeerId,
                         claimedFromParty: msg.fromParty,
