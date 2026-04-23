@@ -1,5 +1,6 @@
-# Multi-stage build for horcrux-relay
-FROM rust:1.78-slim-bookworm AS builder
+# Multi-stage build for horcrux-relay.
+# Pinned Rust version tracks the workspace's rust-version field in Cargo.toml.
+FROM rust:1.80-slim-bookworm AS builder
 
 WORKDIR /build
 COPY Cargo.toml Cargo.lock ./
@@ -13,7 +14,7 @@ RUN cargo build --release -p horcrux-relay && \
 # Runtime image
 FROM debian:bookworm-slim
 
-RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates && \
+RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates curl && \
     rm -rf /var/lib/apt/lists/*
 
 RUN useradd --create-home --shell /bin/bash relay

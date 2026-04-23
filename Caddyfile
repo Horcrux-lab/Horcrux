@@ -1,0 +1,35 @@
+# Caddyfile for horcrux-relay
+#
+# Caddy automatically provisions and renews Let's Encrypt certificates
+# for the hostname below. Point DNS at this host before bringing the
+# stack up so the HTTP-01 challenge can succeed.
+#
+# Replace relay.example.com with your actual hostname, or set the
+# RELAY_DOMAIN env var and reference it via {$RELAY_DOMAIN}.
+
+{$RELAY_DOMAIN:relay.example.com} {
+	# Upstream relay over plain HTTP on the internal docker network.
+	reverse_proxy horcrux-relay:8080
+
+	# Security headers. The relay itself is an API, so CSP/frame rules
+	# are conservative.
+	header {
+		Strict-Transport-Security "max-age=63072000; includeSubDomains; preload"
+		X-Content-Type-Options    "nosniff"
+		X-Frame-Options           "DENY"
+		Referrer-Policy           "no-referrer"
+		Permissions-Policy        "interest-cohort=()"
+		-Server
+	}
+
+	# Admin endpoints should never be exposed publicly. Block them at
+	# the edge even if RELAY_ADMIN_TOKEN is unset.
+	@admin path /admin/*
+	respond @admin "Not Found" 404
+
+	log {
+		output stdout
+		format console
+		level INFO
+	}
+}

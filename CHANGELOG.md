@@ -5,6 +5,27 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- `docker-compose.yml` + `Caddyfile` at the repo root for turnkey
+  self-host deployment with automatic Let's Encrypt TLS.
+- `.github/workflows/relay-image.yml` publishing multi-arch
+  (`linux/amd64` + `linux/arm64`) relay container images to
+  `ghcr.io/horcrux-lab/horcrux-relay` on every push to `main` and on
+  release tags, with SLSA provenance + SBOM attestations.
+- `docs/push-notifications.md` design document describing the planned
+  APNs wake-up architecture (Option B — separate Horcrux-Labs push
+  gateway, self-hosted relays remain first-class). Implementation
+  deferred to 0.5.1, post-audit.
+
+### Changed
+
+- `Dockerfile` Rust base image bumped from `1.78` → `1.80` to match
+  the workspace `rust-version`. `curl` added to the runtime image so
+  the `HEALTHCHECK` directive actually works.
+
 ## [0.5.0-rc.1] - 2026-04-23
 
 Pre-audit release candidate. Consolidates everything shipped between

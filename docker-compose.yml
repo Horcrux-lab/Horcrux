@@ -1,0 +1,72 @@
+# Horcrux Relay — turnkey self-host stack
+#
+# Spins up:
+#   - horcrux-relay  : the WebSocket relay (image pulled from ghcr.io)
+#   - caddy          : reverse proxy with automatic Let's Encrypt TLS
+#
+# Usage:
+#   1. Point a DNS A/AAAA record at this host, e.g. relay.example.com
+#   2. Edit Caddyfile (or set RELAY_DOMAIN env) to match that hostname
+#   3. docker compose up -d
+#
+# Ports:
+#   80, 443 (caddy, public-facing)
+#   8080    (relay — bound to 127.0.0.1 only, accessed via caddy)
+#
+# Hardening checklist: see docs/deployment.md section 7.
+
+services:
+  horcrux-relay:
+    image: ghcr.io/horcrux-lab/horcrux-relay:latest
+    # Pin to a specific tag in production, e.g.
+    #   image: ghcr.io/horcrux-lab/horcrux-relay:v0.5.0-rc.1
+    container_name: horcrux-relay
+    restart: unless-stopped
+    environment:
+      RELAY_HOST: "0.0.0.0"
+      RELAY_PORT: "8080"
+      RELAY_ROOM_TTL_SECONDS: "3600"
+      RELAY_MAX_PARTICIPANTS: "8"
+      RELAY_MAX_ROOMS: "1000"
+      # Generate with: openssl rand -hex 32
+      # Required for /admin/* endpoints; leave unset to disable admin routes.
+      RELAY_ADMIN_TOKEN: "${RELAY_ADMIN_TOKEN:-}"
+      RUST_LOG: "horcrux_relay=info,tower_http=warn"
+    expose:
+      - "8080"
+    # Do NOT publish port 8080 publicly — caddy terminates TLS and proxies.
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+    # Security: drop all Linux caps we don't need.
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp
+
+  caddy:
+    image: caddy:2-alpine
+    container_name: horcrux-caddy
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"  # HTTP/3
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data        # certs, keys
+      - caddy_config:/config
+    environment:
+      RELAY_DOMAIN: "${RELAY_DOMAIN:-relay.example.com}"
+    depends_on:
+      horcrux-relay:
+        condition: service_healthy
+
+volumes:
+  caddy_data:
+  caddy_config:
