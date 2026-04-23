@@ -9,6 +9,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security
 
+- **Round 17 summary — unit-test hardening (C1 triad close-out)**.
+  No behavior change in this round. The three MPC-ceremony C1
+  second-gate decisions (audit C1: party-index binding against the
+  Noise-authenticated channel peer) are now all backed by a pure,
+  nonisolated static decision function with a named enum outcome
+  and a dedicated test file covering every branch:
+    - DKG — `CreateShardViewModel.decideDkgBinding` (6 tests,
+      `DkgPeerBindingTests.swift`)
+    - Refresh — `RefreshShardCoordinator.decidePeerBinding`
+      (7 tests, `RefreshPeerBindingTests.swift`)
+    - Signing — `SigningViewModel.decideSigningBinding` (5 tests,
+      `SigningPeerBindingTests.swift`)
+  Plus `Eip712BindingTests` (7), `AccountBackupMigrationTests` (4),
+  and the `WalletStore.setPeerRegistryIfAbsent` round-16 tests
+  (2 new, 9 total). Operator-facing: `scripts/verify-relay-deploy.sh`
+  ships as a PASS/FAIL post-deploy gate (7 checks — health, metrics
+  auth, admin auth, `/ws/:room_id` 101 upgrade with RFC-6455
+  Sec-WebSocket-Accept validation, TLS cert validity, version pin).
+  External reviewers can now audit the C1 gate by reading three
+  ~30-line pure functions instead of three inline async loops. See
+  `docs/security-audit-2026-04.md` → C1 → "Round 17 close-out".
+
 - **DKG C1 second-gate tests** — complete the extract-and-test triad
   (DKG / Refresh / Signing) for the C1 roster-binding check in
   `CreateShardViewModel`. Pull the per-inbound-message `fromParty`

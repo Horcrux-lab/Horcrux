@@ -57,6 +57,17 @@ channel to inject round-1/2 contributions and bias aggregation.
 
 **Residual risk**: refresh TOFU binds only within a single session — a long-lived compromise of the first-contact channel can still assert any party index. A full peer-registry (Noise static-pk → party_index derived at DKG time and persisted in wallet metadata) is tracked as a separate hardening pass.
 
+**Round 17 close-out — unit-test triad (✅)**:
+All three MPC ceremony C1 gates now expose the per-inbound-message binding decision as a **pure, nonisolated static function** returning a named `enum` — one test file per gate, every branch covered with a deterministic `XCTAssertEqual`:
+
+| Ceremony | Class | Pure function | Enum | Test file | Tests |
+|---|---|---|---|---|---|
+| DKG | `CreateShardViewModel` | `decideDkgBinding(channelKey:claimedFromParty:roster:)` | `DkgBindingDecision` | `HorcruxTests/DkgPeerBindingTests.swift` | 6 |
+| Refresh | `RefreshShardCoordinator` | `decidePeerBinding(peerId:claimedFromParty:currentMap:hasPersistedRegistry:)` | `PeerBindingDecision` | `HorcruxTests/RefreshPeerBindingTests.swift` | 7 |
+| Signing | `SigningViewModel` | `decideSigningBinding(peerId:claimedFromParty:presenceMap:)` | `SigningBindingDecision` | `HorcruxTests/SigningPeerBindingTests.swift` | 5 |
+
+The in-loop `switch` in every call-site delegates to the pure function and preserves the existing `SecureLog` messages and control-flow (continue / `msgCount -= 1` rewind / early return). Behavior is unchanged — this refactor is solely for branch-coverage verifiability. External reviewers can audit the gate by reading three 30-line pure functions instead of three inline async loops.
+
 This was the single most important finding in this audit.
 
 ### C2 — iOS PIN string not zeroized in memory ✅
