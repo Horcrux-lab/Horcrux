@@ -9,6 +9,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security
 
+- **EIP-712 helper — bool / bytes / signed-int coverage + tamper smoke**.
+  Three new tests close previously-uncovered code paths in
+  `chain::eip712_typed`:
+  - **DAI mainnet `Permit`** (`allowed: bool`, not `value: uint256`) —
+    digest `0xb1ac895a…0e3a80ad`, cross-verified against ethers.js v6.
+  - **`bytes32` + dynamic `bytes` + signed `int32`** with a negative
+    value — digest `0x2e17f205…ca194a4c`, cross-verified against
+    ethers.js v6. Exercises two's-complement sign-extension.
+  - **Single-byte flip smoke test** — asserts that flipping `chainId`,
+    `message.value`, or recipient each produces a different digest.
+    A cheap guard against accidental field-skip bugs in the encoder.
+  21/21 `chain::eip712_typed` tests pass; 5 real-world vectors
+  (canonical Mail, USDC Permit, DAI Permit, Permit2 PermitSingle,
+  Seaport OrderComponents) are each cross-verified against
+  ethers.js v6 `TypedDataEncoder.hash`.
+
 - **EIP-712 address fields — EIP-55 checksum validation**.
   `chain::eip712_typed::parse_address` now validates the EIP-55
   checksum when the input address has mixed case. All-lowercase

@@ -1128,4 +1128,143 @@ mod tests {
             "unexpected error message: {m}"
         );
     }
+
+    // ----- bool / bytes / bytesN / signed-int code paths -----------
+
+    /// DAI mainnet Permit — uses `allowed: bool` instead of
+    /// `value: uint256`, exercising the bool encoding path (not
+    /// touched by USDC Permit or Permit2). Cross-verified against
+    /// ethers.js v6.
+    #[test]
+    fn dai_permit_bool_field() {
+        let json = r#"{
+            "types": {
+                "EIP712Domain": [
+                    {"name":"name","type":"string"},
+                    {"name":"version","type":"string"},
+                    {"name":"chainId","type":"uint256"},
+                    {"name":"verifyingContract","type":"address"}
+                ],
+                "Permit": [
+                    {"name":"holder","type":"address"},
+                    {"name":"spender","type":"address"},
+                    {"name":"nonce","type":"uint256"},
+                    {"name":"expiry","type":"uint256"},
+                    {"name":"allowed","type":"bool"}
+                ]
+            },
+            "primaryType": "Permit",
+            "domain": {
+                "name": "Dai Stablecoin",
+                "version": "1",
+                "chainId": 1,
+                "verifyingContract": "0x6B175474E89094C44Da98b954EedeAC495271d0F"
+            },
+            "message": {
+                "holder": "0xCD2a3d9F938E13CD947Ec05AbC7FE734Df8DD826",
+                "spender": "0xbBbBBBBbbBBBbbbBbbBbbbbBBbBbbbbBbBbbBBbB",
+                "nonce": "3",
+                "expiry": "1900000000",
+                "allowed": true
+            }
+        }"#;
+        let d = eip712_digest_from_typed_data_json(json).unwrap();
+        // Cross-verified against ethers.js v6 TypedDataEncoder.hash().
+        assert_eq!(
+            hex(&d),
+            "b1ac895ab607fe23899757e76d09b132a1fa13b2ac526c597b6de77b0e3a80ad"
+        );
+    }
+
+    /// Exercises all three previously-uncovered scalar paths in one
+    /// payload: `bytes32` (fixed-width byte string), `bytes`
+    /// (dynamic, must be keccak'd), and a signed `int32` with a
+    /// negative value (two's-complement sign-extension). Cross-
+    /// verified against ethers.js v6.
+    #[test]
+    fn bytes32_dynamic_bytes_and_signed_int32() {
+        let json = r#"{
+            "types": {
+                "EIP712Domain": [
+                    {"name":"name","type":"string"},
+                    {"name":"chainId","type":"uint256"},
+                    {"name":"verifyingContract","type":"address"}
+                ],
+                "Thing": [
+                    {"name":"digest","type":"bytes32"},
+                    {"name":"blob","type":"bytes"},
+                    {"name":"n","type":"int32"}
+                ]
+            },
+            "primaryType": "Thing",
+            "domain": {
+                "name": "X",
+                "chainId": 1,
+                "verifyingContract": "0xCcCCccccCCCCcCCCCCCcCcCccCcCCCcCcccccccC"
+            },
+            "message": {
+                "digest": "0x1111111111111111111111111111111111111111111111111111111111111111",
+                "blob": "0xdeadbeef",
+                "n": -12345
+            }
+        }"#;
+        let d = eip712_digest_from_typed_data_json(json).unwrap();
+        // Cross-verified against ethers.js v6 TypedDataEncoder.hash().
+        assert_eq!(
+            hex(&d),
+            "2e17f205392287ca01b0b5e66a471079b76d3d7cbdf6c6c937f513d5ca194a4c"
+        );
+    }
+
+    /// Tamper-detection property: a single byte flip in any
+    /// user-visible field must produce a different digest. Not a
+    /// correctness proof on its own, but a quick smoke-gate against
+    /// field-skip bugs (e.g. if we accidentally dropped the `chainId`
+    /// from the domain separator, many digests would stay equal).
+    #[test]
+    fn single_byte_flip_changes_digest() {
+        let base = r#"{
+            "types": {
+                "EIP712Domain": [
+                    {"name":"name","type":"string"},
+                    {"name":"chainId","type":"uint256"},
+                    {"name":"verifyingContract","type":"address"}
+                ],
+                "Tx": [
+                    {"name":"to","type":"address"},
+                    {"name":"value","type":"uint256"}
+                ]
+            },
+            "primaryType": "Tx",
+            "domain": {
+                "name": "X",
+                "chainId": 1,
+                "verifyingContract": "0xCcCCccccCCCCcCCCCCCcCcCccCcCCCcCcccccccC"
+            },
+            "message": {
+                "to": "0xCD2a3d9F938E13CD947Ec05AbC7FE734Df8DD826",
+                "value": "100"
+            }
+        }"#;
+        let d0 = eip712_digest_from_typed_data_json(base).unwrap();
+
+        // Flip chainId.
+        let j_chain = base.replace("\"chainId\": 1", "\"chainId\": 2");
+        let d_chain = eip712_digest_from_typed_data_json(&j_chain).unwrap();
+        assert_ne!(d0, d_chain, "chainId change must alter digest");
+
+        // Flip value.
+        let j_value = base.replace("\"value\": \"100\"", "\"value\": \"101\"");
+        let d_value = eip712_digest_from_typed_data_json(&j_value).unwrap();
+        assert_ne!(d0, d_value, "message.value change must alter digest");
+
+        // Flip recipient low-nibble (keep EIP-55 canonical by using
+        // all-lowercase, so the checksum check doesn't fire).
+        let j_lc = base.replace(
+            "\"to\": \"0xCD2a3d9F938E13CD947Ec05AbC7FE734Df8DD826\"",
+            "\"to\": \"0xcd2a3d9f938e13cd947ec05abc7fe734df8dd827\"",
+        );
+        let d_to = eip712_digest_from_typed_data_json(&j_lc).unwrap();
+        assert_ne!(d0, d_to, "recipient change must alter digest");
+    }
 }
