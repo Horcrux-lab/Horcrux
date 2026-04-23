@@ -31,7 +31,7 @@ hex.workspace = true
 # curv-kzen = { version = "0.10" }
 
 # Shamir secret sharing
-vsss-rs = { version = "4", features = ["std"] }
+vsss-rs = { version = "5", features = ["std"] }
 
 # UniFFI for mobile bindings
 uniffi = { version = "0.28", features = ["cli"] }
