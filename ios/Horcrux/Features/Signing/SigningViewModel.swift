@@ -278,6 +278,42 @@ final class SigningViewModel: ObservableObject {
     // `internal` for @testable visibility. Populated by kickPeer /
     // presence reducer; cleared by regenerateRoomCode/resignToSame.
     var peerPartyIndex: [String: UInt16] = [:]
+
+    /// Audit C1 (round 12) — outcome of binding an inbound MPC
+    /// message's `msg.from_party` claim to the Noise-authenticated
+    /// channel peer it arrived on. Exposed as a pure enum +
+    /// nonisolated static function so every branch can be unit-
+    /// tested without spinning up a signing ceremony.
+    enum SigningBindingDecision: Equatable {
+        /// Peer already claimed this index via `SignPresenceDTO`
+        /// and the inbound MPC msg agrees — dispatch as authenticated.
+        case acceptAuthenticated(partyIndex: UInt16)
+        /// Peer has not yet registered a presence claim on this
+        /// channel; no basis to authenticate — drop the message.
+        case rejectNoPresenceClaim
+        /// Peer's presence claim and the MPC msg disagree — rogue-
+        /// party impersonation attempt.
+        case rejectIndexMismatch(pinned: UInt16, claimed: UInt16)
+    }
+
+    /// Pure decision function for signing C1 second-gate enforcement.
+    /// Self-impersonation is *not* checked here because the signing
+    /// path never accepts our own party_index — `presenceMap`
+    /// contains only remote peers (self never writes into it).
+    nonisolated static func decideSigningBinding(
+        peerId: String,
+        claimedFromParty: UInt16,
+        presenceMap: [String: UInt16]
+    ) -> SigningBindingDecision {
+        guard let pinned = presenceMap[peerId] else {
+            return .rejectNoPresenceClaim
+        }
+        if pinned != claimedFromParty {
+            return .rejectIndexMismatch(pinned: pinned, claimed: claimedFromParty)
+        }
+        return .acceptAuthenticated(partyIndex: pinned)
+    }
+
     /// Background task that watches the MPC stream during `.invite` for
     /// incoming `SignPresenceDTO` packets carrying `partyIndex`.
     private var presenceListenerTask: Task<Void, Never>?
@@ -1427,19 +1463,23 @@ final class SigningViewModel: ObservableObject {
                     // Audit C1 second gate: bind the MPC `from_party` field
                     // (attacker-controllable JSON payload) to the party
                     // index that the *authenticated Noise channel peer*
-                    // previously claimed via `SignPresenceDTO`. If the two
-                    // disagree, the packet is an impersonation attempt
-                    // (rogue-party attack) and must be rejected. If
-                    // `peerPartyIndex[peer.id]` is absent, the peer has
-                    // not yet registered a presence claim on this channel
-                    // and we have no basis to accept an MPC round message
-                    // from them.
-                    guard let authenticatedFrom = peerPartyIndex[peer.id] else {
+                    // previously claimed via `SignPresenceDTO`. Delegate
+                    // the decision to a pure function so every branch is
+                    // unit-testable in isolation.
+                    let decision = Self.decideSigningBinding(
+                        peerId: peer.id,
+                        claimedFromParty: msg.fromParty,
+                        presenceMap: peerPartyIndex
+                    )
+                    let authenticatedFrom: UInt16
+                    switch decision {
+                    case .acceptAuthenticated(let idx):
+                        authenticatedFrom = idx
+                    case .rejectNoPresenceClaim:
                         SecureLog.warning("[signing] C1 reject: peer \(peer.id) has no presence-claimed partyIndex yet — dropping MPC msg from=\(msg.fromParty)")
                         continue
-                    }
-                    if msg.fromParty != authenticatedFrom {
-                        SecureLog.error("[signing] C1 reject: peer \(peer.id) authenticated as party \(authenticatedFrom) but MPC msg claims fromParty=\(msg.fromParty) — impersonation attempt")
+                    case .rejectIndexMismatch(let pinned, let claimed):
+                        SecureLog.error("[signing] C1 reject: peer \(peer.id) authenticated as party \(pinned) but MPC msg claims fromParty=\(claimed) — impersonation attempt")
                         continue
                     }
                     let responses = try bridge.handleAuthenticatedMessage(msg, authenticatedFrom: authenticatedFrom)

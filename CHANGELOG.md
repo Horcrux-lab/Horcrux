@@ -9,6 +9,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security
 
+- **Signing C1 second-gate tests** — mirror the Refresh extract-and-
+  test pattern for `SigningViewModel`'s MPC message handler. Extract
+  the per-message binding decision (which gates every inbound packet
+  against the Noise peer's `SignPresenceDTO.partyIndex` claim) into
+  a pure, nonisolated static function `decideSigningBinding` returning
+  a new `SigningBindingDecision` enum (`acceptAuthenticated`,
+  `rejectNoPresenceClaim`, `rejectIndexMismatch`). Adds
+  `HorcruxTests/SigningPeerBindingTests.swift` with 5 tests covering
+  every branch: matching claim, missing presence entry, simple index
+  mismatch, empty presence map, and known-peer-stealing-sibling-index
+  (the rogue-party attack). Behavior is unchanged — the in-loop
+  `switch` just delegates to the pure function; all impersonation
+  rejections preserve their existing `SecureLog` messages.
+
 - **Refresh C1 round-16 tests** — extract the per-message peer-
   binding decision from `RefreshShardCoordinator`'s async loop into
   a pure, nonisolated static function (`decidePeerBinding`) returning
