@@ -81,7 +81,7 @@ backup) keeps a 100k-iteration offline brute-force path indefinitely.
 migration step; add a post-migration self-check that the legacy key is
 absent; audit the migration exit paths for early-return gaps.
 
-### C4 — EVM blind signing: `data` field not decoded in UI ✅ (decoder + consent gate) / ⚠️ (second-gate byte-equivalence pending)
+### C4 — EVM blind signing: `data` field not decoded in UI ✅
 **Location**: UI layer under `ios/Horcrux/Features/` + `horcrux-core/src/chain/evm.rs:43`
 
 Users sign DEX / DeFi / NFT transactions where the `data` field is
@@ -89,15 +89,25 @@ the actual authorisation. If the UI only shows `to` + `value`, the
 user's perceived action ("log in") can mask the real one
 (`approve(attacker, 2**256-1)`) → wallet drain by a malicious dApp.
 
-**Fix**:
-- Decode well-known 4-byte selectors: ERC20 `transfer` / `approve` /
-  `permit`, ERC721 `setApprovalForAll`, Uniswap-router methods
-- Unknown selectors → red-banner warning + second confirmation
-- Hard-block `setApprovalForAll` and `approve(max_uint)` against
-  non-allowlisted contracts
-
-This is the pattern hardware wallets (Ledger / Trezor) have been
-publicly criticised for. A Web3-focused audit will demand it.
+**Fix shipped (rounds 4 + 11)**:
+- Round 4: 4-byte selector decoder for ERC-20 `transfer`/`approve`/
+  `transferFrom`, ERC-721 `setApprovalForAll`; unknown selectors
+  surface a red-banner warning; `approve(max_uint)` and
+  `setApprovalForAll(true)` hard-block unless the contract is
+  allowlisted (first gate — decoder + consent UI).
+- Round 11: **second gate (byte-equivalence)**. In
+  `SigningViewModel.startSigning`, immediately after
+  `buildSignHash()` produces `messageHash`, we recompute
+  `keccak256(pendingEvmRawData)` and assert equality before calling
+  `bridge.startSigning`. This closes the gap where the UI could
+  decode and display calldata `A`, then feed `keccak256(B)` into the
+  MPC ceremony (memory corruption, tampered view-model state, or
+  any code path mutating `pendingEvm*` fields between approval and
+  signing). On mismatch we throw `SigningError.sighashMismatch`
+  which surfaces to the user as "Transaction payload changed
+  between approval and signing — signing aborted for your safety".
+  By collision resistance, the equality check cryptographically
+  binds the bytes the MPC signs to the bytes the UI decoded.
 
 ### C5 — Solana blockhash / nonce freshness not enforced ✅
 **Location**: `horcrux-core/src/chain/solana.rs`

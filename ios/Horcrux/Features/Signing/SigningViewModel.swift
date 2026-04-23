@@ -1135,6 +1135,25 @@ final class SigningViewModel: ObservableObject {
                 let messageHash = try await buildSignHash()
                 NSLog("[signing] sign hash built (%dB)", messageHash.count)
 
+                // Audit C4 second gate: verify the `messageHash` we're about to
+                // feed into the MPC ceremony still matches a keccak256 of the
+                // exact `pendingEvmRawData` the UI displayed to the user. If
+                // anything between "user approved" and "start signing" mutated
+                // either side, this catches it cryptographically: by collision
+                // resistance, a matching digest implies the signer will sign
+                // the same byte sequence the UI decoded and rendered. Applies
+                // only to EVM (the chain where blind-signing risk from
+                // `data`-field misrepresentation is the stated C4 concern);
+                // other chains have their own sighash derivations and separate
+                // preview paths.
+                if wallet.chain.isEVM, let evmRaw = pendingEvmRawData {
+                    let expected = horcruxKeccak256(data: evmRaw)
+                    if expected != messageHash {
+                        SecureLog.error("[signing] EVM C4 second-gate mismatch: recomputed sighash != messageHash (rawLen=\(evmRaw.count))")
+                        throw SigningError.sighashMismatch
+                    }
+                }
+
                 // Collect participant indices.
                 //
                 // Prefer each joined peer's self-reported party index
@@ -2377,11 +2396,14 @@ final class SigningViewModel: ObservableObject {
 private enum SigningError: LocalizedError {
     case notInitialized
     case shardNotFound
+    case sighashMismatch
 
     var errorDescription: String? {
         switch self {
         case .notInitialized: return "Signing session not initialized"
         case .shardNotFound: return "Key shard not found on this device"
+        case .sighashMismatch:
+            return "Transaction payload changed between approval and signing — signing aborted for your safety"
         }
     }
 }

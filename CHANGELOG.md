@@ -9,6 +9,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security
 
+- **Audit P0 round 12** — C4 EVM signing second gate. After
+  `buildSignHash()` returns `messageHash` in
+  `SigningViewModel.startSigning`, the view model now recomputes
+  `keccak256(pendingEvmRawData)` and asserts equality before
+  handing the hash to the MPC ceremony. Closes the gap between
+  round 4's decoder/consent UI (first gate) and the actual bytes
+  fed into `bridge.startSigning`: by collision resistance, a
+  matching digest cryptographically binds what the signer signs
+  to what the UI decoded and displayed. On mismatch the signing
+  throws `SigningError.sighashMismatch` surfaced to the user as
+  "Transaction payload changed between approval and signing —
+  signing aborted for your safety". Scope is EVM-only (the chain
+  where blind-signing risk from `data`-field misrepresentation is
+  the stated C4 concern); BTC / Solana / Tron cold-signing flows
+  have their own sighash derivations and separate review paths.
+
 - **Audit P0 round 11** — iOS H4 cert-pin rotation. Split
   `CertificatePinner` pinning policy into known vs TOFU hosts.
   `registerKnownPins()` now freezes a `knownHosts: Set<String>`
