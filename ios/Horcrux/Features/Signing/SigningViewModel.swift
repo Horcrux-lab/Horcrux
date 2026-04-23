@@ -1301,11 +1301,30 @@ final class SigningViewModel: ObservableObject {
                 // The short sleep gives cosigners time to receive the
                 // DTO, subscribe to the MPC stream and be ready to
                 // catch our round-1 output.
-                if !isCosigner, let sid = sessionId,
-                   let payload = try? JSONEncoder().encode(
+                if !isCosigner, let sid = sessionId {
+                    // Announce the initiator's own (deviceName,partyIndex)
+                    // binding so cosigners can satisfy the C1 second-gate
+                    // on round-1 MPC packets sent from the initiator.
+                    // Cosigners only receive `SignPresenceDTO` from each
+                    // other, never from the initiator (the initiator
+                    // doesn't call `sendPresencePing`); without this
+                    // announcement the cosigner's `peerPartyIndex` has
+                    // no entry for the initiator's canonical deviceName,
+                    // and every MPC packet from the initiator trips
+                    // `rejectNoPresenceClaim`.
+                    if let presencePayload = try? JSONEncoder().encode(
+                        SignPresenceDTO(
+                            sessionId: sid,
+                            deviceName: DeviceIdentity.displayName,
+                            partyIndex: myIndex
+                        )) {
+                        try? await peerManager.broadcastMpcMessage(presencePayload)
+                    }
+                    if let payload = try? JSONEncoder().encode(
                         SignBeginDTO(sessionId: sid, tx: authoritativeTx, participants: participants)) {
-                    try? await peerManager.broadcastMpcMessage(payload)
-                    try? await Task.sleep(nanoseconds: 400_000_000)
+                        try? await peerManager.broadcastMpcMessage(payload)
+                        try? await Task.sleep(nanoseconds: 400_000_000)
+                    }
                 }
 
                 let outgoing = try bridge.startSigning(
@@ -1432,8 +1451,31 @@ final class SigningViewModel: ObservableObject {
                 // healthy ceremony.
                 if let magic = try? JSONDecoder().decode(SigningMagicPeek.self, from: data) {
                     switch magic.magic {
-                    case SignPresenceDTO.magic,
-                         SignBeginDTO.magic,
+                    case SignPresenceDTO.magic:
+                        // Late-arriving presence from the initiator (or a
+                        // cosigner that re-announced its partyIndex after
+                        // our presenceListener was already cancelled at
+                        // startSigning). Refresh `peerPartyIndex` so the
+                        // C1 second-gate below can bind this peer's
+                        // canonical displayName → partyIndex when the
+                        // very next MPC packet arrives.
+                        if let pres = try? JSONDecoder().decode(SignPresenceDTO.self, from: data),
+                           pres.magic == SignPresenceDTO.magic,
+                           let idx = pres.partyIndex,
+                           pres.sessionId == sessionId {
+                            let keyId = pres.deviceName
+                            if let existing = inboundPeerAlias[peer.id], existing != keyId {
+                                SecureLog.warning("[signing] late presence: peer \(peer.id.prefix(24)) already aliased to \(existing) — refusing to rebind as \(keyId)")
+                            } else {
+                                inboundPeerAlias[peer.id] = keyId
+                            }
+                            peerPartyIndex[keyId] = idx
+                            SecureLog.info("[signing] late presence: peer=\(keyId) party=\(idx) (raw=\(peer.id.prefix(12)))")
+                        } else {
+                            NSLog("[signing] drop control DTO (%@) from %@", magic.magic, peer.id)
+                        }
+                        continue
+                    case SignBeginDTO.magic,
                          SignRequestDTO.magic,
                          RoomPresenceDTO.magic,
                          SessionBeginDTO.magic:
