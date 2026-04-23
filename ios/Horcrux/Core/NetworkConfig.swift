@@ -72,10 +72,15 @@ final class NetworkConfig: ObservableObject, @unchecked Sendable {
 
     /// Alchemy API key for EVM. Stored in Keychain (never UserDefaults).
     /// When `ethereumRPC` contains the `{KEY}` placeholder, this value is
-    /// substituted in at RPC-call time.
+    /// substituted in at RPC-call time. When this key transitions between
+    /// empty and non-empty, recognised default URLs auto-swap between the
+    /// Alchemy paid template and the free public endpoint so a freshly-
+    /// entered key takes effect immediately without requiring the user to
+    /// also update the URL field.
     @Published var alchemyAPIKey: String {
         didSet {
             saveKeychain(alchemyAPIKey, forKey: Keys.alchemyKey)
+            autoSwapPaidPublicDefaultsOnKeyChange(oldKeyEmpty: oldValue.isEmpty)
             invalidateBalances()
         }
     }
@@ -200,29 +205,57 @@ final class NetworkConfig: ObservableObject, @unchecked Sendable {
     private init() {
         let ud = UserDefaults.standard
         Self.migrateDeadEndpoints(ud)
-        self.ethereumRPC = ud.string(forKey: Keys.ethereumRPC) ?? Defaults.ethereumRPC
-        self.bitcoinAPI = ud.string(forKey: Keys.bitcoinAPI) ?? Defaults.bitcoinAPI
-        self.litecoinAPI = ud.string(forKey: Keys.litecoinAPI) ?? Defaults.litecoinAPI
-        self.tronAPI = ud.string(forKey: Keys.tronAPI) ?? Defaults.tronAPI
-        self.solanaRPC = ud.string(forKey: Keys.solanaRPC) ?? Defaults.solanaRPC
+        // Load API keys *first* so we can pick the right default URL for
+        // EVM/Solana based on whether a paid key is already configured.
+        // Users with an Alchemy key get the Alchemy template by default;
+        // users without one get the free public endpoint — so "default"
+        // really means "the best endpoint available given the user's
+        // current credentials", not "always paid" or "always free".
+        //
+        // Swift requires every stored property be initialised before
+        // `self` is referenced, so we stage the Keychain reads in local
+        // variables first and only then assign them through.
+        let alchemy = Self.loadKeychainString(key: Keys.alchemyKey)
+        let helius = Self.loadKeychainString(key: Keys.heliusKey)
+        let etherscan = Self.loadKeychainString(key: Keys.etherscanKey)
+        let infura = Self.loadKeychainString(key: Keys.infuraKey)
+        let ankr = Self.loadKeychainString(key: Keys.ankrKey)
+        let blockpi = Self.loadKeychainString(key: Keys.blockpiKey)
+        let drpc = Self.loadKeychainString(key: Keys.drpcKey)
+        let nodeReal = Self.loadKeychainString(key: Keys.nodeRealKey)
+        let getblock = Self.loadKeychainString(key: Keys.getblockKey)
+        let tenderly = Self.loadKeychainString(key: Keys.tenderlyKey)
+        let oneRPC = Self.loadKeychainString(key: Keys.oneRPCKey)
+
+        let hasAlchemy = !alchemy.isEmpty
         let storedChainId = ud.integer(forKey: Keys.evmChainId)
         if storedChainId == 0 && ud.object(forKey: Keys.evmChainId) != nil {
             NSLog("[NetworkConfig] Stored EVM chainId was 0 (invalid) — falling back to mainnet (1)")
         }
-        self.evmChainId = UInt64(storedChainId == 0 ? 1 : storedChainId)
+        let chainId = UInt64(storedChainId == 0 ? 1 : storedChainId)
+        let evmDefault = (EVMNetwork(rawValue: chainId) ?? .mainnet).effectiveDefaultRPC(hasPaidKey: hasAlchemy)
+        let solDevnetFlag = ud.bool(forKey: Keys.solDevnet)
+        let solDefault = (solDevnetFlag ? SolanaNetwork.devnet : .mainnet).effectiveDefaultRPC(hasPaidKey: hasAlchemy)
+
+        self.alchemyAPIKey = alchemy
+        self.heliusAPIKey = helius
+        self.etherscanAPIKey = etherscan
+        self.infuraAPIKey = infura
+        self.ankrAPIKey = ankr
+        self.blockpiAPIKey = blockpi
+        self.drpcAPIKey = drpc
+        self.nodeRealAPIKey = nodeReal
+        self.getblockAPIKey = getblock
+        self.tenderlyAPIKey = tenderly
+        self.oneRPCAPIKey = oneRPC
+        self.ethereumRPC = ud.string(forKey: Keys.ethereumRPC) ?? evmDefault
+        self.bitcoinAPI = ud.string(forKey: Keys.bitcoinAPI) ?? Defaults.bitcoinAPI
+        self.litecoinAPI = ud.string(forKey: Keys.litecoinAPI) ?? Defaults.litecoinAPI
+        self.tronAPI = ud.string(forKey: Keys.tronAPI) ?? Defaults.tronAPI
+        self.solanaRPC = ud.string(forKey: Keys.solanaRPC) ?? solDefault
+        self.evmChainId = chainId
         self.btcTestnet = ud.bool(forKey: Keys.btcTestnet)
-        self.solDevnet = ud.bool(forKey: Keys.solDevnet)
-        self.alchemyAPIKey = Self.loadKeychainString(key: Keys.alchemyKey)
-        self.heliusAPIKey = Self.loadKeychainString(key: Keys.heliusKey)
-        self.etherscanAPIKey = Self.loadKeychainString(key: Keys.etherscanKey)
-        self.infuraAPIKey = Self.loadKeychainString(key: Keys.infuraKey)
-        self.ankrAPIKey = Self.loadKeychainString(key: Keys.ankrKey)
-        self.blockpiAPIKey = Self.loadKeychainString(key: Keys.blockpiKey)
-        self.drpcAPIKey = Self.loadKeychainString(key: Keys.drpcKey)
-        self.nodeRealAPIKey = Self.loadKeychainString(key: Keys.nodeRealKey)
-        self.getblockAPIKey = Self.loadKeychainString(key: Keys.getblockKey)
-        self.tenderlyAPIKey = Self.loadKeychainString(key: Keys.tenderlyKey)
-        self.oneRPCAPIKey = Self.loadKeychainString(key: Keys.oneRPCKey)
+        self.solDevnet = solDevnetFlag
         self.ethereumWSS = ud.string(forKey: Keys.ethereumWSS) ?? ""
         self.solanaWSS = ud.string(forKey: Keys.solanaWSS) ?? ""
     }
@@ -242,6 +275,37 @@ final class NetworkConfig: ObservableObject, @unchecked Sendable {
         case .tron: raw = tronAPI
         }
         return substituteAPIKey(in: raw, chain: chain)
+    }
+
+    /// Resolve the user-configured WebSocket URL for a chain, performing
+    /// the same `{KEY}` → Keychain-backed-key substitution we do for HTTP
+    /// RPC. Returns `nil` when the field is empty or the chain has no
+    /// dedicated WSS slot.
+    ///
+    /// Background: paid providers (Alchemy / Infura / Helius) gate their
+    /// `wss://` endpoints on the same API key as HTTP, so the template
+    /// form `wss://sepolia.infura.io/ws/v3/{KEY}` must be expanded at
+    /// connect time. Earlier builds consumed `ethereumWSS` raw, which
+    /// forced users to paste the literal key into UserDefaults (plaintext
+    /// on disk) and also broke whenever the stored value still contained
+    /// a `{KEY}` placeholder.
+    func wssURL(for chain: Chain) -> String? {
+        let raw: String
+        switch chain {
+        case .ethereum: raw = ethereumWSS
+        case .solana: raw = solanaWSS
+        default: return nil
+        }
+        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+        let resolved = substituteAPIKey(in: trimmed, chain: chain)
+        // `substituteAPIKey` may fall back to a public HTTP endpoint when
+        // the key is missing; callers expect an actual `wss://` URL, so
+        // refuse to return a degraded http(s):// result here.
+        guard resolved.hasPrefix("wss://") || resolved.hasPrefix("ws://") else {
+            return nil
+        }
+        return resolved
     }
 
     /// Raw URL stored for the chain's primary field (before `{KEY}` substitution).
@@ -275,12 +339,15 @@ final class NetworkConfig: ObservableObject, @unchecked Sendable {
 
     /// Reset only this chain's field to its built-in default, leaving the
     /// other chains (and the EVM / BTC / SOL network selectors) alone.
-    /// Used by the per-section "恢复默认" link.
+    /// Used by the per-section "恢复默认" link. The default we reset to
+    /// depends on whether the user has a paid key configured — key present
+    /// → paid template; key absent → free public endpoint.
     func resetField(for chain: Chain) {
+        let hasKey = !alchemyAPIKey.isEmpty
         switch chain {
         case .ethereum:
             if let net = EVMNetwork(rawValue: evmChainId) {
-                ethereumRPC = net.defaultRPC
+                ethereumRPC = net.effectiveDefaultRPC(hasPaidKey: hasKey)
             } else {
                 ethereumRPC = Defaults.ethereumRPC
             }
@@ -289,7 +356,8 @@ final class NetworkConfig: ObservableObject, @unchecked Sendable {
         case .litecoin:
             litecoinAPI = Defaults.litecoinAPI
         case .solana:
-            solanaRPC = (solDevnet ? SolanaNetwork.devnet : SolanaNetwork.mainnet).defaultRPC
+            let net = solDevnet ? SolanaNetwork.devnet : SolanaNetwork.mainnet
+            solanaRPC = net.effectiveDefaultRPC(hasPaidKey: hasKey)
         case .tron:
             tronAPI = Defaults.tronAPI
         default:
@@ -404,11 +472,23 @@ final class NetworkConfig: ObservableObject, @unchecked Sendable {
         }
     }
 
-    /// Apply a named network preset (mainnet or testnet).
+    /// Apply a named network preset (mainnet or testnet). Preset URLs are
+    /// stored as Alchemy paid-provider templates. If the user has no
+    /// Alchemy key, we down-convert to the equivalent public endpoint so
+    /// the stored URL stays immediately usable instead of showing a
+    /// literal `{KEY}` placeholder.
     func applyPreset(_ preset: NetworkPreset) {
-        ethereumRPC = preset.ethereumRPC
+        let hasKey = !alchemyAPIKey.isEmpty
+        if hasKey {
+            ethereumRPC = preset.ethereumRPC
+            solanaRPC = preset.solanaRPC
+        } else {
+            let evm = EVMNetwork(rawValue: preset.evmChainId) ?? .mainnet
+            ethereumRPC = evm.publicDefaultRPC
+            let sol: SolanaNetwork = preset.solDevnet ? .devnet : .mainnet
+            solanaRPC = sol.publicDefaultRPC
+        }
         bitcoinAPI = preset.bitcoinAPI
-        solanaRPC = preset.solanaRPC
         evmChainId = preset.evmChainId
         btcTestnet = preset.btcTestnet
         solDevnet = preset.solDevnet
@@ -500,6 +580,50 @@ final class NetworkConfig: ObservableObject, @unchecked Sendable {
         }
     }
 
+    /// When an Alchemy key is pasted (empty → non-empty) or removed
+    /// (non-empty → empty), flip any stored URL that is currently on the
+    /// "other default" to the matching new default. A user who hasn't
+    /// customised `ethereumRPC` / `solanaRPC` will see:
+    ///
+    ///   * "No key configured" → URL shows the free public endpoint.
+    ///   * "Key configured"    → URL shows the Alchemy paid template.
+    ///
+    /// User-customised URLs (anything not in the recognised default sets)
+    /// are preserved untouched so we never clobber a hand-picked endpoint.
+    private func autoSwapPaidPublicDefaultsOnKeyChange(oldKeyEmpty: Bool) {
+        let newHasKey = !alchemyAPIKey.isEmpty
+        guard oldKeyEmpty == newHasKey else { return }  // key toggled
+
+        // --- EVM side ---
+        let evmTemplates = Set(EVMNetwork.allCases.compactMap {
+            RPCProviderTemplate.alchemy(evm: $0)
+        })
+        let evmPublics = Set(EVMNetwork.allCases.map(\.publicDefaultRPC))
+        if let net = EVMNetwork(rawValue: evmChainId) {
+            if newHasKey, evmPublics.contains(ethereumRPC) {
+                ethereumRPC = net.defaultRPC
+            } else if !newHasKey, evmTemplates.contains(ethereumRPC) {
+                ethereumRPC = net.publicDefaultRPC
+            }
+        }
+
+        // --- Solana side ---
+        let solTemplates: Set<String> = [
+            SolanaNetwork.mainnet.defaultRPC,
+            SolanaNetwork.devnet.defaultRPC,
+        ]
+        let solPublics: Set<String> = [
+            SolanaNetwork.mainnet.publicDefaultRPC,
+            SolanaNetwork.devnet.publicDefaultRPC,
+        ]
+        let solNet: SolanaNetwork = solDevnet ? .devnet : .mainnet
+        if newHasKey, solPublics.contains(solanaRPC) {
+            solanaRPC = solNet.defaultRPC
+        } else if !newHasKey, solTemplates.contains(solanaRPC) {
+            solanaRPC = solNet.publicDefaultRPC
+        }
+    }
+
     /// One-shot migration of explicitly-dead public RPC endpoints that
     /// were shipped as defaults in earlier builds. A stored value that
     /// equals one of these gets reset so the user falls through to the
@@ -519,6 +643,41 @@ final class NetworkConfig: ObservableObject, @unchecked Sendable {
            deadEthereum.contains(stored)
         {
             ud.removeObject(forKey: Keys.ethereumRPC)
+        }
+        migrateBrokenWSS(ud, key: Keys.ethereumWSS)
+        migrateBrokenWSS(ud, key: Keys.solanaWSS)
+    }
+
+    /// Reset stored WSS entries that clearly contain a leaked / truncated
+    /// API key instead of the `{KEY}` template placeholder.
+    ///
+    /// Prior to the WSS-templating fix, the Settings UI stored whatever
+    /// the user typed verbatim. Users who pasted an Infura key directly
+    /// into the WSS field (or who hit the field edit before it accepted
+    /// the full paste) ended up with URLs like
+    /// `wss://sepolia.infura.io/ws/v3/809b2` — a truncated key, no
+    /// placeholder, unusable. We recognise those by: path ends in
+    /// `/ws/v3/` + a short non-hex-length segment that isn't `{KEY}`, and
+    /// wipe the slot so the template-form placeholder takes over.
+    private static func migrateBrokenWSS(_ ud: UserDefaults, key: String) {
+        guard let stored = ud.string(forKey: key)?
+            .trimmingCharacters(in: .whitespacesAndNewlines),
+              !stored.isEmpty,
+              stored.hasPrefix("wss://") || stored.hasPrefix("ws://"),
+              !stored.contains("{KEY}"),
+              let url = URL(string: stored)
+        else { return }
+        // Infura keys are 32 hex chars; Alchemy keys are 32+; any path
+        // tail ≥ 20 chars is almost certainly a deliberate full key the
+        // user wants to keep. Anything shorter that sits in a known
+        // provider path slot is a malformed remnant.
+        let lastComponent = url.lastPathComponent
+        let queryKey = URLComponents(url: url, resolvingAgainstBaseURL: false)?
+            .queryItems?.first(where: { $0.name.lowercased() == "api-key" })?.value ?? ""
+        let candidate = !queryKey.isEmpty ? queryKey : lastComponent
+        if !candidate.isEmpty && candidate.count < 20 {
+            NSLog("[NetworkConfig] Clearing malformed WSS '\(key)' = '\(stored)'")
+            ud.removeObject(forKey: key)
         }
     }
 
@@ -602,6 +761,14 @@ enum EVMNetwork: UInt64, CaseIterable, Identifiable {
         return publicDefaultRPC
     }
 
+    /// Context-aware default URL: returns the Alchemy paid template when
+    /// the user has an Alchemy key configured, and the free public endpoint
+    /// otherwise. Used at first-launch and on key-set/unset transitions so
+    /// the stored URL field matches the user's available credentials.
+    func effectiveDefaultRPC(hasPaidKey: Bool) -> String {
+        return hasPaidKey ? defaultRPC : publicDefaultRPC
+    }
+
     /// Last-resort free public endpoint, used either (a) when the user
     /// explicitly picks a free provider in Settings, or (b) implicitly as
     /// a fallback when the templated paid URL is present but no API key
@@ -672,6 +839,12 @@ enum SolanaNetwork {
         case .mainnet: return "https://solana-rpc.publicnode.com"
         case .devnet: return "https://api.devnet.solana.com"
         }
+    }
+
+    /// Context-aware default: paid template when a key is configured,
+    /// free public endpoint otherwise. See `EVMNetwork.effectiveDefaultRPC`.
+    func effectiveDefaultRPC(hasPaidKey: Bool) -> String {
+        return hasPaidKey ? defaultRPC : publicDefaultRPC
     }
 }
 

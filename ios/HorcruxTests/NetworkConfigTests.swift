@@ -76,19 +76,22 @@ final class NetworkConfigTests: XCTestCase {
     @MainActor
     func test_applyPreset_testnet_updatesConfig() {
         let config = NetworkConfig.shared
-        let originalETH = config.ethereumRPC
+        _ = config.ethereumRPC
 
         config.applyPreset(.testnet)
-        XCTAssertEqual(config.ethereumRPC, NetworkPreset.testnet.ethereumRPC)
+        // With no Alchemy key configured (test env runs without Keychain
+        // credentials), applyPreset down-converts the paid template to
+        // the matching public endpoint so the stored URL stays usable.
+        XCTAssertEqual(config.ethereumRPC, EVMNetwork.sepolia.publicDefaultRPC)
         XCTAssertEqual(config.bitcoinAPI, NetworkPreset.testnet.bitcoinAPI)
-        XCTAssertEqual(config.solanaRPC, NetworkPreset.testnet.solanaRPC)
+        XCTAssertEqual(config.solanaRPC, SolanaNetwork.devnet.publicDefaultRPC)
         XCTAssertEqual(config.evmChainId, 11155111)
         XCTAssertTrue(config.btcTestnet)
         XCTAssertTrue(config.solDevnet)
 
         // Restore mainnet to avoid polluting other tests
         config.applyPreset(.mainnet)
-        XCTAssertEqual(config.ethereumRPC, NetworkPreset.mainnet.ethereumRPC)
+        XCTAssertEqual(config.ethereumRPC, EVMNetwork.mainnet.publicDefaultRPC)
     }
 
     // MARK: - resetToDefaults
@@ -99,9 +102,10 @@ final class NetworkConfigTests: XCTestCase {
         config.applyPreset(.testnet)
 
         config.resetToDefaults()
-        XCTAssertEqual(config.ethereumRPC, "https://eth-mainnet.g.alchemy.com/v2/{KEY}")
+        // Same down-conversion rule as applyPreset: no key → public URL.
+        XCTAssertEqual(config.ethereumRPC, EVMNetwork.mainnet.publicDefaultRPC)
         XCTAssertEqual(config.bitcoinAPI, "https://mempool.space/api")
-        XCTAssertEqual(config.solanaRPC, "https://solana-mainnet.g.alchemy.com/v2/{KEY}")
+        XCTAssertEqual(config.solanaRPC, SolanaNetwork.mainnet.publicDefaultRPC)
         XCTAssertEqual(config.evmChainId, 1)
         XCTAssertFalse(config.btcTestnet)
         XCTAssertFalse(config.solDevnet)
@@ -121,14 +125,11 @@ final class NetworkConfigTests: XCTestCase {
         let config = NetworkConfig.shared
         config.applyPreset(.testnet)
 
-        // Stored URLs are the Alchemy paid templates; the resolved URL
-        // used by actual RPC calls falls back to the public endpoint when
-        // no key is present. Both are valid outputs — assert on the
-        // fallback since that's what unit tests see.
-        XCTAssertEqual(config.ethereumRPC, "https://eth-sepolia.g.alchemy.com/v2/{KEY}")
+        // Stored URL after applyPreset with no key = public endpoint.
+        XCTAssertEqual(config.ethereumRPC, EVMNetwork.sepolia.publicDefaultRPC)
         let ethResolved = config.rpcURL(for: .ethereum)
         XCTAssertTrue(
-            ethResolved == "https://ethereum-sepolia-rpc.publicnode.com"
+            ethResolved == EVMNetwork.sepolia.publicDefaultRPC
                 || ethResolved.hasPrefix("https://eth-sepolia.g.alchemy.com/v2/"),
             "Unexpected resolved Ethereum URL: \(ethResolved)"
         )

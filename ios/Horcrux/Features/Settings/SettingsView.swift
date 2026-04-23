@@ -2368,15 +2368,38 @@ private struct WSSField: View {
 
     private var placeholder: String {
         switch kind {
-        case .evm: return "wss://eth-mainnet.g.alchemy.com/v2/{KEY}"
-        case .solana: return "wss://mainnet.helius-rpc.com/?api-key={KEY}"
+        case .evm:
+            // Match whichever EVM provider the user already has a key for,
+            // so the placeholder nudges them toward the template they can
+            // actually authenticate against. Infura first because its WSS
+            // path (`/ws/v3/{KEY}`) differs visibly from HTTP (`/v3/{KEY}`)
+            // — that mismatch is the most common source of broken paste-ins.
+            let cfg = NetworkConfig.shared
+            let isSepolia = cfg.evmChainId == EVMNetwork.sepolia.rawValue
+            if !cfg.infuraAPIKey.isEmpty {
+                return isSepolia
+                    ? "wss://sepolia.infura.io/ws/v3/{KEY}"
+                    : "wss://mainnet.infura.io/ws/v3/{KEY}"
+            }
+            return isSepolia
+                ? "wss://eth-sepolia.g.alchemy.com/v2/{KEY}"
+                : "wss://eth-mainnet.g.alchemy.com/v2/{KEY}"
+        case .solana:
+            return "wss://mainnet.helius-rpc.com/?api-key={KEY}"
         }
     }
 
     private func runProbe() async {
         probing = true
         resultText = nil
-        let result = await WebSocketProbe.probe(urlString: url, kind: kind)
+        // Substitute `{KEY}` against the Keychain-stored API key for
+        // whichever provider the user is targeting (Infura / Alchemy /
+        // Helius / …). Without this, probing a stored template like
+        // `wss://sepolia.infura.io/ws/v3/{KEY}` would hit the server with
+        // the literal `{KEY}` in the path and always 401.
+        let chain: Chain = (kind == .evm) ? .ethereum : .solana
+        let resolved = NetworkConfig.shared.substituteAPIKey(in: url, chain: chain)
+        let result = await WebSocketProbe.probe(urlString: resolved, kind: kind)
         probing = false
         switch result {
         case .success(let ms):
