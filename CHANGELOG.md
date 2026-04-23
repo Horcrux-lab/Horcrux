@@ -9,6 +9,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security
 
+- **Audit C1 round-16 follow-up** — AccountBackup migration tests.
+  Adds `HorcruxTests/AccountBackupMigrationTests.swift` (4 tests)
+  covering: (a) legacy v3 JSON (no `peerRegistry` key) decodes with
+  `peerRegistry == nil`, (b) v4 encode→decode preserves the
+  registry verbatim, (c) nil-registry round-trip is symmetric, and
+  (d) `BackupPreview.peerRegistry` accessor returns the registry on
+  `.account` variants and `nil` on `.legacy` variants. Closes the
+  round-16 "does the registry actually survive export/import?" gap.
+
 - **Audit H8 follow-up** — iOS FFI binding smoke tests for
   `horcruxEip712Digest`. Adds `HorcruxTests/Eip712BindingTests.swift`
   with 7 tests covering determinism, chain_id replay-binding,
