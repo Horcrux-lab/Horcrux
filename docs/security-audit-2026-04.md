@@ -190,8 +190,11 @@ Failures → typed error, never panic.
   NTP step breaks cleanup. `monotonic_now_ms()` anchored on a process-
   local `Instant` epoch now powers `Room::touch` / `is_expired` and
   the constructor stamp.
-- **M3** `prime_pool.rs` can orphan on-disk files under concurrent
-  access. Add `flock` or atomic-rename.
+- **M3** ✅ (round 7) `prime_pool.rs` could orphan on-disk files
+  under concurrent access if two background producers hit the same
+  nanosecond. Filename nonce now includes a 64-bit `OsRng` salt
+  alongside the wall-clock so collisions are cryptographically
+  unlikely; atomic `tmp → final` rename remains.
 - **M4** MPC structs derive `Debug` — debug logs may dump secret
   fields. Custom `Debug` + `#[derive(Zeroize)]` on secret wrappers.
 - **M5** FFI `Error::to_string()` can leak internal state to Swift;
@@ -220,9 +223,14 @@ Failures → typed error, never panic.
   RNG's cryptographic provenance per occurrence.
 - **L2** Error messages leak party indices. Low impact but external
   auditors will comment.
-- **L3** Dockerfile build stage runs as root. No runtime impact.
-- **L4** GHA workflows use mutable `@v3` / `@v4` tags rather than SHA
-  pins — supply-chain surface.
+- **L3** ✅ (round 7) Dockerfile build stage runs as root. Builder
+  stage now runs as uid 1000 (`builder` user); runtime stage was
+  already non-root. Eliminates the malicious-build-script-as-root
+  surface inside the build container.
+- **L4** ✅ (round 7) GHA workflows use mutable `@v3` / `@v4` tags
+  rather than SHA pins — supply-chain surface. All `uses:` lines in
+  `.github/workflows/{ci,relay-image}.yml` pinned to commit SHAs
+  with the human-readable tag in a trailing `# vN` comment.
 
 ---
 

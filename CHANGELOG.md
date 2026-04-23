@@ -128,6 +128,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     cryptographically secure, but auditors previously had to verify
     that fact every time it appeared; the unification removes the
     whole class of "is this the right RNG?" questions from review.
+- **Audit P0 round 7** — P2 supply-chain + concurrency batch.
+  - **M3** (medium) — Paillier prime-pool filename collision. Two
+    background producers calling `mpc::prime_pool::generate_one()`
+    on the same wall-clock nanosecond previously collided on the
+    `tmp` filename, risking clobbered writes. Nonce now combines
+    the nanosecond timestamp with a 64-bit `OsRng` salt so
+    collisions are cryptographically unlikely; the atomic
+    `tmp → final` rename remains so partially-written files are
+    never observed by `try_take`.
+  - **L3** (low) — `Dockerfile` builder stage now runs as a
+    non-root user (`builder`, uid 1000). Eliminates the
+    malicious-build-script-as-root surface inside the build
+    container; runtime image was already non-root. No build
+    artefact change.
+  - **L4** (low) — GitHub Actions workflows pinned to commit SHAs
+    instead of mutable `@v3` / `@v4` tags. Each `uses:` line in
+    `.github/workflows/{ci,relay-image}.yml` now references a
+    SHA-pinned action with a trailing `# vN` comment for human
+    readability. Closes the supply-chain window where a maintainer
+    of a dependent action could ship a malicious release under an
+    existing tag.
 
 ### Added
 

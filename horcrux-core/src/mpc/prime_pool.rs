@@ -26,6 +26,7 @@
 use cggmp21::security_level::SecurityLevel128;
 use cggmp21::PregeneratedPrimes;
 use rand::rngs::OsRng;
+use rand::RngCore;
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -141,10 +142,22 @@ pub fn generate_one() -> Result<(), String> {
         primes,
     };
     let bytes = serde_json::to_vec(&env).map_err(|e| format!("serialize: {e}"))?;
-    let nonce = SystemTime::now()
+    // M3 (audit `docs/security-audit-2026-04.md`): use a wall-clock + 64 bit
+    // OsRng nonce for the on-disk filename so two background producers
+    // hitting `generate_one()` on the same nanosecond can't collide on a
+    // tmp path and clobber each other's writes. Atomic rename then
+    // promotes tmp → final, so a partial write is never observed by
+    // `try_take`. The previous nanosecond-only nonce was theoretically
+    // racy on multi-core devices that happened to schedule both threads
+    // through the same clock tick.
+    let ns = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .map(|d| d.as_nanos())
         .unwrap_or(0);
+    let mut salt_buf = [0u8; 8];
+    OsRng.fill_bytes(&mut salt_buf);
+    let salt = u64::from_le_bytes(salt_buf);
+    let nonce = format!("{ns:x}-{salt:016x}");
     let tmp = dir.join(format!("{FILE_PREFIX}{nonce}.tmp"));
     let final_path = dir.join(format!("{FILE_PREFIX}{nonce}{FILE_SUFFIX}"));
     fs::write(&tmp, &bytes).map_err(|e| format!("write tmp: {e}"))?;
