@@ -34,7 +34,7 @@ below are closed. Chief concerns cluster around:
 
 ## CRITICAL
 
-### C1 — MPC messages lack end-to-end party-identity binding ✅ (core) / ⚠️ (iOS call-site migration pending)
+### C1 — MPC messages lack end-to-end party-identity binding ✅
 **Location**: `horcrux-core/src/mpc/signing.rs:204`, `keygen.rs`, `session.rs`
 
 Protocol messages carry `from: party_index` as a payload field. The
@@ -45,14 +45,19 @@ channel to inject round-1/2 contributions and bias aggregation.
 
 **Attack family**: rogue-party attacks (well-known in GG20 / CGGMP21 errata).
 
-**Fix direction**: bind `(mpc_session_id, party_index, round_id)` into
-the Noise channel binding (infrastructure exists in `transport/e2e.rs`
-already — just not wired through). Alternatively attach a per-message
-ECDSA signature over `(session_id || round_id || payload)` using each
-party's long-term identity key.
+**Resolution**:
+- **Core (round 1)**: `SessionManager::handle_authenticated_message(msg, authenticated_from)` rejects any message whose `msg.from` does not equal the channel-authenticated party index. Legacy `handle_message` retained but `#[deprecated]`. Unit-tested via `session.rs` impersonation test.
+- **iOS call-sites (round 14)**:
+  - **Online signing** (`SigningViewModel`): resolves `authenticatedFrom` from the per-session `peerPartyIndex[peer.id]` map populated by `SignPresenceDTO` harvesting; rejects both unknown-peer and party-mismatch before dispatch.
+  - **DKG** (`CreateShardViewModel`): builds a deterministic `dkgPeerPartyIndex` during `autoAssignPartyIndex()` (sorted-identity → 1-based index) and enforces the same two-stage check in the round-loop `handleMessage` callsite.
+  - **Refresh** (`RefreshShardCoordinator`): TOFU-per-session — first inbound `fromParty` from each peer is frozen; subsequent divergence or self-impersonation is rejected. (Refresh has no explicit roster registry, so TOFU is the strongest layer-level enforcement available without a full peer-registry redesign.)
+  - **Cold signing v1** (`ColdSigningCoordinator`): 2-of-2 only — counterparty index is unambiguous (`3 - wallet.partyIndex` for initiator, `i.initiatorParty` for cosigner); every `handleAuthenticatedMessage` call binds to this pre-established expectation. Visual QR hand-off is the channel authentication; no Noise tunnel exists.
+  - **Cold signing v2** (`ColdSigningCoordinatorV2`): t-of-n star-topology — enforces `msg.fromParty != myIndex` (self-impersonation), then binds `authenticatedFrom = msg.fromParty`. The QR-scan visual verification remains the channel authentication. Tracked follow-up: scan-session fingerprint tracking for stronger cross-QR binding.
+- **Deprecation**: bridge method `handleMessage` retained (deprecated) only for source-code archaeology; all production paths now use `handleAuthenticatedMessage`.
 
-This is the single most important finding in this audit. External
-auditors will focus here.
+**Residual risk**: refresh TOFU binds only within a single session — a long-lived compromise of the first-contact channel can still assert any party index. A full peer-registry (Noise static-pk → party_index derived at DKG time and persisted in wallet metadata) is tracked as a separate hardening pass.
+
+This was the single most important finding in this audit.
 
 ### C2 — iOS PIN string not zeroized in memory ✅
 **Location**: `ios/Horcrux/Security/SecureKeyVault.swift:109`

@@ -89,6 +89,17 @@ final class ColdSigningCoordinator: ObservableObject {
     private var messageHash: Data?
     private var shardData: Data?
     private var pendingRound2: [FfiMpcMessage] = []
+    /// Audit C1: in 2-of-2 cold signing the counterparty's party index
+    /// is unambiguous — for the initiator it's `3 - wallet.partyIndex`
+    /// (there are only two slots), for the cosigner it's the
+    /// `initiatorParty` captured from the invite QR. We stash it here
+    /// so every `handleAuthenticatedMessage` call binds `msg.from` to
+    /// this pre-established expectation; a mismatch aborts the
+    /// ceremony (typical cause: user scanned a QR from a different
+    /// device pair). The visual QR hand-off is the channel
+    /// authentication for cold flow — there is no Noise tunnel — so
+    /// this check is the strongest enforcement we can do here.
+    private var counterpartyIndex: UInt16 = 0
 
     init(bridge: HorcruxBridge) {
         self.bridge = bridge
@@ -109,6 +120,7 @@ final class ColdSigningCoordinator: ObservableObject {
         self.wallet = wallet
         self.messageHash = messageHash
         self.shardData = shardData
+        self.counterpartyIndex = (wallet.partyIndex == 1) ? 2 : 1
 
         let config = FfiHorcruxConfig(
             threshold: wallet.threshold,
@@ -213,7 +225,11 @@ final class ColdSigningCoordinator: ObservableObject {
         // will produce round-2 messages (signature shares).
         var produced: [FfiMpcMessage] = []
         for dto in r.messages {
-            let out = try bridge.handleMessage(dto.toFfi())
+            let ffi = dto.toFfi()
+            if ffi.fromParty != counterpartyIndex {
+                throw ColdError.walletMismatch
+            }
+            let out = try bridge.handleAuthenticatedMessage(ffi, authenticatedFrom: counterpartyIndex)
             produced.append(contentsOf: out)
         }
         pendingRound2 = produced
@@ -226,7 +242,11 @@ final class ColdSigningCoordinator: ObservableObject {
         // Final round. After feeding the cosigner's share, the MPC
         // engine should have a complete signature.
         for dto in r.messages {
-            _ = try bridge.handleMessage(dto.toFfi())
+            let ffi = dto.toFfi()
+            if ffi.fromParty != counterpartyIndex {
+                throw ColdError.walletMismatch
+            }
+            _ = try bridge.handleAuthenticatedMessage(ffi, authenticatedFrom: counterpartyIndex)
         }
         guard let sid = sessionId, let result = bridge.getSigningResult(sessionId: sid) else {
             throw ColdError.noSignatureProduced
@@ -262,6 +282,7 @@ final class ColdSigningCoordinator: ObservableObject {
 
         self.sessionId = i.sessionId
         self.messageHash = i.messageHash
+        self.counterpartyIndex = i.initiatorParty
 
         let config = FfiHorcruxConfig(
             threshold: i.threshold,
@@ -287,7 +308,11 @@ final class ColdSigningCoordinator: ObservableObject {
         // into our reply; anything tagged round-2 we stash for QR4.
         var pending2: [FfiMpcMessage] = []
         for dto in i.round1 {
-            let out = try bridge.handleMessage(dto.toFfi())
+            let ffi = dto.toFfi()
+            if ffi.fromParty != counterpartyIndex {
+                throw ColdError.walletMismatch
+            }
+            let out = try bridge.handleAuthenticatedMessage(ffi, authenticatedFrom: counterpartyIndex)
             for msg in out {
                 if msg.round == 2 {
                     pending2.append(msg)
@@ -307,7 +332,11 @@ final class ColdSigningCoordinator: ObservableObject {
     /// round-2 shares (if not already pending) and produce QR4.
     private func cosignerIngestRound2(_ r: ColdPacket.RoundPacket) throws {
         for dto in r.messages {
-            let out = try bridge.handleMessage(dto.toFfi())
+            let ffi = dto.toFfi()
+            if ffi.fromParty != counterpartyIndex {
+                throw ColdError.walletMismatch
+            }
+            let out = try bridge.handleAuthenticatedMessage(ffi, authenticatedFrom: counterpartyIndex)
             for msg in out where msg.round == 2 {
                 pendingRound2.append(msg)
             }

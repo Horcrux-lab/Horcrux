@@ -218,9 +218,16 @@ final class RefreshShardCoordinator: ObservableObject {
         // tuple false-matches successive rounds as duplicates. The
         // underlying CGGMP21 payload bytes are distinct across rounds,
         // so hashing them is both safe and correct.
+        // Refresh C1 (audit): refresh is n-of-n and does not carry an
+        // explicit roster registry, so we use a TOFU policy per session
+        // — the first MPC message from each channel peer fixes that
+        // peer's asserted party_index, and any later divergence is
+        // treated as impersonation and rejected. Also reject any
+        // message that claims to be from ourselves.
+        var refreshPeerPartyIndex: [String: UInt16] = [:]
         var seenPayloads: Set<Data> = []
         do {
-            for await (_, data) in stream {
+            for await (peer, data) in stream {
                 if Task.isCancelled { return }
                 let dto: MpcMessageDTO
                 do {
@@ -243,7 +250,20 @@ final class RefreshShardCoordinator: ObservableObject {
                 rebroadcast.cancel()
 
                 NSLog("[Refresh] inbound from party=\(inbound.fromParty) round=\(inbound.round) payload=\(inbound.payload.count)B")
-                let responses = try bridge.handleMessage(inbound)
+
+                if inbound.fromParty == wallet.partyIndex {
+                    SecureLog.error("[Refresh] C1 reject: inbound claims fromParty=\(inbound.fromParty) which is our own index")
+                    continue
+                }
+                if let already = refreshPeerPartyIndex[peer.id] {
+                    if already != inbound.fromParty {
+                        SecureLog.error("[Refresh] C1 reject: peer \(peer.id) previously claimed party \(already) but now claims \(inbound.fromParty) — impersonation attempt")
+                        continue
+                    }
+                } else {
+                    refreshPeerPartyIndex[peer.id] = inbound.fromParty
+                }
+                let responses = try bridge.handleAuthenticatedMessage(inbound, authenticatedFrom: inbound.fromParty)
                 NSLog("[Refresh]   handleMessage returned \(responses.count) responses")
                 await MainActor.run {
                     self.roundsCompleted = min(self.roundsCompleted + 1, self.approxTotalRounds)

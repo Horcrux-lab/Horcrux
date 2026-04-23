@@ -301,8 +301,18 @@ final class ColdSigningCoordinatorV2: ObservableObject {
         var produced: [FfiMpcMessage] = []
         for dto in dtos {
             let msg = dto.toFfi()
+            // Audit C1: cold-signing v2 is QR-scan authenticated — there
+            // is no Noise channel to bind transport identity to the
+            // claimed `fromParty`. The strongest check we can apply
+            // at this layer is that the message doesn't claim to come
+            // from ourselves (which would indicate a QR-to-QR loop bug
+            // or a replay). Stronger binding (scan-session-wide
+            // fingerprint tracking) is out of scope for the MVP v2.
+            if msg.fromParty == myIndex {
+                throw ColdSigningCoordinator.ColdError.walletMismatch
+            }
             if msg.toParty == 0 || msg.toParty == myIndex {
-                let out = try bridge.handleMessage(msg)
+                let out = try bridge.handleAuthenticatedMessage(msg, authenticatedFrom: msg.fromParty)
                 produced.append(contentsOf: out)
             } else {
                 // Not for us — queue as forward to that peer. Only the

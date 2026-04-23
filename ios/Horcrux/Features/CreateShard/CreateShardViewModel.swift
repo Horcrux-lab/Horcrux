@@ -391,6 +391,18 @@ final class CreateShardViewModel: ObservableObject {
         errorMessage = L10n.DKG.ceremonyCancel
     }
 
+    /// Mapping from a sender's identifier (the same projection used by
+    /// `autoAssignPartyIndex` — `peer.id` on relay, `peer.name` on WiFi-LAN)
+    /// back to the deterministic party index. Used at MPC
+    /// `handleAuthenticatedMessage` time so a payload's self-asserted
+    /// `fromParty` can be cross-checked against the Noise-authenticated
+    /// channel identity (audit C1).
+    private var dkgPeerPartyIndex: [String: UInt16] = [:]
+    /// The `peer → identifier` projection used by `autoAssignPartyIndex`.
+    /// Captured so the inbound-message handler looks up
+    /// `dkgPeerPartyIndex` in the same namespace the assignment used.
+    private var dkgPeerIdOf: (Peer) -> String = { $0.id }
+
     /// Auto-assign party index by sorting all participant IDs deterministically.
     /// Both devices independently reach the same assignment without negotiation.
     ///
@@ -428,6 +440,15 @@ final class CreateShardViewModel: ObservableObject {
         let myIndex = (allIds.firstIndex(of: localId) ?? 0) + 1
         NSLog("[DKG] Auto-assign party index: localId=\"\(localId)\", participants=\(allIds), myIndex=\(myIndex)")
         partyIndex = myIndex
+
+        // Persist the mapping so the MPC round loop can authenticate the
+        // claimed `fromParty` on each inbound message against the channel
+        // peer's deterministically-derived party index (audit C1).
+        dkgPeerIdOf = peerIdOf
+        dkgPeerPartyIndex.removeAll()
+        for (i, id) in allIds.enumerated() where id != localId {
+            dkgPeerPartyIndex[id] = UInt16(i + 1)
+        }
     }
 
     /// Legacy buffer (kept for API compatibility); unused now that the
@@ -523,8 +544,32 @@ final class CreateShardViewModel: ObservableObject {
                     NSLog("[DKG] Calling bridge.handleMessage (off-main) for round \(msgCount)...")
                     let session = bridge.session
                     let msgToProcess = msg
+
+                    // Audit C1: resolve the channel peer's deterministic
+                    // party index and cross-check it against the payload's
+                    // self-asserted `fromParty`. Deterministic sort in
+                    // `autoAssignPartyIndex` maps each participant's stable
+                    // transport identifier (peer.id on relay, peer.name on
+                    // WiFi-LAN) to a fixed party_index; any inbound packet
+                    // claiming a different `fromParty` than what this
+                    // mapping says for the sending peer is a rogue-party
+                    // attempt (well-known GG20/CGGMP21 errata) and must be
+                    // rejected. A missing mapping means the peer wasn't in
+                    // the ceremony roster — also rejected.
+                    let channelKey = self.dkgPeerIdOf(peer)
+                    guard let authenticatedFrom = self.dkgPeerPartyIndex[channelKey] else {
+                        SecureLog.warning("[DKG] C1 reject: peer \(channelKey) not in ceremony roster — dropping msg from=\(msg.fromParty)")
+                        msgCount -= 1
+                        return false
+                    }
+                    if msg.fromParty != authenticatedFrom {
+                        SecureLog.error("[DKG] C1 reject: peer \(channelKey) authenticated as party \(authenticatedFrom) but msg claims fromParty=\(msg.fromParty) — impersonation attempt")
+                        msgCount -= 1
+                        return false
+                    }
+
                     responses = try await Task.detached(priority: .userInitiated) {
-                        try session.handleMessage(msg: msgToProcess)
+                        try session.handleAuthenticatedMessage(msg: msgToProcess, authenticatedFrom: authenticatedFrom)
                     }.value
                 } catch {
                     NSLog("[DKG] handleMessage error: \(error.localizedDescription)")

@@ -1423,7 +1423,26 @@ final class SigningViewModel: ObservableObject {
                     }
 
                     NSLog("[signing] handleMessage from=%d to=%d r=%d (%dB)", msg.fromParty, msg.toParty, msg.round, data.count)
-                    let responses = try bridge.handleMessage(msg)
+
+                    // Audit C1 second gate: bind the MPC `from_party` field
+                    // (attacker-controllable JSON payload) to the party
+                    // index that the *authenticated Noise channel peer*
+                    // previously claimed via `SignPresenceDTO`. If the two
+                    // disagree, the packet is an impersonation attempt
+                    // (rogue-party attack) and must be rejected. If
+                    // `peerPartyIndex[peer.id]` is absent, the peer has
+                    // not yet registered a presence claim on this channel
+                    // and we have no basis to accept an MPC round message
+                    // from them.
+                    guard let authenticatedFrom = peerPartyIndex[peer.id] else {
+                        SecureLog.warning("[signing] C1 reject: peer \(peer.id) has no presence-claimed partyIndex yet — dropping MPC msg from=\(msg.fromParty)")
+                        continue
+                    }
+                    if msg.fromParty != authenticatedFrom {
+                        SecureLog.error("[signing] C1 reject: peer \(peer.id) authenticated as party \(authenticatedFrom) but MPC msg claims fromParty=\(msg.fromParty) — impersonation attempt")
+                        continue
+                    }
+                    let responses = try bridge.handleAuthenticatedMessage(msg, authenticatedFrom: authenticatedFrom)
                     NSLog("[signing] bridge produced %d responses", responses.count)
 
                     currentRound = Int(msg.round)

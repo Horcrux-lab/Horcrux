@@ -9,6 +9,41 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security
 
+- **Audit P0 round 14** — C1 iOS call-site migration to
+  `handleAuthenticatedMessage`. The core-side rejection (round 1)
+  only fires if call-sites actually pass the channel-authenticated
+  party index; round 14 completes the circuit across all five
+  signing / DKG / refresh / cold-signing surfaces.
+  - Online signing (`SigningViewModel`): resolves
+    `authenticatedFrom` from the per-session
+    `peerPartyIndex[peer.id]` map populated by `SignPresenceDTO`
+    harvesting; rejects unknown-peer and party-mismatch before
+    dispatch.
+  - DKG (`CreateShardViewModel`): builds a deterministic
+    `dkgPeerPartyIndex` during `autoAssignPartyIndex()`
+    (sorted-identity → 1-based index) and enforces the same
+    two-stage check in the round-loop handler.
+  - Refresh (`RefreshShardCoordinator`): TOFU-per-session — first
+    inbound `fromParty` from each peer is frozen; subsequent
+    divergence or self-impersonation is rejected. Stronger binding
+    (explicit peer-registry) is tracked as a separate hardening
+    pass since refresh lacks an explicit roster.
+  - Cold signing v1 (`ColdSigningCoordinator`): 2-of-2 only —
+    counterparty index is unambiguous (`3 - wallet.partyIndex`
+    for initiator, `i.initiatorParty` for cosigner); every
+    `handleAuthenticatedMessage` call binds to this
+    pre-established expectation. QR-scan visual hand-off is the
+    channel authentication.
+  - Cold signing v2 (`ColdSigningCoordinatorV2`): t-of-n
+    star-topology — rejects `msg.fromParty == myIndex`
+    (self-impersonation), then binds
+    `authenticatedFrom = msg.fromParty`. Stronger cross-QR
+    binding (scan-session fingerprint tracking) tracked as a v2
+    follow-up.
+  All five remaining audit findings (C1 iOS, C4 SignBegin,
+  H4 cert-pin, H8 EIP-712) are now closed; internal audit matrix
+  is fully green.
+
 - **Audit P0 round 13** — H8 EIP-712 domain separator validation.
   No EIP-712 code path existed at audit time, but to prevent a
   future integrator from skipping domain binding, added a
