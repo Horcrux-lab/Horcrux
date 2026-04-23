@@ -1,0 +1,74 @@
+name: Relay Smoke
+
+# Post-deploy health verification for a live horcrux-relay
+# instance. Runs `scripts/verify-relay-deploy.sh` against a
+# URL provided by the operator (manual dispatch) or a staging
+# URL injected via repository variable.
+#
+# This is a PASS/FAIL gate — the workflow fails if any of the
+# seven smoke checks fail (health, version pin, metrics auth,
+# admin auth, /ws/:room_id 101 upgrade + Sec-WebSocket-Accept,
+# TLS validity). The smoke script exits 0 on all-pass, 1 on
+# smoke failure, 2 on usage/env error.
+#
+# Intended use:
+#   - Manual trigger after `docker compose up -d` on staging /
+#     prod to confirm the deployment is reachable and correctly
+#     configured (admin endpoints are token-gated, TLS is valid,
+#     version matches what was just built).
+#   - On a cron (optional, not enabled by default) to detect
+#     drift / cert expiry.
+
+on:
+  workflow_dispatch:
+    inputs:
+      url:
+        description: "Relay base URL (e.g. https://relay.example.com)"
+        required: true
+        type: string
+      expect_version:
+        description: "Optional — expected relay version (defaults to Cargo.toml)"
+        required: false
+        type: string
+        default: ""
+      skip_admin:
+        description: "Skip admin-token checks (use for public-read-only deploys)"
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    name: verify-relay-deploy
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install openssl (for Sec-WebSocket-Accept derivation)
+        run: |
+          which openssl || sudo apt-get update && sudo apt-get install -y openssl
+
+      - name: Run smoke checks
+        env:
+          # Surface admin token from repo secret. Empty is OK — the
+          # script reports it as a non-fatal skip unless the deploy
+          # reports 200-without-token (which is a prod
+          # misconfiguration and fails the run).
+          RELAY_ADMIN_TOKEN: ${{ secrets.RELAY_ADMIN_TOKEN }}
+        run: |
+          set -euo pipefail
+          args=("${{ inputs.url }}")
+          if [[ -n "${{ inputs.expect_version }}" ]]; then
+            args+=(--expect-version "${{ inputs.expect_version }}")
+          fi
+          if [[ "${{ inputs.skip_admin }}" == "true" ]]; then
+            args+=(--skip-admin)
+          fi
+          if [[ -n "${RELAY_ADMIN_TOKEN:-}" ]]; then
+            args+=(--admin-token "$RELAY_ADMIN_TOKEN")
+          fi
+          ./scripts/verify-relay-deploy.sh "${args[@]}"
