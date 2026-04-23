@@ -9,6 +9,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security
 
+- **EIP-712 helper — 1inch Limit Order Protocol v3 vector**.
+  `chain::eip712_typed::tests::oneinch_limit_order_v3` covers the
+  Aggregation Router v5 (`0x1111111254EEB25477B68fb85Ed929f73A960582`)
+  Order struct — 10 fields mixing `uint256`, `address`, and dynamic
+  `bytes` — with zero-address `receiver` / `allowedSender`
+  (confirming H8 guards bind only the domain, not the message).
+  Digest `0x82ea31b5…b8a14a4d` cross-verified against ethers.js v6.
+  5 dApp vectors now locked (canonical Mail, USDC Permit, DAI
+  Permit, Permit2, Seaport, 1inch).
+
+### Docs
+
+- **README.md** — mentions the EIP-712 helper in the security
+  bullet list, links to `docs/eip712-typed-data.md`, and points
+  the Documentation section at `docs/README.md` (the new audit-
+  facing index) plus `docs/security-audit-2026-04.md`.
+
+### Security
+
 - **EIP-712 helper — `salt` domain field + FFI roundtrip tests**.
   Closes the last untested code paths:
   - `domain_with_salt_bytes32` — EIP712Domain with the rare 5th

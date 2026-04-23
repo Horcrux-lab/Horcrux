@@ -1167,6 +1167,64 @@ mod tests {
         );
     }
 
+    /// 1inch Limit Order Protocol v3 (Aggregation Router v5,
+    /// mainnet router `0x1111111254EEB25477B68fb85Ed929f73A960582`).
+    /// Exercises a 10-field Order struct that mixes uint256,
+    /// address, and dynamic bytes — a realistic
+    /// DEX-aggregator payload. Zero-address fields
+    /// (`receiver`, `allowedSender`) are valid in the message
+    /// (H8 guards only bind the domain). Digest cross-verified
+    /// against ethers.js v6 TypedDataEncoder.hash().
+    #[test]
+    fn oneinch_limit_order_v3() {
+        let json = r#"{
+            "types": {
+                "EIP712Domain": [
+                    {"name":"name","type":"string"},
+                    {"name":"version","type":"string"},
+                    {"name":"chainId","type":"uint256"},
+                    {"name":"verifyingContract","type":"address"}
+                ],
+                "Order": [
+                    {"name":"salt","type":"uint256"},
+                    {"name":"makerAsset","type":"address"},
+                    {"name":"takerAsset","type":"address"},
+                    {"name":"maker","type":"address"},
+                    {"name":"receiver","type":"address"},
+                    {"name":"allowedSender","type":"address"},
+                    {"name":"makingAmount","type":"uint256"},
+                    {"name":"takingAmount","type":"uint256"},
+                    {"name":"offsets","type":"uint256"},
+                    {"name":"interactions","type":"bytes"}
+                ]
+            },
+            "primaryType": "Order",
+            "domain": {
+                "name": "1inch Aggregation Router",
+                "version": "5",
+                "chainId": 1,
+                "verifyingContract": "0x1111111254EEB25477B68fb85Ed929f73A960582"
+            },
+            "message": {
+                "salt": "1234567890",
+                "makerAsset": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+                "takerAsset": "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2",
+                "maker": "0xaAaAaAaaAaAaAaaAaAAAAAAAAaaaAaAaAaaAaaAa",
+                "receiver": "0x0000000000000000000000000000000000000000",
+                "allowedSender": "0x0000000000000000000000000000000000000000",
+                "makingAmount": "1000000000",
+                "takingAmount": "500000000000000000",
+                "offsets": "0",
+                "interactions": "0x"
+            }
+        }"#;
+        let d = eip712_digest_from_typed_data_json(json).unwrap();
+        assert_eq!(
+            hex(&d),
+            "82ea31b5509fc33a1ca461ae7b3dff95ef9c34056e435d25bf62dc8fb8a14a4d"
+        );
+    }
+
     /// DAI mainnet Permit — uses `allowed: bool` instead of
     /// `value: uint256`, exercising the bool encoding path (not
     /// touched by USDC Permit or Permit2). Cross-verified against
