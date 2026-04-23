@@ -279,6 +279,15 @@ final class SigningViewModel: ObservableObject {
     // presence reducer; cleared by regenerateRoomCode/resignToSame.
     var peerPartyIndex: [String: UInt16] = [:]
 
+    /// Maps an `inbound-<endpoint>` WiFi-LAN listener peer id to the
+    /// canonical outbound peer id under which its partyIndex was
+    /// registered in `peerPartyIndex`. Populated by the presence
+    /// reducer; consulted by the MPC round handler so the C1
+    /// second-gate (`decideSigningBinding`) can authenticate MPC
+    /// packets that arrive on the inbound socket without triggering
+    /// `rejectNoPresenceClaim` for every legitimate cosigner.
+    var inboundPeerAlias: [String: String] = [:]
+
     /// Audit C1 (round 12) — outcome of binding an inbound MPC
     /// message's `msg.from_party` claim to the Noise-authenticated
     /// channel peer it arrived on. Exposed as a pure enum +
@@ -786,6 +795,7 @@ final class SigningViewModel: ObservableObject {
         roomJoined = false
         roomJoinError = nil
         peerPartyIndex.removeAll()
+        inboundPeerAlias.removeAll()
         kickedPeerIds.removeAll()
         rebuildJoinedSigners()
         prepareInvite()
@@ -805,6 +815,7 @@ final class SigningViewModel: ObservableObject {
     func kickPeer(_ peer: Peer) {
         kickedPeerIds.insert(peer.id)
         peerPartyIndex.removeValue(forKey: peer.id)
+        inboundPeerAlias = inboundPeerAlias.filter { $0.value != peer.id && $0.key != peer.id }
         joinedSigners.removeAll { $0.id == peer.id }
         SecureLog.info("[signing] kicked peer \(peer.id) from ceremony")
     }
@@ -831,6 +842,7 @@ final class SigningViewModel: ObservableObject {
         presenceListenerTask = nil
         joinedSigners.removeAll()
         peerPartyIndex.removeAll()
+        inboundPeerAlias.removeAll()
         kickedPeerIds.removeAll()
         peerStates.removeAll()
         peerRounds.removeAll()
@@ -962,6 +974,17 @@ final class SigningViewModel: ObservableObject {
                             ($0.name == dto.deviceName || $0.id == dto.deviceName)
                         }) {
                             keyId = match.id
+                        }
+                        // Remember the inbound→canonical mapping so the
+                        // MPC round handler below can translate
+                        // `inbound-*` peer ids into the canonical id
+                        // used as the `peerPartyIndex` key. Without this
+                        // the C1 second-gate always fires
+                        // `rejectNoPresenceClaim` for WiFi-LAN cosigners
+                        // — the exact symptom that made DKG ceremonies
+                        // freeze on round 1.
+                        if keyId != peer.id {
+                            self.inboundPeerAlias[peer.id] = keyId
                         }
                     }
                     self.peerPartyIndex[keyId] = idx
@@ -1466,8 +1489,14 @@ final class SigningViewModel: ObservableObject {
                     // previously claimed via `SignPresenceDTO`. Delegate
                     // the decision to a pure function so every branch is
                     // unit-testable in isolation.
+                    //
+                    // WiFi-LAN inbound sockets carry no identity of
+                    // their own (peer.id = `inbound-<endpoint>`), so we
+                    // canonicalize to the outbound peer id recorded by
+                    // the presence reducer before consulting the map.
+                    let resolvedPeerId = inboundPeerAlias[peer.id] ?? peer.id
                     let decision = Self.decideSigningBinding(
-                        peerId: peer.id,
+                        peerId: resolvedPeerId,
                         claimedFromParty: msg.fromParty,
                         presenceMap: peerPartyIndex
                     )

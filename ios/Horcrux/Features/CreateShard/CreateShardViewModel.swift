@@ -182,6 +182,24 @@ final class CreateShardViewModel: ObservableObject {
                     }
                     if pres.deviceName != DeviceIdentity.displayName {
                         self.roomPresence[pres.deviceName] = pres
+                        // Remember which inbound socket peer corresponds to
+                        // which canonical deviceName so C1 roster lookups on
+                        // MPC packets arriving through the listener succeed.
+                        // We intentionally *don't* overwrite an existing
+                        // alias with a different deviceName — an inbound
+                        // socket that flips identity mid-ceremony would
+                        // indicate either a NAT reuse collision (rare on
+                        // LAN) or an impersonation attempt; in either case
+                        // the stale binding is preferred so the
+                        // `rejectIndexMismatch` branch fires on the next
+                        // MPC packet instead of silently rebinding.
+                        if peer.id.hasPrefix("inbound-") {
+                            if let existing = self.inboundPeerAlias[peer.id], existing != pres.deviceName {
+                                SecureLog.warning("[DKG] presence: inbound peer \(peer.id.prefix(24)) already aliased to \(existing) — refusing to rebind as \(pres.deviceName)")
+                            } else {
+                                self.inboundPeerAlias[peer.id] = pres.deviceName
+                            }
+                        }
                     }
                     continue
                 }
@@ -223,6 +241,7 @@ final class CreateShardViewModel: ObservableObject {
         dkgMessageContinuation?.finish()
         dkgMessageContinuation = nil
         dkgMessageStream = nil
+        inboundPeerAlias.removeAll()
     }
 
     /// One presence broadcast.
@@ -445,6 +464,40 @@ final class CreateShardViewModel: ObservableObject {
     /// `dkgPeerPartyIndex` in the same namespace the assignment used.
     private var dkgPeerIdOf: (Peer) -> String = { $0.id }
 
+    /// Maps an `inbound-<endpoint>` WiFi-LAN peer id (created by the
+    /// listener's accept callback — carries no identity information
+    /// of its own) to the canonical participant identifier used by
+    /// `autoAssignPartyIndex` on the sending side. Populated from
+    /// `RoomPresenceDTO` broadcasts: when a presence packet arrives
+    /// on an inbound socket peer, the DTO's `deviceName` is recorded
+    /// here so subsequent MPC packets arriving on the same socket
+    /// can be resolved to the same Bonjour display name every other
+    /// side of the ceremony used when building its roster.
+    ///
+    /// Without this map the C1 roster lookup at MPC-receive time
+    /// would always miss for WiFi-LAN cosigners (`peer.name` on the
+    /// listener side is the generic "LAN Peer" stub, while the
+    /// roster was keyed by the Bonjour service display name), and
+    /// every legitimate DKG round-1 packet would be dropped with
+    /// `rejectUnknownPeer` — causing ceremonies to freeze.
+    private var inboundPeerAlias: [String: String] = [:]
+
+    /// Resolves the channel identifier the DKG roster was built
+    /// with for a peer that just delivered an MPC packet. For
+    /// outbound Bonjour / relay peers this is a no-op. For WiFi-LAN
+    /// `inbound-*` stubs it reprojects through `dkgPeerIdOf` using
+    /// the alias captured at presence time, so the same peer
+    /// matches both outbound (roster build) and inbound (MPC deliver)
+    /// code paths.
+    private func resolveChannelKey(_ peer: Peer) -> String {
+        if peer.id.hasPrefix("inbound-"),
+           let alias = inboundPeerAlias[peer.id] {
+            let aliased = Peer(id: alias, name: alias, channel: peer.channel)
+            return dkgPeerIdOf(aliased)
+        }
+        return dkgPeerIdOf(peer)
+    }
+
     /// Auto-assign party index by sorting all participant IDs deterministically.
     /// Both devices independently reach the same assignment without negotiation.
     ///
@@ -598,7 +651,7 @@ final class CreateShardViewModel: ObservableObject {
                     // attempt (well-known GG20/CGGMP21 errata) and must be
                     // rejected. A missing mapping means the peer wasn't in
                     // the ceremony roster — also rejected.
-                    let channelKey = self.dkgPeerIdOf(peer)
+                    let channelKey = self.resolveChannelKey(peer)
                     let decision = Self.decideDkgBinding(
                         channelKey: channelKey,
                         claimedFromParty: msg.fromParty,
