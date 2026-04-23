@@ -182,23 +182,29 @@ final class CreateShardViewModel: ObservableObject {
                     }
                     if pres.deviceName != DeviceIdentity.displayName {
                         self.roomPresence[pres.deviceName] = pres
-                        // Remember which inbound socket peer corresponds to
-                        // which canonical deviceName so C1 roster lookups on
-                        // MPC packets arriving through the listener succeed.
-                        // We intentionally *don't* overwrite an existing
-                        // alias with a different deviceName — an inbound
-                        // socket that flips identity mid-ceremony would
-                        // indicate either a NAT reuse collision (rare on
-                        // LAN) or an impersonation attempt; in either case
-                        // the stale binding is preferred so the
-                        // `rejectIndexMismatch` branch fires on the next
-                        // MPC packet instead of silently rebinding.
-                        if peer.id.hasPrefix("inbound-") {
-                            if let existing = self.inboundPeerAlias[peer.id], existing != pres.deviceName {
-                                SecureLog.warning("[DKG] presence: inbound peer \(peer.id.prefix(24)) already aliased to \(existing) — refusing to rebind as \(pres.deviceName)")
-                            } else {
-                                self.inboundPeerAlias[peer.id] = pres.deviceName
-                            }
+                        // Remember which transport peer identifier
+                        // corresponds to which canonical deviceName so
+                        // C1 roster lookups on MPC packets succeed
+                        // regardless of which transport delivered the
+                        // packet (WiFi-LAN inbound listener stubs,
+                        // outbound Bonjour, and relay peers all share
+                        // this alias map — keyed on `peer.id`, which
+                        // is a per-transport-unique value).
+                        //
+                        // We intentionally *don't* overwrite an
+                        // existing alias with a different deviceName
+                        // — an inbound socket or relay control-slot
+                        // that flips identity mid-ceremony would
+                        // indicate either a NAT reuse collision
+                        // (rare on LAN) or an impersonation attempt;
+                        // in either case the stale binding is
+                        // preferred so the `rejectIndexMismatch`
+                        // branch fires on the next MPC packet instead
+                        // of silently rebinding.
+                        if let existing = self.inboundPeerAlias[peer.id], existing != pres.deviceName {
+                            SecureLog.warning("[DKG] presence: peer \(peer.id.prefix(24)) already aliased to \(existing) — refusing to rebind as \(pres.deviceName)")
+                        } else {
+                            self.inboundPeerAlias[peer.id] = pres.deviceName
                         }
                     }
                     continue
@@ -492,8 +498,7 @@ final class CreateShardViewModel: ObservableObject {
     /// matches both outbound (roster build) and inbound (MPC deliver)
     /// code paths.
     private func resolveChannelKey(_ peer: Peer) -> String {
-        if peer.id.hasPrefix("inbound-"),
-           let alias = inboundPeerAlias[peer.id] {
+        if let alias = inboundPeerAlias[peer.id] {
             let aliased = Peer(id: alias, name: alias, channel: peer.channel)
             return dkgPeerIdOf(aliased)
         }
