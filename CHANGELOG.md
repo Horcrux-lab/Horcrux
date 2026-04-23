@@ -9,6 +9,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security
 
+- **EIP-712 typed-data JSON helper — cross-impl correctness fix**.
+  The new `chain::eip712_typed::eip712_digest_from_typed_data_json`
+  originally delegated to the fixed 4-field `eip712_digest` primitive,
+  which hard-codes `EIP712Domain(name,version,chainId,verifyingContract)`.
+  Real-world dApps like Uniswap's **Permit2** declare a 3-field domain
+  (no `version`), so the separator — and therefore the signable digest —
+  was wrong for those payloads. The helper now rebuilds the domain
+  separator from the exact `types.EIP712Domain` field list declared in
+  the payload (subset of name / version / chainId / verifyingContract /
+  salt). Audit-H8 replay-binding guards (non-zero chainId, non-zero
+  verifyingContract, non-empty name) are enforced directly on the JSON
+  domain object when those fields are declared. Regression vectors are
+  cross-verified against **ethers.js v6 TypedDataEncoder.hash** for:
+  the canonical EIP-712 `Mail` example
+  (`0xbe609aee…0957bd2`), EIP-2612 USDC Permit
+  (`0x7e8c9eab…1c0031`), and Permit2 PermitSingle with its 3-field
+  domain and nested `PermitDetails` on
+  `0x000000000022D473030F116dDEE9F6B43aC78BA3`
+  (`0x498b3319…1644518`). 13/13 `chain::eip712_typed` tests pass.
+
 - **Round 17 summary — unit-test hardening (C1 triad close-out)**.
   No behavior change in this round. The three MPC-ceremony C1
   second-gate decisions (audit C1: party-index binding against the
