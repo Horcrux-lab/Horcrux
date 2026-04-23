@@ -39,6 +39,11 @@ struct JoinSigningView: View {
     @State private var listenerTask: Task<Void, Never>?
     @State private var listenerSubId: UUID?
     @State private var showPinSheet = false
+    /// Explicit consent toggle for destructive EVM calls decoded from
+    /// `SignRequestDTO.dataHex` (unlimited `approve`, `setApprovalForAll true`).
+    /// Reset whenever a new DTO is received so previously-dismissed warnings
+    /// don't auto-satisfy the new request.
+    @State private var explicitDecodedConsent = false
     @State private var showScanner = false
     @State private var didAutoJoin = false
     /// Mirror of `appState.peerManager.wifiLAN.discoveredPeers`. SwiftUI does
@@ -358,6 +363,17 @@ struct JoinSigningView: View {
                     .foregroundStyle(HorcruxTheme.warningAmber)
                     .padding(.horizontal, 4)
 
+                // C4: decode the initiator's claimed calldata (if any)
+                // and render what the cosigner is actually being asked
+                // to sign. For native transfers `dataHex` is nil/empty
+                // and we skip this block entirely.
+                if let decoded = decodedCall(for: dto) {
+                    DecodedCallView(
+                        decoded: decoded,
+                        explicitConsent: $explicitDecodedConsent
+                    )
+                }
+
                 Button {
                     approve(dto: dto, wallet: wallet)
                 } label: {
@@ -365,6 +381,7 @@ struct JoinSigningView: View {
                         .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(GradientButtonStyle(tint: chainTint))
+                .disabled(!approvalAllowed(for: dto))
 
                 Button {
                     ApprovalRequestStore.shared.enqueue(from: dto)
@@ -421,6 +438,52 @@ struct JoinSigningView: View {
                 .foregroundStyle(.white)
                 .multilineTextAlignment(.trailing)
         }
+    }
+
+    /// Decode the initiator-supplied EVM calldata (`SignRequestDTO.dataHex`)
+    /// so the reviewView can render a source-of-truth summary of the
+    /// contract interaction (audit C4). Returns nil for native transfers
+    /// and for legacy DTOs produced by pre-dev.136 initiators that
+    /// didn't carry the calldata field.
+    private func decodedCall(for dto: SignRequestDTO) -> FfiDecodedCall? {
+        guard let hex = dto.dataHex, !hex.isEmpty,
+              let bytes = Self.hexDataLower(hex) else { return nil }
+        // `horcruxDecodeEvmCalldata` is a pure FFI helper — no bridge
+        // instance required. See `HorcruxBridge.decodeEvmCalldata(_:)`
+        // for the instance-level wrapper used elsewhere.
+        return horcruxDecodeEvmCalldata(data: bytes)
+    }
+
+    /// Whether the Approve button should be tappable. Always true when
+    /// there's no decoded call (native transfers / legacy DTO). When a
+    /// destructive call is decoded (unlimited approval or
+    /// `setApprovalForAll(true)`), gated behind the explicit-consent
+    /// toggle the cosigner must tick in `DecodedCallView`.
+    private func approvalAllowed(for dto: SignRequestDTO) -> Bool {
+        guard let decoded = decodedCall(for: dto) else { return true }
+        switch decoded {
+        case .erc20Approve(_, _, let isUnlimited):
+            return !isUnlimited || explicitDecodedConsent
+        case .setApprovalForAll(_, let approved):
+            return !approved || explicitDecodedConsent
+        default:
+            return true
+        }
+    }
+
+    private static func hexDataLower(_ hex: String) -> Data? {
+        var s = hex
+        if s.hasPrefix("0x") || s.hasPrefix("0X") { s.removeFirst(2) }
+        guard s.count % 2 == 0 else { return nil }
+        var out = Data(capacity: s.count / 2)
+        var idx = s.startIndex
+        while idx < s.endIndex {
+            let next = s.index(idx, offsetBy: 2)
+            guard let b = UInt8(s[idx..<next], radix: 16) else { return nil }
+            out.append(b)
+            idx = next
+        }
+        return out
     }
 
     private func unmatchedView(dto: SignRequestDTO) -> some View {
@@ -611,6 +674,11 @@ struct JoinSigningView: View {
                 await MainActor.run {
                     SecureLog.debug("[join] reviewing dto session=\(dto.sessionId) amount=\(dto.amount) chain=\(dto.chain) expected=\(expectedCode ?? "nil")")
                     if let wallet = match {
+                        // Reset the destructive-call consent gate for each
+                        // fresh DTO so a user who previously ticked
+                        // "UNLIMITED approval OK" can't have that carry
+                        // over to a new signing request (audit C4).
+                        self.explicitDecodedConsent = false
                         self.phase = .reviewing(dto, wallet)
                     } else {
                         self.phase = .unmatchedWallet(dto)

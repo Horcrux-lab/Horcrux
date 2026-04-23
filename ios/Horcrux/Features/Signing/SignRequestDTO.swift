@@ -152,6 +152,18 @@ struct SignRequestDTO: Codable {
     /// so the cosigner sees who is asking.
     let initiatorDeviceName: String
 
+    /// Hex-encoded calldata (no `0x` prefix) the initiator intends to
+    /// sign. Populated for ERC-20 token transfers / approvals and other
+    /// EVM contract calls; `nil` for native coin transfers and for
+    /// pre-dev.136 initiators that didn't ship this field. When present
+    /// the cosigner decodes it via `HorcruxBridge.decodeEvmCalldata` and
+    /// cross-checks the decoded intent against the self-reported
+    /// `tokenContract` / `amount` / `recipient` fields — protects
+    /// against a malicious initiator who reports a benign payload in the
+    /// DTO but actually signs a different contract call (audit finding
+    /// C4). Kept optional for wire-format back-compat.
+    let dataHex: String?
+
     init(
         sessionId: String,
         groupPublicKey: String,
@@ -162,7 +174,8 @@ struct SignRequestDTO: Codable {
         tokenSymbol: String? = nil,
         tokenDecimals: UInt8? = nil,
         feeDisplay: String? = nil,
-        initiatorDeviceName: String
+        initiatorDeviceName: String,
+        dataHex: String? = nil
     ) {
         self.magic = Self.magic
         self.sessionId = sessionId
@@ -175,5 +188,6 @@ struct SignRequestDTO: Codable {
         self.tokenDecimals = tokenDecimals
         self.feeDisplay = feeDisplay
         self.initiatorDeviceName = initiatorDeviceName
+        self.dataHex = dataHex
     }
 }

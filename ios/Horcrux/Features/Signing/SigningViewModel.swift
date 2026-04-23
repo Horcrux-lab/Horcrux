@@ -945,6 +945,16 @@ final class SigningViewModel: ObservableObject {
 
     private func buildSignRequestDTO() -> SignRequestDTO {
         let gpkHex = wallet.groupPublicKey.map { String(format: "%02x", $0) }.joined()
+        // For ERC-20 token transfers we can reconstruct the calldata
+        // deterministically at invite-time so the cosigner sees what
+        // they'll actually sign before approving (audit finding C4).
+        // Native transfers and non-EVM chains leave this nil.
+        let dataHex: String? = {
+            guard wallet.chain.isEVM, let token = selectedToken else { return nil }
+            let raw = Self.amountToRawUnits(amount, decimals: Int(token.decimals))
+            let bytes = Self.erc20TransferCalldata(to: recipientAddress, amountRaw: raw)
+            return bytes.map { String(format: "%02x", $0) }.joined()
+        }()
         return SignRequestDTO(
             sessionId: roomCode,
             groupPublicKey: gpkHex,
@@ -955,7 +965,8 @@ final class SigningViewModel: ObservableObject {
             tokenSymbol: selectedToken?.symbol,
             tokenDecimals: selectedToken.map { $0.decimals },
             feeDisplay: estimatedFee == "—" ? nil : estimatedFee,
-            initiatorDeviceName: DeviceIdentity.displayName
+            initiatorDeviceName: DeviceIdentity.displayName,
+            dataHex: dataHex
         )
     }
 

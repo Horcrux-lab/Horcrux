@@ -62,6 +62,42 @@ enum L10n {
         }
     }
 
+    // MARK: - Decoded Call (audit finding C4)
+
+    enum DecodedCall {
+        static let titleNativeTransfer = NSLocalizedString("decodedCall.title.nativeTransfer", comment: "")
+        static let titleErc20Transfer = NSLocalizedString("decodedCall.title.erc20Transfer", comment: "")
+        static let titleErc20TransferFrom = NSLocalizedString("decodedCall.title.erc20TransferFrom", comment: "")
+        static let titleApprove = NSLocalizedString("decodedCall.title.approve", comment: "")
+        static let titleApproveUnlimited = NSLocalizedString("decodedCall.title.approveUnlimited", comment: "")
+        static let titleSetApprovalForAllTrue = NSLocalizedString("decodedCall.title.setApprovalForAllTrue", comment: "")
+        static let titleSetApprovalForAllFalse = NSLocalizedString("decodedCall.title.setApprovalForAllFalse", comment: "")
+        static let titleUnknown = NSLocalizedString("decodedCall.title.unknown", comment: "")
+
+        static let fieldKind = NSLocalizedString("decodedCall.field.kind", comment: "")
+        static let fieldFrom = NSLocalizedString("decodedCall.field.from", comment: "")
+        static let fieldTo = NSLocalizedString("decodedCall.field.to", comment: "")
+        static let fieldSpender = NSLocalizedString("decodedCall.field.spender", comment: "")
+        static let fieldOperator = NSLocalizedString("decodedCall.field.operator", comment: "")
+        static let fieldApproved = NSLocalizedString("decodedCall.field.approved", comment: "")
+        static let fieldAmountRaw = NSLocalizedString("decodedCall.field.amountRaw", comment: "")
+        static let fieldSelector = NSLocalizedString("decodedCall.field.selector", comment: "")
+        static let fieldPayloadSize = NSLocalizedString("decodedCall.field.payloadSize", comment: "")
+
+        static let amountUnlimited = NSLocalizedString("decodedCall.amount.unlimited", comment: "")
+        static let approvedYes = NSLocalizedString("decodedCall.approved.yes", comment: "")
+        static let approvedNo = NSLocalizedString("decodedCall.approved.no", comment: "")
+
+        static let warnApprove = NSLocalizedString("decodedCall.warn.approve", comment: "")
+        static let warnApproveUnlimited = NSLocalizedString("decodedCall.warn.approveUnlimited", comment: "")
+        static let warnSetApprovalForAll = NSLocalizedString("decodedCall.warn.setApprovalForAll", comment: "")
+        static let warnTransferFrom = NSLocalizedString("decodedCall.warn.transferFrom", comment: "")
+        static let warnUnknown = NSLocalizedString("decodedCall.warn.unknown", comment: "")
+
+        static let consentUnlimitedApprove = NSLocalizedString("decodedCall.consent.unlimitedApprove", comment: "")
+        static let consentSetApprovalForAll = NSLocalizedString("decodedCall.consent.setApprovalForAll", comment: "")
+    }
+
     // MARK: - App
 
     enum App {

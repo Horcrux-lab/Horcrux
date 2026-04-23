@@ -1136,6 +1136,38 @@
 "joinSigning.nearbyDevices" = "同一局域网内的设备";
 "joinSigning.nearbySearching" = "正在搜索附近设备…";
 
+"decodedCall.title.nativeTransfer" = "原生转账";
+"decodedCall.title.erc20Transfer" = "ERC-20 转账";
+"decodedCall.title.erc20TransferFrom" = "ERC-20 代扣转账";
+"decodedCall.title.approve" = "代币授权";
+"decodedCall.title.approveUnlimited" = "无限额度代币授权";
+"decodedCall.title.setApprovalForAllTrue" = "授权全部 NFT";
+"decodedCall.title.setApprovalForAllFalse" = "撤销 NFT 授权";
+"decodedCall.title.unknown" = "未识别的合约调用";
+
+"decodedCall.field.kind" = "类型";
+"decodedCall.field.from" = "来自";
+"decodedCall.field.to" = "接收地址";
+"decodedCall.field.spender" = "授权地址";
+"decodedCall.field.operator" = "操作者";
+"decodedCall.field.approved" = "是否授权";
+"decodedCall.field.amountRaw" = "金额（原始值）";
+"decodedCall.field.selector" = "函数选择子";
+"decodedCall.field.payloadSize" = "数据长度";
+
+"decodedCall.amount.unlimited" = "无限额";
+"decodedCall.approved.yes" = "是";
+"decodedCall.approved.no" = "否";
+
+"decodedCall.warn.approve" = "你正在允许对方从你的钱包转出该代币。";
+"decodedCall.warn.approveUnlimited" = "该合约将能从你的钱包里转出任意数量的此代币，直到你手动撤销授权。";
+"decodedCall.warn.setApprovalForAll" = "这将授权操作者控制该合集下你拥有的全部 NFT，包括未来收到的。";
+"decodedCall.warn.transferFrom" = "这会从另一个地址拉取代币，请确认对方已向你授权。";
+"decodedCall.warn.unknown" = "该调用不属于已知代币操作。请先通过其他渠道核实合约与函数后再批准。";
+
+"decodedCall.consent.unlimitedApprove" = "我已理解这是一次无限额度的代币授权。";
+"decodedCall.consent.setApprovalForAll" = "我已理解这会授权我整个 NFT 合集。";
+
 "token.generic" = "代币";
 
 "vaultError.notProvisioned" = "本设备尚未设置本地备份。";

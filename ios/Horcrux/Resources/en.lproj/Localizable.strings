@@ -1135,6 +1135,38 @@
 "joinSigning.nearbyDevices" = "Devices on this Wi-Fi";
 "joinSigning.nearbySearching" = "Searching nearby devices…";
 
+"decodedCall.title.nativeTransfer" = "Native transfer";
+"decodedCall.title.erc20Transfer" = "ERC-20 transfer";
+"decodedCall.title.erc20TransferFrom" = "ERC-20 transferFrom";
+"decodedCall.title.approve" = "Token approval";
+"decodedCall.title.approveUnlimited" = "UNLIMITED token approval";
+"decodedCall.title.setApprovalForAllTrue" = "Approve ALL NFTs";
+"decodedCall.title.setApprovalForAllFalse" = "Revoke NFT approval";
+"decodedCall.title.unknown" = "Unknown contract call";
+
+"decodedCall.field.kind" = "Kind";
+"decodedCall.field.from" = "From";
+"decodedCall.field.to" = "To";
+"decodedCall.field.spender" = "Spender";
+"decodedCall.field.operator" = "Operator";
+"decodedCall.field.approved" = "Approved";
+"decodedCall.field.amountRaw" = "Amount (raw)";
+"decodedCall.field.selector" = "Selector";
+"decodedCall.field.payloadSize" = "Payload size";
+
+"decodedCall.amount.unlimited" = "UNLIMITED";
+"decodedCall.approved.yes" = "YES";
+"decodedCall.approved.no" = "No";
+
+"decodedCall.warn.approve" = "You are granting another address permission to move this token from your wallet.";
+"decodedCall.warn.approveUnlimited" = "This contract will be able to spend ANY amount of this token from your wallet until you explicitly revoke the approval.";
+"decodedCall.warn.setApprovalForAll" = "This grants the operator control over EVERY NFT in this collection, including ones you receive in the future.";
+"decodedCall.warn.transferFrom" = "This pulls tokens from another address — confirm the sender has granted you allowance.";
+"decodedCall.warn.unknown" = "The calldata doesn't match a known token method. Verify the contract and function out-of-band before approving.";
+
+"decodedCall.consent.unlimitedApprove" = "I understand this is an UNLIMITED token approval.";
+"decodedCall.consent.setApprovalForAll" = "I understand this approves my entire NFT collection.";
+
 "token.generic" = "Token";
 
 "vaultError.notProvisioned" = "Local backup is not set up on this device yet.";
