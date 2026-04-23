@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security
+
+- **MPC wire-payload robustness** (round 19). Added nine per-type
+  proptests in `mpc::prop_tests` covering every attacker-reachable
+  `serde_json::from_slice` call along the signing / keygen message
+  path: `SignRound1`/`SignRound2` (Schnorr), `Round1Broadcast`/
+  `Round2Share` (Feldman DKG), `FrostDkgRound1`/`FrostDkgRound2` /
+  `FrostSignRound1`/`FrostSignRound2`, and `EcdsaWireMsg` (CGGMP21).
+  Each runs 256 arbitrary-byte cases (≤ 4 KiB) and only asserts the
+  decoder does not panic — a malicious cosigner cannot turn a
+  malformed payload into a host-process crash. Companion cargo-fuzz
+  target `mpc_payload` multiplexes all nine parsers through a
+  1-byte dispatcher for coverage-guided exploration.
+
 ## [0.5.0-rc.2] - 2026-04-23
 
 Second pre-audit release candidate. Consolidates the round-16 → round-18

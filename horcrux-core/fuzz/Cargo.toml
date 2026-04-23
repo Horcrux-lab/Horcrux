@@ -40,3 +40,10 @@ path = "fuzz_targets/noise_handshake.rs"
 test = false
 doc = false
 bench = false
+
+[[bin]]
+name = "mpc_payload"
+path = "fuzz_targets/mpc_payload.rs"
+test = false
+doc = false
+bench = false

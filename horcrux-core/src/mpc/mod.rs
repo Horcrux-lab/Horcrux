@@ -124,3 +124,79 @@ mod config_tests {
         assert!(HorcruxConfig::new(2, MAX_TOTAL_PARTIES, 1, CurveType::Secp256k1).is_ok());
     }
 }
+
+/// Property-based robustness tests for every attacker-reachable MPC
+/// payload parser.
+///
+/// During a signing or keygen ceremony, `SessionManager::dispatch_message`
+/// routes peer-delivered bytes to the correct protocol, which ultimately
+/// calls `serde_json::from_slice::<WireType>(&payload)`. The Noise E2E
+/// layer only authenticates the *sender*; it does not validate the
+/// payload is well-formed JSON, nor that it decodes into the expected
+/// struct. A panic at any of these parsers (arithmetic overflow, slice
+/// OOB, alloc explosion, ...) would crash the iOS host mid-ceremony and
+/// give a malicious cosigner a cheap DoS primitive.
+///
+/// These proptests feed 256 arbitrary byte strings (≤ 4 KiB each) into
+/// every wire-payload decoder and assert the call does not panic. We
+/// deliberately do *not* assert `is_err()` — a random input that happens
+/// to parse as a well-formed struct is fine; the only invariant is "no
+/// panic". Round-18 hardening; see also `horcrux-core/fuzz/` for the
+/// coverage-guided explorative companion (`mpc_payload.rs`).
+#[cfg(test)]
+mod prop_tests {
+    use super::ecdsa::EcdsaWireMsg;
+    use super::frost::{FrostDkgRound1, FrostDkgRound2, FrostSignRound1, FrostSignRound2};
+    use super::keygen::{Round1Broadcast, Round2Share};
+    use super::signing::{SignRound1, SignRound2};
+    use proptest::prelude::*;
+
+    proptest! {
+        #![proptest_config(ProptestConfig { cases: 256, .. ProptestConfig::default() })]
+
+        #[test]
+        fn prop_sign_round1_never_panics(bytes in proptest::collection::vec(any::<u8>(), 0..4096)) {
+            let _ = serde_json::from_slice::<SignRound1>(&bytes);
+        }
+
+        #[test]
+        fn prop_sign_round2_never_panics(bytes in proptest::collection::vec(any::<u8>(), 0..4096)) {
+            let _ = serde_json::from_slice::<SignRound2>(&bytes);
+        }
+
+        #[test]
+        fn prop_keygen_round1_never_panics(bytes in proptest::collection::vec(any::<u8>(), 0..4096)) {
+            let _ = serde_json::from_slice::<Round1Broadcast>(&bytes);
+        }
+
+        #[test]
+        fn prop_keygen_round2_never_panics(bytes in proptest::collection::vec(any::<u8>(), 0..4096)) {
+            let _ = serde_json::from_slice::<Round2Share>(&bytes);
+        }
+
+        #[test]
+        fn prop_frost_dkg_round1_never_panics(bytes in proptest::collection::vec(any::<u8>(), 0..4096)) {
+            let _ = serde_json::from_slice::<FrostDkgRound1>(&bytes);
+        }
+
+        #[test]
+        fn prop_frost_dkg_round2_never_panics(bytes in proptest::collection::vec(any::<u8>(), 0..4096)) {
+            let _ = serde_json::from_slice::<FrostDkgRound2>(&bytes);
+        }
+
+        #[test]
+        fn prop_frost_sign_round1_never_panics(bytes in proptest::collection::vec(any::<u8>(), 0..4096)) {
+            let _ = serde_json::from_slice::<FrostSignRound1>(&bytes);
+        }
+
+        #[test]
+        fn prop_frost_sign_round2_never_panics(bytes in proptest::collection::vec(any::<u8>(), 0..4096)) {
+            let _ = serde_json::from_slice::<FrostSignRound2>(&bytes);
+        }
+
+        #[test]
+        fn prop_ecdsa_wire_never_panics(bytes in proptest::collection::vec(any::<u8>(), 0..4096)) {
+            let _ = serde_json::from_slice::<EcdsaWireMsg>(&bytes);
+        }
+    }
+}
