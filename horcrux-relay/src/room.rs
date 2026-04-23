@@ -7,13 +7,31 @@
 use sha2::{Digest, Sha256};
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
-use std::sync::Arc;
-use std::time::Duration;
+use std::sync::{Arc, OnceLock};
+use std::time::{Duration, Instant};
 use tokio::sync::{broadcast, Mutex, RwLock};
 
 use crate::config::RelayConfig;
 use crate::metrics::METRICS;
 use subtle::ConstantTimeEq;
+
+/// Monotonic reference instant used to derive room-activity ages.
+///
+/// M2: rooms previously tracked activity via `SystemTime::now()` millis
+/// since UNIX epoch. A single NTP step (or an operator who rewinds the
+/// system clock for a debug session) could drive `now - last < 0`, cause
+/// `saturating_sub` to collapse to zero, and leave idle rooms alive
+/// indefinitely. Monotonic `Instant` cannot go backwards. We still
+/// squash the offset into an `AtomicU64` (millis since this anchor) to
+/// keep the per-room touch path lock-free.
+static MONOTONIC_EPOCH: OnceLock<Instant> = OnceLock::new();
+
+fn monotonic_now_ms() -> u64 {
+    let anchor = MONOTONIC_EPOCH.get_or_init(Instant::now);
+    Instant::now()
+        .saturating_duration_since(*anchor)
+        .as_millis() as u64
+}
 
 /// Shared state across all WebSocket connections.
 pub type RoomManager = Arc<RoomManagerInner>;
@@ -43,6 +61,13 @@ pub struct RoomManagerInner {
     cleanup_interval: Duration,
     max_participants: usize,
     max_rooms: usize,
+    /// Per-room `tokio::sync::broadcast` buffer size. H7: too-small
+    /// buffers evict otherwise-healthy co-signers whose WebSocket
+    /// happens to be on a slow mobile uplink. Configurable via
+    /// `RELAY_BROADCAST_BUFFER` (default 1024, up from the historical
+    /// hard-coded 256). The buffer is per-room so raising this costs
+    /// `buffer * sizeof(RoomMessage) * active_rooms` bytes of memory.
+    broadcast_buffer: usize,
 }
 
 struct Room {
@@ -125,18 +150,12 @@ impl Room {
     }
 
     fn touch(&self) {
-        let now_ms = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap_or_default()
-            .as_millis() as u64;
-        self.last_activity_ms.store(now_ms, Ordering::Relaxed);
+        self.last_activity_ms
+            .store(monotonic_now_ms(), Ordering::Relaxed);
     }
 
     fn is_expired(&self, ttl: Duration) -> bool {
-        let now_ms = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap_or_default()
-            .as_millis() as u64;
+        let now_ms = monotonic_now_ms();
         let last = self.last_activity_ms.load(Ordering::Relaxed);
         now_ms.saturating_sub(last) > ttl.as_millis() as u64
     }
@@ -192,6 +211,7 @@ impl RoomManagerInner {
             cleanup_interval: config.cleanup_interval,
             max_participants: config.max_participants,
             max_rooms: config.max_rooms,
+            broadcast_buffer: config.broadcast_buffer,
         }
     }
 
@@ -244,17 +264,14 @@ impl RoomManagerInner {
             return Err(RoomError::TooManyRooms);
         }
 
-        let (tx, rx) = broadcast::channel(256);
+        let (tx, rx) = broadcast::channel(self.broadcast_buffer);
         let token_hash = token.map(Self::hash_token);
         let initial_devices = if device_id.is_empty() {
             vec![]
         } else {
             vec![device_id.to_string()]
         };
-        let now_ms = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap_or_default()
-            .as_millis() as u64;
+        let now_ms = monotonic_now_ms();
 
         rooms.insert(
             room_id.to_string(),

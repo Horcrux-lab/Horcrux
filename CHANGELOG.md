@@ -94,6 +94,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     overflow. `EvmTransactionBuilder::build` calls it as a pre-sign
     guardrail and additionally rejects transactions where
     `max_priority_fee_per_gas > max_fee_per_gas` per EIP-1559.
+- **Audit P0 round 6** — P2 Rust/infra batch.
+  - **M1** (medium) — Relay admin endpoint IP allowlist. New
+    `RelayConfig::admin_allowed_ips` (env `RELAY_ADMIN_ALLOWED_IPS`,
+    comma-separated IPs) gates `/metrics` and `/admin/rooms` behind an
+    L4 peer-address check in addition to the existing `x-admin-token`.
+    The allowlist is intentionally evaluated against the TCP peer —
+    not `X-Forwarded-For` — because any downstream client can forge
+    the latter; operators behind a reverse proxy must allowlist the
+    proxy's loopback or scope admin to bastions that speak directly
+    to the relay. Fails closed when the allowlist is configured but
+    `ConnectInfo` is unavailable.
+  - **M2** (medium) — Room TTL now uses a monotonic clock.
+    `horcrux-relay` previously anchored `Room.last_activity_ms` to
+    `SystemTime::now()` (unix wall-clock), which is susceptible to
+    NTP slews and operator clock adjustments. A new
+    `monotonic_now_ms()` helper anchored on a process-local
+    `Instant` epoch replaces both the constructor's initial stamp
+    and every `touch()` / `is_expired()` read, so TTL eviction is
+    robust against wall-clock movement.
+  - **H7** (high) — Relay broadcast buffer is now configurable.
+    New `RelayConfig::broadcast_buffer` (env
+    `RELAY_BROADCAST_BUFFER`, default 1024, clamped `[64, 65536]`)
+    replaces the previous hard-coded 256 for the per-room
+    `tokio::sync::broadcast` channel. The prior value risked
+    `Lagged` drops on large ceremonies with slow peers; the larger
+    default plus tunability lets operators trade RSS for fan-out
+    headroom per deployment.
+  - **L1** (low) — RNG hygiene unification. Every `rand::thread_rng()`
+    callsite in `horcrux-core` (`mpc::signing`, `mpc::keygen`,
+    `shard::crypto`, `transport::e2e`) now uses `rand::rngs::OsRng`
+    directly. `thread_rng` is already seeded from `OsRng` and
+    cryptographically secure, but auditors previously had to verify
+    that fact every time it appeared; the unification removes the
+    whole class of "is this the right RNG?" questions from review.
 
 ### Added
 

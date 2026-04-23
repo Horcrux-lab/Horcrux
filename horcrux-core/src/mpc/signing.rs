@@ -19,7 +19,7 @@ use super::types::{MpcMessage, SigningResult};
 use super::{CurveType, HorcruxConfig, MpcError};
 use k256::elliptic_curve::{Field, PrimeField};
 use k256::{elliptic_curve::group::GroupEncoding, AffinePoint, ProjectivePoint, Scalar};
-use rand::thread_rng;
+use rand::rngs::OsRng;
 use sha2::{Digest, Sha256};
 use zeroize::Zeroize;
 
@@ -175,7 +175,12 @@ impl SigningSession {
     // ===== secp256k1 threshold signing =====
 
     fn start_secp256k1_signing(&mut self) -> Result<Vec<MpcMessage>, MpcError> {
-        let mut rng = thread_rng();
+        // L1 hygiene: use OsRng uniformly across the crate. `thread_rng` is
+        // also a CSPRNG (ChaCha12 seeded from OsRng) so there's no
+        // cryptographic difference, but a single RNG source simplifies
+        // external-audit review and makes "is the entropy from the OS?"
+        // answerable by grep alone.
+        let mut rng = OsRng;
 
         // Generate random nonce k_i
         let k = Scalar::random(&mut rng);

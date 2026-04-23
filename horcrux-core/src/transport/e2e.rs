@@ -267,11 +267,12 @@ impl SessionToken {
     /// Returns an error if HKDF expansion fails (should not happen with fixed-size outputs).
     pub fn generate() -> Result<Self, E2EError> {
         use hkdf::Hkdf;
+        use rand::rngs::OsRng;
         use rand::RngCore;
         use sha2::Sha256;
 
         let mut room_secret = [0u8; 32];
-        rand::thread_rng().fill_bytes(&mut room_secret);
+        OsRng.fill_bytes(&mut room_secret);
 
         let hk = Hkdf::<Sha256>::new(None, &room_secret);
         let mut room_id_bytes = [0u8; 16];

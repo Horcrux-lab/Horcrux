@@ -3,6 +3,7 @@
 use aes_gcm::aead::{Aead, KeyInit};
 use aes_gcm::{Aes256Gcm, Key, Nonce};
 use hkdf::Hkdf;
+use rand::rngs::OsRng;
 use rand::RngCore;
 use sha2::Sha256;
 use zeroize::{Zeroize, Zeroizing};
@@ -58,14 +59,14 @@ pub fn encrypt_shard(
     pin: &[u8],
 ) -> Result<EncryptedShard, ShardCryptoError> {
     let mut salt = [0u8; 16];
-    rand::thread_rng().fill_bytes(&mut salt);
+    OsRng.fill_bytes(&mut salt);
 
     let mut key = derive_key(device_key, pin, &salt)?;
 
     let cipher = Aes256Gcm::new(Key::<Aes256Gcm>::from_slice(&key));
 
     let mut nonce_bytes = [0u8; NONCE_SIZE];
-    rand::thread_rng().fill_bytes(&mut nonce_bytes);
+    OsRng.fill_bytes(&mut nonce_bytes);
     let nonce = Nonce::from_slice(&nonce_bytes);
 
     let ciphertext = cipher

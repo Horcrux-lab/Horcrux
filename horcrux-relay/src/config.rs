@@ -35,6 +35,18 @@ pub struct RelayConfig {
     pub ip_rate_limit_window: Duration,
     /// Maximum number of concurrent rooms (prevents OOM DoS).
     pub max_rooms: usize,
+    /// Per-room `broadcast` channel buffer size. H7: the historical
+    /// hard-coded 256 caused slow mobile peers to be evicted under
+    /// normal sharded-proof broadcast bursts. Override with
+    /// `RELAY_BROADCAST_BUFFER`.
+    pub broadcast_buffer: usize,
+    /// Optional IP allowlist for `/admin/*` and `/metrics`. M1:
+    /// perimeter-only 404 at Caddy does not defend direct-to-relay
+    /// traffic (e.g. a misconfigured reverse proxy or a co-located
+    /// attacker). Populate via `RELAY_ADMIN_ALLOWED_IPS` as a
+    /// comma-separated list (supports plain IPs; CIDR matching is a
+    /// follow-up). `None` = no allowlist (admin token is the only gate).
+    pub admin_allowed_ips: Option<Vec<std::net::IpAddr>>,
 }
 
 /// Configuration validation errors.
@@ -74,6 +86,8 @@ impl Default for RelayConfig {
             ip_rate_limit_creates: 20,
             ip_rate_limit_window: Duration::from_secs(60),
             max_rooms: 10_000,
+            broadcast_buffer: 1024,
+            admin_allowed_ips: None,
         }
     }
 }
@@ -155,6 +169,46 @@ impl RelayConfig {
                     );
                 }
                 cfg.max_rooms = clamped;
+            }
+        }
+        if let Ok(v) = std::env::var("RELAY_BROADCAST_BUFFER") {
+            if let Ok(n) = v.parse::<usize>() {
+                // 64 floor: below this even steady-state keygen bursts
+                // start dropping. 65536 ceiling: memory-bounded so an
+                // operator can't accidentally OOM the relay by mis-
+                // typing a zero.
+                let clamped = n.clamp(64, 65_536);
+                if clamped != n {
+                    tracing::warn!(
+                        env = "RELAY_BROADCAST_BUFFER",
+                        raw = n,
+                        clamped,
+                        "value clamped to safe range [64, 65536]"
+                    );
+                }
+                cfg.broadcast_buffer = clamped;
+            }
+        }
+        if let Ok(v) = std::env::var("RELAY_ADMIN_ALLOWED_IPS") {
+            let parsed: Vec<std::net::IpAddr> = v
+                .split(',')
+                .filter_map(|s| {
+                    let s = s.trim();
+                    match s.parse::<std::net::IpAddr>() {
+                        Ok(ip) => Some(ip),
+                        Err(e) => {
+                            tracing::warn!(
+                                raw = s,
+                                err = %e,
+                                "RELAY_ADMIN_ALLOWED_IPS: ignoring unparseable entry"
+                            );
+                            None
+                        }
+                    }
+                })
+                .collect();
+            if !parsed.is_empty() {
+                cfg.admin_allowed_ips = Some(parsed);
             }
         }
         cfg

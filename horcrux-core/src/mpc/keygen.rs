@@ -12,7 +12,7 @@ use super::{CurveType, HorcruxConfig, MpcError};
 use k256::elliptic_curve::sec1::FromEncodedPoint;
 use k256::elliptic_curve::{Field, PrimeField};
 use k256::{elliptic_curve::group::GroupEncoding, AffinePoint, ProjectivePoint, Scalar};
-use rand::thread_rng;
+use rand::rngs::OsRng;
 use sha2::{Digest, Sha256};
 use zeroize::Zeroize;
 
@@ -131,7 +131,8 @@ impl KeygenSession {
     // ===== secp256k1 (CGGMP21-style Feldman DKG) =====
 
     fn start_secp256k1_dkg(&mut self) -> Result<Vec<MpcMessage>, MpcError> {
-        let mut rng = thread_rng();
+        // See L1 rationale in signing.rs — unified on OsRng.
+        let mut rng = OsRng;
         let t = self.config.threshold as usize;
 
         // Generate random polynomial of degree (t-1): f(x) = a_0 + a_1*x + ... + a_{t-1}*x^{t-1}

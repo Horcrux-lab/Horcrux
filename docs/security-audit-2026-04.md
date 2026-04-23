@@ -150,12 +150,13 @@ single abuser starves everyone.
 **Fix**: parse trusted `X-Forwarded-For`/`X-Real-IP` (Caddy already
 sets these); document the trust-the-proxy requirement explicitly.
 
-### H7 — Broadcast channel buffer of 256 untuned ⚠️
+### H7 — Broadcast channel buffer of 256 untuned ✅
 `horcrux-relay/src/room.rs:50`. Slow consumers trigger `Lagged`, which
 evicts the peer. Realistic high-latency co-signers may be evicted
 incorrectly.
-**Fix**: load-test the buffer size; or switch to per-peer mpsc with
-explicit backpressure.
+**Fix shipped (round 6)**: `RelayConfig::broadcast_buffer` (env
+`RELAY_BROADCAST_BUFFER`, default 1024, clamped `[64, 65536]`) replaces
+the hard-coded 256. Operators tune for their fan-out / RSS trade-off.
 
 ### H8 — EIP-712 domain separator not validated ⚠️
 If EIP-712 is wired into the signing flow (check `chain/evm.rs`), the
@@ -180,10 +181,15 @@ Failures → typed error, never panic.
 
 ## MEDIUM
 
-- **M1** Relay `/admin/*` 404 at Caddy is perimeter-only — direct-to-relay
-  bypass leaves admin routes live. Add app-layer IP allowlist.
-- **M2** Relay room TTL uses `SystemTime` (wall-clock) — NTP step
-  breaks cleanup. Switch to `Instant::now()`.
+- **M1** ✅ (round 6) Relay `/admin/*` 404 at Caddy is perimeter-only —
+  direct-to-relay bypass leaves admin routes live. `RelayConfig::admin_allowed_ips`
+  (env `RELAY_ADMIN_ALLOWED_IPS`) adds an app-layer L4 peer-IP check
+  in addition to the admin token. Fails closed when allowlist is set
+  but `ConnectInfo` is unavailable; explicitly does not trust XFF.
+- **M2** ✅ (round 6) Relay room TTL uses `SystemTime` (wall-clock) —
+  NTP step breaks cleanup. `monotonic_now_ms()` anchored on a process-
+  local `Instant` epoch now powers `Room::touch` / `is_expired` and
+  the constructor stamp.
 - **M3** `prime_pool.rs` can orphan on-disk files under concurrent
   access. Add `flock` or atomic-rename.
 - **M4** MPC structs derive `Debug` — debug logs may dump secret
@@ -204,13 +210,14 @@ Failures → typed error, never panic.
 
 ## LOW / HYGIENE
 
-- **L1** `rand::thread_rng` used in `keygen.rs:134`, `signing.rs:178`,
-  `shard/crypto.rs:61,68`, `transport/e2e.rs:274`. **Agent report
-  flagged this as CRITICAL "non-CSPRNG" — this is incorrect.**
-  `thread_rng` is ChaCha12 seeded from OsRng and is cryptographically
-  secure. However, the repo mixes `thread_rng` and `OsRng` (the
-  latter used in 6 sites) — pick one (`OsRng`) and apply uniformly
-  to eliminate reviewer friction.
+- **L1** ✅ (round 6) `rand::thread_rng` used in `keygen.rs:134`,
+  `signing.rs:178`, `shard/crypto.rs:61,68`, `transport/e2e.rs:274`.
+  **Agent report flagged this as CRITICAL "non-CSPRNG" — this is
+  incorrect.** `thread_rng` is ChaCha12 seeded from OsRng and is
+  cryptographically secure. The repo previously mixed `thread_rng`
+  and `OsRng`; round 6 unified all five callsites onto
+  `rand::rngs::OsRng` so reviewers no longer have to verify the
+  RNG's cryptographic provenance per occurrence.
 - **L2** Error messages leak party indices. Low impact but external
   auditors will comment.
 - **L3** Dockerfile build stage runs as root. No runtime impact.

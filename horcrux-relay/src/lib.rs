@@ -8,12 +8,13 @@ pub mod room;
 pub mod ws;
 
 use axum::{
-    extract::{Query, State},
+    extract::{ConnectInfo, Query, State},
     http::{HeaderMap, HeaderValue, Method, StatusCode},
     response::IntoResponse,
     routing::get,
     Json, Router,
 };
+use std::net::SocketAddr;
 use std::sync::Arc;
 use std::time::Instant;
 use tower_http::cors::{AllowOrigin, CorsLayer};
@@ -87,9 +88,10 @@ async fn health(State((rooms, _config, _ip)): State<AppState>) -> impl IntoRespo
 async fn metrics_handler(
     headers: HeaderMap,
     Query(query): Query<AdminQuery>,
+    addr: Option<ConnectInfo<SocketAddr>>,
     State((rooms, config, _ip)): State<AppState>,
 ) -> Result<impl IntoResponse, StatusCode> {
-    verify_admin_token(&headers, &query, &config)?;
+    verify_admin_access(&headers, &query, addr.map(|c| c.0), &config)?;
     let active_rooms = rooms.room_count().await;
     Ok((
         [(
@@ -110,9 +112,10 @@ struct AdminQuery {
 async fn admin_rooms_handler(
     headers: HeaderMap,
     Query(query): Query<AdminQuery>,
+    addr: Option<ConnectInfo<SocketAddr>>,
     State((rooms, config, _ip)): State<AppState>,
 ) -> Result<impl IntoResponse, StatusCode> {
-    verify_admin_token(&headers, &query, &config)?;
+    verify_admin_access(&headers, &query, addr.map(|c| c.0), &config)?;
 
     let stats = rooms.room_stats().await;
     let count = rooms.room_count().await;
@@ -122,12 +125,31 @@ async fn admin_rooms_handler(
     })))
 }
 
-/// Verify admin token using constant-time comparison.
-fn verify_admin_token(
+/// Verify admin access: IP allowlist (M1) + constant-time token match.
+fn verify_admin_access(
     headers: &HeaderMap,
     query: &AdminQuery,
+    socket_addr: Option<SocketAddr>,
     config: &RelayConfig,
 ) -> Result<(), StatusCode> {
+    if let Some(allowed) = &config.admin_allowed_ips {
+        let peer_ip = socket_addr.map(|a| a.ip()).ok_or_else(|| {
+            // Missing ConnectInfo with an allowlist configured is a
+            // fail-closed condition: we can't evaluate the policy, so
+            // we reject.
+            tracing::warn!(
+                "admin endpoint: ConnectInfo missing but allowlist configured — rejecting"
+            );
+            StatusCode::FORBIDDEN
+        })?;
+        if !allowed.iter().any(|ip| ip == &peer_ip) {
+            tracing::warn!(
+                peer = %peer_ip,
+                "admin endpoint access blocked by RELAY_ADMIN_ALLOWED_IPS"
+            );
+            return Err(StatusCode::FORBIDDEN);
+        }
+    }
     if let Some(ref expected) = config.admin_token {
         let provided = query
             .admin_token
