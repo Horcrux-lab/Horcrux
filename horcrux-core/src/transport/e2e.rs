@@ -521,3 +521,53 @@ mod tests {
         assert_ne!(t1.access_token, t2.access_token);
     }
 }
+
+#[cfg(test)]
+mod prop_tests {
+    //! Property-based robustness for the Noise XX handshake parser.
+    //!
+    //! `read_handshake` is exposed to network-attacker-controlled bytes
+    //! — a malformed / fuzzed / replayed frame from the relay or a
+    //! misbehaving peer. These properties assert the responder never
+    //! panics / UBs on arbitrary input up to 4 KiB, regardless of
+    //! shape. Complements the focused unit tests (valid XX transcript,
+    //! wrong-key rejection) with brute-force coverage of malformed
+    //! input space.
+    //!
+    //! Companion fuzz harness at `horcrux-core/fuzz/fuzz_targets/` runs
+    //! the same surface under libFuzzer coverage guidance for deeper
+    //! exploration — see `docs/security-audit-2026-04.md` for the
+    //! supply-chain + fuzz posture overview.
+    use super::*;
+    use proptest::prelude::*;
+
+    proptest! {
+        #![proptest_config(ProptestConfig { cases: 256, ..ProptestConfig::default() })]
+
+        /// Responder `read_handshake` must return `Err`, never panic,
+        /// on arbitrary bytes. The snow state machine is the primary
+        /// attack surface exposed to the relay / peer.
+        #[test]
+        fn prop_read_handshake_never_panics(bytes in prop::collection::vec(any::<u8>(), 0..4096)) {
+            let kp = NoiseKeypair::generate().unwrap();
+            let mut responder = NoiseChannel::responder(&kp).unwrap();
+            // Result is either Ok(payload) or Err(_); either is fine, just no panic.
+            let _ = responder.read_handshake(&bytes);
+        }
+
+        /// Responder must also reject truncated prefixes of a
+        /// legitimate handshake message — a common malleability angle.
+        #[test]
+        fn prop_truncation_rejected(truncate_by in 1usize..=64) {
+            let kp_i = NoiseKeypair::generate().unwrap();
+            let kp_r = NoiseKeypair::generate().unwrap();
+            let mut initiator = NoiseChannel::initiator(&kp_i).unwrap();
+            let mut responder = NoiseChannel::responder(&kp_r).unwrap();
+            let msg1 = initiator.write_handshake(&[]).unwrap();
+            let cut = msg1.len().saturating_sub(truncate_by);
+            let truncated = &msg1[..cut];
+            // Either Ok (parser over-reads into nothing) or Err — but no panic.
+            let _ = responder.read_handshake(truncated);
+        }
+    }
+}

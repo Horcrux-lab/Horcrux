@@ -9,6 +9,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security
 
+- **Property-based robustness tests** (round 18). Re-introduced
+  `proptest = "1"` as a dev-dependency and added three fast-CI
+  robustness properties on attacker-reachable parsers:
+    - `shard::crypto::prop_tests` — 4 properties (256 cases each)
+      covering encrypt/decrypt round-trip for arbitrary plaintext /
+      device-key / PIN, wrong-PIN rejection, wrong-device-key
+      rejection, and per-call freshness of `salt` + `nonce` +
+      `ciphertext`.
+    - `transport::e2e::prop_tests` — `prop_read_handshake_never_panics`
+      (256 arbitrary-byte inputs up to 4 KiB into a fresh Noise XX
+      responder) and `prop_truncation_rejected` (any prefix of a
+      legitimate message-1 must not panic).
+    - `chain::evm::prop_tests::prop_decode_evm_calldata_never_panics`
+      — 512 arbitrary-byte inputs up to 4 KiB through the UI tx
+      preview decoder. A panic here would crash the iOS host mid-
+      ceremony.
+
+- **cargo-fuzz harness scaffold** (round 18). New
+  `horcrux-core/fuzz/` workspace-excluded crate with three
+  coverage-guided libFuzzer targets:
+    - `evm_calldata` — `chain::evm::decode_evm_calldata` on
+      attacker-controlled bytes.
+    - `shard_decrypt` — `serde_json::from_slice::<EncryptedShard>`
+      → `decrypt_shard` backup-import pipeline.
+    - `noise_handshake` — `NoiseChannel::responder(...).read_handshake`
+      on arbitrary network bytes.
+  Each target has a matching proptest that runs on every CI build
+  as a fast regression gate; the fuzz crate adds coverage-guided
+  exploration for contributors who install `cargo-fuzz`. See
+  [`horcrux-core/fuzz/README.md`](horcrux-core/fuzz/README.md).
+
 - **Relay deploy smoke script — Prometheus / TLS / HSTS hardening**.
   `scripts/verify-relay-deploy.sh` now performs three additional
   post-deploy gates an operator can't forget:
@@ -31,6 +62,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
       header.
 
 ### Docs
+
+- **`docs/code-tour.md` — round 18 refresh**. Updated FFI entry-point
+  count (17 → 15 after EIP-712 removal), added §7 documenting the
+  three fuzz targets + matching proptests, added §8 "Intentionally
+  out of scope" calling out the dApp / WalletConnect / EIP-712
+  retirement. Cross-links to `horcrux-core/fuzz/README.md` and the
+  H8 retirement section in `security-audit-2026-04.md`.
 
 - **`scripts/README.md`** — new operator-facing index for the
   `scripts/` directory. Lists `verify-build.sh` and

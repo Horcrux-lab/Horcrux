@@ -760,3 +760,24 @@ mod decode_tests {
         ));
     }
 }
+
+#[cfg(test)]
+mod prop_tests {
+    //! `decode_evm_calldata` is the attacker-controlled parser the UI
+    //! feeds arbitrary tx payload bytes into before displaying a
+    //! decoded preview. It must never panic on any input — a panic
+    //! crashes the iOS host process and creates a ceremony-abort DoS.
+    use super::*;
+    use proptest::prelude::*;
+
+    proptest! {
+        #![proptest_config(ProptestConfig { cases: 512, ..ProptestConfig::default() })]
+
+        #[test]
+        fn prop_decode_evm_calldata_never_panics(
+            data in prop::collection::vec(any::<u8>(), 0..4096)
+        ) {
+            let _ = decode_evm_calldata(&data);
+        }
+    }
+}

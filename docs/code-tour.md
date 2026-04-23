@@ -56,7 +56,7 @@ where data is passed between principals with different trust levels.
 | Boundary                     | Where to look                                        |
 |------------------------------|------------------------------------------------------|
 | User → iOS app (touch input) | `ios/Horcrux/Features/**/*ViewModel.swift`           |
-| iOS app → Rust core (FFI)    | `horcrux-core/src/ffi.rs` ← **17 entry points**      |
+| iOS app → Rust core (FFI)    | `horcrux-core/src/ffi.rs` ← **15 entry points**      |
 | Rust core → Keychain (host)  | via `horcrux_encrypt_shard` / `horcrux_decrypt_shard`|
 | iOS app → Secure Enclave     | `SecureEnclaveManager.seal` / `.open`                |
 | Device ↔ Device (Noise E2E)  | `horcrux-core/src/e2e/` + `Horcrux/Network/`         |
@@ -164,10 +164,44 @@ If you only have 60 minutes, read these files in order:
   `cargo audit` to check the advisory database — the ignore list in
   `.github/workflows/ci.yml` documents each accepted RUSTSEC entry
   with rationale.
+- `cargo deny check` (CI: `.github/workflows/cargo-deny.yml`) is the
+  supply-chain gate — `advisories`, `licenses`, `bans`, `sources` all
+  run on every push + weekly cron.
 
 ---
 
-## 7. Known limitations
+## 7. Fuzzing & property tests
+
+Coverage-guided fuzz targets live in [`horcrux-core/fuzz/`](../horcrux-core/fuzz/)
+with three entry points, each paired with a matching fast-CI proptest:
+
+| Fuzz target | Proptest | Threat |
+|---|---|---|
+| `evm_calldata` | `chain::evm::prop_tests::prop_decode_evm_calldata_never_panics` | UI previews attacker-supplied tx calldata |
+| `shard_decrypt` | `shard::crypto::prop_tests::{prop_roundtrip_any_inputs, prop_wrong_pin_rejected}` | Malformed backup import |
+| `noise_handshake` | `transport::e2e::prop_tests::prop_read_handshake_never_panics` | Network-delivered handshake bytes |
+
+Proptests (256–512 cases each) run under every `cargo test`; the fuzz
+targets require `cargo install cargo-fuzz` + `rustup toolchain install
+nightly` and are meant for long-running exploration. See
+[`horcrux-core/fuzz/README.md`](../horcrux-core/fuzz/README.md).
+
+---
+
+## 8. Intentionally out of scope
+
+- **dApp browser / WalletConnect / EIP-712 typed-data signing** —
+  round 18 retirement. Horcrux only signs raw transfer transactions
+  whose digest is computed from the canonical chain-specific pre-image
+  (EVM RLP → keccak256, Bitcoin sighash, Solana message). See
+  [`security-audit-2026-04.md`](security-audit-2026-04.md) §H8.
+- **Server-side key material** — the relay is zero-knowledge by
+  construction (see `horcrux-relay/src/server.rs`). If you find a
+  code path where the server touches plaintext, that's a bug.
+
+---
+
+## 9. Known limitations
 
 - **iOS simulator tests** run under the `targetEnvironment(simulator)`
   flag skip SE-specific paths because the simulator doesn't provide a

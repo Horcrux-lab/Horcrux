@@ -181,3 +181,78 @@ mod tests {
         assert_ne!(k1, k2);
     }
 }
+
+#[cfg(test)]
+mod prop_tests {
+    //! Property-based coverage for the shard-encryption round-trip.
+    //!
+    //! These proptests (256 cases each → ~1 024 randomized encrypt/decrypt
+    //! invocations per CI run) guard the invariants that unit tests can't
+    //! exhaustively enumerate:
+    //!
+    //! 1. **Round-trip**: `decrypt(encrypt(x)) == x` for any plaintext /
+    //!    device-key / PIN triple.
+    //! 2. **Wrong-PIN rejection**: a mismatched PIN must yield `Err`
+    //!    (AES-GCM MAC failure), never a different plaintext.
+    //! 3. **Wrong-device-key rejection**: same, for the Secure-Enclave
+    //!    material.
+    //! 4. **Freshness**: two encryptions of the same input are always
+    //!    bit-distinct (fresh random salt + nonce per call).
+    //!
+    //! If any of these regress, shard confidentiality or uniqueness
+    //! across devices / backups is compromised.
+    use super::*;
+    use proptest::prelude::*;
+
+    proptest! {
+        #![proptest_config(ProptestConfig { cases: 256, ..ProptestConfig::default() })]
+
+        #[test]
+        fn prop_roundtrip_any_inputs(
+            plaintext in prop::collection::vec(any::<u8>(), 0..1024),
+            device_key in prop::collection::vec(any::<u8>(), 16..64),
+            pin in prop::collection::vec(any::<u8>(), 4..32),
+        ) {
+            let enc = encrypt_shard(&plaintext, &device_key, &pin).unwrap();
+            let dec = decrypt_shard(&enc, &device_key, &pin).unwrap();
+            prop_assert_eq!(plaintext.as_slice(), &*dec);
+        }
+
+        #[test]
+        fn prop_wrong_pin_rejected(
+            plaintext in prop::collection::vec(any::<u8>(), 1..256),
+            device_key in prop::collection::vec(any::<u8>(), 16..32),
+            pin_a in prop::collection::vec(any::<u8>(), 4..16),
+            pin_b in prop::collection::vec(any::<u8>(), 4..16),
+        ) {
+            prop_assume!(pin_a != pin_b);
+            let enc = encrypt_shard(&plaintext, &device_key, &pin_a).unwrap();
+            prop_assert!(decrypt_shard(&enc, &device_key, &pin_b).is_err());
+        }
+
+        #[test]
+        fn prop_wrong_device_key_rejected(
+            plaintext in prop::collection::vec(any::<u8>(), 1..256),
+            dk_a in prop::collection::vec(any::<u8>(), 16..32),
+            dk_b in prop::collection::vec(any::<u8>(), 16..32),
+            pin in prop::collection::vec(any::<u8>(), 4..16),
+        ) {
+            prop_assume!(dk_a != dk_b);
+            let enc = encrypt_shard(&plaintext, &dk_a, &pin).unwrap();
+            prop_assert!(decrypt_shard(&enc, &dk_b, &pin).is_err());
+        }
+
+        #[test]
+        fn prop_freshness_across_calls(
+            plaintext in prop::collection::vec(any::<u8>(), 1..256),
+            device_key in prop::collection::vec(any::<u8>(), 16..32),
+            pin in prop::collection::vec(any::<u8>(), 4..16),
+        ) {
+            let e1 = encrypt_shard(&plaintext, &device_key, &pin).unwrap();
+            let e2 = encrypt_shard(&plaintext, &device_key, &pin).unwrap();
+            prop_assert_ne!(&e1.nonce, &e2.nonce);
+            prop_assert_ne!(&e1.salt, &e2.salt);
+            prop_assert_ne!(&e1.ciphertext, &e2.ciphertext);
+        }
+    }
+}
