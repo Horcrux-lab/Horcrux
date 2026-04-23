@@ -53,10 +53,6 @@ All channels use **Noise Protocol** (Noise_XX_25519_ChaChaPoly_SHA256) for E2E e
 - **Certificate pinning** (SPKI SHA-256) on all RPC endpoints.
 - **Traffic padding** — message bucket sizes + timing jitter.
 - **Anti-debug** — ptrace denial + environment checks (release builds).
-- **EIP-712 typed-data** — pure-Rust JSON → digest helper with
-  EIP-55 checksum validation, dynamic domain-separator (Permit2 /
-  DAI / Seaport / 1inch verified), and property-based + fuzz-style
-  regression coverage. See [docs/eip712-typed-data.md](docs/eip712-typed-data.md).
 - **Zero-knowledge relay** — server forwards ciphertext only.
 - **Identifiable abort** — malicious participants are detected.
 - **MPC secret zeroization** — Drop impls zero all key material on session end.
@@ -155,7 +151,6 @@ Full index: [docs/README.md](docs/README.md).
 - [Architecture](docs/architecture.md) — system design, module overview, data flow
 - [MPC Protocol](docs/mpc-protocol.md) — CGGMP21 and FROST protocol details
 - [Security Model](docs/security-model.md) — threat model, mitigations, trust assumptions
-- [EIP-712 typed-data helper](docs/eip712-typed-data.md) — pure-Rust JSON → digest path (Permit / Permit2 / DAI / Seaport / 1inch verified)
 - [Security audit record](docs/security-audit-2026-04.md) — round-by-round close-out of 28 C/H/M/L findings
 
 ## License

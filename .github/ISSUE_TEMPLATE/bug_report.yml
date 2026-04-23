@@ -31,8 +31,8 @@ body:
       description: What did you observe? Include exact commands, error messages, and relevant log excerpts.
       placeholder: |
         Example:
-        When running `cargo test -p horcrux-core --lib chain::eip712_typed`, test
-        `permit2_permit_single_uniswap` fails with digest mismatch on macOS arm64.
+        When running `cargo test -p horcrux-core --lib chain::evm`, test
+        `test_rlp_encode_u64` fails with an encoding mismatch on macOS arm64.
     validations:
       required: true
 
@@ -52,7 +52,7 @@ body:
       placeholder: |
         git clone https://github.com/Horcrux-lab/Horcrux.git
         cd Horcrux
-        cargo test -p horcrux-core --lib chain::eip712_typed::tests::permit2_permit_single_uniswap
+        cargo test -p horcrux-core --lib chain::evm::tests::test_rlp_encode_u64
     validations:
       required: true
 

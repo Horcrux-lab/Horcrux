@@ -27,8 +27,8 @@ Any non-obvious design decisions, rejected alternatives, or trade-offs.
 ## Verification
 
 How did you verify this works? Include the exact commands you ran and
-paste the green output (or summarize, e.g. "21/21 chain::eip712_typed
-tests pass, clippy clean, workspace cargo test --workspace green").
+paste the green output (or summarize, e.g. "chain::evm tests pass,
+clippy clean, workspace cargo test --workspace green").
 
 - [ ] `cargo test --workspace` passes
 - [ ] `cargo clippy --workspace --tests -- -D warnings` passes

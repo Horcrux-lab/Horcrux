@@ -18,8 +18,7 @@ order" below.
 | 2 | [`security-model.md`](security-model.md) | Security reviewers | Threat model, trust boundaries, and the self-custodial guarantee. |
 | 3 | [`mpc-protocol.md`](mpc-protocol.md) | Cryptographers | CGGMP21 (ECDSA) + FROST-Ed25519 specifics, message flow, Noise session binding. |
 | 4 | [`code-tour.md`](code-tour.md) | New contributors | Short tour of the codebase and the key modules. |
-| 5 | [`eip712-typed-data.md`](eip712-typed-data.md) | dApp integrators / auditors | Pure-Rust EIP-712 JSON → digest helper, verified security properties, error taxonomy. |
-| 6 | [`security-audit-2026-04.md`](security-audit-2026-04.md) | Security reviewers | Record of the 28 C / H / M / L findings and the round-by-round close-out. Read last — it references everything else. |
+| 5 | [`security-audit-2026-04.md`](security-audit-2026-04.md) | Security reviewers | Record of the 28 C / H / M / L findings and the round-by-round close-out. Read last — it references everything else. |
 
 ---
 

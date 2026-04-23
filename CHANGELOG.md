@@ -62,134 +62,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   member's `Cargo.toml` so the license gate passes and the crate
   can never be accidentally published to crates.io.
 
-### Security
+### Removed
 
-- **EIP-712 helper — 1inch Limit Order Protocol v3 vector**.
-  `chain::eip712_typed::tests::oneinch_limit_order_v3` covers the
-  Aggregation Router v5 (`0x1111111254EEB25477B68fb85Ed929f73A960582`)
-  Order struct — 10 fields mixing `uint256`, `address`, and dynamic
-  `bytes` — with zero-address `receiver` / `allowedSender`
-  (confirming H8 guards bind only the domain, not the message).
-  Digest `0x82ea31b5…b8a14a4d` cross-verified against ethers.js v6.
-  5 dApp vectors now locked (canonical Mail, USDC Permit, DAI
-  Permit, Permit2, Seaport, 1inch).
-
-### Docs
-
-- **README.md** — mentions the EIP-712 helper in the security
-  bullet list, links to `docs/eip712-typed-data.md`, and points
-  the Documentation section at `docs/README.md` (the new audit-
-  facing index) plus `docs/security-audit-2026-04.md`.
-
-### Security
-
-- **EIP-712 helper — `salt` domain field + FFI roundtrip tests**.
-  Closes the last untested code paths:
-  - `domain_with_salt_bytes32` — EIP712Domain with the rare 5th
-    field (`salt: bytes32`). Digest `0xa721afd6…74c97a5a2`,
-    cross-verified against ethers.js v6.
-  - `test_ffi_eip712_typed_data_{happy_path, rejects_zero_chain_id,
-    rejects_malformed_json}` — FFI boundary (`horcrux_eip712_digest
-    _from_typed_data`) now has unit-test coverage proving it returns
-    32 raw bytes on the canonical spec vector, surfaces H8 rejection
-    as `ChainError`, and never panics on malformed JSON.
-  22 hand-crafted + 5 property-based + 3 FFI = **30 EIP-712 tests pass**.
-
-### Governance / repo hygiene
-
-- **Issue & PR templates, docs index**.
-  Adds structured GitHub forms for bug reports + feature requests,
-  a security-first `ISSUE_TEMPLATE/config.yml` that routes
-  vulnerability reports to `SECURITY.md`, a PR checklist covering
-  cargo test / clippy / CHANGELOG / audit-doc cross-reference, and
-  a `docs/README.md` index giving external auditors a suggested
-  reading order through the threat model, protocol, EIP-712 helper,
-  and audit record.
+- **EIP-712 typed-data helper** (round 18). Horcrux's product direction
+  no longer targets dApp browsers / WalletConnect / arbitrary typed-data
+  signing, so the entire EIP-712 surface was deleted:
+  - `horcrux-core/src/chain/eip712_typed.rs` (pure-Rust JSON → digest
+    helper).
+  - `chain::evm::Eip712Domain` struct + `chain::evm::eip712_digest` fn.
+  - FFI exports `horcrux_eip712_digest`, `horcrux_eip712_digest_from_typed_data`,
+    `FfiEip712Domain`, and their unit tests.
+  - iOS `HorcruxTests/Eip712BindingTests.swift` and
+    `docs/eip712-typed-data.md`.
+  - `proptest` dev-dependency (only used by the deleted module).
+  The generated `ios/Horcrux/Core/Generated/horcrux_core.swift` and
+  prebuilt `libhorcrux_core.a` still carry stale references; they
+  regenerate cleanly on the next `ios/build-rust.sh` invocation.
+  Audit finding **H8** is retired — see `docs/security-audit-2026-04.md`.
 
 ### Security
-
-- **EIP-712 helper — external-audit-facing documentation**.
-  Adds [`docs/eip712-typed-data.md`](docs/eip712-typed-data.md) — a
-  comprehensive reference covering the public API (Rust + Swift
-  FFI), supported Solidity types, 8 verified security properties,
-  the dynamic domain-separator rationale (Permit2 catch), the iOS
-  call pattern, error taxonomy, and known limitations. Entry point
-  for external audit firms reviewing the typed-data signing path.
-
-- **EIP-712 helper — property-based (proptest) fuzz-style coverage**.
-  Adds 5 properties to `chain::eip712_typed::prop_tests`
-  (256 cases each — ~1,280 randomized invocations per CI run):
-  1. **Never panic** on well-formed Permit-shape inputs.
-  2. **Determinism**: same input → same digest.
-  3. **chainId sensitivity**: bumping `chainId` always alters the
-     digest (guards against accidentally dropping the domain
-     separator from the final hash).
-  4. **Message-value sensitivity**: changing `message.value` always
-     alters the digest (guards against field-skip bugs).
-  5. **Malformed-JSON robustness**: arbitrary byte strings (up to
-     4 KiB) must return `Err`, never panic or UB. Lightweight
-     fuzz-style gate that a real `cargo-fuzz` harness can build on.
-  Adds `proptest = "1"` as a dev-dependency. 26/26
-  `chain::eip712_typed` tests pass (21 hand-crafted + 5 property).
-
-- **EIP-712 helper — bool / bytes / signed-int coverage + tamper smoke**.
-  Three new tests close previously-uncovered code paths in
-  `chain::eip712_typed`:
-  - **DAI mainnet `Permit`** (`allowed: bool`, not `value: uint256`) —
-    digest `0xb1ac895a…0e3a80ad`, cross-verified against ethers.js v6.
-  - **`bytes32` + dynamic `bytes` + signed `int32`** with a negative
-    value — digest `0x2e17f205…ca194a4c`, cross-verified against
-    ethers.js v6. Exercises two's-complement sign-extension.
-  - **Single-byte flip smoke test** — asserts that flipping `chainId`,
-    `message.value`, or recipient each produces a different digest.
-    A cheap guard against accidental field-skip bugs in the encoder.
-  21/21 `chain::eip712_typed` tests pass; 5 real-world vectors
-  (canonical Mail, USDC Permit, DAI Permit, Permit2 PermitSingle,
-  Seaport OrderComponents) are each cross-verified against
-  ethers.js v6 `TypedDataEncoder.hash`.
-
-- **EIP-712 address fields — EIP-55 checksum validation**.
-  `chain::eip712_typed::parse_address` now validates the EIP-55
-  checksum when the input address has mixed case. All-lowercase
-  and all-uppercase inputs are still accepted as "unchecked"
-  (spec-compliant), but a mixed-case string with a wrong checksum
-  byte — the signature of a copy-paste typo — is now rejected with
-  `EIP-55 checksum mismatch`. Without this, a single-nibble typo
-  in a WalletConnect-sourced address silently decodes to a valid
-  (but unintended) 20-byte recipient, and the signed EIP-712 digest
-  binds the transaction to the wrong party. 4 new tests cover the
-  accept / reject matrix. 18/18 `chain::eip712_typed` tests pass.
-
-- **EIP-712 typed-data helper — Seaport-style regression vector**.
-  Added a dynamic-array-of-struct regression test to
-  `chain::eip712_typed` exercising `OfferItem[]` + `ConsiderationItem[]`
-  on a Seaport-style `OrderComponents` payload. Digest
-  `0xabebe4fd…9ec9f4da` is cross-verified against ethers.js v6
-  `TypedDataEncoder.hash`. Brings `chain::eip712_typed` to 14/14
-  tests with 4 cross-impl-verified real-world vectors (canonical
-  Mail, EIP-2612 USDC Permit, Permit2 PermitSingle, Seaport
-  OrderComponents). Security-audit H8 doc updated with the round-17
-  close-out (typed-data JSON helper + Permit2 domain-separator fix).
-
-- **EIP-712 typed-data JSON helper — cross-impl correctness fix**.
-  The new `chain::eip712_typed::eip712_digest_from_typed_data_json`
-  originally delegated to the fixed 4-field `eip712_digest` primitive,
-  which hard-codes `EIP712Domain(name,version,chainId,verifyingContract)`.
-  Real-world dApps like Uniswap's **Permit2** declare a 3-field domain
-  (no `version`), so the separator — and therefore the signable digest —
-  was wrong for those payloads. The helper now rebuilds the domain
-  separator from the exact `types.EIP712Domain` field list declared in
-  the payload (subset of name / version / chainId / verifyingContract /
-  salt). Audit-H8 replay-binding guards (non-zero chainId, non-zero
-  verifyingContract, non-empty name) are enforced directly on the JSON
-  domain object when those fields are declared. Regression vectors are
-  cross-verified against **ethers.js v6 TypedDataEncoder.hash** for:
-  the canonical EIP-712 `Mail` example
-  (`0xbe609aee…0957bd2`), EIP-2612 USDC Permit
-  (`0x7e8c9eab…1c0031`), and Permit2 PermitSingle with its 3-field
-  domain and nested `PermitDetails` on
-  `0x000000000022D473030F116dDEE9F6B43aC78BA3`
-  (`0x498b3319…1644518`). 13/13 `chain::eip712_typed` tests pass.
 
 - **Round 17 summary — unit-test hardening (C1 triad close-out)**.
   No behavior change in this round. The three MPC-ceremony C1
@@ -203,8 +94,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
       (7 tests, `RefreshPeerBindingTests.swift`)
     - Signing — `SigningViewModel.decideSigningBinding` (5 tests,
       `SigningPeerBindingTests.swift`)
-  Plus `Eip712BindingTests` (7), `AccountBackupMigrationTests` (4),
-  and the `WalletStore.setPeerRegistryIfAbsent` round-16 tests
+  Plus `AccountBackupMigrationTests` (4), and the
+  `WalletStore.setPeerRegistryIfAbsent` round-16 tests
   (2 new, 9 total). Operator-facing: `scripts/verify-relay-deploy.sh`
   ships as a PASS/FAIL post-deploy gate (7 checks — health, metrics
   auth, admin auth, `/ws/:room_id` 101 upgrade with RFC-6455
@@ -213,30 +104,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   ~30-line pure functions instead of three inline async loops. See
   `docs/security-audit-2026-04.md` → C1 → "Round 17 close-out".
 
-- **EIP-712 typed-data JSON helper** (core + FFI). New module
-  `horcrux-core/src/chain/eip712_typed.rs` implements the EIP-712 v4
-  `hashStruct` + `encodeType` / `encodeData` pipeline from pure Rust
-  (no `alloy` / `ethers` dependency) and exposes one entry point:
-  `eip712_digest_from_typed_data_json(json: &str) -> Result<[u8;32], ChainError>`
-  accepting the canonical `eth_signTypedData_v4` JSON shape
-  (`{types, primaryType, domain, message}`) as produced by
-  MetaMask / WalletConnect. Reuses the existing `eip712_digest`
-  primitive for the final `0x19 0x01 || ds || struct_hash` step, so
-  every audit-H8 rejection (zero `chainId`, zero
-  `verifyingContract`, empty `name`) applies identically to the
-  UI-bound and JSON-bound call-sites. Supports `string`, `bytes`,
-  `bytesN` (1..=32), `address`, `bool`, `uintN` / `intN` (8..=256,
-  multiples of 8), nested structs, and dynamic/fixed arrays. Rejects
-  circular type graphs and unknown field types. Also exported
-  through `ffi.rs` as `horcrux_eip712_digest_from_typed_data(json)`
-  so iOS (and any future consumer) can get the signable digest from
-  a dApp's raw JSON payload without hand-rolling the encoder. Ten
-  unit tests: the canonical EIP-712 spec vector
-  (`0xbe609aee…0957bd2`), `encodeType` golden string, chain_id=0
-  reject, verifyingContract=0x0 reject, missing-primaryType reject,
-  unknown-field-type reject, circular-types reject, determinism
-  round-trip, dynamic `Person[]` struct-array, and
-  `uint256` decimal-string-equals-number equivalence.
 
 - **DKG registrySnapshot helper** (round 16 save path). Extract the
   nil-on-empty ternary from `CreateShardViewModel.saveWallet` into
@@ -312,15 +179,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (d) `BackupPreview.peerRegistry` accessor returns the registry on
   `.account` variants and `nil` on `.legacy` variants. Closes the
   round-16 "does the registry actually survive export/import?" gap.
-
-- **Audit H8 follow-up** — iOS FFI binding smoke tests for
-  `horcruxEip712Digest`. Adds `HorcruxTests/Eip712BindingTests.swift`
-  with 7 tests covering determinism, chain_id replay-binding,
-  verifyingContract replay-binding, struct-hash binding, hex parsing
-  with/without `0x` prefix, and propagation of the Rust-side guards
-  (zero chain_id, zero verifyingContract, non-hex input) as Swift
-  throws. Proves the uniffi surface is reachable end-to-end before
-  building the consumer UI.
 
 - **Audit P0 round 16** — Refresh explicit peer-registry (eliminates
   TOFU residual risk for C1). `Wallet` now carries an optional
