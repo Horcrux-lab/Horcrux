@@ -34,7 +34,7 @@ hex.workspace = true
 vsss-rs = { version = "4", features = ["std"] }
 
 # UniFFI for mobile bindings
-uniffi = { version = "0.28", features = ["cli"] }
+uniffi = { version = "0.31", features = ["cli"] }
 
 # Enable force-cross for iOS simulator builds (transitive via cggmp21 → paillier-zk → rug)
 gmp-mpfr-sys = { version = "1.7", features = ["force-cross"] }
@@ -63,7 +63,7 @@ bech32 = "0.11"
 ripemd = "0.1"
 
 [build-dependencies]
-uniffi = { version = "0.28", features = ["build"] }
+uniffi = { version = "0.31", features = ["build"] }
 cc = "1"
 
 [dev-dependencies]
