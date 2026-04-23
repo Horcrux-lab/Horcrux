@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security
 
+- **EIP-712 helper — external-audit-facing documentation**.
+  Adds [`docs/eip712-typed-data.md`](docs/eip712-typed-data.md) — a
+  comprehensive reference covering the public API (Rust + Swift
+  FFI), supported Solidity types, 8 verified security properties,
+  the dynamic domain-separator rationale (Permit2 catch), the iOS
+  call pattern, error taxonomy, and known limitations. Entry point
+  for external audit firms reviewing the typed-data signing path.
+
 - **EIP-712 helper — property-based (proptest) fuzz-style coverage**.
   Adds 5 properties to `chain::eip712_typed::prop_tests`
   (256 cases each — ~1,280 randomized invocations per CI run):
