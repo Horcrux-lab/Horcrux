@@ -1,0 +1,40 @@
+# Horcrux CODEOWNERS
+#
+# Lines are processed in order; the LAST matching rule wins, so
+# more-specific rules come below the catch-all.
+#
+# See: https://docs.github.com/repositories/managing-your-repositorys-settings-and-security/managing-your-repositorys-rules/about-code-owners
+
+# Global fallback — everything needs maintainer review.
+*                                       @msebilly
+
+# Crypto-sensitive Rust surfaces (audit scope).
+/horcrux-core/src/mpc/                  @msebilly
+/horcrux-core/src/shard/                @msebilly
+/horcrux-core/src/transport/            @msebilly
+/horcrux-core/src/chain/                @msebilly
+/horcrux-core/fuzz/                     @msebilly
+
+# Relay service — production-facing.
+/horcrux-relay/                         @msebilly
+/Caddyfile                              @msebilly
+/scripts/relay-smoke.sh                 @msebilly
+
+# iOS security-critical paths.
+/ios/Horcrux/Security/                  @msebilly
+/ios/Horcrux/Transport/                 @msebilly
+
+# Supply-chain + release surfaces.
+/Cargo.toml                             @msebilly
+/Cargo.lock                             @msebilly
+/deny.toml                              @msebilly
+/Dockerfile                             @msebilly
+/docker-compose.yml                     @msebilly
+/.github/workflows/                     @msebilly
+
+# Security policy + audit artefacts.
+/SECURITY.md                            @msebilly
+/docs/security-model.md                 @msebilly
+/docs/security-audit-2026-04.md         @msebilly
+/docs/audit-rfp/                        @msebilly
+/docs/mpc-protocol.md                   @msebilly

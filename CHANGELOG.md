@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Governance
+
+- **CODEOWNERS** added at `.github/CODEOWNERS`. Global fallback plus
+  explicit per-path ownership for crypto-sensitive modules
+  (`mpc/`, `shard/`, `transport/`, `chain/`, `fuzz/`), the relay
+  service, iOS `Security/` + `Transport/`, supply-chain manifests
+  (`Cargo.toml`, `Cargo.lock`, `deny.toml`, Docker, workflows), and
+  security documents (`SECURITY.md`, `docs/security-*.md`,
+  `docs/audit-rfp/`). Closes the operational **P0 #3** blocker.
+
 ### Documentation
 
 - **External-audit RFP scaffold** (round 19). New `docs/audit-rfp/`
