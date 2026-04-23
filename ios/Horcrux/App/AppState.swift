@@ -605,6 +605,32 @@ struct Wallet: Identifiable, Codable {
     /// after a successful ceremony).
     let peerRegistry: [String: UInt16]?
 
+    init(
+        id: String,
+        name: String,
+        chain: Chain,
+        address: String,
+        groupPublicKey: Data,
+        threshold: UInt16,
+        totalParties: UInt16,
+        partyIndex: UInt16,
+        createdAt: Date,
+        isHidden: Bool?,
+        peerRegistry: [String: UInt16]? = nil
+    ) {
+        self.id = id
+        self.name = name
+        self.chain = chain
+        self.address = address
+        self.groupPublicKey = groupPublicKey
+        self.threshold = threshold
+        self.totalParties = totalParties
+        self.partyIndex = partyIndex
+        self.createdAt = createdAt
+        self.isHidden = isHidden
+        self.peerRegistry = peerRegistry
+    }
+
     var hidden: Bool { isHidden ?? false }
 
     /// Canonical ID for the MPC account (= DKG ceremony). All wallets that

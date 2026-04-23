@@ -169,4 +169,96 @@ final class WalletStoreTests: XCTestCase {
 
         XCTAssertTrue(store.wallets.isEmpty, "wipeAll should remove all wallets")
     }
+
+    // MARK: - testSetPeerRegistryIfAbsentUpgradesLegacyWallet (Audit C1 round-16)
+
+    @MainActor
+    func testSetPeerRegistryIfAbsentUpgradesLegacyWallet() {
+        let store = WalletStore()
+        let gpk = Data([0xAA, 0xBB, 0xCC, 0xDD])
+        let legacy = Wallet(
+            id: "legacy-registry-upgrade",
+            name: "Legacy",
+            chain: .ethereum,
+            address: "0x1111111111111111111111111111111111111111",
+            groupPublicKey: gpk,
+            threshold: 2,
+            totalParties: 3,
+            partyIndex: 1,
+            createdAt: Date(timeIntervalSince1970: 1_700_000_000),
+            isHidden: nil
+        )
+        XCTAssertNil(legacy.peerRegistry, "makeWallet default must not populate registry")
+        store.add(legacy)
+
+        let observed: [String: UInt16] = ["peer-A": 2, "peer-B": 3]
+        store.setPeerRegistryIfAbsent(accountId: legacy.accountId, registry: observed)
+
+        let upgraded = store.wallet(for: "legacy-registry-upgrade")
+        XCTAssertEqual(upgraded?.peerRegistry, observed, "legacy wallet should be upgraded with observed map")
+
+        // Second call MUST NOT overwrite an already-populated registry.
+        let tamper: [String: UInt16] = ["peer-A": 99]
+        store.setPeerRegistryIfAbsent(accountId: legacy.accountId, registry: tamper)
+        let reread = store.wallet(for: "legacy-registry-upgrade")
+        XCTAssertEqual(reread?.peerRegistry, observed, "existing registry must not be overwritten")
+
+        // Empty registry is a no-op on a legacy wallet — we never
+        // persist an empty roster because it would silently accept
+        // any peer.id on the next refresh.
+        let legacy2 = Wallet(
+            id: "legacy-registry-empty",
+            name: "Legacy2",
+            chain: .ethereum,
+            address: "0x2222222222222222222222222222222222222222",
+            groupPublicKey: Data([0xEE, 0xFF]),
+            threshold: 2,
+            totalParties: 3,
+            partyIndex: 1,
+            createdAt: Date(timeIntervalSince1970: 1_700_000_000),
+            isHidden: nil
+        )
+        store.add(legacy2)
+        store.setPeerRegistryIfAbsent(accountId: legacy2.accountId, registry: [:])
+        XCTAssertNil(store.wallet(for: "legacy-registry-empty")?.peerRegistry,
+                     "empty registry must not be persisted")
+
+        store.remove(id: "legacy-registry-upgrade")
+        store.remove(id: "legacy-registry-empty")
+    }
+
+    // MARK: - testSetPeerRegistryIfAbsentAppliesToSiblings (Audit C1 round-16)
+
+    @MainActor
+    func testSetPeerRegistryIfAbsentAppliesToSiblings() {
+        // Two wallets sharing a groupPublicKey (same accountId) must
+        // both receive the registry, since the DKG roster is an
+        // account-level property.
+        let store = WalletStore()
+        let gpk = Data([0x11, 0x22, 0x33, 0x44, 0x55])
+        let ethW = Wallet(
+            id: "sibling-eth", name: "ETH sibling", chain: .ethereum,
+            address: "0xAAA0000000000000000000000000000000000000",
+            groupPublicKey: gpk, threshold: 2, totalParties: 3, partyIndex: 1,
+            createdAt: Date(timeIntervalSince1970: 1_700_000_000), isHidden: nil
+        )
+        let bnbW = Wallet(
+            id: "sibling-bnb", name: "BNB sibling", chain: .bnb,
+            address: "0xAAA0000000000000000000000000000000000000",
+            groupPublicKey: gpk, threshold: 2, totalParties: 3, partyIndex: 1,
+            createdAt: Date(timeIntervalSince1970: 1_700_000_000), isHidden: nil
+        )
+        store.add(ethW)
+        store.add(bnbW)
+
+        let reg: [String: UInt16] = ["peer-X": 2, "peer-Y": 3]
+        store.setPeerRegistryIfAbsent(accountId: ethW.accountId, registry: reg)
+
+        XCTAssertEqual(store.wallet(for: "sibling-eth")?.peerRegistry, reg)
+        XCTAssertEqual(store.wallet(for: "sibling-bnb")?.peerRegistry, reg,
+                       "sibling wallet sharing same accountId must also upgrade")
+
+        store.remove(id: "sibling-eth")
+        store.remove(id: "sibling-bnb")
+    }
 }
