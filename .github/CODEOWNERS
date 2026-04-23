@@ -18,7 +18,8 @@
 # Relay service — production-facing.
 /horcrux-relay/                         @msebilly
 /Caddyfile                              @msebilly
-/scripts/relay-smoke.sh                 @msebilly
+/scripts/verify-relay-deploy.sh         @msebilly
+/scripts/verify-build.sh                @msebilly
 
 # iOS security-critical paths.
 /ios/Horcrux/Security/                  @msebilly

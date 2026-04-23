@@ -31,7 +31,7 @@ before the audit starts — the final tag will be frozen at kickoff).
 | `horcrux-relay/src/room.rs` | Sequence-number replay protection, per-room participant bounds, TTL sweep. |
 | `horcrux-relay/src/ip_ratelimit.rs` | Sliding-window fairness, eviction policy. |
 | `horcrux-relay/src/config.rs` | `RELAY_ADMIN_TOKEN` exposure gate, `/metrics` / `/admin/*` allowlist. |
-| `Caddyfile` + `scripts/relay-smoke.sh` | TLS termination, HSTS, Prometheus ACL. |
+| `Caddyfile` + `scripts/verify-relay-deploy.sh` | TLS termination, HSTS, Prometheus ACL. |
 
 ### iOS application
 

@@ -1,0 +1,26 @@
+name: CODEOWNERS
+# Catch path drift: if a directory gets renamed or deleted but the
+# CODEOWNERS rule stays behind, GitHub silently ignores it. This
+# workflow fails the PR until rules are realigned with disk.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: codeowners-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    name: Validate CODEOWNERS
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - name: Run validator
+        run: ./scripts/validate-codeowners.sh

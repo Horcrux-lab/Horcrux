@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Governance
 
+- **CODEOWNERS validator** (`scripts/validate-codeowners.sh` + CI
+  workflow `.github/workflows/codeowners.yml`). Fails the PR if any
+  path-anchored rule no longer matches a path on disk or any owner
+  is malformed. Ran on the existing file and caught drift
+  immediately: `scripts/relay-smoke.sh` (referenced in CODEOWNERS +
+  audit-rfp scope) does not exist — the actual script is
+  `scripts/verify-relay-deploy.sh`. Both references fixed.
+
 - **CODEOWNERS** added at `.github/CODEOWNERS`. Global fallback plus
   explicit per-path ownership for crypto-sensitive modules
   (`mpc/`, `shard/`, `transport/`, `chain/`, `fuzz/`), the relay
@@ -18,6 +26,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `docs/audit-rfp/`). Closes the operational **P0 #3** blocker.
 
 ### Documentation
+
+- **`RELEASE.md`** — top-level release checklist covering pre-flight
+  (test/clippy/fmt/deny/build + CODEOWNERS validator + TODO sweep),
+  CHANGELOG freeze, version bump across workspace + `uniffi-bindgen`
+  + iOS Info.plist, annotated tag, reproducible-build manifest,
+  relay container tag, iOS notarization, `gh release create`,
+  disclosure-lag honouring, post-release `[Unreleased]` restore,
+  tag-name conventions (`-dev.N` / `-rc.N` / stable), and the
+  branch-from-tag hotfix procedure. Codifies the sequence used for
+  `v0.5.0-rc.2` so it's repeatable for `v0.5.0` GA.
 
 - **External-audit RFP scaffold** (round 19). New `docs/audit-rfp/`
   directory with firm-independent `scope.md`, `severity-rubric.md`,
