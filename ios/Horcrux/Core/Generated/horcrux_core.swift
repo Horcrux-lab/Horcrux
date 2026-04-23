@@ -1272,14 +1272,30 @@ public struct FfiBtcInput {
     public var vout: UInt32
     public var value: UInt64
     public var pubkeyHash: Data?
+    /**
+     * Raw bytes of the previous transaction (non-witness serialized).
+     * When supplied, the signing core verifies the input's claimed
+     * (txid, vout, value) against it. Omit at your peril — signing a
+     * P2WPKH input with a forged value field can send unbounded fees
+     * to miners (audit finding H9).
+     */
+    public var prevTxRaw: Data?
 
     // Default memberwise initializers are never public by default, so we
     // declare one manually.
-    public init(txid: String, vout: UInt32, value: UInt64, pubkeyHash: Data?) {
+    public init(txid: String, vout: UInt32, value: UInt64, pubkeyHash: Data?, 
+        /**
+         * Raw bytes of the previous transaction (non-witness serialized).
+         * When supplied, the signing core verifies the input's claimed
+         * (txid, vout, value) against it. Omit at your peril — signing a
+         * P2WPKH input with a forged value field can send unbounded fees
+         * to miners (audit finding H9).
+         */prevTxRaw: Data?) {
         self.txid = txid
         self.vout = vout
         self.value = value
         self.pubkeyHash = pubkeyHash
+        self.prevTxRaw = prevTxRaw
     }
 }
 
@@ -1299,6 +1315,9 @@ extension FfiBtcInput: Equatable, Hashable {
         if lhs.pubkeyHash != rhs.pubkeyHash {
             return false
         }
+        if lhs.prevTxRaw != rhs.prevTxRaw {
+            return false
+        }
         return true
     }
 
@@ -1307,6 +1326,7 @@ extension FfiBtcInput: Equatable, Hashable {
         hasher.combine(vout)
         hasher.combine(value)
         hasher.combine(pubkeyHash)
+        hasher.combine(prevTxRaw)
     }
 }
 
@@ -1321,7 +1341,8 @@ public struct FfiConverterTypeFfiBtcInput: FfiConverterRustBuffer {
                 txid: FfiConverterString.read(from: &buf), 
                 vout: FfiConverterUInt32.read(from: &buf), 
                 value: FfiConverterUInt64.read(from: &buf), 
-                pubkeyHash: FfiConverterOptionData.read(from: &buf)
+                pubkeyHash: FfiConverterOptionData.read(from: &buf), 
+                prevTxRaw: FfiConverterOptionData.read(from: &buf)
         )
     }
 
@@ -1330,6 +1351,7 @@ public struct FfiConverterTypeFfiBtcInput: FfiConverterRustBuffer {
         FfiConverterUInt32.write(value.vout, into: &buf)
         FfiConverterUInt64.write(value.value, into: &buf)
         FfiConverterOptionData.write(value.pubkeyHash, into: &buf)
+        FfiConverterOptionData.write(value.prevTxRaw, into: &buf)
     }
 }
 
@@ -1500,6 +1522,99 @@ public func FfiConverterTypeFfiBtcTxParams_lift(_ buf: RustBuffer) throws -> Ffi
 #endif
 public func FfiConverterTypeFfiBtcTxParams_lower(_ value: FfiBtcTxParams) -> RustBuffer {
     return FfiConverterTypeFfiBtcTxParams.lower(value)
+}
+
+
+/**
+ * FFI-friendly EIP-712 domain. Mirrors `chain::evm::Eip712Domain`
+ * except `verifying_contract` is passed as a hex/0x-prefixed string
+ * (uniffi Record types cannot carry fixed-size byte arrays directly).
+ */
+public struct FfiEip712Domain {
+    public var name: String
+    public var version: String
+    public var chainId: UInt64
+    /**
+     * 20-byte address, hex or 0x-prefixed hex.
+     */
+    public var verifyingContract: String
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(name: String, version: String, chainId: UInt64, 
+        /**
+         * 20-byte address, hex or 0x-prefixed hex.
+         */verifyingContract: String) {
+        self.name = name
+        self.version = version
+        self.chainId = chainId
+        self.verifyingContract = verifyingContract
+    }
+}
+
+
+
+extension FfiEip712Domain: Equatable, Hashable {
+    public static func ==(lhs: FfiEip712Domain, rhs: FfiEip712Domain) -> Bool {
+        if lhs.name != rhs.name {
+            return false
+        }
+        if lhs.version != rhs.version {
+            return false
+        }
+        if lhs.chainId != rhs.chainId {
+            return false
+        }
+        if lhs.verifyingContract != rhs.verifyingContract {
+            return false
+        }
+        return true
+    }
+
+    public func hash(into hasher: inout Hasher) {
+        hasher.combine(name)
+        hasher.combine(version)
+        hasher.combine(chainId)
+        hasher.combine(verifyingContract)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeFfiEip712Domain: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> FfiEip712Domain {
+        return
+            try FfiEip712Domain(
+                name: FfiConverterString.read(from: &buf), 
+                version: FfiConverterString.read(from: &buf), 
+                chainId: FfiConverterUInt64.read(from: &buf), 
+                verifyingContract: FfiConverterString.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: FfiEip712Domain, into buf: inout [UInt8]) {
+        FfiConverterString.write(value.name, into: &buf)
+        FfiConverterString.write(value.version, into: &buf)
+        FfiConverterUInt64.write(value.chainId, into: &buf)
+        FfiConverterString.write(value.verifyingContract, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeFfiEip712Domain_lift(_ buf: RustBuffer) throws -> FfiEip712Domain {
+    return try FfiConverterTypeFfiEip712Domain.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeFfiEip712Domain_lower(_ value: FfiEip712Domain) -> RustBuffer {
+    return FfiConverterTypeFfiEip712Domain.lower(value)
 }
 
 
@@ -2393,15 +2508,63 @@ public struct FfiSolanaTxParams {
     public var toAddress: String
     public var lamports: UInt64
     public var recentBlockhash: String
+    /**
+     * Unix-millis timestamp when `recent_blockhash` was fetched from
+     * RPC. Together with `now_unix_ms` below, this lets the signing
+     * core reject stale blockhashes (audit C5). Pass `None` for
+     * durable-nonce-backed transactions, or when the caller genuinely
+     * cannot record a fetch timestamp (legacy path — logs a warning).
+     */
+    public var blockhashFetchedAtUnixMs: UInt64?
+    /**
+     * Unix-millis wall clock at sign time. Required whenever
+     * `blockhash_fetched_at_unix_ms` is `Some`. Passing both keeps the
+     * clock source under caller control (iOS uses its
+     * monotonic-anchored wall clock so a user tampering with device
+     * time can't trivially bypass the freshness gate — the RPC fetch
+     * and the sign time share the same reference).
+     */
+    public var nowUnixMs: UInt64?
+    /**
+     * If `true`, the transaction's blockhash slot is backed by a
+     * durable nonce account rather than a recent blockhash; skip the
+     * freshness check entirely. Mutually exclusive with
+     * `blockhash_fetched_at_unix_ms`.
+     */
+    public var durableNonce: Bool
     public var devnet: Bool
 
     // Default memberwise initializers are never public by default, so we
     // declare one manually.
-    public init(fromAddress: String, toAddress: String, lamports: UInt64, recentBlockhash: String, devnet: Bool) {
+    public init(fromAddress: String, toAddress: String, lamports: UInt64, recentBlockhash: String, 
+        /**
+         * Unix-millis timestamp when `recent_blockhash` was fetched from
+         * RPC. Together with `now_unix_ms` below, this lets the signing
+         * core reject stale blockhashes (audit C5). Pass `None` for
+         * durable-nonce-backed transactions, or when the caller genuinely
+         * cannot record a fetch timestamp (legacy path — logs a warning).
+         */blockhashFetchedAtUnixMs: UInt64?, 
+        /**
+         * Unix-millis wall clock at sign time. Required whenever
+         * `blockhash_fetched_at_unix_ms` is `Some`. Passing both keeps the
+         * clock source under caller control (iOS uses its
+         * monotonic-anchored wall clock so a user tampering with device
+         * time can't trivially bypass the freshness gate — the RPC fetch
+         * and the sign time share the same reference).
+         */nowUnixMs: UInt64?, 
+        /**
+         * If `true`, the transaction's blockhash slot is backed by a
+         * durable nonce account rather than a recent blockhash; skip the
+         * freshness check entirely. Mutually exclusive with
+         * `blockhash_fetched_at_unix_ms`.
+         */durableNonce: Bool, devnet: Bool) {
         self.fromAddress = fromAddress
         self.toAddress = toAddress
         self.lamports = lamports
         self.recentBlockhash = recentBlockhash
+        self.blockhashFetchedAtUnixMs = blockhashFetchedAtUnixMs
+        self.nowUnixMs = nowUnixMs
+        self.durableNonce = durableNonce
         self.devnet = devnet
     }
 }
@@ -2422,6 +2585,15 @@ extension FfiSolanaTxParams: Equatable, Hashable {
         if lhs.recentBlockhash != rhs.recentBlockhash {
             return false
         }
+        if lhs.blockhashFetchedAtUnixMs != rhs.blockhashFetchedAtUnixMs {
+            return false
+        }
+        if lhs.nowUnixMs != rhs.nowUnixMs {
+            return false
+        }
+        if lhs.durableNonce != rhs.durableNonce {
+            return false
+        }
         if lhs.devnet != rhs.devnet {
             return false
         }
@@ -2433,6 +2605,9 @@ extension FfiSolanaTxParams: Equatable, Hashable {
         hasher.combine(toAddress)
         hasher.combine(lamports)
         hasher.combine(recentBlockhash)
+        hasher.combine(blockhashFetchedAtUnixMs)
+        hasher.combine(nowUnixMs)
+        hasher.combine(durableNonce)
         hasher.combine(devnet)
     }
 }
@@ -2449,6 +2624,9 @@ public struct FfiConverterTypeFfiSolanaTxParams: FfiConverterRustBuffer {
                 toAddress: FfiConverterString.read(from: &buf), 
                 lamports: FfiConverterUInt64.read(from: &buf), 
                 recentBlockhash: FfiConverterString.read(from: &buf), 
+                blockhashFetchedAtUnixMs: FfiConverterOptionUInt64.read(from: &buf), 
+                nowUnixMs: FfiConverterOptionUInt64.read(from: &buf), 
+                durableNonce: FfiConverterBool.read(from: &buf), 
                 devnet: FfiConverterBool.read(from: &buf)
         )
     }
@@ -2458,6 +2636,9 @@ public struct FfiConverterTypeFfiSolanaTxParams: FfiConverterRustBuffer {
         FfiConverterString.write(value.toAddress, into: &buf)
         FfiConverterUInt64.write(value.lamports, into: &buf)
         FfiConverterString.write(value.recentBlockhash, into: &buf)
+        FfiConverterOptionUInt64.write(value.blockhashFetchedAtUnixMs, into: &buf)
+        FfiConverterOptionUInt64.write(value.nowUnixMs, into: &buf)
+        FfiConverterBool.write(value.durableNonce, into: &buf)
         FfiConverterBool.write(value.devnet, into: &buf)
     }
 }
@@ -2564,6 +2745,10 @@ public enum ChainError {
     case EncodingError(msg: String
     )
     case InsufficientBalance
+    case BlockhashExpired(ageMs: UInt64, maxMs: UInt64
+    )
+    case ArithmeticOverflow(msg: String
+    )
     case Other(msg: String
     )
 }
@@ -2589,7 +2774,14 @@ public struct FfiConverterTypeChainError: FfiConverterRustBuffer {
             msg: try FfiConverterString.read(from: &buf)
             )
         case 3: return .InsufficientBalance
-        case 4: return .Other(
+        case 4: return .BlockhashExpired(
+            ageMs: try FfiConverterUInt64.read(from: &buf), 
+            maxMs: try FfiConverterUInt64.read(from: &buf)
+            )
+        case 5: return .ArithmeticOverflow(
+            msg: try FfiConverterString.read(from: &buf)
+            )
+        case 6: return .Other(
             msg: try FfiConverterString.read(from: &buf)
             )
 
@@ -2618,8 +2810,19 @@ public struct FfiConverterTypeChainError: FfiConverterRustBuffer {
             writeInt(&buf, Int32(3))
         
         
-        case let .Other(msg):
+        case let .BlockhashExpired(ageMs,maxMs):
             writeInt(&buf, Int32(4))
+            FfiConverterUInt64.write(ageMs, into: &buf)
+            FfiConverterUInt64.write(maxMs, into: &buf)
+            
+        
+        case let .ArithmeticOverflow(msg):
+            writeInt(&buf, Int32(5))
+            FfiConverterString.write(msg, into: &buf)
+            
+        
+        case let .Other(msg):
+            writeInt(&buf, Int32(6))
             FfiConverterString.write(msg, into: &buf)
             
         }
@@ -3092,6 +3295,30 @@ fileprivate struct FfiConverterOptionUInt8: FfiConverterRustBuffer {
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
+fileprivate struct FfiConverterOptionUInt64: FfiConverterRustBuffer {
+    typealias SwiftType = UInt64?
+
+    public static func write(_ value: SwiftType, into buf: inout [UInt8]) {
+        guard let value = value else {
+            writeInt(&buf, Int8(0))
+            return
+        }
+        writeInt(&buf, Int8(1))
+        FfiConverterUInt64.write(value, into: &buf)
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SwiftType {
+        switch try readInt(&buf) as Int8 {
+        case 0: return nil
+        case 1: return try FfiConverterUInt64.read(from: &buf)
+        default: throw UniffiInternalError.unexpectedOptionalTag
+        }
+    }
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
 fileprivate struct FfiConverterOptionData: FfiConverterRustBuffer {
     typealias SwiftType = Data?
 
@@ -3357,6 +3584,27 @@ public func horcruxDecryptShard(encrypted: FfiEncryptedShard, deviceKey: Data, p
 })
 }
 /**
+ * Compute the EIP-712 typed-data digest (audit H8).
+ *
+ * This is the sanctioned entry point for any EIP-712 signing flow:
+ * it hard-fails when the domain is missing chain-id / contract /
+ * name bindings that would let a signature be replayed on another
+ * chain or another contract. The UI must have already displayed and
+ * obtained user consent for the decoded domain fields before
+ * invoking this — see `docs/security-audit-2026-04.md` H8.
+ *
+ * `struct_hash` is the 32-byte `hashStruct(message)` value the UI
+ * already computed from the typed-data payload.
+ */
+public func horcruxEip712Digest(domain: FfiEip712Domain, structHash: Data)throws  -> Data {
+    return try  FfiConverterData.lift(try rustCallWithError(FfiConverterTypeChainError.lift) {
+    uniffi_horcrux_core_fn_func_horcrux_eip712_digest(
+        FfiConverterTypeFfiEip712Domain.lower(domain),
+        FfiConverterData.lower(structHash),$0
+    )
+})
+}
+/**
  * Encrypt a key shard using AES-256-GCM with an HKDF-SHA256-derived key.
  *
  * The key derivation mixes `device_key` (host-managed, e.g. SE-sealed on iOS)
@@ -3488,6 +3736,9 @@ private var initializationResult: InitializationResult = {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_horcrux_core_checksum_func_horcrux_decrypt_shard() != 36161) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_horcrux_core_checksum_func_horcrux_eip712_digest() != 44480) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_horcrux_core_checksum_func_horcrux_encrypt_shard() != 48434) {

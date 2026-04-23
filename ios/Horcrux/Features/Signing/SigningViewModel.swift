@@ -1847,7 +1847,8 @@ final class SigningViewModel: ObservableObject {
                 txid: chosen.txid,
                 vout: chosen.vout,
                 value: chosen.value,
-                pubkeyHash: Data(pubkeyHash)
+                pubkeyHash: Data(pubkeyHash),
+                prevTxRaw: nil
             )],
             outputs: outputs,
             testnet: false
@@ -1915,13 +1916,18 @@ final class SigningViewModel: ObservableObject {
         guard let lamportsU64 = UInt64(lamports), lamportsU64 > 0 else {
             throw SigningError.notInitialized
         }
+        let fetchedAtMs = UInt64(Date().timeIntervalSince1970 * 1000)
         let blockhash = try await blockchainService.solRecentBlockhash(
             rpcURL: networkConfig.solanaRPC)
+        let nowMs = UInt64(Date().timeIntervalSince1970 * 1000)
         let params = FfiSolanaTxParams(
             fromAddress: wallet.address,
             toAddress: recipientAddress,
             lamports: lamportsU64,
             recentBlockhash: blockhash,
+            blockhashFetchedAtUnixMs: fetchedAtMs,
+            nowUnixMs: nowMs,
+            durableNonce: false,
             devnet: false
         )
         let tx = try horcruxBuildSolanaTransaction(params: params)
