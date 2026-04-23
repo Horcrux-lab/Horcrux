@@ -466,6 +466,10 @@ pub struct EcdsaSigningSession {
     // Deferred driver creation data
     our_signing_index: u16,
     parties_at_keygen: Vec<u16>,
+    /// 1-based original party indices for the ceremony participants.
+    /// Used to translate between cggmp21's signing-local indices
+    /// (0..T-1) and the 1-based party indices on the wire.
+    participants: Vec<u16>,
     key_share: cggmp21::KeyShare<Secp256k1, SecurityLevel128>,
 }
 
@@ -525,6 +529,7 @@ impl EcdsaSigningSession {
             result: None,
             our_signing_index,
             parties_at_keygen,
+            participants,
             key_share,
         })
     }
@@ -548,7 +553,26 @@ impl EcdsaSigningSession {
             .driver
             .as_mut()
             .ok_or_else(|| MpcError::ProtocolError("signing driver not initialized".into()))?;
-        driver.feed(wire.from - 1, wire.is_broadcast, &wire.payload)?;
+        // cggmp21's signing state machine indexes senders by their
+        // *signing-local* position (0..participants.len()-1), not by the
+        // 1-based original party index on the wire. For an n-of-n DKG
+        // these coincide, but for a t-of-n signing with participants
+        // [1, 3] on a 3-party keygen, party 3 is signing-local index 1,
+        // not 2. Passing the raw keygen index (`wire.from - 1 == 2`)
+        // would make the driver reject the packet as coming from an
+        // out-of-range sender and the ceremony would stall forever in
+        // round 0. Translate via the `participants` vector.
+        let signing_local = self
+            .participants
+            .iter()
+            .position(|&p| p == wire.from)
+            .ok_or_else(|| {
+                MpcError::ProtocolError(format!(
+                    "wire.from={} is not in participants {:?}",
+                    wire.from, self.participants
+                ))
+            })? as u16;
+        driver.feed(signing_local, wire.is_broadcast, &wire.payload)?;
         self.drain_outbox()
     }
 
@@ -572,7 +596,13 @@ impl EcdsaSigningSession {
 
                     match recipient {
                         None => {
-                            for i in 1..=self.config.total_parties {
+                            // Broadcast: route to every ceremony
+                            // participant other than self. Iterating
+                            // 1..=total_parties would emit messages to
+                            // non-participants (e.g. party 2 in a
+                            // [1,3] ceremony), which nothing consumes
+                            // and which inflate the wire log.
+                            for &i in self.participants.iter() {
                                 if i != self.config.party_index {
                                     messages.push(MpcMessage {
                                         from: self.config.party_index,
@@ -585,9 +615,19 @@ impl EcdsaSigningSession {
                             }
                         }
                         Some(r) => {
+                            // `r` is a signing-local 0-based index
+                            // emitted by cggmp21; map back to the
+                            // 1-based original party index.
+                            let to = *self.participants.get(r as usize).ok_or_else(|| {
+                                MpcError::ProtocolError(format!(
+                                    "driver emitted recipient={} but only {} participants",
+                                    r,
+                                    self.participants.len()
+                                ))
+                            })?;
                             messages.push(MpcMessage {
                                 from: self.config.party_index,
-                                to: r + 1,
+                                to,
                                 round: 0,
                                 session_id: self.session_id.clone(),
                                 payload,
