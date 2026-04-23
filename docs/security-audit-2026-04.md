@@ -131,10 +131,20 @@ enforce at keygen + signing entry.
 session manager and takes down every in-flight ceremony.
 **Fix**: propagate errors via `?`; isolate per-session panics.
 
-### H4 — iOS cert pinning rotation fallback ⚠️
+### H4 — iOS cert pinning rotation fallback ✅
 `CertificatePinner.swift`. Reported fallback to default chain
 validation on pin rotation. If true → MITM window during rotation.
-**Fix**: dual-pin (current + next), hard-fail on mismatch.
+**Fix shipped (round 11)**: split pinning policy into known vs TOFU
+hosts. `registerKnownPins()` now freezes a `knownHosts: Set<String>`
+at init. In `validate()`, when the presented chain's SPKI hashes are
+disjoint from the stored pins, known hosts HARD-FAIL (returns
+`false`, connection rejected, error logged) and only TOFU hosts
+(user-configured endpoints) auto-rotate with a warning. Dual-pin
+structure (current + backup CA root) was already in place per host;
+the H4 gap was the silent re-pin fallback on mismatch that defeated
+the entire guarantee. Doc block on `registerKnownPins` now specifies
+the operational rotation process (obtain next-gen SPKI, add as
+backup, ship release, promote after rotation day).
 
 ### H5 — Keychain ACL not uniformly passcode-gated ✅
 `KeychainManager.swift`. Some items may not carry

@@ -20,6 +20,17 @@ final class CertificatePinner: NSObject, @unchecked Sendable {
     /// When providers rotate certs (but keep the same key), pins remain valid.
     private var pinnedHashes: [String: Set<String>] = [:]
 
+    /// Hosts whose pins were registered via `registerKnownPins()` at init.
+    /// These are frozen — on SPKI mismatch we HARD-FAIL rather than re-pin
+    /// (audit H4: silently rotating known pins defeats the entire point of
+    /// pinning, because an attacker presenting any CA-issued cert for the
+    /// host would just cause us to trust their key). Only TOFU hosts
+    /// (user-configured endpoints) are allowed to auto-rotate with a
+    /// warning on the assumption that the user chose the endpoint, so a
+    /// cert rotation is far more likely than an MITM targeting that
+    /// specific user-chosen URL.
+    private var knownHosts: Set<String> = []
+
     /// TOFU-stored hashes for user-configured endpoints.
     private let tofuKey = "com.horcrux.cert_pins_tofu"
 
@@ -71,18 +82,21 @@ final class CertificatePinner: NSObject, @unchecked Sendable {
 
         guard !serverHashes.isEmpty else { return false }
 
-        // Check against known pins. If stored pins don't intersect with the
-        // chain's SPKIs, we treat this as a cert rotation (the chain already
-        // passed system trust validation, and all hosts we pin use well-known
-        // CAs whose intermediates rotate on a yearly cadence). Rotate the
-        // stored hashes to the new chain and warn. Without this, hardcoded
-        // pins from an older app version (e.g. Let's Encrypt R3 for
-        // blockstream.info) brick the feature permanently for every user.
+        // Check against known pins. Known-pinned hosts MUST match —
+        // silent re-pinning on these would defeat the pinning guarantee
+        // (audit H4). TOFU hosts (user-configured endpoints) are allowed
+        // to rotate with a warning because the user explicitly chose the
+        // URL, making cert rotation far more plausible than a targeted
+        // MITM.
         if let knownPins = pinnedHashes[host], !knownPins.isEmpty {
             if !knownPins.isDisjoint(with: serverHashes) {
                 return true
             }
-            SecureLog.warning("SPKI pin rotation for \(host): stored hashes disjoint from current chain, re-pinning")
+            if knownHosts.contains(host) {
+                SecureLog.error("SPKI pin mismatch for known host \(host) — connection rejected (possible MITM or unannounced cert rotation)")
+                return false
+            }
+            SecureLog.warning("SPKI pin rotation for TOFU host \(host): stored hashes disjoint from current chain, re-pinning")
             pinnedHashes[host] = serverHashes
             saveTOFUPins()
             return true
@@ -157,22 +171,52 @@ final class CertificatePinner: NSObject, @unchecked Sendable {
     /// Pre-pin known RPC endpoint certificates.
     /// These are SPKI SHA-256 hashes (base64) for the TLS certificates of default endpoints.
     /// Multiple pins per host provide backup when certificates rotate.
+    ///
+    /// Dual-pinning strategy (audit H4):
+    /// - **Current pins**: SPKI hashes currently presented by the provider.
+    /// - **Backup pins**: SPKI hashes the provider has committed to rotating
+    ///   to *next*. Generated out-of-band (provider publishes next-gen pin
+    ///   before rotating), added here ahead of rotation, promoted to current
+    ///   on the release that follows rotation day. Without pre-staged backup
+    ///   pins, a CA rotation bricks the feature for every user on the old
+    ///   binary — which is why audit H4 explicitly calls for both slots.
+    ///
+    /// Operational process for adding a backup pin:
+    /// 1. Obtain the new SPKI hash from the provider (or compute it yourself
+    ///    from `openssl s_client -showcerts -servername $HOST -connect $HOST:443`
+    ///    → `openssl x509 -pubkey -noout | openssl pkey -pubin -outform DER
+    ///       | openssl dgst -sha256 -binary | base64`).
+    /// 2. Add it to the host's set below with a comment noting "backup —
+    ///    rotation planned YYYY-MM-DD".
+    /// 3. Ship the release.
+    /// 4. After rotation day, remove the old pin in the next release.
     private func registerKnownPins() {
-        // Cloudflare / LlamaRPC (shared Cloudflare CDN cert chain)
-        pinnedHashes["eth.llamarpc.com"] = [
-            "Wf0FMBpVcyFnBCJdFBpmIGe96D6xMKdjXWEag+ao1Xg=", // Cloudflare Inc ECC CA-3
-            "jQJTbIh0grw0/1TkHSumWb+Fs0Ggogr621gT3PvPKG0=", // Baltimore CyberTrust Root
+        // List of known hosts, frozen separately so we don't accidentally
+        // treat TOFU-loaded entries (merged in by `loadTOFUPins` earlier
+        // in init) as known pins.
+        let known: [String: Set<String>] = [
+            // Cloudflare / LlamaRPC (shared Cloudflare CDN cert chain)
+            "eth.llamarpc.com": [
+                "Wf0FMBpVcyFnBCJdFBpmIGe96D6xMKdjXWEag+ao1Xg=", // Cloudflare Inc ECC CA-3
+                "jQJTbIh0grw0/1TkHSumWb+Fs0Ggogr621gT3PvPKG0=", // Baltimore CyberTrust Root (backup CA)
+            ],
+            // Blockstream (Bitcoin API)
+            "blockstream.info": [
+                "FfFKxFycfaIz00eRZOgTf+Ne4POK6FgYPwhGDqSNkNQ=", // Let's Encrypt R3
+                "jQJTbIh0grw0/1TkHSumWb+Fs0Ggogr621gT3PvPKG0=", // ISRG Root X1 (backup CA)
+            ],
+            // Solana Mainnet (Triton / shared infrastructure)
+            "api.mainnet-beta.solana.com": [
+                "FfFKxFycfaIz00eRZOgTf+Ne4POK6FgYPwhGDqSNkNQ=", // Let's Encrypt R3
+                "jQJTbIh0grw0/1TkHSumWb+Fs0Ggogr621gT3PvPKG0=", // ISRG Root X1 (backup CA)
+            ],
         ]
-        // Blockstream (Bitcoin API)
-        pinnedHashes["blockstream.info"] = [
-            "FfFKxFycfaIz00eRZOgTf+Ne4POK6FgYPwhGDqSNkNQ=", // Let's Encrypt R3
-            "jQJTbIh0grw0/1TkHSumWb+Fs0Ggogr621gT3PvPKG0=", // ISRG Root X1
-        ]
-        // Solana Mainnet (Triton / shared infrastructure)
-        pinnedHashes["api.mainnet-beta.solana.com"] = [
-            "FfFKxFycfaIz00eRZOgTf+Ne4POK6FgYPwhGDqSNkNQ=", // Let's Encrypt R3
-            "jQJTbIh0grw0/1TkHSumWb+Fs0Ggogr621gT3PvPKG0=", // ISRG Root X1
-        ]
+        for (host, pins) in known {
+            pinnedHashes[host] = pins
+        }
+        // Freeze the known-host set so validate() can distinguish these
+        // from user-configured TOFU hosts.
+        knownHosts = Set(known.keys)
     }
 
     // MARK: - TOFU Persistence

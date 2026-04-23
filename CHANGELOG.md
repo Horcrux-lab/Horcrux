@@ -9,6 +9,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security
 
+- **Audit P0 round 11** — iOS H4 cert-pin rotation. Split
+  `CertificatePinner` pinning policy into known vs TOFU hosts.
+  `registerKnownPins()` now freezes a `knownHosts: Set<String>`
+  at init; `validate()` HARD-FAILS when a known host's SPKI chain
+  is disjoint from stored pins (previously re-pinned silently,
+  defeating the entire pinning guarantee). TOFU hosts
+  (user-configured endpoints) still auto-rotate with a warning
+  since the user explicitly chose the URL. Dual-pin structure
+  (leaf CA + backup root CA) was already in place per host;
+  file-level doc block now spells out the operational rotation
+  process (obtain next-gen SPKI, add as backup, ship, promote
+  after rotation day). Verified via `xcodebuild` arm64 sim.
+
 - **Audit P0 round 10** — iOS batch: M7 / M9 / H5 / M6+M10 verified.
   First iOS-side round (rounds 1-9 were Rust/infra). Verified via
   `xcodebuild` against an arm64 simulator; pre-existing target
