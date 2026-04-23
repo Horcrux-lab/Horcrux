@@ -9,6 +9,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security
 
+- **Relay deploy smoke script** — `scripts/verify-relay-deploy.sh`.
+  Operator-facing PASS/FAIL gate for every public HTTP surface the
+  relay exposes: `/health` (200, `status=ok`, version matches
+  `horcrux-relay` crate), `/metrics` and `/admin/rooms` (admin-token
+  enforcement), `/ws/:room_id` (101 Switching Protocols with an
+  RFC-6455-correct `Sec-WebSocket-Accept`), and TLS certificate
+  validity for `https://` URLs (distinguishes "cert untrusted" from
+  "server down" via an `--insecure` retry). Zero deps beyond
+  `curl`/`awk`/`sed`; `openssl` is used when present to compute the
+  WebSocket accept handshake. Exit 0 if all pass, 1 on any failure,
+  2 on usage error — safe to wire into a CI pre-deploy job.
+  Verified locally against a live relay: 7/7 checks green.
+
 - **Audit C1 round-16 follow-up** — AccountBackup migration tests.
   Adds `HorcruxTests/AccountBackupMigrationTests.swift` (4 tests)
   covering: (a) legacy v3 JSON (no `peerRegistry` key) decodes with
