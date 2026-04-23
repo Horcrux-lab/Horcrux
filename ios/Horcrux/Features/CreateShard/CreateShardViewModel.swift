@@ -427,6 +427,19 @@ final class CreateShardViewModel: ObservableObject {
         return .acceptAuthenticated(partyIndex: pinned)
     }
 
+    /// Round-16 helper — serialize the DKG roster into the shape
+    /// persisted on each `Wallet.peerRegistry` (and mirrored into
+    /// `AccountBackup` v4+). An empty map is recorded as `nil`
+    /// rather than `[:]` because the wallet-level invariant is
+    /// "registry absent" vs "registry present and non-empty";
+    /// persisting an empty dictionary would falsely signal that
+    /// strict-mode enforcement is active while forcing every
+    /// subsequent inbound message to be `rejectUnknownPeer`.
+    /// Exposed as a pure function for branch-coverage testing.
+    nonisolated static func registrySnapshot(from map: [String: UInt16]) -> [String: UInt16]? {
+        map.isEmpty ? nil : map
+    }
+
     /// The `peer → identifier` projection used by `autoAssignPartyIndex`.
     /// Captured so the inbound-message handler looks up
     /// `dkgPeerPartyIndex` in the same namespace the assignment used.
@@ -752,7 +765,7 @@ final class CreateShardViewModel: ObservableObject {
         }
 
         // Save one wallet entry per derived chain address.
-        let registrySnapshot: [String: UInt16]? = dkgPeerPartyIndex.isEmpty ? nil : dkgPeerPartyIndex
+        let registrySnapshot = Self.registrySnapshot(from: dkgPeerPartyIndex)
         for (index, entry) in generatedAddresses.enumerated() {
             // Use rawValue (unique per chain) to avoid ID/name collisions
             // between EVM chains that share the same symbol (ETH).

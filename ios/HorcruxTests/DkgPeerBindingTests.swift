@@ -75,4 +75,25 @@ final class DkgPeerBindingTests: XCTestCase {
         )
         XCTAssertEqual(roster, ["peer-A": 2, "peer-B": 3])
     }
+
+    // MARK: - registrySnapshot (round 16 save-wallet path)
+
+    func testRegistrySnapshotNilsEmptyMap() {
+        // Invariant: a Wallet either has no registry (pre-round-16
+        // or standalone / cold wallet) or a populated one. Empty
+        // `[:]` must never be persisted — it would signal strict
+        // mode with zero acceptable peers.
+        XCTAssertNil(CreateShardViewModel.registrySnapshot(from: [:]))
+    }
+
+    func testRegistrySnapshotPassesThroughPopulatedMap() {
+        let map: [String: UInt16] = ["peer-A": 1, "peer-B": 2, "peer-C": 3]
+        XCTAssertEqual(CreateShardViewModel.registrySnapshot(from: map), map)
+    }
+
+    func testRegistrySnapshotDoesNotMutateInput() {
+        var map: [String: UInt16] = ["peer-A": 1]
+        _ = CreateShardViewModel.registrySnapshot(from: map)
+        XCTAssertEqual(map, ["peer-A": 1])
+    }
 }
