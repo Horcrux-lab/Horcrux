@@ -42,6 +42,18 @@ pub enum ChainError {
     EncodingError(String),
     #[error("insufficient balance")]
     InsufficientBalance,
+    /// A Solana `recent_blockhash` was older than the protocol-allowed
+    /// freshness window at sign time. Refusing to sign protects against
+    /// accidental replay and against a malicious UI stuffing an
+    /// already-expired blockhash to force a retry-loop drain
+    /// (audit finding C5).
+    #[error("solana blockhash expired: age {age_ms}ms > max {max_ms}ms")]
+    BlockhashExpired { age_ms: u64, max_ms: u64 },
+    /// Checked arithmetic overflow on a fee / value computation — the
+    /// requested tx would exceed `u128` bounds. Never panics even on
+    /// attacker-supplied gas + value combos (audit finding H10).
+    #[error("arithmetic overflow: {0}")]
+    ArithmeticOverflow(&'static str),
     #[error("chain error: {0}")]
     Other(String),
 }

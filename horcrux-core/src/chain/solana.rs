@@ -13,6 +13,47 @@ const SYSTEM_PROGRAM_ID: [u8; 32] = [0u8; 32];
 /// System Program "Transfer" instruction index.
 const TRANSFER_INSTRUCTION: u32 = 2;
 
+/// Maximum age, in milliseconds, of a Solana `recent_blockhash` accepted at
+/// sign time. Solana's own protocol window is ~150 slots ≈ 60–90 seconds;
+/// we pick 90 s as the conservative upper bound so a round-trip of
+/// (RPC fetch → user review → PIN → MPC rounds) still lands inside a
+/// single validator's recent-blockhash cache. Anything older is almost
+/// certainly about to expire on-chain and signing it is a waste at best
+/// and a replay foothold at worst (audit finding C5).
+pub const MAX_BLOCKHASH_AGE_MS: u64 = 90_000;
+
+/// How Solana's replay-protection nonce is sourced for this transaction.
+///
+/// Solana protects against replay via either the *recent blockhash* field
+/// (short-lived, ~90 s validity) or a *durable nonce account* (persistent
+/// until explicitly advanced). The two have very different freshness
+/// requirements and mixing them up is the classic Solana wallet footgun:
+/// fetch a blockhash, let the user stare at the approval sheet for three
+/// minutes, then broadcast — the tx is rejected on chain, and the UI
+/// surfaces a confusing "signature verification failed" error.
+///
+/// Making the mode explicit at the signing-core boundary forces the
+/// caller to decide up front and lets this builder enforce the
+/// freshness bound at sign time rather than relying on downstream RPC
+/// rejection (audit finding C5).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub enum SolanaBlockhashMode {
+    /// Ephemeral `recent_blockhash` fetched from RPC. The caller passes
+    /// the Unix-millis timestamp at which it was fetched plus the
+    /// current Unix-millis wall clock; the builder rejects the sign if
+    /// the delta exceeds [`MAX_BLOCKHASH_AGE_MS`].
+    Recent {
+        fetched_at_unix_ms: u64,
+        now_unix_ms: u64,
+    },
+    /// Durable nonce account — survives across the Solana validator's
+    /// recent-blockhash TTL. The caller is responsible for ensuring the
+    /// on-chain nonce account's current value matches the blockhash
+    /// field (the tx itself advances the nonce). No freshness check.
+    DurableNonce,
+}
+
 /// Solana native SOL transfer parameters.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SolanaTxParams {
@@ -22,8 +63,19 @@ pub struct SolanaTxParams {
     pub to: String,
     /// Amount in lamports.
     pub lamports: u64,
-    /// Recent blockhash (base58).
+    /// Recent blockhash (base58). For `DurableNonce` mode this field is
+    /// still the value placed in the transaction's recent-blockhash
+    /// slot — it's just the current nonce account value rather than a
+    /// cluster blockhash.
     pub recent_blockhash: String,
+    /// How the `recent_blockhash` field was sourced. Determines whether
+    /// a freshness bound is enforced at sign time (audit finding C5).
+    /// Optional for wire-format back-compat with pre-dev.137 callers;
+    /// when `None` the builder falls back to the legacy "trust the
+    /// caller" behaviour **and emits a warning trace** so this path is
+    /// visible in telemetry. New code should always set the mode.
+    #[serde(default)]
+    pub blockhash_mode: Option<SolanaBlockhashMode>,
     pub devnet: bool,
 }
 
@@ -35,6 +87,31 @@ impl TransactionBuilder for SolanaTransactionBuilder {
 
     fn build(&self, params: Self::Params) -> Result<Transaction, ChainError> {
         tracing::debug!(from = %params.from, to = %params.to, "building Solana transaction");
+
+        // C5: refuse to sign with a stale recent_blockhash. Durable
+        // nonce mode explicitly opts out of the freshness check.
+        match &params.blockhash_mode {
+            Some(SolanaBlockhashMode::Recent {
+                fetched_at_unix_ms,
+                now_unix_ms,
+            }) => {
+                let age_ms = now_unix_ms.saturating_sub(*fetched_at_unix_ms);
+                if age_ms > MAX_BLOCKHASH_AGE_MS {
+                    return Err(ChainError::BlockhashExpired {
+                        age_ms,
+                        max_ms: MAX_BLOCKHASH_AGE_MS,
+                    });
+                }
+            }
+            Some(SolanaBlockhashMode::DurableNonce) => {}
+            None => {
+                tracing::warn!(
+                    "Solana signing without explicit blockhash_mode — falling back to \
+                     legacy caller-trusts-freshness behavior. Upgrade caller to pass \
+                     SolanaBlockhashMode (audit finding C5)."
+                );
+            }
+        }
 
         let from_key = decode_pubkey(&params.from)?;
         let to_key = decode_pubkey(&params.to)?;
@@ -161,6 +238,10 @@ mod tests {
             to: bs58::encode([2u8; 32]).into_string(),
             lamports: 1_000_000,
             recent_blockhash: bs58::encode([3u8; 32]).into_string(),
+            blockhash_mode: Some(SolanaBlockhashMode::Recent {
+                fetched_at_unix_ms: 0,
+                now_unix_ms: 0,
+            }),
             devnet: true,
         }
     }
@@ -323,5 +404,66 @@ mod tests {
         let mut params = sample_params();
         params.to = "!!!invalid".into();
         assert!(builder.build(params).is_err());
+    }
+
+    // --- C5: blockhash freshness ---
+
+    #[test]
+    fn test_blockhash_recent_within_window_signs() {
+        let builder = SolanaTransactionBuilder;
+        let mut params = sample_params();
+        params.blockhash_mode = Some(SolanaBlockhashMode::Recent {
+            fetched_at_unix_ms: 1_000,
+            now_unix_ms: 1_000 + MAX_BLOCKHASH_AGE_MS, // exactly on the boundary
+        });
+        assert!(builder.build(params).is_ok());
+    }
+
+    #[test]
+    fn test_blockhash_expired_is_rejected() {
+        let builder = SolanaTransactionBuilder;
+        let mut params = sample_params();
+        params.blockhash_mode = Some(SolanaBlockhashMode::Recent {
+            fetched_at_unix_ms: 1_000,
+            now_unix_ms: 1_000 + MAX_BLOCKHASH_AGE_MS + 1,
+        });
+        match builder.build(params) {
+            Err(ChainError::BlockhashExpired { age_ms, max_ms }) => {
+                assert_eq!(age_ms, MAX_BLOCKHASH_AGE_MS + 1);
+                assert_eq!(max_ms, MAX_BLOCKHASH_AGE_MS);
+            }
+            other => panic!("expected BlockhashExpired, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_blockhash_durable_nonce_skips_freshness() {
+        let builder = SolanaTransactionBuilder;
+        let mut params = sample_params();
+        params.blockhash_mode = Some(SolanaBlockhashMode::DurableNonce);
+        // Would be wildly expired in Recent mode — must still sign.
+        assert!(builder.build(params).is_ok());
+    }
+
+    #[test]
+    fn test_blockhash_clock_skew_saturates_at_zero() {
+        // A caller whose clock is AHEAD of fetched_at still lands at
+        // age=0 rather than wrapping around to u64::MAX-ish.
+        let builder = SolanaTransactionBuilder;
+        let mut params = sample_params();
+        params.blockhash_mode = Some(SolanaBlockhashMode::Recent {
+            fetched_at_unix_ms: 10_000,
+            now_unix_ms: 5_000,
+        });
+        assert!(builder.build(params).is_ok());
+    }
+
+    #[test]
+    fn test_blockhash_mode_absent_still_signs() {
+        // Back-compat: pre-dev.137 callers have mode=None.
+        let builder = SolanaTransactionBuilder;
+        let mut params = sample_params();
+        params.blockhash_mode = None;
+        assert!(builder.build(params).is_ok());
     }
 }

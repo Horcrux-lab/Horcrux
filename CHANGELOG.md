@@ -65,6 +65,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     once under v2. Previously a partial-migration edge case (v2
     stored, v1 delete failed) could leave the weak blob on-device
     indefinitely.
+  - **C5** (critical) — Solana `recent_blockhash` freshness enforced at
+    sign time. New `SolanaBlockhashMode::Recent { fetched_at_unix_ms,
+    now_unix_ms }` vs `DurableNonce` in `chain::solana` makes the
+    replay-protection source explicit; `SolanaTransactionBuilder::build`
+    rejects with `ChainError::BlockhashExpired` when the blockhash is
+    older than `MAX_BLOCKHASH_AGE_MS` (90 s). `DurableNonce` mode opts
+    out of the freshness check (caller is responsible for nonce-account
+    state). Legacy callers that pass `blockhash_mode = None` still
+    succeed but log a warning so the fallback path is telemetered.
+    `FfiSolanaTxParams` gains `blockhash_fetched_at_unix_ms`,
+    `now_unix_ms`, `durable_nonce` so iOS can plumb the RPC fetch
+    timestamp through to the signing core.
+  - **H9** (high) — Bitcoin UTXO provenance verification. `BtcInput`
+    gains an optional `prev_tx_raw: Vec<u8>` field; when supplied,
+    `BtcTransactionBuilder::build` re-derives the txid via double-SHA256
+    of the non-witness serialization and confirms both the claimed txid
+    and the vout's value match the raw prev-tx bytes. Closes the
+    SegWit "trusted-amount" footgun where a malicious PSBT producer
+    lies about the input value to donate the difference as miner fee.
+    New `verify_utxo_provenance` helper is also exposed for eager PSBT
+    import-time validation. Legacy inputs without `prev_tx_raw` still
+    build but log a telemetered warning.
+  - **H10** (high) — EVM checked fee / value arithmetic. New
+    `chain::evm::max_total_cost_wei` helper computes
+    `gas_limit * max_fee_per_gas + value` with `checked_mul` /
+    `checked_add`, returning `ChainError::ArithmeticOverflow` on
+    overflow. `EvmTransactionBuilder::build` calls it as a pre-sign
+    guardrail and additionally rejects transactions where
+    `max_priority_fee_per_gas > max_fee_per_gas` per EIP-1559.
 
 ### Added
 

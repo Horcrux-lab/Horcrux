@@ -28,6 +28,20 @@ pub struct BtcInput {
     /// If omitted, the sighash for this input will use all-zero placeholder.
     #[serde(default)]
     pub pubkey_hash: Option<Vec<u8>>,
+    /// Full raw bytes of the previous transaction (non-witness serialized).
+    /// When supplied, the builder verifies that `dsha256(prev_tx_raw)`
+    /// (displayed as big-endian hex) equals `txid`, and that output
+    /// index `vout` has exactly the claimed `value`. This closes the
+    /// BIP-143 SegWit "trusted-amount" footgun where a malicious PSBT
+    /// producer can lie about `value` and steal the difference as
+    /// miner fee (audit finding H9).
+    ///
+    /// Optional for back-compat: pre-dev.137 callers that don't
+    /// populate this field fall into the legacy trust-the-amount path
+    /// and log a warning so the code path is visible in telemetry.
+    /// New callers MUST supply this.
+    #[serde(default)]
+    pub prev_tx_raw: Option<Vec<u8>>,
 }
 
 /// A Bitcoin transaction output (destination address + satoshi amount).
@@ -69,6 +83,25 @@ impl TransactionBuilder for BtcTransactionBuilder {
             ));
         }
 
+        // H9: for every input that supplies a previous raw tx, confirm
+        // that the claimed txid and value are genuinely derived from
+        // it. Inputs without prev_tx_raw fall through to the legacy
+        // path — warn loudly so the exposure is telemetered and
+        // upstream callers get upgraded.
+        for (i, input) in params.inputs.iter().enumerate() {
+            match &input.prev_tx_raw {
+                Some(raw) => verify_utxo_provenance(input, raw, i)?,
+                None => {
+                    tracing::warn!(
+                        input_index = i,
+                        txid = %input.txid,
+                        "BTC input without prev_tx_raw — trusting self-reported amount \
+                         (audit finding H9). Upgrade caller to supply prev_tx_raw."
+                    );
+                }
+            }
+        }
+
         let raw_data = serialize_witness_tx(&params)?;
 
         // BIP-143 sighash for first input (index 0).  The caller can later
@@ -88,6 +121,148 @@ impl TransactionBuilder for BtcTransactionBuilder {
 // ---------------------------------------------------------------------------
 // Public helpers
 // ---------------------------------------------------------------------------
+
+/// Verify a PSBT input's claimed (txid, vout → value) matches the
+/// supplied raw previous transaction. Returns Ok(()) on match and a
+/// typed [`ChainError`] on any discrepancy.
+///
+/// Used internally by `BtcTransactionBuilder::build` but also exposed
+/// so higher layers can eagerly validate PSBTs at import time — e.g.
+/// refuse to even display a signing sheet for a PSBT whose amounts
+/// don't prove out (audit finding H9).
+pub fn verify_utxo_provenance(
+    input: &BtcInput,
+    prev_tx_raw: &[u8],
+    input_index: usize,
+) -> Result<(), ChainError> {
+    // Bitcoin txid = dsha256(serialized_tx_without_witness), displayed
+    // in big-endian hex. Since the raw bytes are already the
+    // non-witness serialization, we just double-SHA256 and reverse.
+    let inner = Sha256::digest(Sha256::digest(prev_tx_raw));
+    let mut computed = inner.to_vec();
+    computed.reverse();
+    let computed_hex = hex::encode(&computed);
+
+    let claimed_hex = input.txid.trim_start_matches("0x").to_ascii_lowercase();
+    if computed_hex != claimed_hex {
+        return Err(ChainError::Other(format!(
+            "BTC input {input_index}: prev_tx_raw txid mismatch (computed {computed_hex}, \
+             claimed {claimed_hex}) — possible amount-lying PSBT (H9)"
+        )));
+    }
+
+    // Parse just enough of the previous tx to extract output `vout`'s
+    // value. Bitcoin tx format (non-witness):
+    //   [4-byte version] [vin_count varint] [vin_count * (36-byte outpoint
+    //   + script varint + script + 4-byte seq)] [vout_count varint] [
+    //   vout_count * (8-byte value + script varint + script)] [4-byte locktime]
+    let value = extract_output_value(prev_tx_raw, input.vout).map_err(|e| {
+        ChainError::Other(format!(
+            "BTC input {input_index}: cannot parse prev_tx_raw to extract vout {}: {e}",
+            input.vout
+        ))
+    })?;
+    if value != input.value {
+        return Err(ChainError::Other(format!(
+            "BTC input {input_index}: value mismatch (prev_tx says {value}, \
+             PSBT claims {}) — possible fee-stuffing attack (H9)",
+            input.value
+        )));
+    }
+    Ok(())
+}
+
+/// Parse `prev_tx_raw` and return the `value` (in satoshis) of output
+/// `vout`. Returns Err on any structural issue.
+fn extract_output_value(raw: &[u8], vout: u32) -> Result<u64, String> {
+    let mut p = 0usize;
+    // version (4)
+    if raw.len() < p + 4 {
+        return Err("truncated at version".into());
+    }
+    p += 4;
+    // Optional witness marker+flag (0x00 0x01) — but since we hash the
+    // non-witness serialization for txid matching, prev_tx_raw should
+    // NOT include a witness. Reject if present, to keep the txid check
+    // self-consistent.
+    if raw.len() >= p + 2 && raw[p] == 0x00 && raw[p + 1] == 0x01 {
+        return Err("prev_tx_raw contains witness marker; expect non-witness serialization".into());
+    }
+    // vin_count (varint)
+    let (vin_count, sz) = read_varint(&raw[p..])?;
+    p += sz;
+    for _ in 0..vin_count {
+        // outpoint (36)
+        if raw.len() < p + 36 {
+            return Err("truncated at outpoint".into());
+        }
+        p += 36;
+        // script
+        let (script_len, sz) = read_varint(&raw[p..])?;
+        p += sz;
+        let script_len = script_len as usize;
+        if raw.len() < p + script_len + 4 {
+            return Err("truncated at scriptSig".into());
+        }
+        p += script_len + 4; // script + sequence
+    }
+    // vout_count (varint)
+    let (vout_count, sz) = read_varint(&raw[p..])?;
+    p += sz;
+    if (vout as u64) >= vout_count {
+        return Err(format!("vout {vout} out of range ({vout_count} outputs)"));
+    }
+    for i in 0..vout_count {
+        if raw.len() < p + 8 {
+            return Err("truncated at output value".into());
+        }
+        let mut vbuf = [0u8; 8];
+        vbuf.copy_from_slice(&raw[p..p + 8]);
+        let value = u64::from_le_bytes(vbuf);
+        p += 8;
+        let (script_len, sz) = read_varint(&raw[p..])?;
+        p += sz;
+        let script_len = script_len as usize;
+        if raw.len() < p + script_len {
+            return Err("truncated at output script".into());
+        }
+        p += script_len;
+        if i == vout as u64 {
+            return Ok(value);
+        }
+    }
+    unreachable!("vout bound-checked above")
+}
+
+fn read_varint(buf: &[u8]) -> Result<(u64, usize), String> {
+    if buf.is_empty() {
+        return Err("empty varint".into());
+    }
+    match buf[0] {
+        n @ 0x00..=0xfc => Ok((n as u64, 1)),
+        0xfd => {
+            if buf.len() < 3 {
+                return Err("truncated u16 varint".into());
+            }
+            Ok((u16::from_le_bytes([buf[1], buf[2]]) as u64, 3))
+        }
+        0xfe => {
+            if buf.len() < 5 {
+                return Err("truncated u32 varint".into());
+            }
+            let v = u32::from_le_bytes([buf[1], buf[2], buf[3], buf[4]]);
+            Ok((v as u64, 5))
+        }
+        0xff => {
+            if buf.len() < 9 {
+                return Err("truncated u64 varint".into());
+            }
+            let mut a = [0u8; 8];
+            a.copy_from_slice(&buf[1..9]);
+            Ok((u64::from_le_bytes(a), 9))
+        }
+    }
+}
 
 /// Compute the BIP-143 sighash for input at `index`.
 pub fn bip143_sighash(params: &BtcTxParams, index: usize) -> Result<[u8; 32], ChainError> {
@@ -279,6 +454,7 @@ mod tests {
                 vout: 0,
                 value: 100_000,
                 pubkey_hash: Some(vec![0xab; 20]),
+                prev_tx_raw: None,
             }],
             outputs: vec![BtcOutput {
                 address: "bc1qw508d6qejxtdg4y5r3zarvary0c5xw7kv8f3t4".into(),
@@ -361,6 +537,7 @@ mod tests {
                 vout: 0,
                 value: 1000,
                 pubkey_hash: None,
+                prev_tx_raw: None,
             }],
             outputs: vec![],
             testnet: false,
@@ -431,5 +608,119 @@ mod tests {
         assert!(raw.len() > 6);
         // ends with locktime (4 zero bytes)
         assert_eq!(&raw[raw.len() - 4..], &[0, 0, 0, 0]);
+    }
+
+    // --- H9: UTXO provenance ---
+
+    /// Build a minimal valid non-witness prev tx with one input and
+    /// one output of `output_value` satoshis to scriptPubKey of 1 byte.
+    fn minimal_prev_tx(output_value: u64) -> Vec<u8> {
+        let mut raw = Vec::new();
+        raw.extend_from_slice(&2u32.to_le_bytes()); // version
+        raw.push(1); // vin_count
+        raw.extend_from_slice(&[0u8; 32]); // prev txid
+        raw.extend_from_slice(&0u32.to_le_bytes()); // prev vout
+        raw.push(0); // empty scriptSig
+        raw.extend_from_slice(&0xffffffffu32.to_le_bytes()); // sequence
+        raw.push(1); // vout_count
+        raw.extend_from_slice(&output_value.to_le_bytes());
+        raw.push(1); // script len
+        raw.push(0x51); // OP_1
+        raw.extend_from_slice(&0u32.to_le_bytes()); // locktime
+        raw
+    }
+
+    fn txid_of(raw: &[u8]) -> String {
+        let inner = Sha256::digest(Sha256::digest(raw));
+        let mut v = inner.to_vec();
+        v.reverse();
+        hex::encode(v)
+    }
+
+    #[test]
+    fn test_verify_utxo_provenance_happy_path() {
+        let raw = minimal_prev_tx(100_000);
+        let input = BtcInput {
+            txid: txid_of(&raw),
+            vout: 0,
+            value: 100_000,
+            pubkey_hash: None,
+            prev_tx_raw: Some(raw.clone()),
+        };
+        verify_utxo_provenance(&input, &raw, 0).expect("matching prev tx must verify");
+    }
+
+    #[test]
+    fn test_verify_utxo_provenance_txid_mismatch() {
+        let raw = minimal_prev_tx(100_000);
+        let input = BtcInput {
+            txid: "ff".repeat(32),
+            vout: 0,
+            value: 100_000,
+            pubkey_hash: None,
+            prev_tx_raw: Some(raw.clone()),
+        };
+        let err = verify_utxo_provenance(&input, &raw, 0).unwrap_err();
+        assert!(format!("{err}").contains("txid mismatch"));
+    }
+
+    #[test]
+    fn test_verify_utxo_provenance_value_mismatch() {
+        let raw = minimal_prev_tx(100_000);
+        let input = BtcInput {
+            txid: txid_of(&raw),
+            vout: 0,
+            value: 200_000, // PSBT lies about the amount
+            pubkey_hash: None,
+            prev_tx_raw: Some(raw.clone()),
+        };
+        let err = verify_utxo_provenance(&input, &raw, 0).unwrap_err();
+        assert!(format!("{err}").contains("value mismatch"));
+    }
+
+    #[test]
+    fn test_build_rejects_lying_prev_tx() {
+        // Attacker claims to spend 100k but prev_tx says 1k.
+        let raw = minimal_prev_tx(1_000);
+        let builder = BtcTransactionBuilder;
+        let params = BtcTxParams {
+            inputs: vec![BtcInput {
+                txid: txid_of(&raw),
+                vout: 0,
+                value: 100_000,
+                pubkey_hash: Some(vec![0xab; 20]),
+                prev_tx_raw: Some(raw),
+            }],
+            outputs: vec![BtcOutput {
+                address: "bc1qw508d6qejxtdg4y5r3zarvary0c5xw7kv8f3t4".into(),
+                value: 90_000,
+                script_pubkey: Some(vec![
+                    0x00, 0x14, 0u8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                ]),
+            }],
+            testnet: false,
+        };
+        let err = builder.build(params).unwrap_err();
+        assert!(format!("{err}").contains("value mismatch"));
+    }
+
+    #[test]
+    fn test_verify_utxo_provenance_rejects_witness_serialized_prev() {
+        // Prev-tx raw with marker+flag bytes should be rejected to
+        // keep the txid comparison self-consistent.
+        let mut raw = minimal_prev_tx(100_000);
+        raw.insert(4, 0x01); // flag
+        raw.insert(4, 0x00); // marker
+        let input = BtcInput {
+            txid: txid_of(&raw),
+            vout: 0,
+            value: 100_000,
+            pubkey_hash: None,
+            prev_tx_raw: Some(raw.clone()),
+        };
+        // txid will mismatch (since the claimed txid was derived from
+        // the witness-prefixed bytes but internal parser rejects
+        // witness format — either way this input is rejected).
+        assert!(verify_utxo_provenance(&input, &raw, 0).is_err());
     }
 }

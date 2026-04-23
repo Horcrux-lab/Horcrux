@@ -47,9 +47,7 @@ impl HorcruxConfig {
             return Err(MpcError::InvalidConfig("threshold must be >= 2".into()));
         }
         if total_parties == 0 {
-            return Err(MpcError::InvalidConfig(
-                "total_parties must be >= 1".into(),
-            ));
+            return Err(MpcError::InvalidConfig("total_parties must be >= 1".into()));
         }
         if total_parties > MAX_TOTAL_PARTIES {
             return Err(MpcError::InvalidConfig(format!(
@@ -123,8 +121,6 @@ mod config_tests {
 
     #[test]
     fn accepts_boundary_total_parties() {
-        assert!(
-            HorcruxConfig::new(2, MAX_TOTAL_PARTIES, 1, CurveType::Secp256k1).is_ok()
-        );
+        assert!(HorcruxConfig::new(2, MAX_TOTAL_PARTIES, 1, CurveType::Secp256k1).is_ok());
     }
 }

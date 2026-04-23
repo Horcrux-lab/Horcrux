@@ -34,7 +34,7 @@ below are closed. Chief concerns cluster around:
 
 ## CRITICAL
 
-### C1 — MPC messages lack end-to-end party-identity binding ⚠️
+### C1 — MPC messages lack end-to-end party-identity binding ✅ (core) / ⚠️ (iOS call-site migration pending)
 **Location**: `horcrux-core/src/mpc/signing.rs:204`, `keygen.rs`, `session.rs`
 
 Protocol messages carry `from: party_index` as a payload field. The
@@ -69,7 +69,7 @@ device.
 - `ContiguousArray<UInt8>` with `replaceSubrange` zeroing after use
 - UITextField `isSecureTextEntry` — read bytes, never expose as `String`
 
-### C3 — Legacy v1 SWK not force-erased after migration ⚠️
+### C3 — Legacy v1 SWK not force-erased after migration ✅
 **Location**: `ios/Horcrux/Security/SecureKeyVault.swift:50`
 (`keychainPinWrappedLegacy = "com.horcrux.swk.pin.v1"`)
 
@@ -81,7 +81,7 @@ backup) keeps a 100k-iteration offline brute-force path indefinitely.
 migration step; add a post-migration self-check that the legacy key is
 absent; audit the migration exit paths for early-return gaps.
 
-### C4 — EVM blind signing: `data` field not decoded in UI ⚠️
+### C4 — EVM blind signing: `data` field not decoded in UI ✅ (decoder + consent gate) / ⚠️ (second-gate byte-equivalence pending)
 **Location**: UI layer under `ios/Horcrux/Features/` + `horcrux-core/src/chain/evm.rs:43`
 
 Users sign DEX / DeFi / NFT transactions where the `data` field is
@@ -99,7 +99,7 @@ user's perceived action ("log in") can mask the real one
 This is the pattern hardware wallets (Ledger / Trezor) have been
 publicly criticised for. A Web3-focused audit will demand it.
 
-### C5 — Solana blockhash / nonce freshness not enforced ⚠️
+### C5 — Solana blockhash / nonce freshness not enforced ✅
 **Location**: `horcrux-core/src/chain/solana.rs`
 
 Solana `recent_blockhash` has a ~90s validity window. If a tx is
@@ -164,14 +164,14 @@ displayed to the user and compared against the expected contract.
 Otherwise a malicious dApp forges the domain to reuse the signature
 on another contract.
 
-### H9 — Bitcoin UTXO provenance not verified ⚠️
+### H9 — Bitcoin UTXO provenance not verified ✅ (core)
 `chain/bitcoin.rs` (PSBT handling). A malicious UI can craft a PSBT
 where the claimed input amount differs from the actual on-chain UTXO
 → "fee inflation" drain (user thinks 0.0001 BTC fee, signs 0.99 BTC).
 **Fix**: require non-witness UTXO in the PSBT and hash-match it;
 optionally RPC-verify.
 
-### H10 — `u128` fee / value math without checked ops ⚠️
+### H10 — `u128` fee / value math without checked ops ✅
 `chain/evm.rs`. Replace all `*` / `+` with `checked_mul` /
 `checked_add` (or `saturating_*`) on fee- and value-related paths.
 Failures → typed error, never panic.

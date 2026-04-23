@@ -77,6 +77,10 @@ pub enum ChainError {
     EncodingError { msg: String },
     #[error("Insufficient balance")]
     InsufficientBalance,
+    #[error("Solana blockhash expired: age {age_ms}ms > max {max_ms}ms")]
+    BlockhashExpired { age_ms: u64, max_ms: u64 },
+    #[error("Arithmetic overflow: {msg}")]
+    ArithmeticOverflow { msg: String },
     #[error("{msg}")]
     Other { msg: String },
 }
@@ -87,6 +91,12 @@ impl From<chain::ChainError> for ChainError {
             chain::ChainError::InvalidAddress(msg) => ChainError::InvalidAddress { msg },
             chain::ChainError::EncodingError(msg) => ChainError::EncodingError { msg },
             chain::ChainError::InsufficientBalance => ChainError::InsufficientBalance,
+            chain::ChainError::BlockhashExpired { age_ms, max_ms } => {
+                ChainError::BlockhashExpired { age_ms, max_ms }
+            }
+            chain::ChainError::ArithmeticOverflow(msg) => ChainError::ArithmeticOverflow {
+                msg: msg.to_string(),
+            },
             chain::ChainError::Other(msg) => ChainError::Other { msg },
         }
     }
@@ -367,6 +377,12 @@ pub struct FfiBtcInput {
     pub vout: u32,
     pub value: u64,
     pub pubkey_hash: Option<Vec<u8>>,
+    /// Raw bytes of the previous transaction (non-witness serialized).
+    /// When supplied, the signing core verifies the input's claimed
+    /// (txid, vout, value) against it. Omit at your peril — signing a
+    /// P2WPKH input with a forged value field can send unbounded fees
+    /// to miners (audit finding H9).
+    pub prev_tx_raw: Option<Vec<u8>>,
 }
 
 /// A Bitcoin transaction output (destination + amount).
@@ -392,6 +408,24 @@ pub struct FfiSolanaTxParams {
     pub to_address: String,
     pub lamports: u64,
     pub recent_blockhash: String,
+    /// Unix-millis timestamp when `recent_blockhash` was fetched from
+    /// RPC. Together with `now_unix_ms` below, this lets the signing
+    /// core reject stale blockhashes (audit C5). Pass `None` for
+    /// durable-nonce-backed transactions, or when the caller genuinely
+    /// cannot record a fetch timestamp (legacy path — logs a warning).
+    pub blockhash_fetched_at_unix_ms: Option<u64>,
+    /// Unix-millis wall clock at sign time. Required whenever
+    /// `blockhash_fetched_at_unix_ms` is `Some`. Passing both keeps the
+    /// clock source under caller control (iOS uses its
+    /// monotonic-anchored wall clock so a user tampering with device
+    /// time can't trivially bypass the freshness gate — the RPC fetch
+    /// and the sign time share the same reference).
+    pub now_unix_ms: Option<u64>,
+    /// If `true`, the transaction's blockhash slot is backed by a
+    /// durable nonce account rather than a recent blockhash; skip the
+    /// freshness check entirely. Mutually exclusive with
+    /// `blockhash_fetched_at_unix_ms`.
+    pub durable_nonce: bool,
     pub devnet: bool,
 }
 
@@ -470,10 +504,7 @@ pub enum FfiDecodedCall {
     /// `setApprovalForAll(address,bool)` — blanket NFT approval.
     SetApprovalForAll { operator: String, approved: bool },
     /// Unknown selector — UI should warn the user explicitly.
-    Unknown {
-        selector_hex: String,
-        data_len: u32,
-    },
+    Unknown { selector_hex: String, data_len: u32 },
 }
 
 impl From<chain::evm::DecodedCall> for FfiDecodedCall {
@@ -657,6 +688,7 @@ pub fn horcrux_build_btc_transaction(
                 vout: i.vout,
                 value: i.value,
                 pubkey_hash: i.pubkey_hash,
+                prev_tx_raw: i.prev_tx_raw,
             })
             .collect(),
         outputs: params
@@ -688,11 +720,25 @@ pub fn horcrux_build_btc_transaction(
 pub fn horcrux_build_solana_transaction(
     params: FfiSolanaTxParams,
 ) -> Result<FfiTransaction, ChainError> {
+    let blockhash_mode = if params.durable_nonce {
+        Some(chain::solana::SolanaBlockhashMode::DurableNonce)
+    } else {
+        match (params.blockhash_fetched_at_unix_ms, params.now_unix_ms) {
+            (Some(fetched_at_unix_ms), Some(now_unix_ms)) => {
+                Some(chain::solana::SolanaBlockhashMode::Recent {
+                    fetched_at_unix_ms,
+                    now_unix_ms,
+                })
+            }
+            _ => None,
+        }
+    };
     let sol_params = chain::solana::SolanaTxParams {
         from: params.from_address,
         to: params.to_address,
         lamports: params.lamports,
         recent_blockhash: params.recent_blockhash,
+        blockhash_mode,
         devnet: params.devnet,
     };
     let tx = chain::solana::SolanaTransactionBuilder.build(sol_params)?;
@@ -1068,6 +1114,7 @@ mod tests {
                 vout: 0,
                 value: 100_000,
                 pubkey_hash: Some(vec![0xab; 20]),
+                prev_tx_raw: None,
             }],
             outputs: vec![FfiBtcOutput {
                 address: "tb1qw508d6qejxtdg4y5r3zarvary0c5xw7kxpjzsx".into(),
@@ -1107,6 +1154,9 @@ mod tests {
             to_address: bs58::encode([2u8; 32]).into_string(),
             lamports: 1_000_000,
             recent_blockhash: bs58::encode([3u8; 32]).into_string(),
+            blockhash_fetched_at_unix_ms: Some(0),
+            now_unix_ms: Some(0),
+            durable_nonce: false,
             devnet: true,
         }
     }

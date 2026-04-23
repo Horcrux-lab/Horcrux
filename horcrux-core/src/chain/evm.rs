@@ -28,6 +28,25 @@ impl TransactionBuilder for EvmTransactionBuilder {
     fn build(&self, params: Self::Params) -> Result<Transaction, ChainError> {
         tracing::debug!(chain_id = params.chain_id, to = %params.to, "building EVM transaction");
 
+        // H10: refuse to sign a transaction whose worst-case total
+        // cost (gas_limit × max_fee_per_gas + value) overflows u128.
+        // Such a transaction can never be included on chain, and
+        // performing the math unchecked leaks into downstream UIs and
+        // can panic on debug builds. Return a typed error instead.
+        let _ = max_total_cost_wei(&params)?;
+
+        // Sanity: max_priority_fee_per_gas ≤ max_fee_per_gas per EIP-1559.
+        // A well-formed RPC fee oracle will never violate this, but a
+        // malicious UI could — catching it here prevents an eventually
+        // rejected broadcast while also hardening against "tip stuffing"
+        // where a manipulated priority fee forces higher than advertised
+        // total cost.
+        if params.max_priority_fee_per_gas > params.max_fee_per_gas {
+            return Err(ChainError::ArithmeticOverflow(
+                "max_priority_fee_per_gas > max_fee_per_gas",
+            ));
+        }
+
         let to_bytes = parse_address(&params.to)?;
 
         // RLP-encode the EIP-1559 inner list:
@@ -67,6 +86,25 @@ impl TransactionBuilder for EvmTransactionBuilder {
 // ---------------------------------------------------------------------------
 // Address parsing
 // ---------------------------------------------------------------------------
+
+/// Compute the worst-case total wei this transaction could debit from the
+/// sender: `gas_limit * max_fee_per_gas + value`, saturating on overflow
+/// to a typed error rather than panicking or silently wrapping.
+///
+/// Exposed so UI layers and FFI callers can preview the upper bound
+/// before asking the user for approval (audit finding H10).
+pub fn max_total_cost_wei(params: &EvmTxParams) -> Result<u128, ChainError> {
+    let gas_cost = (params.gas_limit as u128)
+        .checked_mul(params.max_fee_per_gas)
+        .ok_or(ChainError::ArithmeticOverflow(
+            "gas_limit * max_fee_per_gas",
+        ))?;
+    gas_cost
+        .checked_add(params.value)
+        .ok_or(ChainError::ArithmeticOverflow(
+            "gas_limit * max_fee_per_gas + value",
+        ))
+}
 
 fn parse_address(addr: &str) -> Result<[u8; 20], ChainError> {
     let hex_str = addr.strip_prefix("0x").unwrap_or(addr);
@@ -193,13 +231,17 @@ pub enum DecodedCall {
     SetApprovalForAll { operator: String, approved: bool },
     /// Calldata present but selector unknown. UI should render as
     /// "unverified — proceed with caution".
-    Unknown { selector_hex: String, data_len: usize },
+    Unknown {
+        selector_hex: String,
+        data_len: usize,
+    },
 }
 
 /// Threshold at which an approval is flagged as "unlimited" in the UI.
 /// Many tokens normalise max approvals to `type(uint256).max`, but some
 /// approval-bait contracts use `2^255` or similar large constants —
 /// treat any amount with the top bit set as effectively unlimited.
+#[allow(dead_code)]
 const UNLIMITED_APPROVAL_THRESHOLD_BIT: usize = 255;
 
 /// Decode an outgoing EVM calldata blob into a structured [`DecodedCall`].
@@ -473,6 +515,101 @@ mod tests {
         let tx = builder.build(params).unwrap();
         assert_eq!(tx.raw_data[0], 0x02);
         assert_eq!(tx.sign_hash.len(), 32);
+    }
+
+    // --- H10: checked fee / value arithmetic ---
+
+    fn overflow_params() -> EvmTxParams {
+        EvmTxParams {
+            to: "0x0000000000000000000000000000000000000001".to_string(),
+            value: 0,
+            nonce: 0,
+            gas_limit: u64::MAX,
+            max_fee_per_gas: u128::MAX,
+            max_priority_fee_per_gas: u128::MAX,
+            chain_id: 1,
+            data: vec![],
+        }
+    }
+
+    #[test]
+    fn test_max_total_cost_gas_overflow_is_rejected() {
+        let params = overflow_params();
+        match max_total_cost_wei(&params) {
+            Err(ChainError::ArithmeticOverflow(msg)) => {
+                assert!(msg.contains("max_fee_per_gas"));
+            }
+            other => panic!("expected ArithmeticOverflow, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_max_total_cost_value_overflow_is_rejected() {
+        // gas_limit=1 * max_fee_per_gas=1 = 1; then 1 + u128::MAX overflows.
+        let params = EvmTxParams {
+            to: "0x0000000000000000000000000000000000000001".to_string(),
+            value: u128::MAX,
+            nonce: 0,
+            gas_limit: 1,
+            max_fee_per_gas: 1,
+            max_priority_fee_per_gas: 1,
+            chain_id: 1,
+            data: vec![],
+        };
+        match max_total_cost_wei(&params) {
+            Err(ChainError::ArithmeticOverflow(msg)) => {
+                assert!(msg.contains("value"));
+            }
+            other => panic!("expected ArithmeticOverflow, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_build_rejects_overflowing_tx() {
+        let builder = EvmTransactionBuilder;
+        assert!(matches!(
+            builder.build(overflow_params()),
+            Err(ChainError::ArithmeticOverflow(_))
+        ));
+    }
+
+    #[test]
+    fn test_build_rejects_priority_gt_max_fee() {
+        let builder = EvmTransactionBuilder;
+        let params = EvmTxParams {
+            to: "0x0000000000000000000000000000000000000001".to_string(),
+            value: 0,
+            nonce: 0,
+            gas_limit: 21_000,
+            max_fee_per_gas: 10,
+            max_priority_fee_per_gas: 100,
+            chain_id: 1,
+            data: vec![],
+        };
+        assert!(matches!(
+            builder.build(params),
+            Err(ChainError::ArithmeticOverflow(_))
+        ));
+    }
+
+    #[test]
+    fn test_max_total_cost_normal_case() {
+        let params = EvmTxParams {
+            to: "0x0000000000000000000000000000000000000001".to_string(),
+            value: 1_000_000_000_000_000_000, // 1 ETH
+            nonce: 0,
+            gas_limit: 21_000,
+            max_fee_per_gas: 30_000_000_000, // 30 gwei
+            max_priority_fee_per_gas: 1_000_000_000,
+            chain_id: 1,
+            data: vec![],
+        };
+        let cost = max_total_cost_wei(&params).unwrap();
+        // 21000 * 30e9 + 1e18 = 630000 * 1e9 + 1e18 = 6.3e14 + 1e18
+        assert_eq!(
+            cost,
+            21_000u128 * 30_000_000_000 + 1_000_000_000_000_000_000
+        );
     }
 }
 
