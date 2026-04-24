@@ -1351,6 +1351,32 @@ final class SigningViewModel: ObservableObject {
                         try? await peerManager.broadcastMpcMessage(payload)
                         try? await Task.sleep(nanoseconds: 400_000_000)
                     }
+                } else if isCosigner, let sid = sessionId {
+                    // Re-announce our own (deviceName,partyIndex) binding
+                    // right before entering round 1. `JoinSigningView`
+                    // fires a presence DTO the instant the user taps
+                    // "Accept", but that broadcast can race ahead of the
+                    // peer-to-peer LAN handshake between *cosigners*:
+                    // party 2 accepting at t=0 only reaches party 3 if
+                    // the party2↔party3 connection is already up, which
+                    // it often isn't (each cosigner independently
+                    // resolves the other's Bonjour record). Without
+                    // this second broadcast, party 3's `peerPartyIndex`
+                    // never learns party 2's displayName→partyIndex
+                    // mapping, so every MPC round-1 packet from party 2
+                    // trips `rejectNoPresenceClaim` in the C1 second-gate
+                    // and the ceremony silently stalls.
+                    if let presencePayload = try? JSONEncoder().encode(
+                        SignPresenceDTO(
+                            sessionId: sid,
+                            deviceName: DeviceIdentity.displayName,
+                            partyIndex: myIndex
+                        )) {
+                        try? await peerManager.broadcastMpcMessage(presencePayload)
+                        // Tiny yield so peers can ingest the presence
+                        // before our round-1 MPC packets hit the wire.
+                        try? await Task.sleep(nanoseconds: 150_000_000)
+                    }
                 }
 
                 let outgoing = try bridge.startSigning(
