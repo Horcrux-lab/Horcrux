@@ -198,6 +198,16 @@ final class SigningViewModel: ObservableObject {
     /// Periodic broadcast of `SignRequestDTO` while in the `.invite` step
     /// so cosigners who join the relay room late still see the request.
     private var announceTask: Task<Void, Never>?
+    /// One-shot task that fires a local notification if the initiator
+    /// stays in `.invite` for `presenceNotifyTimeout` seconds with no
+    /// cosigner joined. Cancelled the moment `joinedSigners` flips
+    /// non-empty or the step advances.
+    private var presenceTimeoutTask: Task<Void, Never>?
+    /// How long to wait in `.invite` before nudging the user via a
+    /// local notification. 60 s matches the observed p95 "co-signer
+    /// taps Join" latency in manual testing — anything faster
+    /// generates false positives.
+    private static let presenceNotifyTimeout: UInt64 = 60_000_000_000
     private var decodingFailures = 0
     private let maxDecodingFailures = 5
 
@@ -503,6 +513,11 @@ final class SigningViewModel: ObservableObject {
             }
         }
         joinedSigners = unique
+        // First cosigner joined — stop pestering the user about a
+        // missing peer. Safe to call repeatedly (idempotent).
+        if !unique.isEmpty {
+            cancelPresenceTimeoutNotifier()
+        }
         NSLog("[signing] rebuildJoinedSigners count=%d peerPartyIndex=%d connected=%d", unique.count, peerPartyIndex.count, peerManager.connectedPeers.count)
     }
 
@@ -806,6 +821,7 @@ final class SigningViewModel: ObservableObject {
     func regenerateRoomCode() {
         announceTask?.cancel()
         announceTask = nil
+        cancelPresenceTimeoutNotifier()
         // Close the old relay room immediately so the server can GC it
         // rather than waiting on its idle timer. Best-effort: if the
         // peer manager is nil (never connected) we skip.
@@ -859,6 +875,7 @@ final class SigningViewModel: ObservableObject {
         // Tear down ceremony state so the next compose starts clean.
         announceTask?.cancel()
         announceTask = nil
+        cancelPresenceTimeoutNotifier()
         peerManager?.leaveRelayRoom()
         presenceListenerTask?.cancel()
         presenceListenerTask = nil
@@ -909,6 +926,7 @@ final class SigningViewModel: ObservableObject {
                 // the regenerate button.
                 announceTask?.cancel()
                 announceTask = nil
+                cancelPresenceTimeoutNotifier()
             }
         }
     }
@@ -921,6 +939,39 @@ final class SigningViewModel: ObservableObject {
         return max(0, Int(expires.timeIntervalSinceNow.rounded()))
     }
 
+    /// Arm the one-shot "cosigner not joined" notification. If the
+    /// user is still in `.invite` with nobody joined after
+    /// `presenceNotifyTimeout`, fire a local notification so they
+    /// notice even if the app is backgrounded. Cancelled proactively
+    /// from `rebuildJoinedSigners` (on first peer join) and from
+    /// every step-teardown path (regenerateRoomCode, resignToSame,
+    /// startSigning, tickRoomCodeExpiry).
+    private func startPresenceTimeoutNotifier() {
+        presenceTimeoutTask?.cancel()
+        let sid = sessionId ?? roomCode
+        guard !sid.isEmpty else { return }
+        presenceTimeoutTask = Task { [weak self] in
+            try? await Task.sleep(nanoseconds: Self.presenceNotifyTimeout)
+            guard let self, !Task.isCancelled else { return }
+            let shouldFire = await MainActor.run {
+                self.step == .invite && self.joinedSigners.isEmpty
+            }
+            if shouldFire {
+                NotificationManager.shared.notifySigningTimeout(sessionId: sid)
+            }
+        }
+    }
+
+    /// Cancel the one-shot presence-timeout notifier and clear any
+    /// already-delivered notification for this session.
+    private func cancelPresenceTimeoutNotifier() {
+        presenceTimeoutTask?.cancel()
+        presenceTimeoutTask = nil
+        if let sid = sessionId, !sid.isEmpty {
+            NotificationManager.shared.cancelSigningTimeout(sessionId: sid)
+        }
+    }
+
     /// Periodically broadcast a `SignRequestDTO` while still in the invite
     /// step so any cosigner who joins the relay room late sees the request
     /// without needing a re-tap from the initiator. Stops automatically
@@ -930,6 +981,9 @@ final class SigningViewModel: ObservableObject {
         guard let peerManager, !roomCode.isEmpty else { return }
         let dto = buildSignRequestDTO()
         guard let payload = try? JSONEncoder().encode(dto) else { return }
+        // Arm the "cosigner didn't join" local notification. Fires once
+        // after 60 s if still in .invite with joinedSigners empty.
+        startPresenceTimeoutNotifier()
         announceTask = Task { [weak self] in
             // Rapid early beacon: first 6 broadcasts ~300ms apart to catch
             // a cosigner joining right after the initiator, then slow to
@@ -1093,6 +1147,9 @@ final class SigningViewModel: ObservableObject {
         // rebroadcasting it during signing would only add relay noise.
         announceTask?.cancel()
         announceTask = nil
+        // Cosigners actually joined and we're past .invite — any stale
+        // "cosigner didn't join" notification in the tray is now wrong.
+        cancelPresenceTimeoutNotifier()
         // Presence listener is only useful while we're still in invite;
         // once signing starts, all further traffic is real MPC bytes.
         presenceListenerTask?.cancel()

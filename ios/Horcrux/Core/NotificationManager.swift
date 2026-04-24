@@ -55,6 +55,42 @@ final class NotificationManager: NSObject, ObservableObject, UNUserNotificationC
         }
     }
 
+    // MARK: - Signing Timeout Notification
+
+    /// Fired by the initiator when `presenceTimeout` seconds have
+    /// passed in the `.invite` step with zero cosigners joined. The
+    /// body nudges the user to nudge the other device — the common
+    /// cause is the co-signer's phone being asleep or the app
+    /// backgrounded past the point where the relay socket dropped.
+    ///
+    /// `sessionId` is carried in userInfo so tapping the notification
+    /// can deep-link back into the waiting ceremony (future hook).
+    func notifySigningTimeout(sessionId: String) {
+        let content = UNMutableNotificationContent()
+        content.title = NSLocalizedString("notif.signingTimeout.title", comment: "")
+        content.body = NSLocalizedString("notif.signingTimeout.body", comment: "")
+        content.sound = .default
+        content.userInfo = ["action": "signing_timeout", "sessionId": sessionId]
+
+        let request = UNNotificationRequest(
+            identifier: "signing-timeout-\(sessionId)",
+            content: content,
+            trigger: nil
+        )
+        UNUserNotificationCenter.current().add(request)
+    }
+
+    /// Cancel a previously-scheduled timeout notification. Called when
+    /// a cosigner joins or the user leaves the invite step — keeps the
+    /// notification tray from showing stale "co-signer didn't join"
+    /// banners after the ceremony actually got started.
+    func cancelSigningTimeout(sessionId: String) {
+        UNUserNotificationCenter.current()
+            .removeDeliveredNotifications(withIdentifiers: ["signing-timeout-\(sessionId)"])
+        UNUserNotificationCenter.current()
+            .removePendingNotificationRequests(withIdentifiers: ["signing-timeout-\(sessionId)"])
+    }
+
     // MARK: - Transaction Confirmed Notification
 
     func notifyTransactionConfirmed(txHash: String, chain: String) {

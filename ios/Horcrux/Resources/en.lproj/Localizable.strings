@@ -1029,6 +1029,8 @@
 "intents.showAddr.dialog" = "Copied %1$@ address %2$@ to the clipboard.";
 "intents.getBalance.dialog" = "%1$@ balance is %2$@.";
 "intents.getBalance.error" = "Couldn't read %1$@ balance — network may be offline or the node is unreachable.";
+"notif.signingTimeout.title" = "Waiting for co-signer";
+"notif.signingTimeout.body" = "No co-signer has joined the signing ceremony yet. Ask them to open Horcrux and tap the signing link.";
 "intents.openReceive.title" = "Open receive QR";
 "intents.openReceive.desc" = "Open the receive screen for a given chain in Horcrux and show the QR code.";
 "intents.openReceive.summaryPrefix" = "Open";

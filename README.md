@@ -74,7 +74,20 @@ See [docs/security-model.md](docs/security-model.md) for the full threat model.
 - **Shard backup/restore** — encrypted iCloud-ready shard export.
 - **QR code** — scan-to-pay and receive address display with share sheet.
 - **Fee estimation** — per-chain gas/fee preview before signing.
-- **Push notifications** — signing request alerts via APNs.
+- **Push notifications** — signing request alerts via APNs, plus
+  local notifications when a signing request sits idle with no
+  co-signer joined for 60 seconds.
+- **Siri & Shortcuts** — read-only voice intents for address
+  lookup ("Copy my ETH address"), balance query ("How much do I
+  have in Horcrux"), and receive QR. Signing is intentionally
+  excluded — ceremonies always require a full app-open for
+  biometrics + MPC round-trips.
+- **Fault-aware RPC routing** — per-URL cooldown registry (30 min
+  for auth failures, 5 min for transient errors) with automatic
+  fallback across the user's configured endpoints plus a public
+  free pool. Settings surfaces a per-endpoint red-dot badge and a
+  self-hiding "Endpoints in cooldown" diagnostic panel with a
+  Retry affordance for users who just fixed their API key.
 - **Deep linking** — `horcrux://` URL scheme for sign requests.
 - **VoiceOver accessibility** — full screen reader support.
 - **Internationalization** — L10n-ready with locale-aware number formatting.

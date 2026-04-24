@@ -7,6 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### iOS — ceremony UX (v0.5.0-dev.8+)
+
+- **Signing timeout notification.** When the initiator stays in the
+  invite step for 60 s with zero cosigners joined, a local
+  notification fires ("Ask them to open Horcrux and tap the signing
+  link"). Cancelled the moment a peer joins, the user regenerates
+  the room code, leaves the invite step, or the room-code TTL
+  expires. New `NotificationManager.notifySigningTimeout` +
+  `cancelSigningTimeout` pair plus a `presenceTimeoutTask` in
+  `SigningViewModel`.
+
+- **Siri balance query** (`GetWalletBalanceIntent`). Read-only
+  intent that resolves a chain from the user's wallet JSON and
+  calls `BlockchainService.balance(for:config:)` — inherits the
+  fault-aware router and cooldown registry. Registered in
+  `HorcruxShortcuts` alongside the existing address and receive
+  intents. Signing stays deliberately out of Siri.
+
+- **README feature list refreshed** to mention the Siri intents,
+  signing-timeout notifications, and fault-aware RPC routing with
+  the in-Settings cooldown diagnostics.
+
 ### iOS — RPC routing hardening (v0.5.0-dev.7)
 
 Full rpc-routing-plan audit — all plan items closed.
