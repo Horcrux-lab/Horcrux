@@ -1193,6 +1193,8 @@ enum L10n {
         static let keyStoredSecurely = NSLocalizedString("nodeStatus.keyStoredSecurely", comment: "")
         static let bakedKeyWarning = NSLocalizedString("nodeStatus.bakedKeyWarning", comment: "")
         static let publicPrivacyNote = NSLocalizedString("nodeStatus.publicPrivacyNote", comment: "")
+        static let cooldownBadge = NSLocalizedString("nodeStatus.cooldownBadge", comment: "")
+        static let cooldownExplain = NSLocalizedString("nodeStatus.cooldownExplain", comment: "")
         static let networkMismatchExpectedMainnet = NSLocalizedString("nodeStatus.networkMismatchExpectedMainnet", comment: "")
         static let networkMismatchExpectedTestnet = NSLocalizedString("nodeStatus.networkMismatchExpectedTestnet", comment: "")
         static let resetThisChain = NSLocalizedString("nodeStatus.resetThisChain", comment: "")

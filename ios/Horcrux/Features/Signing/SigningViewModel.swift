@@ -2597,12 +2597,18 @@ final class SigningViewModel: ObservableObject {
         guard fee > 0 else { return false }
 
         // Token transfer: gas is paid in native; value goes out of token.
+        // The 1% tolerance absorbs the gap between the displayed fee
+        // (ceiling from gasLimit × maxFeePerGas) and the real on-chain
+        // cost (typically 5-15% lower because baseFee settles below
+        // `2 × gasPrice`). Without it, a wallet holding exactly enough
+        // for the *actual* tx gets blocked at the UI by a few wei of
+        // display-rounding noise.
         if selectedToken != nil {
-            return nativeBal < fee
+            return nativeBal < fee * 0.99
         }
         // Native transfer: need value + fee.
         let value = Double(amount) ?? 0
-        return nativeBal < value + fee
+        return nativeBal < value + fee * 0.99
     }
 
     private static func formatAmountTrimmed(_ v: Double) -> String {

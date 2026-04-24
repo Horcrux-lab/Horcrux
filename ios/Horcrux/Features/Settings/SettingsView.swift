@@ -1736,15 +1736,32 @@ struct KeySecurityHint: View {
 
 /// Small pill that names the recognised provider behind a URL (e.g. "Alchemy",
 /// "PublicNode · 公共"). Public providers also get a ⓘ tooltip warning about
-/// IP / address correlation.
+/// IP / address correlation. When the URL is currently in the RPC fallback
+/// router's cooldown window (auth-failed / transiently down), a small red
+/// dot is prefixed so the user sees at a glance that routing is degraded.
 struct ProviderBadge: View {
     let urlString: String
     @State private var showPrivacyTip = false
+    @State private var showCooldownTip = false
+    @State private var cooldownTick = 0 // drives re-render while sheet cycles
 
     var body: some View {
         let provider = RPCProvider.identify(urlString)
+        let isCoolingDown = RPCEndpointHealth.isCoolingDown(urlString)
+        let _ = cooldownTick // keep dependency for refresh
         if provider != .unknown {
             HStack(spacing: 6) {
+                if isCoolingDown {
+                    Button {
+                        showCooldownTip = true
+                    } label: {
+                        Circle()
+                            .fill(Color.red)
+                            .frame(width: 8, height: 8)
+                            .accessibilityLabel(Text(L10n.NodeStatus.cooldownBadge))
+                    }
+                    .buttonStyle(.plain)
+                }
                 Image(systemName: provider.isPublic ? "globe" : "key.fill")
                     .font(.caption2)
                 Text(provider.label)
@@ -1768,6 +1785,12 @@ struct ProviderBadge: View {
             .alert(L10n.NodeStatus.publicPrivacyNote, isPresented: $showPrivacyTip) {
                 Button(L10n.Common.ok, role: .cancel) {}
             }
+            .alert(L10n.NodeStatus.cooldownBadge, isPresented: $showCooldownTip) {
+                Button(L10n.Common.ok, role: .cancel) {}
+            } message: {
+                Text(L10n.NodeStatus.cooldownExplain)
+            }
+            .onAppear { cooldownTick &+= 1 }
         }
     }
 }

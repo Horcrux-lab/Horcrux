@@ -313,6 +313,9 @@ actor BlockchainService {
                 let result = try await op(url)
                 RPCEndpointHealth.markOk(url)
                 if idx > 0 { SecureLog.info("RPC fallback #\(idx) succeeded on \(URL(string: url)?.host ?? "?")") }
+                #if DEBUG
+                SecureLog.debug("RPC routed via \(RPCProvider.identify(url).label.isEmpty ? (URL(string: url)?.host ?? "?") : RPCProvider.identify(url).label) [\(URL(string: url)?.host ?? "?")]")
+                #endif
                 return result
             } catch {
                 lastError = error
