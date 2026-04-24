@@ -1571,11 +1571,21 @@ enum BlockchainError: LocalizedError {
     }
 
     /// Whether this error is transient and worth retrying.
+    ///
+    /// `.emptyResult` is intentionally **not** transient: a JSON-RPC `null`
+    /// result is a legitimate "not yet available" reply — a pending
+    /// `eth_getTransactionReceipt`, an unset storage slot, a block that
+    /// hasn't propagated — not a network error. Retrying it three times
+    /// per call produced ~6-9s retry storms against public endpoints that
+    /// starved other concurrent RPC calls (e.g. the nonce/gas fetch a
+    /// freshly-tapped "Sign" button needs) of URLSession connection
+    /// slots. Callers that want to tolerate null go through
+    /// `ethCallOptional`, which catches `.emptyResult` and returns nil.
     var isTransient: Bool {
         switch self {
         case .httpError(let code): return code >= 500 || code == 429
         case .rpcError(let code, _): return code == -32005 // rate limited
-        case .invalidResponse, .emptyResult: return true
+        case .invalidResponse: return true
         default: return false
         }
     }
