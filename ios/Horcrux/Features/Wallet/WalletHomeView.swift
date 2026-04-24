@@ -621,7 +621,7 @@ struct WalletHomeView: View {
             let result: String
             if tx.chain.isEVM {
                 result = try await appState.blockchainService.ethSendRawTransaction(
-                    signedTxHex: tx.signedPayload, rpcURL: appState.networkConfig.rpcURL(for: tx.chain))
+                    signedTxHex: tx.signedPayload, chain: tx.chain, config: appState.networkConfig)
             } else {
                 switch tx.chain {
                 case .bitcoin:

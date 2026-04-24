@@ -61,7 +61,7 @@ final class PendingBroadcastQueue: ObservableObject {
                 let result: String
                 if tx.chain.isEVM {
                     result = try await service.ethSendRawTransaction(
-                        signedTxHex: tx.signedPayload, rpcURL: config.rpcURL(for: tx.chain))
+                        signedTxHex: tx.signedPayload, chain: tx.chain, config: config)
                 } else {
                     switch tx.chain {
                     case .bitcoin:

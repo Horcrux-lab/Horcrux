@@ -549,13 +549,13 @@ final class SigningViewModel: ObservableObject {
                             return (recipientAddress, ethToWei(amount), nil)
                         }
                     }()
-                    let rpc = networkConfig.rpcURL(for: wallet.chain)
                     let estimate = try await blockchainService.ethEstimateGas(
                         from: wallet.address,
                         to: txTo,
                         valueWei: txValueWei,
                         data: txData,
-                        rpcURL: rpc
+                        chain: wallet.chain,
+                        config: networkConfig
                     )
                     // Reuse the gas estimate for the fee preview instead of
                     // re-running `ethEstimateGas` — saves 4 RPC round-trips
@@ -2258,7 +2258,8 @@ final class SigningViewModel: ObservableObject {
                 if wallet.chain.isEVM {
                     let result = try await blockchainService.ethSendRawTransaction(
                         signedTxHex: txHash,
-                        rpcURL: networkConfig.rpcURL(for: wallet.chain)
+                        chain: wallet.chain,
+                        config: networkConfig
                     )
                     await MainActor.run {
                         broadcastStatus = "Broadcast OK: \(result.prefix(20))…"

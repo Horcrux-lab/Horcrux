@@ -216,6 +216,134 @@ actor BlockchainService {
         )
     }
 
+    /// Broadcast a signed EVM transaction with automatic fallback across
+    /// the resolved endpoint list. Returns the tx hash.
+    ///
+    /// Fallback policy:
+    /// - 401/403 (auth failure) → mark cooldown 30min, try next endpoint.
+    /// - 5xx/timeout/URLError → rethrow. Tx may already be in the mempool
+    ///   on the failing endpoint; auto-switching risks a double-broadcast
+    ///   silently bumping the user's nonce. User can retry manually.
+    /// - "already known" / "nonce too low" / "insufficient funds" /
+    ///   "execution reverted" → business error, rethrow, do not switch.
+    func ethSendRawTransaction(signedTxHex: String, chain: Chain, config: NetworkConfig) async throws -> String {
+        let attempts = RPCFallbacks.resolvedAttempts(for: chain, config: config)
+        guard !attempts.isEmpty else { throw BlockchainError.invalidURL("no endpoints") }
+        var lastError: Error = BlockchainError.invalidURL("no endpoints")
+        for (idx, url) in attempts.enumerated() {
+            do {
+                let hash = try await ethSendRawTransaction(signedTxHex: signedTxHex, rpcURL: url)
+                RPCEndpointHealth.markOk(url)
+                if idx > 0 { SecureLog.info("ethSendRaw fallback #\(idx) succeeded on \(URL(string: url)?.host ?? "?")") }
+                return hash
+            } catch {
+                lastError = error
+                switch Self.classifyForFallback(error) {
+                case .authFailure:
+                    RPCEndpointHealth.markAuthFailed(url)
+                    SecureLog.warning("ethSendRaw auth-failed on \(URL(string: url)?.host ?? "?"); trying next")
+                    continue
+                case .businessError, .transient:
+                    // Never auto-switch on business or transient errors —
+                    // the tx may already be in some mempool.
+                    throw error
+                }
+            }
+        }
+        throw lastError
+    }
+
+    // MARK: - RPC fallback plumbing (fault-aware routing)
+
+    enum FallbackClassification {
+        /// 401/403 or -32000 Unauthorized: endpoint's key is missing/revoked.
+        case authFailure
+        /// 5xx, timeouts, URLErrors, -32601 method not found, invalidResponse.
+        case transient
+        /// User-space errors that must surface to the caller unchanged.
+        case businessError
+    }
+
+    static func classifyForFallback(_ error: Error) -> FallbackClassification {
+        if let be = error as? BlockchainError {
+            switch be {
+            case .httpError(let code):
+                if code == 401 || code == 403 { return .authFailure }
+                return .transient
+            case .rpcError(let code, let message):
+                let lower = message.lowercased()
+                if lower.contains("unauthorized") || lower.contains("api key")
+                    || lower.contains("forbidden") || lower.contains("invalid project") {
+                    return .authFailure
+                }
+                if lower.contains("insufficient funds") || lower.contains("insufficient balance")
+                    || lower.contains("execution reverted") || lower.contains("nonce too low")
+                    || lower.contains("already known") || lower.contains("replacement transaction underpriced")
+                    || lower.contains("gas required exceeds") || lower.contains("intrinsic gas too low")
+                    || lower.contains("transaction underpriced") || lower.contains("known transaction") {
+                    return .businessError
+                }
+                if code == -32601 { return .transient } // method not found on limited tier
+                return .transient
+            case .emptyResult, .invalidAddress, .insufficientBalance:
+                return .businessError
+            case .invalidResponse, .invalidURL:
+                return .transient
+            }
+        }
+        return .transient
+    }
+
+    /// Run a block against the resolved endpoint list, switching URL on
+    /// auth and transient failures. Business errors abort immediately.
+    ///
+    /// The closure receives one URL per attempt and should perform a
+    /// single RPC call (or a tight cluster of them if you need multi-call
+    /// consistency on a single endpoint — see `ethEstimateGas(chain:config:)`).
+    private func withFallbackURL<T>(
+        chain: Chain,
+        config: NetworkConfig,
+        op: (_ url: String) async throws -> T
+    ) async throws -> T {
+        let attempts = RPCFallbacks.resolvedAttempts(for: chain, config: config)
+        guard !attempts.isEmpty else { throw BlockchainError.invalidURL("no endpoints") }
+        var lastError: Error = BlockchainError.invalidURL("no endpoints")
+        for (idx, url) in attempts.enumerated() {
+            do {
+                let result = try await op(url)
+                RPCEndpointHealth.markOk(url)
+                if idx > 0 { SecureLog.info("RPC fallback #\(idx) succeeded on \(URL(string: url)?.host ?? "?")") }
+                return result
+            } catch {
+                lastError = error
+                switch Self.classifyForFallback(error) {
+                case .authFailure:
+                    RPCEndpointHealth.markAuthFailed(url)
+                    SecureLog.warning("RPC auth-failed on \(URL(string: url)?.host ?? "?"); cooling 30min")
+                    continue
+                case .transient:
+                    RPCEndpointHealth.markTransientFailed(url)
+                    SecureLog.info("RPC transient error on \(URL(string: url)?.host ?? "?"): \(error.localizedDescription); trying next")
+                    continue
+                case .businessError:
+                    throw error
+                }
+            }
+        }
+        throw lastError
+    }
+
+    /// Fault-aware EVM gas estimate. Uses a single resolved endpoint for
+    /// the whole quartet (nonce + estimateGas + gasPrice + priorityFee)
+    /// so the returned estimate is internally consistent; if that
+    /// endpoint fails on any sub-call, the whole group re-runs against
+    /// the next candidate.
+    func ethEstimateGas(from: String, to: String, valueWei: String, data txData: String? = nil, chain: Chain, config: NetworkConfig) async throws -> EvmGasEstimate {
+        return try await withFallbackURL(chain: chain, config: config) { url in
+            try await ethEstimateGas(from: from, to: to, valueWei: valueWei, data: txData, rpcURL: url)
+        }
+    }
+
     // MARK: - Bitcoin (Blockstream REST API)
 
     struct BtcUtxo: Decodable {

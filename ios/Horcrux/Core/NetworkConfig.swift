@@ -1406,6 +1406,67 @@ enum RPCFallbacks {
         }
         return out
     }
+
+    /// Ordered attempts with per-URL cooldown filtering applied.
+    ///
+    /// URLs that recently answered with 401/403 (auth failure) are hidden
+    /// for 30 minutes; URLs that recently failed with transient errors
+    /// are hidden for 5 minutes. If *every* candidate is currently cooling,
+    /// the full `orderedAttempts` list is returned unchanged — a cool
+    /// endpoint is still better than no endpoint. See `RPCEndpointHealth`.
+    static func resolvedAttempts(for chain: Chain, config: NetworkConfig) -> [String] {
+        let all = orderedAttempts(for: chain, config: config)
+        let healthy = all.filter { !RPCEndpointHealth.isCoolingDown($0) }
+        return healthy.isEmpty ? all : healthy
+    }
+}
+
+/// URL-level cooldown registry used by the RPC fallback router.
+///
+/// Keyed by full URL (not provider). Survives app lifetime but not
+/// relaunches — intentional: after a relaunch the user probably wants
+/// one more attempt before we lock an endpoint out again.
+///
+/// All state is guarded by a private serial queue so the store can be
+/// touched from any actor without external synchronisation.
+enum RPCEndpointHealth {
+    private static let queue = DispatchQueue(label: "com.horcrux.rpc.health")
+    private static var cooldowns: [String: Date] = [:]
+
+    /// 401 / 403 / -32000 Unauthorized. Endpoint is almost certainly
+    /// behind a paid tier or revoked key; no point retrying for a while.
+    static let authCooldown: TimeInterval = 30 * 60
+    /// 5xx / timeout / URLError. Endpoint had a bad moment; brief cool-off
+    /// gives it time to recover before we poll again.
+    static let transientCooldown: TimeInterval = 5 * 60
+
+    static func markAuthFailed(_ url: String) {
+        queue.sync { cooldowns[url] = Date().addingTimeInterval(authCooldown) }
+    }
+
+    static func markTransientFailed(_ url: String) {
+        queue.sync { cooldowns[url] = Date().addingTimeInterval(transientCooldown) }
+    }
+
+    static func markOk(_ url: String) {
+        queue.sync { cooldowns.removeValue(forKey: url); return }
+    }
+
+    static func isCoolingDown(_ url: String) -> Bool {
+        queue.sync {
+            guard let until = cooldowns[url] else { return false }
+            if until <= Date() {
+                cooldowns.removeValue(forKey: url)
+                return false
+            }
+            return true
+        }
+    }
+
+    /// Testing / debug affordance — wipe all cooldowns.
+    static func resetForTests() {
+        queue.sync { cooldowns.removeAll() }
+    }
 }
 
 import Foundation
