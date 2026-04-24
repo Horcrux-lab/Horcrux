@@ -557,11 +557,18 @@ final class SigningViewModel: ObservableObject {
                         data: txData,
                         rpcURL: rpc
                     )
-                    let feeDisplay = try await blockchainService.ethFeeEstimateDisplay(
-                        from: wallet.address,
-                        to: txTo,
-                        valueWei: txValueWei,
-                        rpcURL: rpc
+                    // Reuse the gas estimate for the fee preview instead of
+                    // re-running `ethEstimateGas` — saves 4 RPC round-trips
+                    // per compose (nonce + estimate + gasPrice + priorityFee).
+                    let nativeSymbol: String = {
+                        if wallet.chain == .ethereum {
+                            return EVMNetwork(rawValue: networkConfig.evmChainId)?.nativeSymbol ?? "ETH"
+                        }
+                        return wallet.chain.symbol
+                    }()
+                    let feeDisplay = await blockchainService.ethFeeEstimateDisplay(
+                        fromEstimate: estimate,
+                        symbol: nativeSymbol
                     )
                     await MainActor.run {
                         estimatedGas = "\(estimate.gasLimit)"

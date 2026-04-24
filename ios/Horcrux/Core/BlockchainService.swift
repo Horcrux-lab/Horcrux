@@ -178,9 +178,13 @@ actor BlockchainService {
         )
     }
 
-    /// Human-readable fee estimate for display (in ETH).
-    func ethFeeEstimateDisplay(from: String, to: String, valueWei: String, rpcURL: String) async throws -> FeeEstimate {
-        let gas = try await ethEstimateGas(from: from, to: to, valueWei: valueWei, rpcURL: rpcURL)
+    /// Render a display-ready fee preview from an already-computed
+    /// `EvmGasEstimate`. Preferred over `ethFeeEstimateDisplay(from:to:…)`
+    /// whenever the caller has just run `ethEstimateGas` — reusing the
+    /// estimate saves ~4 RPC round-trips (nonce + estimateGas + gasPrice +
+    /// maxPriorityFeePerGas) per compose, which used to double-bill the
+    /// user's Alchemy/Infura plan and stall compose UI on slow networks.
+    func ethFeeEstimateDisplay(fromEstimate gas: EvmGasEstimate, symbol: String = "ETH") -> FeeEstimate {
         let maxFeeWei = Decimal(string: gas.maxFeePerGas) ?? 0
         let maxCostWei = Decimal(gas.gasLimit) * maxFeeWei
         let ethCost = maxCostWei / Decimal(1_000_000_000_000_000_000)
@@ -190,9 +194,17 @@ actor BlockchainService {
         let formatted = formatter.string(from: ethCost as NSDecimalNumber) ?? "\(ethCost)"
         return FeeEstimate(
             chain: .ethereum,
-            estimatedFee: "\(formatted) ETH",
+            estimatedFee: "\(formatted) \(symbol)",
             feeDetails: "Gas: \(gas.gasLimit) × \(gas.maxFeePerGas) wei"
         )
+    }
+
+    /// Human-readable fee estimate for display (in ETH). Convenience wrapper
+    /// that also runs the gas estimate; prefer `ethFeeEstimateDisplay(fromEstimate:)`
+    /// when an `EvmGasEstimate` is already available.
+    func ethFeeEstimateDisplay(from: String, to: String, valueWei: String, rpcURL: String) async throws -> FeeEstimate {
+        let gas = try await ethEstimateGas(from: from, to: to, valueWei: valueWei, rpcURL: rpcURL)
+        return ethFeeEstimateDisplay(fromEstimate: gas)
     }
 
     /// Broadcast a signed EVM transaction. Returns the tx hash.

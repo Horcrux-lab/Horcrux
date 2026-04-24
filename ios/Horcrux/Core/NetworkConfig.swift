@@ -1368,8 +1368,12 @@ enum RPCFallbacks {
         case .avalanche:
             return [
                 "https://api.avax.network/ext/bc/C/rpc",
-                "https://avalanche.publicnode.com",
-                "https://rpc.ankr.com/avalanche"
+                "https://avalanche.publicnode.com"
+                // Ankr removed from free list (Apr 2026): the public
+                // `rpc.ankr.com/*` endpoints now reject keyless requests
+                // with HTTP 401, producing retry noise and no useful
+                // fallback. Ankr remains available as a paid provider
+                // template via `RPCProviderTemplate.ankr(evm:)`.
             ]
         case .zkSyncEra:
             return [
