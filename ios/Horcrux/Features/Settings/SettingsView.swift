@@ -1197,6 +1197,7 @@ struct BlockchainNodeSettingsView: View {
                         .font(.system(.body, design: .monospaced))
                         .autocorrectionDisabled()
                         .textInputAutocapitalization(.never)
+                        .onSubmit { Task { await NodeHealthStore.shared.refresh(chain: .ethereum) } }
                     RPCStatusStrip(urlString: config.ethereumRPC)
                 }
 
@@ -1219,6 +1220,7 @@ struct BlockchainNodeSettingsView: View {
                         .font(.system(.body, design: .monospaced))
                         .autocorrectionDisabled()
                         .textInputAutocapitalization(.never)
+                        .onSubmit { Task { await NodeHealthStore.shared.refresh(chain: .bitcoin) } }
                     RPCStatusStrip(urlString: config.bitcoinAPI)
                     EsploraPresetChips(
                         presets: config.btcTestnet
@@ -1251,6 +1253,7 @@ struct BlockchainNodeSettingsView: View {
                         .font(.system(.body, design: .monospaced))
                         .autocorrectionDisabled()
                         .textInputAutocapitalization(.never)
+                        .onSubmit { Task { await NodeHealthStore.shared.refresh(chain: .litecoin) } }
                     RPCStatusStrip(urlString: config.litecoinAPI)
                     EsploraPresetChips(
                         presets: [("litecoinspace", "https://litecoinspace.org/api")],
@@ -1280,6 +1283,7 @@ struct BlockchainNodeSettingsView: View {
                         .font(.system(.body, design: .monospaced))
                         .autocorrectionDisabled()
                         .textInputAutocapitalization(.never)
+                        .onSubmit { Task { await NodeHealthStore.shared.refresh(chain: .solana) } }
                     RPCStatusStrip(urlString: config.solanaRPC)
                     if !keyBinding(for: selectedEVMProvider).wrappedValue.isEmpty,
                        let solTmpl = selectedEVMProvider.solanaTemplate(mainnet: !config.solDevnet) {
@@ -1319,6 +1323,7 @@ struct BlockchainNodeSettingsView: View {
                         .font(.system(.body, design: .monospaced))
                         .autocorrectionDisabled()
                         .textInputAutocapitalization(.never)
+                        .onSubmit { Task { await NodeHealthStore.shared.refresh(chain: .tron) } }
                     RPCStatusStrip(urlString: config.tronAPI)
                     RPCPresetChips(
                         presets: [

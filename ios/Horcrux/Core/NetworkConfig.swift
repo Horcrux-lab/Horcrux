@@ -344,6 +344,11 @@ final class NetworkConfig: ObservableObject, @unchecked Sendable {
     /// → paid template; key absent → free public endpoint.
     func resetField(for chain: Chain) {
         let hasKey = !alchemyAPIKey.isEmpty
+        // Wipe URL-level cooldowns for this chain so the freshly-reset URL
+        // isn't immediately suppressed by a stale entry from the URL we
+        // just discarded. Safe to clear all: cooldowns are in-memory only
+        // and will re-populate on the first real failure.
+        RPCEndpointHealth.clearAll()
         switch chain {
         case .ethereum:
             if let net = EVMNetwork(rawValue: evmChainId) {
@@ -442,6 +447,7 @@ final class NetworkConfig: ObservableObject, @unchecked Sendable {
 
     func resetToDefaults() {
         applyPreset(.mainnet)
+        RPCEndpointHealth.clearAll()
     }
 
     /// Short testnet badge for a given chain, or nil when the current
@@ -1461,6 +1467,13 @@ enum RPCEndpointHealth {
             }
             return true
         }
+    }
+
+    /// Clear all cooldowns — used by reset-to-defaults flows so a stale
+    /// entry from a URL the user just discarded doesn't leak into the
+    /// freshly-restored config.
+    static func clearAll() {
+        queue.sync { cooldowns.removeAll(); return }
     }
 
     /// Testing / debug affordance — wipe all cooldowns.
