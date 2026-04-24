@@ -711,21 +711,29 @@ fn compute_recovery_id(
     let len = message_hash.len().min(32);
     hash[32 - len..].copy_from_slice(&message_hash[..len]);
 
-    // Serialize group public key for comparison
-    let pk_json = match serde_json::to_string(public_key) {
-        Ok(j) => j,
-        Err(e) => {
-            tracing::error!("failed to serialize public key: {e}");
-            return 0;
-        }
-    };
+    // Serialize the group public key to the canonical SEC1 uncompressed
+    // form (0x04 || X || Y, 65 bytes) so we can byte-compare it against
+    // the recovered `VerifyingKey`. The previous implementation serialised
+    // the `NonZero<Point<Secp256k1>>` via `serde_json` and then matched
+    // the recovered key's compressed hex against that JSON string with
+    // `.contains()`. `generic-ec`'s JSON encoding doesn't embed the raw
+    // SEC1 bytes — it uses its own tagged representation — so the
+    // substring match *never* succeeded, the loop fell through, and
+    // `recovery_id` silently defaulted to `0` on every signature.
+    // The v-byte was therefore correct on ~50% of signatures by coin
+    // flip; the other half produced syntactically-valid EIP-1559 txs
+    // whose `ecrecover` returned an arbitrary address with no balance,
+    // which the RPC node then rejected as `insufficient funds for gas
+    // * price + value: have 0 want ...` — exactly the failure mode
+    // observed on Sepolia for the `game-band-lion-Ethereum` wallet.
+    let expected_pk_bytes = public_key.to_bytes(false);
+    let expected_pk = expected_pk_bytes.as_ref();
 
     for v in 0u8..=1 {
         let recid = RecoveryId::new(v != 0, false);
         if let Ok(recovered) = VerifyingKey::recover_from_prehash(&hash, &sig, recid) {
-            let compressed = recovered.to_encoded_point(true);
-            let hex_compressed = hex::encode(compressed.as_bytes());
-            if pk_json.contains(&hex_compressed) {
+            let recovered_bytes = recovered.to_encoded_point(false);
+            if recovered_bytes.as_bytes() == expected_pk {
                 return v;
             }
         }
