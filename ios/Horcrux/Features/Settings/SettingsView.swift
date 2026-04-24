@@ -1344,6 +1344,8 @@ struct BlockchainNodeSettingsView: View {
                 Text(L10n.NodeSettings.readOnlyNote)
             }
 
+            EndpointCooldownSection()
+
             Section {
                 NavigationLink {
                     ImportExportSubView(
@@ -1825,6 +1827,74 @@ struct ChainFieldActions: View {
             .foregroundStyle(HorcruxTheme.subtleText)
             .accessibilityIdentifier("nodeStatus_resetChain_\(chain.rawValue)")
         }
+    }
+}
+
+/// Diagnostic panel on the node-settings page listing RPC URLs that the
+/// fallback router is currently avoiding (auth-failed or transiently
+/// down). Each row shows remaining cool-down and offers a "试试看"
+/// button that clears the entry so the user can confirm a fix took
+/// effect without waiting 30 minutes.
+///
+/// Hidden entirely when no URLs are cooling — the vast majority of the
+/// time the router is fully green.
+struct EndpointCooldownSection: View {
+    @State private var entries: [(url: String, until: Date)] = []
+    @State private var now: Date = Date()
+    private let tick = Timer.publish(every: 30, on: .main, in: .common).autoconnect()
+
+    var body: some View {
+        Group {
+            if !entries.isEmpty {
+                Section {
+                    ForEach(entries, id: \.url) { entry in
+                        row(for: entry)
+                    }
+                } header: {
+                    ReadOnlySectionHeader(title: L10n.NodeStatus.cooldownSectionTitle)
+                } footer: {
+                    Text(L10n.NodeStatus.cooldownSectionFooter)
+                }
+            }
+        }
+        .onAppear { refresh() }
+        .onReceive(tick) { _ in refresh() }
+    }
+
+    private func row(for entry: (url: String, until: Date)) -> some View {
+        let host = URL(string: entry.url)?.host ?? entry.url
+        let provider = RPCProvider.identify(entry.url)
+        let remaining = max(0, Int(entry.until.timeIntervalSince(now)))
+        let mins = remaining / 60
+        let secs = remaining % 60
+        let rel = mins > 0 ? "\(mins)m\(secs)s" : "\(secs)s"
+        return HStack(alignment: .top, spacing: 10) {
+            VStack(alignment: .leading, spacing: 4) {
+                HStack(spacing: 6) {
+                    Circle().fill(Color.red).frame(width: 8, height: 8)
+                    Text(provider == .unknown ? host : "\(provider.label) · \(host)")
+                        .font(.footnote.weight(.medium))
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                }
+                Text(L10n.NodeStatus.cooldownRemaining(rel))
+                    .font(.caption2)
+                    .foregroundStyle(HorcruxTheme.subtleText)
+            }
+            Spacer(minLength: 8)
+            Button(L10n.NodeStatus.cooldownRetry) {
+                RPCEndpointHealth.clear(entry.url)
+                refresh()
+            }
+            .buttonStyle(.bordered)
+            .controlSize(.mini)
+            .tint(HorcruxTheme.accentCyan)
+        }
+    }
+
+    private func refresh() {
+        now = Date()
+        entries = RPCEndpointHealth.activeSnapshot()
     }
 }
 

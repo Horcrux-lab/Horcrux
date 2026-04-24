@@ -1465,7 +1465,31 @@ enum RPCEndpointHealth {
 
     /// Testing / debug affordance — wipe all cooldowns.
     static func resetForTests() {
-        queue.sync { cooldowns.removeAll() }
+        queue.sync { cooldowns.removeAll(); return }
+    }
+
+    /// Snapshot of currently cooling URLs with their release dates.
+    /// Expired entries are filtered out. Used by the Settings diagnostic
+    /// panel so the user can see exactly which endpoints the router
+    /// is avoiding and for how long.
+    static func activeSnapshot() -> [(url: String, until: Date)] {
+        queue.sync {
+            let now = Date()
+            // Clean up expired entries opportunistically.
+            for (url, until) in cooldowns where until <= now {
+                cooldowns.removeValue(forKey: url)
+            }
+            return cooldowns
+                .map { (url: $0.key, until: $0.value) }
+                .sorted { $0.until < $1.until }
+        }
+    }
+
+    /// Clear a specific URL's cooldown, allowing the router to try it
+    /// again on the next call. Useful as a manual "I fixed my key, stop
+    /// avoiding this URL" affordance.
+    static func clear(_ url: String) {
+        queue.sync { cooldowns.removeValue(forKey: url); return }
     }
 }
 

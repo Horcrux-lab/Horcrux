@@ -562,6 +562,10 @@
 "nodeStatus.publicPrivacyNote" = "公共 RPC 可能记录你的 IP 与钱包地址的关联，敏感场景请用自己的 Key 或自建节点";
 "nodeStatus.cooldownBadge" = "近期失败 · 冷却中";
 "nodeStatus.cooldownExplain" = "该节点最近返回了鉴权错误或超时。Horcrux 已暂时把它从路由里摘除几分钟，期间会走其他健康节点。首次成功调用后此红点会自动消失。";
+"nodeStatus.cooldownSectionTitle" = "冷却中的节点";
+"nodeStatus.cooldownSectionFooter" = "以下节点因近期出现鉴权错误或超时，已被暂时摘除。修好 Key 后点\"试试看\"可立即重试，不必等冷却自然到期。";
+"nodeStatus.cooldownRetry" = "试试看";
+"nodeStatus.cooldownRemaining" = "还需冷却 %@";
 "nodeStatus.networkMismatchExpectedMainnet" = "节点返回的是测试网，但当前选择的是主网";
 "nodeStatus.networkMismatchExpectedTestnet" = "节点返回的是主网，但当前选择的是测试网";
 "nodeStatus.chainMismatch" = "网络不匹配：期望 %1$@，实际 %2$@";

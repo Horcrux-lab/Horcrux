@@ -562,6 +562,10 @@
 "nodeStatus.publicPrivacyNote" = "Public RPCs may log your IP address alongside wallet addresses. For privacy-sensitive flows, use your own API key or a self-hosted node.";
 "nodeStatus.cooldownBadge" = "Recently failed · cooling down";
 "nodeStatus.cooldownExplain" = "This endpoint recently returned an auth error or timed out. Horcrux has paused routing to it for a few minutes and will fall back to healthy endpoints in the meantime. The dot clears on first successful call.";
+"nodeStatus.cooldownSectionTitle" = "Endpoints in cooldown";
+"nodeStatus.cooldownSectionFooter" = "The router is currently avoiding these URLs because they recently failed with auth or transient errors. Tap Retry to clear a cooldown and try the URL again immediately — useful after fixing an API key.";
+"nodeStatus.cooldownRetry" = "Retry";
+"nodeStatus.cooldownRemaining" = "Cools for another %@";
 "nodeStatus.networkMismatchExpectedMainnet" = "Node returned testnet, but you've selected mainnet";
 "nodeStatus.networkMismatchExpectedTestnet" = "Node returned mainnet, but you've selected testnet";
 "nodeStatus.chainMismatch" = "Network mismatch: expected %1$@, got %2$@";

@@ -1195,6 +1195,12 @@ enum L10n {
         static let publicPrivacyNote = NSLocalizedString("nodeStatus.publicPrivacyNote", comment: "")
         static let cooldownBadge = NSLocalizedString("nodeStatus.cooldownBadge", comment: "")
         static let cooldownExplain = NSLocalizedString("nodeStatus.cooldownExplain", comment: "")
+        static let cooldownSectionTitle = NSLocalizedString("nodeStatus.cooldownSectionTitle", comment: "")
+        static let cooldownSectionFooter = NSLocalizedString("nodeStatus.cooldownSectionFooter", comment: "")
+        static let cooldownRetry = NSLocalizedString("nodeStatus.cooldownRetry", comment: "")
+        static func cooldownRemaining(_ rel: String) -> String {
+            String(format: NSLocalizedString("nodeStatus.cooldownRemaining", comment: ""), rel)
+        }
         static let networkMismatchExpectedMainnet = NSLocalizedString("nodeStatus.networkMismatchExpectedMainnet", comment: "")
         static let networkMismatchExpectedTestnet = NSLocalizedString("nodeStatus.networkMismatchExpectedTestnet", comment: "")
         static let resetThisChain = NSLocalizedString("nodeStatus.resetThisChain", comment: "")
