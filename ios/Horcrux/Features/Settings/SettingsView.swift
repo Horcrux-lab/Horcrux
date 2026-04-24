@@ -1448,9 +1448,17 @@ struct BlockchainNodeSettingsView: View {
     }
 
     private func isCurrentPreset(_ preset: NetworkPreset) -> Bool {
-        config.ethereumRPC == preset.ethereumRPC &&
-        config.bitcoinAPI == preset.bitcoinAPI &&
-        config.solanaRPC == preset.solanaRPC &&
+        // Compare only the logical network identity, not the exact RPC
+        // URL strings. `applyPreset` down-converts the paid template to
+        // the free public endpoint when no Alchemy key is configured,
+        // so after `applyPreset(.testnet)` with no key we end up with
+        //   config.ethereumRPC = "https://ethereum-sepolia-rpc.publicnode.com"
+        //   preset.ethereumRPC = "https://eth-sepolia.g.alchemy.com/v2/{KEY}"
+        // A string-equality check would return false for both presets
+        // after restart — neither button would be highlighted — and the
+        // user would see the preset as "not saved". The chainId +
+        // testnet flags are the ground truth for which network the app
+        // is talking to; URLs are provider preferences layered on top.
         config.evmChainId == preset.evmChainId &&
         config.btcTestnet == preset.btcTestnet &&
         config.solDevnet == preset.solDevnet
