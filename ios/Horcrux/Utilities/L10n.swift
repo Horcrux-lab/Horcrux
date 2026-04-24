@@ -27,6 +27,8 @@ enum L10n {
         static let max = NSLocalizedString("common.max", comment: "")
         static let expand = NSLocalizedString("common.expand", comment: "")
         static let collapse = NSLocalizedString("common.collapse", comment: "")
+        static let moreInfo = NSLocalizedString("common.moreInfo", comment: "")
+        static let tapForDetails = NSLocalizedString("common.tapForDetails", comment: "")
     }
 
     // MARK: - JoinSigning

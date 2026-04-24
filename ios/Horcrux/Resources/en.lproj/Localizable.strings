@@ -581,6 +581,8 @@
 "common.max" = "Max";
 "common.expand" = "Expand";
 "common.collapse" = "Collapse";
+"common.moreInfo" = "More info";
+"common.tapForDetails" = "Tap for details";
 
 /* Unified sign-time PIN sheet */
 "signing.signersReady" = "%1$d of %2$d signers ready";

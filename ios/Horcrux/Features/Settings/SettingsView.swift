@@ -1867,33 +1867,26 @@ struct ReplaceDeviceInfoView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
                 Label {
-                    Text(L10n.SettingsResidual.replaceTitle).font(.title2.bold())
+                    HStack(spacing: 6) {
+                        Text(L10n.SettingsResidual.replaceTitle).font(.title2.bold())
+                        InfoHint(title: L10n.SettingsResidual.replaceTitle,
+                                 body: L10n.SettingsResidual.replaceIntro)
+                    }
                 } icon: {
                     Image(systemName: "arrow.triangle.2.circlepath.circle.fill")
                         .foregroundStyle(HorcruxTheme.accentCyan)
                 }
 
-                Text(L10n.SettingsResidual.replaceIntro)
-                    .font(.callout)
-                    .foregroundStyle(.secondary)
-
-                VStack(alignment: .leading, spacing: 6) {
+                HStack(spacing: 6) {
                     Label {
                         Text(L10n.SettingsResidual.rotateExplanationTitle).font(.subheadline.weight(.semibold))
                     } icon: {
                         Image(systemName: "sparkle").foregroundStyle(HorcruxTheme.accentCyan)
                     }
-                    Text(L10n.SettingsResidual.rotateExplanationBody)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                    InfoHint(title: L10n.SettingsResidual.rotateExplanationTitle,
+                             body: L10n.SettingsResidual.rotateExplanationBody)
+                    Spacer()
                 }
-                .padding(12)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .background(RoundedRectangle(cornerRadius: 12).fill(HorcruxTheme.accentCyan.opacity(0.06)))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 12)
-                        .stroke(HorcruxTheme.accentCyan.opacity(0.25), lineWidth: 1)
-                )
 
                 if !refreshableAccounts.isEmpty {
                     VStack(alignment: .leading, spacing: 8) {

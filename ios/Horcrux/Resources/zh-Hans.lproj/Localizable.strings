@@ -581,6 +581,8 @@
 "common.max" = "最大";
 "common.expand" = "展开";
 "common.collapse" = "收起";
+"common.moreInfo" = "更多信息";
+"common.tapForDetails" = "点击查看详情";
 
 /* 统一的签名前 PIN 弹窗 */
 "signing.signersReady" = "%1$d/%2$d 个共签者已就绪";

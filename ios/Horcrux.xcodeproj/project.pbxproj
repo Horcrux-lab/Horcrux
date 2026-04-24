@@ -122,6 +122,7 @@
 		D4E3C555F9B2C377BA01735A /* RelayTransport.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE490D34FEE7816E42DB8691 /* RelayTransport.swift */; };
 		D6BDD991137149EBE6D56A38 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 88C0BDC2A3F7036E342C71E9 /* PrivacyInfo.xcprivacy */; };
 		D83EFE7D2591C8EFBF6FB2C3 /* VaultBadge.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C4949918E6EAB7072915827 /* VaultBadge.swift */; };
+		A1B2C3D4E5F60718293A4B5C /* InfoHint.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F60718293A4B5D /* InfoHint.swift */; };
 		D913766D5DEC110A360A875E /* TronAddress.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4621CE39F61CBCFDBD3DCD1B /* TronAddress.swift */; };
 		DA2E185667C1D9A16BC6EDAE /* AddressFormatter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 73A13E2D2F330EDCDE8CE81D /* AddressFormatter.swift */; };
 		DA6D954524EE34B80C3B5DD5 /* DeepLinkRouter.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1C880DEC4705948DAECFB5F /* DeepLinkRouter.swift */; };
@@ -198,6 +199,7 @@
 		49A262F731DB964A68E24B04 /* SigningView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SigningView.swift; sourceTree = "<group>"; };
 		4B97A4C60C8B4D040DBB1906 /* SigningViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SigningViewModel.swift; sourceTree = "<group>"; };
 		4C4949918E6EAB7072915827 /* VaultBadge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VaultBadge.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F60718293A4B5D /* InfoHint.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InfoHint.swift; sourceTree = "<group>"; };
 		4CB5FCCE3D5CA1AFAF3CC572 /* WalletAvatarStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WalletAvatarStore.swift; sourceTree = "<group>"; };
 		4D6DF2DF65312D23533540F7 /* AuditExportTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuditExportTests.swift; sourceTree = "<group>"; };
 		52D0283165D5E6EF6F1EAEA9 /* ReceiveView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReceiveView.swift; sourceTree = "<group>"; };
@@ -458,6 +460,7 @@
 			isa = PBXGroup;
 			children = (
 				D886FBBE2DF6B3AA6FA5A29C /* Components.swift */,
+				A1B2C3D4E5F60718293A4B5D /* InfoHint.swift */,
 				4C4949918E6EAB7072915827 /* VaultBadge.swift */,
 				98062316CA738168EF54F467 /* WalletAvatarView.swift */,
 			);
@@ -775,6 +778,7 @@
 				0071D77F99FBE7536B2A122E /* ColdSigningView.swift in Sources */,
 				96D2462CDCD7A72BBDC80283 /* ColdSigningViewV2.swift in Sources */,
 				E027D29039D918F64A755AC1 /* Components.swift in Sources */,
+				A1B2C3D4E5F60718293A4B5C /* InfoHint.swift in Sources */,
 				B4374A6122DD8F1F31AAE802 /* ContentView.swift in Sources */,
 				55EF0728B367DE18E2844913 /* CopyFeedback.swift in Sources */,
 				FB3401D2DF72092E03109173 /* CreateShardFlow.swift in Sources */,

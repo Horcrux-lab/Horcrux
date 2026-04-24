@@ -230,13 +230,13 @@ struct RefreshShardSheet: View {
     @ViewBuilder
     private var connectForm: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text(L10n.Refresh.connectTitle)
-                .font(.subheadline.weight(.semibold))
-
-            Text(L10n.Refresh.connectHint)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
+            HStack(spacing: 6) {
+                Text(L10n.Refresh.connectTitle)
+                    .font(.subheadline.weight(.semibold))
+                InfoHint(title: L10n.Refresh.connectTitle,
+                         body: L10n.Refresh.connectHint)
+                Spacer()
+            }
 
             ForEach(TransportType.allCases) { t in
                 Toggle(isOn: Binding(
