@@ -141,6 +141,67 @@ struct OpenReceiveIntent: AppIntent {
     }
 }
 
+// MARK: - Get balance intent
+
+/// Read-only native-balance query. Calls `BlockchainService.balance(for:config:)`
+/// using `NetworkConfig.shared`, which reads the user's configured RPC
+/// endpoints directly from `UserDefaults` — no app launch required.
+///
+/// Returns a pre-formatted display string like "0.01234 ETH" so the
+/// spoken Siri response reads naturally without number-formatting
+/// round-trips.
+struct GetWalletBalanceIntent: AppIntent {
+    static var title: LocalizedStringResource = LocalizedStringResource("intents.getBalance.title", defaultValue: "查询钱包余额")
+    static var description = IntentDescription(
+        LocalizedStringResource("intents.getBalance.desc", defaultValue: "查询指定链钱包的原生余额（ETH / BTC / SOL 等）。只读 RPC 请求，不触及分片或密钥。网络超时或断网会返回错误。"),
+        categoryName: LocalizedStringResource("intents.category.wallet", defaultValue: "钱包")
+    )
+
+    @Parameter(title: LocalizedStringResource("intents.param.chain", defaultValue: "链"))
+    var chain: WalletChainEntity
+
+    static var parameterSummary: some ParameterSummary {
+        Summary("查询 \(\.$chain) 余额")
+    }
+
+    func perform() async throws -> some IntentResult & ReturnsValue<String> & ProvidesDialog {
+        // Decode the full Wallet model (same JSON used by WalletStore) so
+        // we can call BlockchainService.balance(for:config:) without
+        // stubbing a fake Wallet.
+        let docs = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first
+        guard let url = docs?.appendingPathComponent("horcrux_wallets.json"),
+              FileManager.default.fileExists(atPath: url.path),
+              let data = try? Data(contentsOf: url),
+              let wallets = try? JSONDecoder().decode([Wallet].self, from: data) else {
+            throw $chain.needsValueError(IntentDialog(LocalizedStringResource("intents.error.walletNotFound", defaultValue: "找不到该链上的钱包。")))
+        }
+        guard let wallet = wallets.first(where: {
+            !($0.isHidden ?? false) && $0.chain.rawValue == chain.id
+        }) else {
+            throw $chain.needsValueError(IntentDialog(LocalizedStringResource("intents.error.walletNotFound", defaultValue: "找不到该链上的钱包。")))
+        }
+
+        let service = BlockchainService()
+        let config = NetworkConfig.shared
+        let balance: String
+        do {
+            balance = try await service.balance(for: wallet, config: config)
+        } catch {
+            let msg = String(
+                format: NSLocalizedString("intents.getBalance.error", comment: ""),
+                wallet.chain.rawValue
+            )
+            return .result(value: "", dialog: IntentDialog(stringLiteral: msg))
+        }
+
+        let dialog = String(
+            format: NSLocalizedString("intents.getBalance.dialog", comment: ""),
+            wallet.chain.rawValue, balance
+        )
+        return .result(value: balance, dialog: IntentDialog(stringLiteral: dialog))
+    }
+}
+
 // MARK: - Shortcuts provider
 
 struct HorcruxShortcuts: AppShortcutsProvider {
@@ -155,6 +216,17 @@ struct HorcruxShortcuts: AppShortcutsProvider {
             ],
             shortTitle: LocalizedStringResource("intents.short.copyAddr", defaultValue: "复制地址"),
             systemImageName: "doc.on.doc"
+        )
+        AppShortcut(
+            intent: GetWalletBalanceIntent(),
+            phrases: [
+                "查询 \(.applicationName) 余额",
+                "我的 \(.applicationName) 有多少钱",
+                "Check balance in \(.applicationName)",
+                "How much do I have in \(.applicationName)"
+            ],
+            shortTitle: LocalizedStringResource("intents.short.balance", defaultValue: "查询余额"),
+            systemImageName: "dollarsign.circle"
         )
         AppShortcut(
             intent: OpenReceiveIntent(),

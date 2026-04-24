@@ -1028,6 +1028,8 @@
 "intents.showAddr.summaryPrefix" = "获取我的";
 "intents.showAddr.summarySuffix" = "地址";
 "intents.showAddr.dialog" = "已复制 %1$@ 地址 %2$@ 到剪贴板。";
+"intents.getBalance.dialog" = "%1$@ 余额为 %2$@。";
+"intents.getBalance.error" = "无法查询 %1$@ 余额，可能是网络不可用或节点不可达。";
 "intents.openReceive.title" = "打开收款二维码";
 "intents.openReceive.desc" = "在 Horcrux 中打开指定链钱包的收款页面并显示二维码。";
 "intents.openReceive.summaryPrefix" = "打开";

@@ -7,6 +7,70 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### iOS — RPC routing hardening (v0.5.0-dev.7)
+
+Full rpc-routing-plan audit — all plan items closed.
+
+- **Fault-aware EVM endpoint router** (`BlockchainService.swift`).
+  Three-lane classification on RPC failure: `authFailure` (401/403,
+  unauthorized, invalid project), `businessError` (insufficient funds,
+  execution reverted, nonce issues, known transaction — never
+  auto-rerouted because these are semantic not infrastructural) and
+  `transient` (5xx, timeouts, method-not-found). `ethEstimateGas` and
+  `ethSendRawTransaction` gained `(chain:config:)` overloads that
+  automatically rotate through `RPCFallbacks.resolvedAttempts`.
+  Broadcast switches only on auth failures to avoid double-submit
+  nonce bumps.
+
+- **URL-level cooldown registry** (`RPCEndpointHealth` in
+  `NetworkConfig.swift`). Failing endpoints are muted for 30 min
+  (auth) or 5 min (transient). Serial dispatch queue guards the
+  cooldown map; in-memory only (relaunch gives each URL one more
+  chance). `resolvedAttempts` filters cooling URLs and degrades to
+  the full list if every URL is cool so the user never ends up
+  with zero routable endpoints.
+
+- **Settings cooldown diagnostics.** `ProviderBadge` grows a red
+  dot when the URL is cooling plus a tap-to-explain alert. A new
+  `EndpointCooldownSection` on the node-settings page self-hides
+  when no URLs are cooling and otherwise lists each entry with
+  provider label, remaining cooldown time (updated every 30 s via
+  `Timer.publish`), and a "试试看 / Retry" button that clears the
+  cooldown immediately. `resetField(for:)` and `resetToDefaults()`
+  now clear the full cooldown map.
+
+- **RPC input polish.** Every RPC URL `TextField` gained
+  `.onSubmit { NodeHealthStore.shared.refresh(chain:) }` so users
+  get immediate "did my paste work?" feedback without scrolling to
+  the Test button.
+
+- **Gas/fee estimate dedup.** `SigningViewModel.compose` now reuses
+  one `ethEstimateGas` result for both the gas limit and the fee
+  preview (8 RPCs → 4 per broadcast). Added pure-transform
+  `ethFeeEstimateDisplay(fromEstimate:symbol:)` overload. Native
+  symbol is now detected from `EVMNetwork.nativeSymbol` instead of
+  hardcoded `"ETH"`.
+
+- **Fee tolerance.** `hasInsufficientFunds` now compares against
+  `fee * 0.99` (1% tolerance) — gasLimit × maxFeePerGas is a
+  ceiling and real baseFee settles 5–15 % below, so exact-balance
+  sends were being blocked incorrectly.
+
+- **DEBUG route trace.** `withFallbackURL` logs the successful
+  endpoint's provider label + host on `#if DEBUG` builds.
+
+- **Siri balance intent.** `GetWalletBalanceIntent` queries native
+  balance for a specified chain via the user's configured RPC
+  endpoints. Read-only, surfaced in the `HorcruxShortcuts` provider
+  alongside the existing address and receive intents. Signing
+  deliberately stays out of Siri (full biometric + MPC ceremony
+  path required).
+
+- **Dead endpoint removal.** Ankr's public Avalanche URL
+  (`rpc.ankr.com/avalanche`) was rate-limiting to unusable on the
+  free tier — removed from the free fallback list with an
+  explanatory comment so future contributors don't re-add it.
+
 ### Governance
 
 - **Dependabot** (`.github/dependabot.yml`, round 19 wave 10 / L).
