@@ -1,6 +1,6 @@
 # Multi-stage build for horcrux-relay.
 # Pinned Rust version tracks the workspace's rust-version field in Cargo.toml.
-FROM rust:1.80-slim-bookworm AS builder
+FROM rust:1.96-slim-bookworm AS builder
 
 # L3 (audit `docs/security-audit-2026-04.md`): build as a non-root user.
 # No runtime impact (the build artefact is the same), but it eliminates the
