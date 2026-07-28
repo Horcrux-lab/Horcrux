@@ -174,6 +174,25 @@ mod tests {
         assert_eq!(k1, k2);
     }
 
+    /// Known-answer test for the shard-encryption KDF.
+    ///
+    /// `derive_key` is HKDF-SHA256 over `device_key ‖ pin`, salted with
+    /// `salt` and bound to the info string `horcrux-shard-encryption`. Its
+    /// output is the AES-256-GCM key protecting every shard at rest, so if a
+    /// `sha2` / `hkdf` crate upgrade ever changed this value, every existing
+    /// encrypted shard would become permanently undecryptable — and
+    /// `test_derive_key_deterministic` above would not notice, because it
+    /// only compares two derivations inside the same process.
+    ///
+    /// Pin the exact bytes so cross-version drift fails loudly instead.
+    #[test]
+    fn test_derive_key_known_answer() {
+        assert_eq!(
+            hex::encode(derive_key(b"dk", b"pin", b"salt").unwrap()),
+            "fb06f02cbb8f85292078b49dfcac8117ebaca2698ebf7987840bfcb962431fc3"
+        );
+    }
+
     #[test]
     fn test_derive_key_diverges_on_salt() {
         let k1 = derive_key(b"dk", b"pin", b"salt1").unwrap();
