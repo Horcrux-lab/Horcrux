@@ -93,6 +93,66 @@ Full rpc-routing-plan audit — all plan items closed.
   free tier — removed from the free fallback list with an
   explanatory comment so future contributors don't re-add it.
 
+### Testing
+
+- **Multi-party MPC suite now runs in CI** (`.github/workflows/mpc-e2e.yml`).
+  The three ceremonies in `horcrux-core/tests/multi_party_ecdsa.rs` —
+  3-of-3 DKG + sign, 3-of-3 DKG + sign + refresh + sign (asserting the
+  group public key survives refresh), and 5-of-5 DKG + sign — had never
+  been executed by any workflow. All three are `#[ignore]`d and
+  `ci.yml` runs plain `cargo test --workspace`, which does not pass
+  `--ignored`.
+
+  What they uniquely cover, after auditing the neighbouring suites
+  rather than assuming: proactive refresh has no other test at any
+  party count; CGGMP21 only goes past n=2 in `signing.rs` helpers that
+  hand-roll message dispatch and never call
+  `SessionManager::handle_message`; and `dkg_perf.rs` drives the real
+  manager but runs CGGMP21 only at 2-of-2 and stops at DKG. The
+  routing layer is not wholly unguarded — `dkg_perf.rs`'s enforced
+  FROST 2-of-3 DKG does smoke-test broadcast fan-out at n=3 — but
+  FROST is a different state machine from CGGMP21, with no Paillier
+  aux-info, far fewer rounds and a different message mix, so it is not
+  proof the CGGMP21 ceremony survives n > 2.
+
+  Triggered on `v*` tags **excluding** `-dev.N`, plus
+  `workflow_dispatch`. Release-only because the suite costs 617.95 s
+  measured locally in release mode and an estimated 30-50 min on a
+  4-core runner — too slow to gate pull requests, and the code it
+  covers only moves when MPC internals do. The repository has cut 118
+  `-dev.N` tags against 9 non-dev tags, so including them would fire
+  the job roughly 13x more often than it pays for.
+
+  The job restores `ci.yml`'s cache read-only via
+  `actions/cache/restore` with no save step. A private
+  `cargo-mpc-e2e-` key was the original design but could never hit: a
+  run may restore only from its own ref scope or the default branch,
+  never from another tag's scope, and nothing else would write that
+  key — so every tag run would miss, then upload ~1 GB into a scope
+  nothing can read. Reusing `ci.yml`'s main-scoped key does hit,
+  because `ci.yml` builds `--release` in the same job as its cache
+  step. The save is omitted because the pre-flight
+  `gh workflow run mpc-e2e.yml` runs on `main`: it would write a
+  release-only `target` into `main`'s scope, and if that landed before
+  `ci.yml` created the key for the same `Cargo.lock`, `ci.yml` would
+  exact-hit it, find no debug artifacts and rebuild from cold. A
+  tag-push save could not reach `ci.yml` at all, being scoped to the
+  tag.
+
+  `RELEASE.md` §0 now requires dispatching it manually before tagging;
+  the tag trigger is a backstop, since a failure discovered there means
+  the tag already exists. The job carries `timeout-minutes: 90` — the
+  first in this repository to set one at all — because
+  `drive_to_completion` polls up to `iter_limit = 2000`, and although
+  it panics immediately when all queues drain before completion, a
+  livelock could otherwise consume the 6-hour default. It also sets
+  `cancel-in-progress: false`, deliberately unlike the other five
+  workflows that set `concurrency` at all: a cancelled release
+  verification is not red but has not proved anything either.
+
+  The `#[ignore]` attributes are unchanged, so everyday
+  `cargo test --workspace` is unaffected.
+
 ### Supply chain
 
 - **Relay container image builds again — broken since April.** Every
@@ -219,11 +279,23 @@ Full rpc-routing-plan audit — all plan items closed.
     respectively (57 and 123 compile errors). These unblock only when
     the MPC crates move; tracked with the `cggmp24` migration.
 
-  After each bump the real multi-party suite
-  (`cargo test -p horcrux-core --test multi_party_ecdsa -- --ignored`,
-  3 end-to-end DKG + signing + refresh cases, ~5 min) was re-run: 3/3
-  passing. Note CI never runs these — they are `#[ignore]`d, so this
-  is currently a manual gate.
+  After each bump the real multi-party suite (3 end-to-end DKG +
+  signing + refresh cases) was re-run: 3/3 passing.
+
+  > **Correction.** This entry originally recorded the invocation as
+  > `cargo test -p horcrux-core --test multi_party_ecdsa -- --ignored`
+  > and the cost as "~5 min". Both were wrong. The `--release` flag is
+  > mandatory — the workspace declares no `[profile]` overrides, so the
+  > command as written runs unoptimised bignum arithmetic — and the
+  > measured runtime is 617.95 s. The correct invocation is:
+  >
+  > ```bash
+  > cargo test -p horcrux-core --release --test multi_party_ecdsa -- \
+  >   --ignored --nocapture --test-threads=1
+  > ```
+  >
+  > "CI never runs these" was true when written and is no longer — see
+  > the `MPC E2E` workflow below.
 
 ### Release metadata
 
