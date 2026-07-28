@@ -232,6 +232,12 @@ v1.0.0-rc.1      -> True
 
 - [ ] **Step 6: Commit**
 
+> **Superseded, kept for the record.** Like the draft YAML above, this
+> message was written before review disproved two of its claims. The
+> message actually used (commit `2e3cd6f`) credits `signing.rs`'s
+> enforced 3-of-5 tests and `dkg_perf.rs`'s enforced FROST 2-of-3
+> fan-out coverage instead, and documents the cache-restore decision.
+
 ```bash
 cd /Users/bill/Documents/GitHub/Horcrux
 git add .github/workflows/mpc-e2e.yml
@@ -290,8 +296,20 @@ Replace it with:
       tag until it passes:
 
     ```bash
+    prev=$(gh run list --workflow=mpc-e2e.yml --limit 1 --json databaseId -q '.[0].databaseId')
     gh workflow run mpc-e2e.yml
-    gh run watch "$(gh run list --workflow=mpc-e2e.yml --limit 1 --json databaseId -q '.[0].databaseId')" --exit-status
+
+    # The dispatch returns before the run object exists. Poll until a
+    # new id appears — otherwise `--limit 1` yields the PREVIOUS run,
+    # and `gh run watch` exits 0 immediately on an already-green one.
+    for _ in $(seq 60); do
+      sleep 5
+      run=$(gh run list --workflow=mpc-e2e.yml --limit 1 --json databaseId -q '.[0].databaseId')
+      [ -n "$run" ] && [ "$run" != "$prev" ] && break
+    done
+    [ "$run" != "$prev" ] || { echo "dispatch never registered"; exit 1; }
+
+    gh run watch "$run" --exit-status
     ```
 
     Runs the three `#[ignore]`d ceremonies in
@@ -611,9 +629,13 @@ sleep 30
 gh run list --limit 6
 ```
 
-Expected: the usual five workflows green (or in progress) on the new
-commit. `MPC E2E` must **not** appear for a `main` push — it has no
-`push: branches` trigger. If it does appear, the trigger block is wrong.
+Expected: four workflows green (or in progress) on the new commit —
+`CI`, `cargo-deny`, `CODEOWNERS` and `Relay Image`. `cargo-audit` is
+skipped by its `paths` filter (`**/Cargo.toml`, `**/Cargo.lock`,
+`.github/workflows/cargo-audit.yml`), none of which a docs-and-workflow
+push touches, and `Relay Smoke` is dispatch-only. `MPC E2E` must
+**not** appear for a `main` push — it has no `push: branches` trigger.
+If it does appear, the trigger block is wrong.
 
 ---
 
