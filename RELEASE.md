@@ -37,8 +37,20 @@ cargo build --workspace --release
       tag until it passes:
 
     ```bash
+    prev=$(gh run list --workflow=mpc-e2e.yml --limit 1 --json databaseId -q '.[0].databaseId')
     gh workflow run mpc-e2e.yml
-    gh run watch "$(gh run list --workflow=mpc-e2e.yml --limit 1 --json databaseId -q '.[0].databaseId')" --exit-status
+
+    # The dispatch returns before the run object exists. Poll until a
+    # new id appears — otherwise `--limit 1` yields the PREVIOUS run,
+    # and `gh run watch` exits 0 immediately on an already-green one.
+    for _ in $(seq 60); do
+      sleep 5
+      run=$(gh run list --workflow=mpc-e2e.yml --limit 1 --json databaseId -q '.[0].databaseId')
+      [ -n "$run" ] && [ "$run" != "$prev" ] && break
+    done
+    [ "$run" != "$prev" ] || { echo "dispatch never registered"; exit 1; }
+
+    gh run watch "$run" --exit-status
     ```
 
     Runs the three `#[ignore]`d ceremonies in
