@@ -159,6 +159,45 @@ Full rpc-routing-plan audit — all plan items closed.
   (258 passing), `clippy --all-targets` (0 warnings) and
   `fmt --check` all remain clean across the 9 bumped dependencies.
 
+- **Three-month dependabot backlog triaged.** Nine PRs had been open
+  since April. Each cryptographic bump was landed *known-answer-test
+  first*: pin the current output in a test against the **old** version,
+  confirm it passes, then upgrade and re-run the same vector. "Still
+  compiles, tests still green" is not evidence of byte-compatibility
+  when the output feeds key derivation or address generation.
+
+  - **`ripemd` 0.1 → 0.2** (`horcrux-core`). Blocked at first: 0.2
+    moved to `digest` 0.11 while `sha2` was still on 0.10. Resolved by
+    importing the trait anonymously (`use ripemd::{Digest as _, ...}`)
+    so both `digest` generations coexist unambiguously. Guarded by a
+    new `test_hash160_known_answer` using the BIP-173 P2WPKH vector —
+    the existing `test_hash160` only asserted the digest was 20 bytes
+    long, so it could not have caught a HASH160 change at all.
+  - **`sha2` 0.10 → 0.11 with `hkdf` 0.12 → 0.13.** Not separable —
+    these are one `digest` 0.11 wave. Pinned first with
+    `test_derive_key_known_answer`, because the pre-existing
+    `test_derive_key_deterministic` only compared two calls *within one
+    process* and would have stayed green through a total KDF change.
+    `derive_key` produces the AES-256-GCM key protecting every stored
+    shard, so drift there permanently locks users out of their funds.
+    `sha2` 0.10.9 remains in the graph via `cggmp21`/`generic-ec`;
+    `bans.multiple-versions = "warn"` covers this.
+  - **`vsss-rs` 4 → 5** — closed in favour of **removing** the crate.
+    See the `horcrux-core/Cargo.toml` note: it had no call sites.
+  - **`uniffi` 0.28 → 0.31** — landed with regenerated Swift bindings;
+    clears the `bincode` and `paste` advisory ignores.
+  - **`rand` 0.8 → 0.9** and **`generic-ec` 0.4 → 0.5** — **blocked
+    upstream, not landed.** Both fail against `cggmp21` 0.6.3 and
+    `frost-ed25519`, which pin `rand_core` 0.6 and `generic-ec` 0.4
+    respectively (57 and 123 compile errors). These unblock only when
+    the MPC crates move; tracked with the `cggmp24` migration.
+
+  After each bump the real multi-party suite
+  (`cargo test -p horcrux-core --test multi_party_ecdsa -- --ignored`,
+  3 end-to-end DKG + signing + refresh cases, ~5 min) was re-run: 3/3
+  passing. Note CI never runs these — they are `#[ignore]`d, so this
+  is currently a manual gate.
+
 ### Governance
 
 - **Dependabot** (`.github/dependabot.yml`, round 19 wave 10 / L).
