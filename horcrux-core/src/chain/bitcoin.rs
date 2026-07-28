@@ -355,7 +355,12 @@ pub fn bip143_sighash(params: &BtcTxParams, index: usize) -> Result<[u8; 32], Ch
 
 /// HASH160 = RIPEMD160(SHA256(data)).
 pub fn hash160(data: &[u8]) -> [u8; 20] {
-    use ripemd::Ripemd160;
+    // `ripemd` 0.2 moved to `digest` 0.11 while `sha2` is still on `digest`
+    // 0.10, so the module-level `sha2::Digest` import does not cover
+    // `Ripemd160`. Import ripemd's own trait anonymously — each type
+    // implements exactly one of the two, so method resolution stays
+    // unambiguous.
+    use ripemd::{Digest as _, Ripemd160};
     let sha = Sha256::digest(data);
     let ripe = Ripemd160::digest(sha);
     let mut out = [0u8; 20];
@@ -570,6 +575,31 @@ mod tests {
     fn test_hash160() {
         let h = hash160(b"test");
         assert_eq!(h.len(), 20);
+    }
+
+    /// Known-answer test for HASH160 = RIPEMD160(SHA256(x)).
+    ///
+    /// Pins the exact byte output rather than just the length, so that a
+    /// `ripemd` / `sha2` version bump cannot silently change Bitcoin address
+    /// derivation. The vector is the BIP-173 P2WPKH example: hashing the
+    /// compressed secp256k1 generator point must yield the witness program of
+    /// `bc1qw508d6qejxtdg4y5r3zarvary0c5xw7kv8f3t4`, which is already asserted
+    /// elsewhere in this module.
+    #[test]
+    fn test_hash160_known_answer() {
+        let pubkey =
+            hex::decode("0279BE667EF9DCBBAC55A06295CE870B07029BFCDB2DCE28D959F2815B16F81798")
+                .unwrap();
+        assert_eq!(
+            hex::encode(hash160(&pubkey)),
+            "751e76e8199196d454941c45d1b3a323f1433bd6"
+        );
+
+        // Empty input — RIPEMD160(SHA256("")).
+        assert_eq!(
+            hex::encode(hash160(b"")),
+            "b472a266d0bd89c13706a4132ccfb16f7c3b9fcb"
+        );
     }
 
     #[test]
