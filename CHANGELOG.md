@@ -93,6 +93,41 @@ Full rpc-routing-plan audit — all plan items closed.
   free tier — removed from the free fallback list with an
   explanatory comment so future contributors don't re-add it.
 
+### Supply chain
+
+- **`cargo-deny` workflow un-blocked — the gate had never actually
+  run.** Every `cargo-deny` run since the workflow was introduced in
+  `cddc256` failed, and it failed during *config deserialization*,
+  which meant none of `advisories` / `bans` / `licenses` / `sources`
+  were ever evaluated. `cargo audit` in `ci.yml` was the only
+  supply-chain check genuinely enforcing anything. Three independent
+  blockers, all now closed:
+
+  1. **`cargo-deny-action` 2.0.4 → 2.0.17.** The pinned v2.0.4 image
+     bundles cargo-deny 0.16, whose `spdx` version rejects
+     `LGPL-3.0-or-later` in an allow-list position (`expected a
+     <bare-gnu-license> here`). Note there is **no config-only
+     workaround**: `LGPL-3.0+` is accepted by the old parser but
+     rejected by the new one, and a bare `LGPL-3.0` is
+     `LGPL-3.0-only` semantically and therefore does not satisfy the
+     `LGPL-3.0+` declared by `gmp-mpfr-sys` / `rug`. The action bump
+     (bundling cargo-deny 0.19.2) is the only fix that leaves the
+     allow-list correct.
+  2. **`anyhow` 1.0.102 → 1.0.104** — RUSTSEC-2026-0190, a Stacked
+     Borrows violation (UB) in `Error::downcast_mut()` after
+     `Error::context`. Landed as part of the grouped patch+minor
+     dependabot PR.
+  3. **`spin` 0.9.8 → 0.9.9** — 0.9.8 was yanked and `yanked = "deny"`
+     is set. Reached transitively via `frost-core` → `postcard` →
+     `heapless` 0.7; the bump is a drop-in patch release and moves no
+     other package.
+
+  Verified locally with the CI-equivalent invocation
+  (`cargo deny --all-features check advisories bans licenses sources`):
+  `advisories ok, bans ok, licenses ok, sources ok`. Workspace tests
+  (258 passing), `clippy --all-targets` (0 warnings) and
+  `fmt --check` all remain clean across the 9 bumped dependencies.
+
 ### Governance
 
 - **Dependabot** (`.github/dependabot.yml`, round 19 wave 10 / L).
