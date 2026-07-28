@@ -1,5 +1,9 @@
 # Multi-stage build for horcrux-relay.
-# Pinned Rust version tracks the workspace's rust-version field in Cargo.toml.
+# NOTE: this pin no longer matches the workspace's `rust-version = "1.80"`.
+# `zeroize_derive` 1.5.0 (pulled in by zeroize 1.9) requires `edition2024`,
+# which is only stabilised from Rust 1.85 — 1.80 can no longer resolve the
+# dependency graph at all. The declared workspace MSRV is therefore stale
+# and needs a separate decision; do not "restore" this to 1.80.
 FROM rust:1.97-slim-bookworm AS builder
 
 # L3 (audit `docs/security-audit-2026-04.md`): build as a non-root user.
@@ -14,6 +18,11 @@ COPY --chown=builder:builder Cargo.toml Cargo.lock ./
 COPY --chown=builder:builder horcrux-core/ horcrux-core/
 COPY --chown=builder:builder horcrux-relay/ horcrux-relay/
 COPY --chown=builder:builder uniffi-bindgen/ uniffi-bindgen/
+# Required purely so `[patch.crates-io] gmp-mpfr-sys` in the root
+# Cargo.toml resolves — without it cargo aborts while loading the
+# workspace manifest. horcrux-core is only a dev-dependency of
+# horcrux-relay, so nothing here is actually compiled for this image.
+COPY --chown=builder:builder third_party/ third_party/
 
 RUN cargo build --release -p horcrux-relay && \
     strip target/release/horcrux-relay

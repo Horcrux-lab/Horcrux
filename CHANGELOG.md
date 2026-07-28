@@ -95,6 +95,37 @@ Full rpc-routing-plan audit — all plan items closed.
 
 ### Supply chain
 
+- **Relay container image builds again — broken since April.** Every
+  `Relay Image` workflow run had failed since `2026-04-24`, so no
+  deployable `horcrux-relay` image has been produced for three
+  months. Two stacked causes:
+
+  1. **`Dockerfile` never copied `third_party/`.** The build context
+     copies `horcrux-core/`, `horcrux-relay/` and `uniffi-bindgen/`,
+     but the root `Cargo.toml` carries
+     `[patch.crates-io] gmp-mpfr-sys = { path = "third_party/gmp-mpfr-sys" }`.
+     Cargo therefore aborted with exit 101 while *loading the
+     workspace manifest*, before compiling anything. Added the
+     missing `COPY`; `horcrux-core` is only a dev-dependency of
+     `horcrux-relay`, so the vendored GMP tree participates in patch
+     resolution only and is never compiled into the image.
+  2. **Rust pin too old.** With `third_party/` present the build got
+     far enough to hit `zeroize_derive` 1.5.0 (via the `zeroize`
+     1.8.2 → 1.9.0 bump) requiring `edition2024`, unsupported by the
+     pinned `rust:1.80`. Resolved by the `rust:1.80 → rust:1.97`
+     image bump.
+
+  Verified locally end-to-end: `docker build` succeeds, the container
+  starts, correctly refuses to boot without `RELAY_ADMIN_TOKEN` on a
+  non-loopback bind, and with the token serves
+  `GET /health` → `{"status":"ok","version":"0.5.0-rc.2", ...}`.
+
+  **Follow-up required:** `rust-version = "1.80"` in the workspace
+  `Cargo.toml` (and the "Rust 1.80+" badge in `README.md`) is now
+  factually wrong — the dependency graph cannot resolve below Rust
+  1.85. Left unchanged here because bumping a declared MSRV is a
+  deliberate compatibility decision, not a build fix.
+
 - **`cargo-deny` workflow un-blocked — the gate had never actually
   run.** Every `cargo-deny` run since the workflow was introduced in
   `cddc256` failed, and it failed during *config deserialization*,
