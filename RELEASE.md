@@ -72,14 +72,14 @@ Every crate in the workspace, plus the UniFFI bindgen.
       `Horcrux.xcodeproj` (both are tracked). Do not hand-edit the
       generated files.
 
-      > Apple constrains `CFBundleShortVersionString` to at most
-      > three dot-separated integers, so a prerelease tag such as
-      > `0.5.0-rc.2` is **not** a legal value and is rejected at
-      > submission. Strip the `-dev.N` / `-rc.N` suffix here and let
-      > `CFBundleVersion` carry prerelease/build identity. Bump
-      > `CFBundleVersion` only when a build is actually uploaded —
-      > it must increase monotonically per upload and can never be
-      > reused.
+    > Apple constrains `CFBundleShortVersionString` to at most
+    > three dot-separated integers, so a prerelease tag such as
+    > `0.5.0-rc.2` is **not** a legal value and is rejected at
+    > submission. Strip the `-dev.N` / `-rc.N` suffix here and let
+    > `CFBundleVersion` carry prerelease/build identity. Bump
+    > `CFBundleVersion` only when a build is actually uploaded —
+    > it must increase monotonically per upload and can never be
+    > reused.
 
 - [ ] README badges — the `version-` badge tracks the full version
       (suffix included; escape `-` as `--` for shields.io) and the
