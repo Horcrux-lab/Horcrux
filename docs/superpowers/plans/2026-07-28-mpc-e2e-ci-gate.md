@@ -51,6 +51,15 @@ Apple silicon. This was measured at 617.95 s on 2026-07-28.
 
 - [ ] **Step 2: Create the workflow file**
 
+> **Revised during review.** The block below is the original draft and
+> is kept for the record. Review falsified four of its comment claims
+> and showed the `cargo-mpc-e2e-` cache key could never hit on the
+> release path, so the committed workflow differs: it uses
+> `actions/cache/restore` against `ci.yml`'s key with no save step, and
+> the header comments were rewritten. See the design spec's
+> "Permissions and caching" and "Problem" sections, and treat
+> `.github/workflows/mpc-e2e.yml` as authoritative.
+
 Create `.github/workflows/mpc-e2e.yml` with exactly this content:
 
 ```yaml
@@ -288,8 +297,9 @@ Replace it with:
     Runs the three `#[ignore]`d ceremonies in
     `horcrux-core/tests/multi_party_ecdsa.rs` (3-of-3 DKG + sign,
     3-of-3 refresh, 5-of-5 DKG + sign). Nothing else in CI covers
-    n > 2 — `cargo test --workspace` skips all three. Budget
-    30-50 min.
+    proactive refresh at all, or CGGMP21 past n=2 through the real
+    `SessionManager` — `cargo test --workspace` skips all three.
+    Budget 30-50 min.
 
     > Run it **here**, not by relying on the tag trigger. The
     > workflow also fires on `v*` tags (excluding `-dev.N`), but by
@@ -376,9 +386,9 @@ Replace it with:
   > **Correction.** This entry originally recorded the invocation as
   > `cargo test -p horcrux-core --test multi_party_ecdsa -- --ignored`
   > and the cost as "~5 min". Both were wrong. The `--release` flag is
-  > mandatory — there are no `[profile]` overrides, so the command as
-  > written runs unoptimised bignum arithmetic — and the measured
-  > runtime is 617.95 s. The correct invocation is:
+  > mandatory — the workspace declares no `[profile]` overrides, so the
+  > command as written runs unoptimised bignum arithmetic — and the
+  > measured runtime is 617.95 s. The correct invocation is:
   >
   > ```bash
   > cargo test -p horcrux-core --release --test multi_party_ecdsa -- \
@@ -405,34 +415,57 @@ Replace it with:
 - **Multi-party MPC suite now runs in CI** (`.github/workflows/mpc-e2e.yml`).
   The three ceremonies in `horcrux-core/tests/multi_party_ecdsa.rs` —
   3-of-3 DKG + sign, 3-of-3 DKG + sign + refresh + sign (asserting the
-  group public key survives refresh), and 5-of-5 DKG + sign — were the
-  only automated coverage of n > 2 and had never been executed by any
-  workflow. All three are `#[ignore]`d and `ci.yml` runs plain
-  `cargo test --workspace`, which does not pass `--ignored`.
+  group public key survives refresh), and 5-of-5 DKG + sign — had never
+  been executed by any workflow. All three are `#[ignore]`d and
+  `ci.yml` runs plain `cargo test --workspace`, which does not pass
+  `--ignored`.
 
-  The gap was larger than "three skipped tests" implies. Ceremony
-  routing — broadcast vs unicast, per-party mailbox, completion
-  detection — is shared between 2-of-2 and n-of-n, but n=2 is
-  degenerate: every broadcast has exactly one recipient. A regression
-  in the fan-out path passes all 260 enforced tests and only surfaces
-  at n >= 3.
+  What they uniquely cover, after auditing the neighbouring suites
+  rather than assuming: proactive refresh has no other test at any
+  party count; CGGMP21 only goes past n=2 in `signing.rs` helpers that
+  hand-roll message dispatch and never call
+  `SessionManager::handle_message`; and `dkg_perf.rs` drives the real
+  manager but runs CGGMP21 only at 2-of-2 and stops at DKG. The
+  routing layer is not wholly unguarded — `dkg_perf.rs`'s enforced
+  FROST 2-of-3 DKG does smoke-test broadcast fan-out at n=3 — but
+  FROST is a different state machine from CGGMP21, with no Paillier
+  aux-info, far fewer rounds and a different message mix, so it is not
+  proof the CGGMP21 ceremony survives n > 2.
 
   Triggered on `v*` tags **excluding** `-dev.N`, plus
   `workflow_dispatch`. Release-only because the suite costs 617.95 s
   measured locally in release mode and an estimated 30-50 min on a
   4-core runner — too slow to gate pull requests, and the code it
-  covers only moves when MPC internals do. Nine `-dev` tags have been
-  cut against two `-rc` tags, so including them would fire the job
-  about five times more often than it pays for.
+  covers only moves when MPC internals do. The repository has cut 118
+  `-dev.N` tags against 9 non-dev tags, so including them would fire
+  the job roughly 13x more often than it pays for.
+
+  The job restores `ci.yml`'s cache read-only via
+  `actions/cache/restore` with no save step. A private
+  `cargo-mpc-e2e-` key was the original design but could never hit: a
+  run may restore only from its own ref scope or the default branch,
+  never from another tag's scope, and nothing else would write that
+  key — so every tag run would miss, then upload ~1 GB into a scope
+  nothing can read. Reusing `ci.yml`'s main-scoped key does hit,
+  because `ci.yml` builds `--release` in the same job as its cache
+  step. The save is omitted because the pre-flight
+  `gh workflow run mpc-e2e.yml` runs on `main`: it would write a
+  release-only `target` into `main`'s scope, and if that landed before
+  `ci.yml` created the key for the same `Cargo.lock`, `ci.yml` would
+  exact-hit it, find no debug artifacts and rebuild from cold. A
+  tag-push save could not reach `ci.yml` at all, being scoped to the
+  tag.
 
   `RELEASE.md` §0 now requires dispatching it manually before tagging;
   the tag trigger is a backstop, since a failure discovered there means
   the tag already exists. The job carries `timeout-minutes: 90` — the
   first in this repository to set one at all — because
-  `drive_to_completion` polls up to `iter_limit = 2000` and a stalled
-  ceremony would otherwise consume the 6-hour default. It also sets
-  `cancel-in-progress: false`, deliberately unlike the other four
-  workflows: a cancelled release verification is not red but has not
+  `drive_to_completion` polls up to `iter_limit = 2000`, and although
+  it panics immediately when all queues drain before completion, a
+  livelock could otherwise consume the 6-hour default. It also sets
+  `cancel-in-progress: false`, deliberately unlike the other five
+  workflows that set `concurrency` at all: a cancelled release
+  verification is not red but has not
   proved anything either.
 
   The `#[ignore]` attributes are unchanged, so everyday
