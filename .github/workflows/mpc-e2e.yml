@@ -1,0 +1,118 @@
+name: MPC E2E
+
+# Multi-party CGGMP21 ceremony verification for release tags.
+#
+# The three tests live in horcrux-core/tests/multi_party_ecdsa.rs
+# and are #[ignore]d because they cost ~10 min of pure compute
+# (Paillier aux-info generation dominates). `cargo test --workspace`
+# therefore skips them, and until this workflow existed nothing in
+# CI ever passed --ignored.
+#
+# What they uniquely cover — the neighbouring suites overlap more
+# than a first reading suggests:
+#
+#   - Proactive refresh has no other test at all, at any n.
+#   - CGGMP21 past n=2 through the real SessionManager. signing.rs
+#     runs 3-of-5 DKG and signing but hand-rolls dispatch and never
+#     calls handle_message; dkg_perf.rs drives the manager but runs
+#     CGGMP21 only at 2-of-2.
+#   - DKG -> sign as one continuous ceremony; dkg_perf.rs stops at
+#     DKG.
+#
+# The routing layer is not wholly unguarded: dkg_perf.rs's enforced
+# FROST 2-of-3 DKG does smoke-test broadcast fan-out at n=3. But
+# FROST is a different state machine from CGGMP21 — no Paillier
+# aux-info, far fewer rounds, a different message mix — so it is a
+# smoke test of the mailbox, not proof that the CGGMP21 ceremony
+# survives n > 2.
+#
+# Release-only by design: at an estimated 30-50 min on a runner
+# this is too slow to gate pull requests, and the code it covers
+# only changes when MPC internals do. `-dev.N` tags are excluded —
+# tag history has 118 `-dev.N` tags against 9 non-dev tags, so
+# including them would fire this job about 13x more often than it
+# pays for.
+#
+# Run it manually during RELEASE.md section 0 pre-flight:
+#
+#     gh workflow run mpc-e2e.yml
+#
+# The tag trigger is only a backstop for when pre-flight is
+# skipped: by then the tag already exists, so a failure means
+# deleting and re-cutting it.
+
+on:
+  push:
+    tags:
+      # Include-then-exclude. GitHub evaluates these in order and
+      # requires at least one non-exclusion pattern; `tags` and
+      # `tags-ignore` cannot both appear on one event, so the `!`
+      # form inside `tags` is the only way to express this.
+      - "v*"
+      - "!v*-dev.*"
+  workflow_dispatch:
+
+concurrency:
+  group: mpc-e2e-${{ github.ref }}
+  # Deliberately NOT cancel-in-progress, unlike the five other
+  # workflows that set concurrency at all. Cancelling a half-finished
+  # release verification leaves a run that is not red but also
+  # proved nothing.
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  multi-party:
+    name: Multi-party DKG / sign / refresh
+    runs-on: ubuntu-latest
+    # No other workflow in this repo sets a timeout, so the default
+    # is 6 h. `drive_to_completion` panics as soon as all queues go
+    # empty before completion, but a livelock can spend the full
+    # iter_limit = 2000. 90 min is roughly 2x the 30-50 min estimate.
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@29eef336d9b2848a0b548edc03f92a220660cdb8 # stable
+
+      # Read-only on purpose — there is no matching save step.
+      # Reusing ci.yml's `cargo-` key is deliberate: that entry is
+      # main-scoped, a tag run may read the default branch, and
+      # ci.yml builds --release in the same job as its cache step,
+      # so the restored target already holds release-profile
+      # dependencies. Saving is omitted because the pre-flight
+      # `gh workflow run` path runs on main: it would write a
+      # release-only target into main's scope, and if that landed
+      # before ci.yml created the key for the same Cargo.lock,
+      # ci.yml would exact-hit it, find no debug artifacts and
+      # rebuild cold. A tag-push save could not reach ci.yml at all,
+      # being scoped to the tag — which is also why the original
+      # private `cargo-mpc-e2e-` key could never hit.
+      - name: Restore cargo cache (read-only)
+        uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: cargo-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            cargo-${{ runner.os }}-
+
+      - name: Run multi-party ceremonies
+        # --release is mandatory, not an optimisation: there are no
+        # [profile] overrides in the workspace, so a debug build runs
+        # unoptimised bignum arithmetic roughly an order of magnitude
+        # slower. The fuzz crate has its own workspace and is excluded
+        # from this one.
+        #
+        # --test-threads=1 and --nocapture match the invocation
+        # documented at the top of the test file. --nocapture keeps
+        # the per-phase Instant timings in the log, so gradual
+        # slowdown stays visible.
+        run: |
+          cargo test -p horcrux-core --release --test multi_party_ecdsa -- \
+            --ignored --nocapture --test-threads=1
