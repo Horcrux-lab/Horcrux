@@ -26,12 +26,15 @@ name: MPC E2E
 # smoke test of the mailbox, not proof that the CGGMP21 ceremony
 # survives n > 2.
 #
-# Release-only by design: at an estimated 30-50 min on a runner
-# this is too slow to gate pull requests, and the code it covers
-# only changes when MPC internals do. `-dev.N` tags are excluded —
-# tag history has 118 `-dev.N` tags against 9 non-dev tags, so
-# including them would fire this job about 13x more often than it
-# pays for.
+# Release-only by design. Measured end to end at 17 min: 891 s of
+# test execution plus a 1m27s release build on a warm cache. That
+# is no slower than the checks already gating PRs — Code Coverage
+# measures 17-23 min — so the reason to keep it off PRs is churn,
+# not speed: it would burn ~17 runner-minutes on every push, docs
+# included, for code that only moves when MPC internals do.
+# `-dev.N` tags are excluded — tag history has 118 `-dev.N` tags
+# against 9 non-dev tags, so including them would fire this job
+# about 13x more often than it pays for.
 #
 # Run it manually during RELEASE.md section 0 pre-flight:
 #
@@ -70,7 +73,10 @@ jobs:
     # No other workflow in this repo sets a timeout, so the default
     # is 6 h. `drive_to_completion` panics as soon as all queues go
     # empty before completion, but a livelock can spend the full
-    # iter_limit = 2000. 90 min is roughly 2x the 30-50 min estimate.
+    # iter_limit = 2000. The measured run is 17 min, but that was a
+    # warm cache; a miss adds a cold release build of the whole
+    # gmp-mpfr-sys / paillier-zk / cggmp21 tree, which is unmeasured.
+    # 90 min is ~5x the warm figure and absorbs that unknown.
     timeout-minutes: 90
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4

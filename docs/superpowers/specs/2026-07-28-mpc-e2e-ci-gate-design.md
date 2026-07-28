@@ -250,6 +250,18 @@ rather than unit-tested:
   from Apple-silicon timings; a 4-core x86 runner could be slower.
   The 90-minute timeout absorbs a roughly 3× miss, and step 3 above
   replaces the estimate with a measurement.
+
+  > **Resolved 2026-07-28.** The first dispatched run
+  > ([30398758962](https://github.com/Horcrux-lab/Horcrux/actions/runs/30398758962))
+  > was green in **17 min** end to end: 36 s cache restore, 1m27s
+  > release build, 891.36 s of tests. The estimate above was ~2–3×
+  > too pessimistic, which also falsifies the "too slow for pull
+  > requests" argument in Problem/Design — Code Coverage already
+  > spends 17–23 min on every PR (four runs measured 16m40s, 19m49s,
+  > 22m02s, 22m42s), so this job would not extend the critical path.
+  > Release-only still holds, but on churn rather than speed.
+  > Cold-cache runtime remains unmeasured, so the 90-minute timeout
+  > stays.
 - **GMP builds from source** via the vendored
   `third_party/gmp-mpfr-sys`, adding to the cold-cache build. Bounded
   by the same timeout.

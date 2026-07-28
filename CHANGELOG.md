@@ -116,12 +116,15 @@ Full rpc-routing-plan audit — all plan items closed.
   proof the CGGMP21 ceremony survives n > 2.
 
   Triggered on `v*` tags **excluding** `-dev.N`, plus
-  `workflow_dispatch`. Release-only because the suite costs 617.95 s
-  measured locally in release mode and an estimated 30-50 min on a
-  4-core runner — too slow to gate pull requests, and the code it
-  covers only moves when MPC internals do. The repository has cut 118
-  `-dev.N` tags against 9 non-dev tags, so including them would fire
-  the job roughly 13x more often than it pays for.
+  `workflow_dispatch`. The suite costs 617.95 s measured locally in
+  release mode and 891.36 s on a 4-core runner — 17 min end to end
+  including the release build and cache restore. That is no slower
+  than the checks already gating pull requests (Code Coverage measured
+  17–23 min across four runs), so it is release-only for churn rather
+  than speed: the code it covers only moves when MPC internals do.
+  The repository has cut 118 `-dev.N` tags against 9 non-dev tags, so
+  including them would fire the job roughly 13x more often than it
+  pays for.
 
   The job restores `ci.yml`'s cache read-only via
   `actions/cache/restore` with no save step. A private
@@ -131,7 +134,9 @@ Full rpc-routing-plan audit — all plan items closed.
   key — so every tag run would miss, then upload ~1 GB into a scope
   nothing can read. Reusing `ci.yml`'s main-scoped key does hit,
   because `ci.yml` builds `--release` in the same job as its cache
-  step. The save is omitted because the pre-flight
+  step — confirmed on the first run, which took an exact-key hit and
+  restored 1031 MB in 36 s, leaving only a 1m27s release build. The
+  save is omitted because the pre-flight
   `gh workflow run mpc-e2e.yml` runs on `main`: it would write a
   release-only `target` into `main`'s scope, and if that landed before
   `ci.yml` created the key for the same `Cargo.lock`, `ci.yml` would
@@ -145,9 +150,11 @@ Full rpc-routing-plan audit — all plan items closed.
   first in this repository to set one at all — because
   `drive_to_completion` polls up to `iter_limit = 2000`, and although
   it panics immediately when all queues drain before completion, a
-  livelock could otherwise consume the 6-hour default. It also sets
-  `cancel-in-progress: false`, deliberately unlike the other five
-  workflows that set `concurrency` at all: a cancelled release
+  livelock could otherwise consume the 6-hour default. 90 min is ~5x
+  the measured 17 min rather than the ~2x originally intended; the
+  margin is kept because cold-cache runtime is still unmeasured. It
+  also sets `cancel-in-progress: false`, deliberately unlike the other
+  five workflows that set `concurrency` at all: a cancelled release
   verification is not red but has not proved anything either.
 
   The `#[ignore]` attributes are unchanged, so everyday

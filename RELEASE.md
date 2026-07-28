@@ -58,7 +58,7 @@ cargo build --workspace --release
     3-of-3 refresh, 5-of-5 DKG + sign). Nothing else in CI covers
     proactive refresh at all, or CGGMP21 past n=2 through the real
     `SessionManager` — `cargo test --workspace` skips all three.
-    Budget 30-50 min.
+    Budget ~20 min; the first real run measured 17 min.
 
     > Run it **here**, not by relying on the tag trigger. The
     > workflow also fires on `v*` tags (excluding `-dev.N`), but by
