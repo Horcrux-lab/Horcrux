@@ -3,8 +3,8 @@
 [![CI](https://github.com/Horcrux-lab/Horcrux/actions/workflows/ci.yml/badge.svg)](https://github.com/Horcrux-lab/Horcrux/actions/workflows/ci.yml)
 [![codecov](https://codecov.io/gh/Horcrux-lab/Horcrux/branch/main/graph/badge.svg)](https://codecov.io/gh/Horcrux-lab/Horcrux)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Rust 1.80+](https://img.shields.io/badge/Rust-1.80%2B-orange.svg)](https://www.rust-lang.org)
-[![Version](https://img.shields.io/badge/version-0.3.0-green.svg)](CHANGELOG.md)
+[![Rust 1.88+](https://img.shields.io/badge/Rust-1.88%2B-orange.svg)](https://www.rust-lang.org)
+[![Version](https://img.shields.io/badge/version-0.5.0--rc.2-green.svg)](CHANGELOG.md)
 
 > Your keys are your horcruxes. Split them. Guard them. No single point of failure.
 

@@ -120,11 +120,38 @@ Full rpc-routing-plan audit — all plan items closed.
   non-loopback bind, and with the token serves
   `GET /health` → `{"status":"ok","version":"0.5.0-rc.2", ...}`.
 
-  **Follow-up required:** `rust-version = "1.80"` in the workspace
-  `Cargo.toml` (and the "Rust 1.80+" badge in `README.md`) is now
-  factually wrong — the dependency graph cannot resolve below Rust
-  1.85. Left unchanged here because bumping a declared MSRV is a
-  deliberate compatibility decision, not a build fix.
+  **Follow-up — now resolved.** `rust-version = "1.80"` in the
+  workspace `Cargo.toml` (and the "Rust 1.80+" badge in `README.md`)
+  was factually wrong. Corrected below; note the figure quoted here
+  originally, 1.85, was itself already stale by the time it was
+  written — see the MSRV entry for the measured value.
+
+- **Declared MSRV corrected `1.80` → `1.88`.** The workspace had
+  claimed Rust 1.80 since before the `digest` 0.11 / `uniffi` 0.31
+  wave, and nothing in CI enforces the claim (the `Dockerfile` pins
+  `rust:1.97` and CI runs stable), so the declaration had been free
+  to drift. Measured rather than guessed: the binding constraint is
+  `darling` 0.23.0 → `serde_with_macros`/`serde_with` 3.18.0 →
+  `paillier-zk` 0.4.3 → `cggmp21` 0.6.3 → `horcrux-core`, i.e. a
+  **normal** dependency of the MPC stack, not a dev-only path.
+
+  Verified bidirectionally with real toolchains, because "the
+  highest `rust-version` I can find in the graph" is a lower bound,
+  not a proof:
+
+  - `cargo +1.88 check --workspace --all-targets` → clean (exit 0).
+  - `cargo +1.87 check --workspace --all-targets` → exit 101,
+    `darling@0.23.0 requires rustc 1.88.0`.
+
+  So 1.88 is the exact floor — not an overestimate padded for
+  safety, and not the 1.85 previously recorded. Updated in
+  `Cargo.toml`, the `README.md` badge, and `CONTRIBUTING.md`
+  (which also still said 1.80 and had been missed by the earlier
+  note).
+
+  **Still unenforced:** no CI job builds against the MSRV, so this
+  declaration can drift again the next time a transitive dependency
+  raises its floor. A `cargo +1.88 check` job would close that gap.
 
 - **`cargo-deny` workflow un-blocked — the gate had never actually
   run.** Every `cargo-deny` run since the workflow was introduced in
@@ -197,6 +224,32 @@ Full rpc-routing-plan audit — all plan items closed.
   3 end-to-end DKG + signing + refresh cases, ~5 min) was re-run: 3/3
   passing. Note CI never runs these — they are `#[ignore]`d, so this
   is currently a manual gate.
+
+### Release metadata
+
+- **iOS bundle version realigned `0.1.0` → `0.5.0`.** `project.yml`
+  had never been bumped past the initial scaffold value, so the app
+  reported `0.1.0` while the workspace shipped `0.5.0-rc.2` — nine
+  `-dev` tags and two `-rc` tags of drift. `RELEASE.md` §2 already
+  required the iOS Info.plist to "match", but the step had silently
+  never been performed.
+
+  Note the prerelease qualifier is deliberately **not** carried
+  across: `CFBundleShortVersionString` is constrained by Apple to at
+  most three dot-separated integers, so `0.5.0-rc.2` is not a legal
+  value and would be rejected at submission. The marketing string
+  therefore tracks the `X.Y.Z` core only, and prerelease/build
+  identity belongs in `CFBundleVersion`. Left at `1` here because
+  RELEASE.md §6 is still blocked on Apple credentials — no build has
+  ever been uploaded, so no build number has been consumed.
+
+  Regenerated with `xcodegen generate`; `Horcrux.xcodeproj` carries
+  the usual UUID reshuffle from that step, with no change to the
+  source file set (verified by comparing file-reference counts
+  against `HEAD`).
+
+- **README version badge realigned `0.3.0` → `0.5.0-rc.2`**, two
+  minor versions stale and not previously flagged.
 
 ### Governance
 

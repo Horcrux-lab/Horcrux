@@ -6,7 +6,7 @@ Thank you for your interest in contributing to Horcrux!
 
 ### Prerequisites
 
-- **Rust** 1.80+ (`rustup update stable`)
+- **Rust** 1.88+ (`rustup update stable`)
 - **Xcode** 16+ (Swift 6.0) for iOS development
 - **cargo-clippy** and **rustfmt** (included with Rust toolchain)
 

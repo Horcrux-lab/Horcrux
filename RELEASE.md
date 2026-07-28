@@ -66,7 +66,24 @@ Every crate in the workspace, plus the UniFFI bindgen.
 - [ ] `Cargo.toml` — `[workspace.package] version = "X.Y.Z"`
 - [ ] `uniffi-bindgen/Cargo.toml` — `[package] version = "X.Y.Z"`
 - [ ] Re-run `cargo build --workspace` so `Cargo.lock` updates.
-- [ ] iOS Info.plist `CFBundleShortVersionString` bumped to match.
+- [ ] `ios/project.yml` — `CFBundleShortVersionString` set to the
+      **`X.Y.Z` core only**, then `cd ios && xcodegen generate` to
+      propagate into `Horcrux/Resources/Info.plist` and
+      `Horcrux.xcodeproj` (both are tracked). Do not hand-edit the
+      generated files.
+
+      > Apple constrains `CFBundleShortVersionString` to at most
+      > three dot-separated integers, so a prerelease tag such as
+      > `0.5.0-rc.2` is **not** a legal value and is rejected at
+      > submission. Strip the `-dev.N` / `-rc.N` suffix here and let
+      > `CFBundleVersion` carry prerelease/build identity. Bump
+      > `CFBundleVersion` only when a build is actually uploaded —
+      > it must increase monotonically per upload and can never be
+      > reused.
+
+- [ ] README badges — the `version-` badge tracks the full version
+      (suffix included; escape `-` as `--` for shields.io) and the
+      `Rust N.NN+` badge matches `[workspace.package].rust-version`.
 - [ ] Re-run pre-flight (§0) after the bump.
 
 ## 3 — Commit + tag
