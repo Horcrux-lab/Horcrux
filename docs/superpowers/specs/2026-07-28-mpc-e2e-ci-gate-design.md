@@ -5,11 +5,9 @@
 
 ## Problem
 
-`horcrux-core/tests/multi_party_ecdsa.rs` holds the only automated
-proof that the full CGGMP21 ceremony works with more than two
-parties — 3-of-3 DKG → sign, 3-of-3 DKG → sign → refresh → sign
-(asserting the group public key survives refresh), and 5-of-5 DKG →
-sign.
+`horcrux-core/tests/multi_party_ecdsa.rs` holds three scenarios —
+3-of-3 DKG → sign, 3-of-3 DKG → sign → refresh → sign (asserting the
+group public key survives refresh), and 5-of-5 DKG → sign.
 
 All three carry `#[ignore]`, so `cargo test --workspace` skips them
 and **no CI workflow has ever run them**. The `rust-tests` job in
@@ -17,21 +15,42 @@ and **no CI workflow has ever run them**. The `rust-tests` job in
 `--ignored`. They are therefore a manual gate that depends entirely
 on a maintainer remembering.
 
-This matters more than a typical skipped test. A regression in the
-fan-out path (broadcast vs unicast routing, per-party mailbox,
-completion detection) is invisible at n=2 because every broadcast has
-exactly one recipient — which is precisely the degenerate case the
-rest of the suite covers. A change that silently breaks 3-party
-ceremonies would pass all 260 enforced tests.
+What they uniquely cover, stated precisely — the neighbouring suites
+overlap more than a first reading suggests:
+
+- **Proactive refresh has no other test at all**, at any `n`. A grep
+  for refresh test functions across `horcrux-core/` returns only this
+  file; `create_refresh` in `session.rs` / `ffi.rs` and
+  `make_refresh_driver` in `refresh.rs` are production code with no
+  enforced coverage.
+- **CGGMP21 past n=2 through the real `SessionManager`.**
+  `signing.rs` does run 3-of-5 DKG and signing
+  (`test_all_parties_sign_3_of_5`, `test_minimal_subset_3_of_5`, both
+  enforced), but its `run_dkg` / `run_signing` helpers hand-roll
+  message dispatch and never call `SessionManager::handle_message`.
+  `dkg_perf.rs` does drive `SessionManager`, but CGGMP21 only at
+  2-of-2.
+- **DKG → sign as one continuous ceremony.** `dkg_perf.rs` stops at
+  DKG.
+
+The routing layer itself is not entirely unguarded, and an earlier
+draft of this spec overstated the case by claiming a fan-out
+regression would pass all 260 enforced tests.
+`dkg_perf.rs`'s `dkg_perf_frost_ed25519_2_of_3` is enforced and does
+exercise broadcast fan-out at n=3 through `SessionManager`. But FROST
+is a different state machine from CGGMP21 — no Paillier aux-info, far
+fewer rounds, a different message mix — so it is a smoke test of the
+mailbox, not proof that the CGGMP21 ceremony survives n > 2.
 
 Two secondary defects found while investigating:
 
 1. The invocation recorded in `CHANGELOG.md` omits `--release`:
    `cargo test -p horcrux-core --test multi_party_ecdsa -- --ignored`.
-   The test file's own doc comment specifies `--release`, and there
-   are no `[profile]` overrides in any `Cargo.toml`, so the recorded
-   command runs unoptimised bignum arithmetic — roughly an order of
-   magnitude slower.
+   The test file's own doc comment specifies `--release`, and the
+   workspace declares no `[profile]` overrides (the only one in the
+   tree, `horcrux-core/fuzz/Cargo.toml`, belongs to an out-of-workspace
+   crate), so the recorded command runs unoptimised bignum arithmetic —
+   roughly an order of magnitude slower.
 2. The same entry records the runtime as "~5 min". Measured on an
    Apple-silicon Mac in release mode with `--test-threads=1`, the
    three tests take **617.95 s ≈ 10.3 min** (`user 6m20s`,
@@ -82,9 +101,9 @@ on:
 ```
 
 `v0.5.0-rc.2` and `v0.5.0` match; `v0.5.0-dev.9` is excluded. The
-repository has cut nine `-dev` tags against two `-rc` tags, so
-including them would fire this job roughly five times more often than
-it carries value.
+repository has cut 118 `-dev.N` tags against 9 non-dev tags (of which
+`v0.5.0-rc.2` is the only `-rc`), so including them would fire this
+job roughly 13× more often than it carries value.
 
 GitHub evaluates these patterns in order and requires at least one
 non-exclusion pattern; `tags` and `tags-ignore` cannot both appear on
@@ -104,10 +123,11 @@ tag trigger remains as the backstop for when someone skips §0.
 
 No workflow in the repository currently sets a timeout, so the
 default is 6 hours. `drive_to_completion` polls up to
-`iter_limit = 2000` and a ceremony that stalls without completing
-would otherwise burn the full default before failing. 90 minutes
-leaves substantial headroom over the 30–50 min estimate while
-bounding the damage.
+`iter_limit = 2000`; it panics as soon as every queue drains before
+completion, so an outright stall fails fast, but a livelock — messages
+still flowing while the ceremony never completes — can spend the full
+budget. 90 minutes leaves substantial headroom over the 30–50 min
+estimate while bounding the damage.
 
 ### Test invocation
 
@@ -135,7 +155,8 @@ concurrency:
   cancel-in-progress: false
 ```
 
-A deliberate deviation from the other four workflows, which all set
+A deliberate deviation from the other five workflows that set
+`concurrency` at all (`relay-smoke.yml` sets none), which all use
 `cancel-in-progress: true`. Cancelling a half-finished release
 verification would leave a run that is not red but also did not
 prove anything. Because the group key is the tag ref, concurrent runs
@@ -146,11 +167,50 @@ across different tags are unaffected.
 `permissions: contents: read` — the job reads the repo and reports
 status; it needs nothing else.
 
-`actions/cache` with key prefix `cargo-mpc-e2e-`, keyed on
-`hashFiles('**/Cargo.lock')` in line with the existing workflows. A
-distinct prefix is required because this is the only job building the
-`release` profile; sharing `ci.yml`'s `cargo-` key would mean the two
-jobs repeatedly evict each other's artifacts.
+`actions/cache/restore` — read-only, with **no** matching save step —
+reusing `ci.yml`'s `cargo-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}`
+key plus a `cargo-${{ runner.os }}-` restore-key.
+
+An earlier draft of this spec called for `actions/cache` under a
+distinct `cargo-mpc-e2e-` prefix, on the reasoning that this is the
+only job building the `release` profile and that sharing `ci.yml`'s
+key would make the two evict each other. Review falsified both halves:
+
+- `ci.yml`'s `rust-tests` job already runs `cargo build --release
+  --workspace`, in the *same* job as its `Cache cargo` step, so the
+  main-scoped `cargo-<os>-<lockhash>` entry already contains
+  release-profile dependency artifacts.
+- Cache entries are immutable per (key, version, scope) and
+  `actions/cache` skips the save on an exact hit, so two jobs sharing
+  a key cannot evict each other.
+
+Worse, the distinct prefix was actively harmful. A run may restore
+caches only from its own ref scope or from the default branch, and
+never from a different tag's scope. A `cargo-mpc-e2e-` key would be
+written solely by this workflow, which fires almost exclusively on
+tags — so the release path would miss 100% of the time, then upload
+~1 GB into a tag scope nothing can ever read. All 57 live caches in
+this repository are scoped `refs/heads/main` and consume 6.38 GB of
+the 10 GB quota; a write-only entry would evict live `ci.yml` caches
+by LRU.
+
+Read-only restore inverts all of it: it *can* hit, because the
+main-scoped entry is readable from a tag run and a tag's `Cargo.lock`
+normally matches the `main` commit it was cut from; and it consumes no
+quota.
+
+Omitting the save is what keeps `ci.yml` safe, but the hazard runs
+through `workflow_dispatch`, not through tags. `gh workflow run
+mpc-e2e.yml` — the pre-flight invocation in `RELEASE.md` §0 — defaults
+to `main`, so a save from that run would write a release-only `target`
+into `main`'s scope. If it landed before `ci.yml` had created that key
+for the same `Cargo.lock`, `ci.yml`'s next run would exact-hit it, find
+no debug artifacts, rebuild from cold and then skip its own save.
+Cache entries being immutable per (key, version, scope) narrows this to
+the window right after a `Cargo.lock` change, but the window is real. A
+tag-push save could *not* reach `ci.yml` at all — it is scoped to the
+tag, which is precisely why the original `cargo-mpc-e2e-` key could
+never hit either.
 
 All third-party actions stay pinned to the commit SHAs already used
 elsewhere in `.github/workflows/`, matching the repository's
@@ -177,8 +237,8 @@ rather than unit-tested:
    workflow runs — already done: 3 passed, 0 failed in 617.95 s.
 3. After merge, dispatch the workflow manually via
    `gh workflow run mpc-e2e.yml` and confirm it goes green. This
-   exercises the `workflow_dispatch` path, the cache key, the release
-   build on a runner, and the real runtime.
+   exercises the `workflow_dispatch` path, the cache restore, the
+   release build on a runner, and the real runtime.
 4. Confirm the tag filter by observation at the next `-rc` tag. The
    `-dev` exclusion cannot be proven without cutting a throwaway tag;
    the pattern semantics are documented, and the manual dispatch in
