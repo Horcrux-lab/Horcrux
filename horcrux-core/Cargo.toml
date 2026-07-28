@@ -30,8 +30,11 @@ hex.workspace = true
 # MPC protocol deps (will be expanded in Phase 1.2)
 # curv-kzen = { version = "0.10" }
 
-# Shamir secret sharing
-vsss-rs = { version = "4", features = ["std"] }
+# NOTE: `vsss-rs` used to be declared here for Shamir secret sharing but was
+# never referenced anywhere in src/, tests/ or fuzz/ — threshold sharing is
+# handled inside cggmp21's `key-share`. Removed rather than bumped to v5
+# (dependabot PR #2) so an unused cryptographic crate stops widening the
+# supply-chain surface. Re-add it only alongside an actual call site.
 
 # UniFFI for mobile bindings
 uniffi = { version = "0.28", features = ["cli"] }
