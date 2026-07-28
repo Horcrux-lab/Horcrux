@@ -281,7 +281,7 @@ private func makeRustCall<T, E: Swift.Error>(
     _ callback: (UnsafeMutablePointer<RustCallStatus>) -> T,
     errorHandler: ((RustBuffer) throws -> E)?
 ) throws -> T {
-    uniffiEnsureInitialized()
+    uniffiEnsureHorcruxCoreInitialized()
     var callStatus = RustCallStatus.init()
     let returnedVal = callback(&callStatus)
     try uniffiCheckCallStatus(callStatus: callStatus, errorHandler: errorHandler)
@@ -352,18 +352,29 @@ private func uniffiTraitInterfaceCallWithError<T, E>(
         callStatus.pointee.errorBuf = FfiConverterString.lower(String(describing: error))
     }
 }
-fileprivate class UniffiHandleMap<T> {
-    private var map: [UInt64: T] = [:]
+// Initial value and increment amount for handles. 
+// These ensure that SWIFT handles always have the lowest bit set
+fileprivate let UNIFFI_HANDLEMAP_INITIAL: UInt64 = 1
+fileprivate let UNIFFI_HANDLEMAP_DELTA: UInt64 = 2
+
+fileprivate final class UniffiHandleMap<T>: @unchecked Sendable {
+    // All mutation happens with this lock held, which is why we implement @unchecked Sendable.
     private let lock = NSLock()
-    private var currentHandle: UInt64 = 1
+    private var map: [UInt64: T] = [:]
+    private var currentHandle: UInt64 = UNIFFI_HANDLEMAP_INITIAL
 
     func insert(obj: T) -> UInt64 {
         lock.withLock {
-            let handle = currentHandle
-            currentHandle += 1
-            map[handle] = obj
-            return handle
+            return doInsert(obj)
         }
+    }
+
+    // Low-level insert function, this assumes `lock` is held.
+    private func doInsert(_ obj: T) -> UInt64 {
+        let handle = currentHandle
+        currentHandle += UNIFFI_HANDLEMAP_DELTA
+        map[handle] = obj
+        return handle
     }
 
      func get(handle: UInt64) throws -> T {
@@ -372,6 +383,15 @@ fileprivate class UniffiHandleMap<T> {
                 throw UniffiInternalError.unexpectedStaleHandle
             }
             return obj
+        }
+    }
+
+     func clone(handle: UInt64) throws -> UInt64 {
+        try lock.withLock {
+            guard let obj = map[handle] else {
+                throw UniffiInternalError.unexpectedStaleHandle
+            }
+            return doInsert(obj)
         }
     }
 
@@ -499,7 +519,11 @@ fileprivate struct FfiConverterString: FfiConverter {
             return String()
         }
         let bytes = UnsafeBufferPointer<UInt8>(start: value.data!, count: Int(value.len))
-        return String(bytes: bytes, encoding: String.Encoding.utf8)!
+        // Use Swift's native UTF-8 decoder; `String(bytes:encoding:.utf8)` goes
+        // through Foundation's NSString and silently strips a leading U+FEFF BOM.
+        // Invalid UTF-8 substitutes U+FFFD instead of trapping (unreachable
+        // given Rust's `String` invariant).
+        return String(decoding: bytes, as: UTF8.self)
     }
 
     public static func lower(_ value: String) -> RustBuffer {
@@ -515,7 +539,8 @@ fileprivate struct FfiConverterString: FfiConverter {
 
     public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> String {
         let len: Int32 = try readInt(&buf)
-        return String(bytes: try readBytes(&buf, count: Int(len)), encoding: String.Encoding.utf8)!
+        // See `lift` above for why we avoid Foundation's NSString-backed decoder here.
+        return String(decoding: try readBytes(&buf, count: Int(len)), as: UTF8.self)
     }
 
     public static func write(_ value: String, into buf: inout [UInt8]) {
@@ -552,7 +577,7 @@ fileprivate struct FfiConverterData: FfiConverterRustBuffer {
  * Wraps the Noise_XX state machine (Curve25519 + ChaChaPoly + SHA-256).
  * Progress: `new_initiator/new_responder` → handshake → `seal`/`open`.
  */
-public protocol HorcruxNoiseChannelProtocol : AnyObject {
+public protocol HorcruxNoiseChannelProtocol: AnyObject, Sendable {
     
     /**
      * Check whether the Noise handshake is complete (channel in transport mode).
@@ -585,68 +610,70 @@ public protocol HorcruxNoiseChannelProtocol : AnyObject {
     func writeHandshake(payload: Data) throws  -> Data
     
 }
-
 /**
  * E2E encrypted Noise channel exposed to the host application.
  *
  * Wraps the Noise_XX state machine (Curve25519 + ChaChaPoly + SHA-256).
  * Progress: `new_initiator/new_responder` → handshake → `seal`/`open`.
  */
-open class HorcruxNoiseChannel:
-    HorcruxNoiseChannelProtocol {
-    fileprivate let pointer: UnsafeMutableRawPointer!
+open class HorcruxNoiseChannel: HorcruxNoiseChannelProtocol, @unchecked Sendable {
+    fileprivate let handle: UInt64
 
-    /// Used to instantiate a [FFIObject] without an actual pointer, for fakes in tests, mostly.
+    /// Used to instantiate a [FFIObject] without an actual handle, for fakes in tests, mostly.
 #if swift(>=5.8)
     @_documentation(visibility: private)
 #endif
-    public struct NoPointer {
+    public struct NoHandle {
         public init() {}
     }
 
     // TODO: We'd like this to be `private` but for Swifty reasons,
     // we can't implement `FfiConverter` without making this `required` and we can't
     // make it `required` without making it `public`.
-    required public init(unsafeFromRawPointer pointer: UnsafeMutableRawPointer) {
-        self.pointer = pointer
+#if swift(>=5.8)
+    @_documentation(visibility: private)
+#endif
+    required public init(unsafeFromHandle handle: UInt64) {
+        self.handle = handle
     }
 
     // This constructor can be used to instantiate a fake object.
-    // - Parameter noPointer: Placeholder value so we can have a constructor separate from the default empty one that may be implemented for classes extending [FFIObject].
+    // - Parameter noHandle: Placeholder value so we can have a constructor separate from the default empty one that may be implemented for classes extending [FFIObject].
     //
     // - Warning:
-    //     Any object instantiated with this constructor cannot be passed to an actual Rust-backed object. Since there isn't a backing [Pointer] the FFI lower functions will crash.
+    //     Any object instantiated with this constructor cannot be passed to an actual Rust-backed object. Since there isn't a backing handle the FFI lower functions will crash.
 #if swift(>=5.8)
     @_documentation(visibility: private)
 #endif
-    public init(noPointer: NoPointer) {
-        self.pointer = nil
+    public init(noHandle: NoHandle) {
+        self.handle = 0
     }
 
 #if swift(>=5.8)
     @_documentation(visibility: private)
 #endif
-    public func uniffiClonePointer() -> UnsafeMutableRawPointer {
-        return try! rustCall { uniffi_horcrux_core_fn_clone_horcruxnoisechannel(self.pointer, $0) }
+    public func uniffiCloneHandle() -> UInt64 {
+        return try! rustCall { uniffi_horcrux_core_fn_clone_horcruxnoisechannel(self.handle, $0) }
     }
     // No primary constructor declared for this class.
 
     deinit {
-        guard let pointer = pointer else {
+        if handle == 0 {
+            // Mock objects have handle=0 don't try to free them
             return
         }
 
-        try! rustCall { uniffi_horcrux_core_fn_free_horcruxnoisechannel(pointer, $0) }
+        try! rustCall { uniffi_horcrux_core_fn_free_horcruxnoisechannel(handle, $0) }
     }
 
     
     /**
      * Create an initiator channel (the party that starts the handshake).
      */
-public static func newInitiator(keypair: FfiNoiseKeypair)throws  -> HorcruxNoiseChannel {
-    return try  FfiConverterTypeHorcruxNoiseChannel.lift(try rustCallWithError(FfiConverterTypeFfiE2EError.lift) {
+public static func newInitiator(keypair: FfiNoiseKeypair)throws  -> HorcruxNoiseChannel  {
+    return try  FfiConverterTypeHorcruxNoiseChannel_lift(try rustCallWithError(FfiConverterTypeFfiE2EError_lift) {
     uniffi_horcrux_core_fn_constructor_horcruxnoisechannel_new_initiator(
-        FfiConverterTypeFfiNoiseKeypair.lower(keypair),$0
+        FfiConverterTypeFfiNoiseKeypair_lower(keypair),$0
     )
 })
 }
@@ -654,10 +681,10 @@ public static func newInitiator(keypair: FfiNoiseKeypair)throws  -> HorcruxNoise
     /**
      * Create a responder channel.
      */
-public static func newResponder(keypair: FfiNoiseKeypair)throws  -> HorcruxNoiseChannel {
-    return try  FfiConverterTypeHorcruxNoiseChannel.lift(try rustCallWithError(FfiConverterTypeFfiE2EError.lift) {
+public static func newResponder(keypair: FfiNoiseKeypair)throws  -> HorcruxNoiseChannel  {
+    return try  FfiConverterTypeHorcruxNoiseChannel_lift(try rustCallWithError(FfiConverterTypeFfiE2EError_lift) {
     uniffi_horcrux_core_fn_constructor_horcruxnoisechannel_new_responder(
-        FfiConverterTypeFfiNoiseKeypair.lower(keypair),$0
+        FfiConverterTypeFfiNoiseKeypair_lower(keypair),$0
     )
 })
 }
@@ -667,9 +694,10 @@ public static func newResponder(keypair: FfiNoiseKeypair)throws  -> HorcruxNoise
     /**
      * Check whether the Noise handshake is complete (channel in transport mode).
      */
-open func isHandshakeFinished() -> Bool {
+open func isHandshakeFinished() -> Bool  {
     return try!  FfiConverterBool.lift(try! rustCall() {
-    uniffi_horcrux_core_fn_method_horcruxnoisechannel_is_handshake_finished(self.uniffiClonePointer(),$0
+    uniffi_horcrux_core_fn_method_horcruxnoisechannel_is_handshake_finished(
+            self.uniffiCloneHandle(),$0
     )
 })
 }
@@ -677,10 +705,11 @@ open func isHandshakeFinished() -> Bool {
     /**
      * Decrypt a sealed envelope from the peer (post-handshake).
      */
-open func `open`(envelope: FfiSealedEnvelope)throws  -> Data {
-    return try  FfiConverterData.lift(try rustCallWithError(FfiConverterTypeFfiE2EError.lift) {
-    uniffi_horcrux_core_fn_method_horcruxnoisechannel_open(self.uniffiClonePointer(),
-        FfiConverterTypeFfiSealedEnvelope.lower(envelope),$0
+open func `open`(envelope: FfiSealedEnvelope)throws  -> Data  {
+    return try  FfiConverterData.lift(try rustCallWithError(FfiConverterTypeFfiE2EError_lift) {
+    uniffi_horcrux_core_fn_method_horcruxnoisechannel_open(
+            self.uniffiCloneHandle(),
+        FfiConverterTypeFfiSealedEnvelope_lower(envelope),$0
     )
 })
 }
@@ -688,9 +717,10 @@ open func `open`(envelope: FfiSealedEnvelope)throws  -> Data {
     /**
      * Read a handshake message from the peer and return the decrypted payload.
      */
-open func readHandshake(message: Data)throws  -> Data {
-    return try  FfiConverterData.lift(try rustCallWithError(FfiConverterTypeFfiE2EError.lift) {
-    uniffi_horcrux_core_fn_method_horcruxnoisechannel_read_handshake(self.uniffiClonePointer(),
+open func readHandshake(message: Data)throws  -> Data  {
+    return try  FfiConverterData.lift(try rustCallWithError(FfiConverterTypeFfiE2EError_lift) {
+    uniffi_horcrux_core_fn_method_horcruxnoisechannel_read_handshake(
+            self.uniffiCloneHandle(),
         FfiConverterData.lower(message),$0
     )
 })
@@ -699,9 +729,10 @@ open func readHandshake(message: Data)throws  -> Data {
     /**
      * Get the peer's static public key (available after handshake completes).
      */
-open func remoteStaticKey() -> Data? {
+open func remoteStaticKey() -> Data?  {
     return try!  FfiConverterOptionData.lift(try! rustCall() {
-    uniffi_horcrux_core_fn_method_horcruxnoisechannel_remote_static_key(self.uniffiClonePointer(),$0
+    uniffi_horcrux_core_fn_method_horcruxnoisechannel_remote_static_key(
+            self.uniffiCloneHandle(),$0
     )
 })
 }
@@ -709,9 +740,10 @@ open func remoteStaticKey() -> Data? {
     /**
      * Encrypt a message for transport (post-handshake).
      */
-open func seal(plaintext: Data)throws  -> FfiSealedEnvelope {
-    return try  FfiConverterTypeFfiSealedEnvelope.lift(try rustCallWithError(FfiConverterTypeFfiE2EError.lift) {
-    uniffi_horcrux_core_fn_method_horcruxnoisechannel_seal(self.uniffiClonePointer(),
+open func seal(plaintext: Data)throws  -> FfiSealedEnvelope  {
+    return try  FfiConverterTypeFfiSealedEnvelope_lift(try rustCallWithError(FfiConverterTypeFfiE2EError_lift) {
+    uniffi_horcrux_core_fn_method_horcruxnoisechannel_seal(
+            self.uniffiCloneHandle(),
         FfiConverterData.lower(plaintext),$0
     )
 })
@@ -720,67 +752,61 @@ open func seal(plaintext: Data)throws  -> FfiSealedEnvelope {
     /**
      * Write the next handshake message (caller → peer).
      */
-open func writeHandshake(payload: Data)throws  -> Data {
-    return try  FfiConverterData.lift(try rustCallWithError(FfiConverterTypeFfiE2EError.lift) {
-    uniffi_horcrux_core_fn_method_horcruxnoisechannel_write_handshake(self.uniffiClonePointer(),
+open func writeHandshake(payload: Data)throws  -> Data  {
+    return try  FfiConverterData.lift(try rustCallWithError(FfiConverterTypeFfiE2EError_lift) {
+    uniffi_horcrux_core_fn_method_horcruxnoisechannel_write_handshake(
+            self.uniffiCloneHandle(),
         FfiConverterData.lower(payload),$0
     )
 })
 }
     
 
+    
 }
+
 
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
 public struct FfiConverterTypeHorcruxNoiseChannel: FfiConverter {
-
-    typealias FfiType = UnsafeMutableRawPointer
+    typealias FfiType = UInt64
     typealias SwiftType = HorcruxNoiseChannel
 
-    public static func lift(_ pointer: UnsafeMutableRawPointer) throws -> HorcruxNoiseChannel {
-        return HorcruxNoiseChannel(unsafeFromRawPointer: pointer)
+    public static func lift(_ handle: UInt64) throws -> HorcruxNoiseChannel {
+        return HorcruxNoiseChannel(unsafeFromHandle: handle)
     }
 
-    public static func lower(_ value: HorcruxNoiseChannel) -> UnsafeMutableRawPointer {
-        return value.uniffiClonePointer()
+    public static func lower(_ value: HorcruxNoiseChannel) -> UInt64 {
+        return value.uniffiCloneHandle()
     }
 
     public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> HorcruxNoiseChannel {
-        let v: UInt64 = try readInt(&buf)
-        // The Rust code won't compile if a pointer won't fit in a UInt64.
-        // We have to go via `UInt` because that's the thing that's the size of a pointer.
-        let ptr = UnsafeMutableRawPointer(bitPattern: UInt(truncatingIfNeeded: v))
-        if (ptr == nil) {
-            throw UniffiInternalError.unexpectedNullPointer
-        }
-        return try lift(ptr!)
+        let handle: UInt64 = try readInt(&buf)
+        return try lift(handle)
     }
 
     public static func write(_ value: HorcruxNoiseChannel, into buf: inout [UInt8]) {
-        // This fiddling is because `Int` is the thing that's the same size as a pointer.
-        // The Rust code won't compile if a pointer won't fit in a `UInt64`.
-        writeInt(&buf, UInt64(bitPattern: Int64(Int(bitPattern: lower(value)))))
+        writeInt(&buf, lower(value))
     }
 }
 
 
-
-
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
-public func FfiConverterTypeHorcruxNoiseChannel_lift(_ pointer: UnsafeMutableRawPointer) throws -> HorcruxNoiseChannel {
-    return try FfiConverterTypeHorcruxNoiseChannel.lift(pointer)
+public func FfiConverterTypeHorcruxNoiseChannel_lift(_ handle: UInt64) throws -> HorcruxNoiseChannel {
+    return try FfiConverterTypeHorcruxNoiseChannel.lift(handle)
 }
 
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
-public func FfiConverterTypeHorcruxNoiseChannel_lower(_ value: HorcruxNoiseChannel) -> UnsafeMutableRawPointer {
+public func FfiConverterTypeHorcruxNoiseChannel_lower(_ value: HorcruxNoiseChannel) -> UInt64 {
     return FfiConverterTypeHorcruxNoiseChannel.lower(value)
 }
+
+
 
 
 
@@ -791,7 +817,7 @@ public func FfiConverterTypeHorcruxNoiseChannel_lower(_ value: HorcruxNoiseChann
  * Manages concurrent DKG and signing sessions. All access goes through a Mutex
  * to protect the internal state machines (which may use non-Send types).
  */
-public protocol HorcruxSessionManagerProtocol : AnyObject {
+public protocol HorcruxSessionManagerProtocol: AnyObject, Sendable {
     
     /**
      * Initiate a distributed key generation session. Returns initial outgoing messages.
@@ -854,65 +880,67 @@ public protocol HorcruxSessionManagerProtocol : AnyObject {
     func removeSession(sessionId: String) 
     
 }
-
 /**
  * Thread-safe MPC session manager exposed to the host application via UniFFI.
  *
  * Manages concurrent DKG and signing sessions. All access goes through a Mutex
  * to protect the internal state machines (which may use non-Send types).
  */
-open class HorcruxSessionManager:
-    HorcruxSessionManagerProtocol {
-    fileprivate let pointer: UnsafeMutableRawPointer!
+open class HorcruxSessionManager: HorcruxSessionManagerProtocol, @unchecked Sendable {
+    fileprivate let handle: UInt64
 
-    /// Used to instantiate a [FFIObject] without an actual pointer, for fakes in tests, mostly.
+    /// Used to instantiate a [FFIObject] without an actual handle, for fakes in tests, mostly.
 #if swift(>=5.8)
     @_documentation(visibility: private)
 #endif
-    public struct NoPointer {
+    public struct NoHandle {
         public init() {}
     }
 
     // TODO: We'd like this to be `private` but for Swifty reasons,
     // we can't implement `FfiConverter` without making this `required` and we can't
     // make it `required` without making it `public`.
-    required public init(unsafeFromRawPointer pointer: UnsafeMutableRawPointer) {
-        self.pointer = pointer
+#if swift(>=5.8)
+    @_documentation(visibility: private)
+#endif
+    required public init(unsafeFromHandle handle: UInt64) {
+        self.handle = handle
     }
 
     // This constructor can be used to instantiate a fake object.
-    // - Parameter noPointer: Placeholder value so we can have a constructor separate from the default empty one that may be implemented for classes extending [FFIObject].
+    // - Parameter noHandle: Placeholder value so we can have a constructor separate from the default empty one that may be implemented for classes extending [FFIObject].
     //
     // - Warning:
-    //     Any object instantiated with this constructor cannot be passed to an actual Rust-backed object. Since there isn't a backing [Pointer] the FFI lower functions will crash.
+    //     Any object instantiated with this constructor cannot be passed to an actual Rust-backed object. Since there isn't a backing handle the FFI lower functions will crash.
 #if swift(>=5.8)
     @_documentation(visibility: private)
 #endif
-    public init(noPointer: NoPointer) {
-        self.pointer = nil
+    public init(noHandle: NoHandle) {
+        self.handle = 0
     }
 
 #if swift(>=5.8)
     @_documentation(visibility: private)
 #endif
-    public func uniffiClonePointer() -> UnsafeMutableRawPointer {
-        return try! rustCall { uniffi_horcrux_core_fn_clone_horcruxsessionmanager(self.pointer, $0) }
+    public func uniffiCloneHandle() -> UInt64 {
+        return try! rustCall { uniffi_horcrux_core_fn_clone_horcruxsessionmanager(self.handle, $0) }
     }
 public convenience init() {
-    let pointer =
+    let handle =
         try! rustCall() {
     uniffi_horcrux_core_fn_constructor_horcruxsessionmanager_new($0
     )
 }
-    self.init(unsafeFromRawPointer: pointer)
+    self.init(unsafeFromHandle: handle)
 }
 
     deinit {
-        guard let pointer = pointer else {
+        if handle == 0 {
+            // Mock objects have handle=0 don't try to free them
             return
         }
 
-        try! rustCall { uniffi_horcrux_core_fn_free_horcruxsessionmanager(pointer, $0) }
+        try! rustCall { uniffi_horcrux_core_fn_free_horcruxsessionmanager(handle, $0) }
     }
 
     
@@ -921,11 +949,12 @@ public convenience init() {
     /**
      * Initiate a distributed key generation session. Returns initial outgoing messages.
      */
-open func createKeygen(sessionId: String, config: FfiHorcruxConfig)throws  -> [FfiMpcMessage] {
-    return try  FfiConverterSequenceTypeFfiMpcMessage.lift(try rustCallWithError(FfiConverterTypeHorcruxError.lift) {
-    uniffi_horcrux_core_fn_method_horcruxsessionmanager_create_keygen(self.uniffiClonePointer(),
+open func createKeygen(sessionId: String, config: FfiHorcruxConfig)throws  -> [FfiMpcMessage]  {
+    return try  FfiConverterSequenceTypeFfiMpcMessage.lift(try rustCallWithError(FfiConverterTypeHorcruxError_lift) {
+    uniffi_horcrux_core_fn_method_horcruxsessionmanager_create_keygen(
+            self.uniffiCloneHandle(),
         FfiConverterString.lower(sessionId),
-        FfiConverterTypeFfiHorcruxConfig.lower(config),$0
+        FfiConverterTypeFfiHorcruxConfig_lower(config),$0
     )
 })
 }
@@ -935,11 +964,12 @@ open func createKeygen(sessionId: String, config: FfiHorcruxConfig)throws  -> [F
      * shard while keeping the wallet's group public key unchanged.
      * Currently restricted to n-of-n CGGMP21 ECDSA shares.
      */
-open func createRefresh(sessionId: String, config: FfiHorcruxConfig, shardData: Data)throws  -> [FfiMpcMessage] {
-    return try  FfiConverterSequenceTypeFfiMpcMessage.lift(try rustCallWithError(FfiConverterTypeHorcruxError.lift) {
-    uniffi_horcrux_core_fn_method_horcruxsessionmanager_create_refresh(self.uniffiClonePointer(),
+open func createRefresh(sessionId: String, config: FfiHorcruxConfig, shardData: Data)throws  -> [FfiMpcMessage]  {
+    return try  FfiConverterSequenceTypeFfiMpcMessage.lift(try rustCallWithError(FfiConverterTypeHorcruxError_lift) {
+    uniffi_horcrux_core_fn_method_horcruxsessionmanager_create_refresh(
+            self.uniffiCloneHandle(),
         FfiConverterString.lower(sessionId),
-        FfiConverterTypeFfiHorcruxConfig.lower(config),
+        FfiConverterTypeFfiHorcruxConfig_lower(config),
         FfiConverterData.lower(shardData),$0
     )
 })
@@ -948,11 +978,12 @@ open func createRefresh(sessionId: String, config: FfiHorcruxConfig, shardData: 
     /**
      * Start a threshold signing session. Requires the local shard and participant list.
      */
-open func createSigning(sessionId: String, config: FfiHorcruxConfig, messageHash: Data, shardData: Data, participants: [UInt16])throws  -> [FfiMpcMessage] {
-    return try  FfiConverterSequenceTypeFfiMpcMessage.lift(try rustCallWithError(FfiConverterTypeHorcruxError.lift) {
-    uniffi_horcrux_core_fn_method_horcruxsessionmanager_create_signing(self.uniffiClonePointer(),
+open func createSigning(sessionId: String, config: FfiHorcruxConfig, messageHash: Data, shardData: Data, participants: [UInt16])throws  -> [FfiMpcMessage]  {
+    return try  FfiConverterSequenceTypeFfiMpcMessage.lift(try rustCallWithError(FfiConverterTypeHorcruxError_lift) {
+    uniffi_horcrux_core_fn_method_horcruxsessionmanager_create_signing(
+            self.uniffiCloneHandle(),
         FfiConverterString.lower(sessionId),
-        FfiConverterTypeFfiHorcruxConfig.lower(config),
+        FfiConverterTypeFfiHorcruxConfig_lower(config),
         FfiConverterData.lower(messageHash),
         FfiConverterData.lower(shardData),
         FfiConverterSequenceUInt16.lower(participants),$0
@@ -963,9 +994,10 @@ open func createSigning(sessionId: String, config: FfiHorcruxConfig, messageHash
     /**
      * Retrieve the DKG result (public key + shard). Returns `None` if still in progress.
      */
-open func getKeygenResult(sessionId: String) -> FfiKeygenResult? {
+open func getKeygenResult(sessionId: String) -> FfiKeygenResult?  {
     return try!  FfiConverterOptionTypeFfiKeygenResult.lift(try! rustCall() {
-    uniffi_horcrux_core_fn_method_horcruxsessionmanager_get_keygen_result(self.uniffiClonePointer(),
+    uniffi_horcrux_core_fn_method_horcruxsessionmanager_get_keygen_result(
+            self.uniffiCloneHandle(),
         FfiConverterString.lower(sessionId),$0
     )
 })
@@ -977,9 +1009,10 @@ open func getKeygenResult(sessionId: String) -> FfiKeygenResult? {
      * `FfiKeygenResult`; on success the `public_key` is identical to the
      * pre-refresh value and `shard_data` is the new encrypted-on-disk shard.
      */
-open func getRefreshResult(sessionId: String) -> FfiKeygenResult? {
+open func getRefreshResult(sessionId: String) -> FfiKeygenResult?  {
     return try!  FfiConverterOptionTypeFfiKeygenResult.lift(try! rustCall() {
-    uniffi_horcrux_core_fn_method_horcruxsessionmanager_get_refresh_result(self.uniffiClonePointer(),
+    uniffi_horcrux_core_fn_method_horcruxsessionmanager_get_refresh_result(
+            self.uniffiCloneHandle(),
         FfiConverterString.lower(sessionId),$0
     )
 })
@@ -988,9 +1021,10 @@ open func getRefreshResult(sessionId: String) -> FfiKeygenResult? {
     /**
      * Retrieve the signing result (signature). Returns `None` if still in progress.
      */
-open func getSigningResult(sessionId: String) -> FfiSigningResult? {
+open func getSigningResult(sessionId: String) -> FfiSigningResult?  {
     return try!  FfiConverterOptionTypeFfiSigningResult.lift(try! rustCall() {
-    uniffi_horcrux_core_fn_method_horcruxsessionmanager_get_signing_result(self.uniffiClonePointer(),
+    uniffi_horcrux_core_fn_method_horcruxsessionmanager_get_signing_result(
+            self.uniffiCloneHandle(),
         FfiConverterString.lower(sessionId),$0
     )
 })
@@ -1005,10 +1039,11 @@ open func getSigningResult(sessionId: String) -> FfiSigningResult? {
      * Passing `msg.from_party` is a vulnerability — it trivially satisfies
      * the check and reintroduces the rogue-party impersonation window.
      */
-open func handleAuthenticatedMessage(msg: FfiMpcMessage, authenticatedFrom: UInt16)throws  -> [FfiMpcMessage] {
-    return try  FfiConverterSequenceTypeFfiMpcMessage.lift(try rustCallWithError(FfiConverterTypeHorcruxError.lift) {
-    uniffi_horcrux_core_fn_method_horcruxsessionmanager_handle_authenticated_message(self.uniffiClonePointer(),
-        FfiConverterTypeFfiMpcMessage.lower(msg),
+open func handleAuthenticatedMessage(msg: FfiMpcMessage, authenticatedFrom: UInt16)throws  -> [FfiMpcMessage]  {
+    return try  FfiConverterSequenceTypeFfiMpcMessage.lift(try rustCallWithError(FfiConverterTypeHorcruxError_lift) {
+    uniffi_horcrux_core_fn_method_horcruxsessionmanager_handle_authenticated_message(
+            self.uniffiCloneHandle(),
+        FfiConverterTypeFfiMpcMessage_lower(msg),
         FfiConverterUInt16.lower(authenticatedFrom),$0
     )
 })
@@ -1021,10 +1056,11 @@ open func handleAuthenticatedMessage(msg: FfiMpcMessage, authenticatedFrom: UInt
      * verify the claimed sender against the transport-authenticated peer.
      * Use `handle_authenticated_message` instead — see audit finding C1.
      */
-open func handleMessage(msg: FfiMpcMessage)throws  -> [FfiMpcMessage] {
-    return try  FfiConverterSequenceTypeFfiMpcMessage.lift(try rustCallWithError(FfiConverterTypeHorcruxError.lift) {
-    uniffi_horcrux_core_fn_method_horcruxsessionmanager_handle_message(self.uniffiClonePointer(),
-        FfiConverterTypeFfiMpcMessage.lower(msg),$0
+open func handleMessage(msg: FfiMpcMessage)throws  -> [FfiMpcMessage]  {
+    return try  FfiConverterSequenceTypeFfiMpcMessage.lift(try rustCallWithError(FfiConverterTypeHorcruxError_lift) {
+    uniffi_horcrux_core_fn_method_horcruxsessionmanager_handle_message(
+            self.uniffiCloneHandle(),
+        FfiConverterTypeFfiMpcMessage_lower(msg),$0
     )
 })
 }
@@ -1032,66 +1068,60 @@ open func handleMessage(msg: FfiMpcMessage)throws  -> [FfiMpcMessage] {
     /**
      * Remove a completed or abandoned session from memory.
      */
-open func removeSession(sessionId: String) {try! rustCall() {
-    uniffi_horcrux_core_fn_method_horcruxsessionmanager_remove_session(self.uniffiClonePointer(),
+open func removeSession(sessionId: String)  {try! rustCall() {
+    uniffi_horcrux_core_fn_method_horcruxsessionmanager_remove_session(
+            self.uniffiCloneHandle(),
         FfiConverterString.lower(sessionId),$0
     )
 }
 }
     
 
+    
 }
+
 
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
 public struct FfiConverterTypeHorcruxSessionManager: FfiConverter {
-
-    typealias FfiType = UnsafeMutableRawPointer
+    typealias FfiType = UInt64
     typealias SwiftType = HorcruxSessionManager
 
-    public static func lift(_ pointer: UnsafeMutableRawPointer) throws -> HorcruxSessionManager {
-        return HorcruxSessionManager(unsafeFromRawPointer: pointer)
+    public static func lift(_ handle: UInt64) throws -> HorcruxSessionManager {
+        return HorcruxSessionManager(unsafeFromHandle: handle)
     }
 
-    public static func lower(_ value: HorcruxSessionManager) -> UnsafeMutableRawPointer {
-        return value.uniffiClonePointer()
+    public static func lower(_ value: HorcruxSessionManager) -> UInt64 {
+        return value.uniffiCloneHandle()
     }
 
     public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> HorcruxSessionManager {
-        let v: UInt64 = try readInt(&buf)
-        // The Rust code won't compile if a pointer won't fit in a UInt64.
-        // We have to go via `UInt` because that's the thing that's the size of a pointer.
-        let ptr = UnsafeMutableRawPointer(bitPattern: UInt(truncatingIfNeeded: v))
-        if (ptr == nil) {
-            throw UniffiInternalError.unexpectedNullPointer
-        }
-        return try lift(ptr!)
+        let handle: UInt64 = try readInt(&buf)
+        return try lift(handle)
     }
 
     public static func write(_ value: HorcruxSessionManager, into buf: inout [UInt8]) {
-        // This fiddling is because `Int` is the thing that's the same size as a pointer.
-        // The Rust code won't compile if a pointer won't fit in a `UInt64`.
-        writeInt(&buf, UInt64(bitPattern: Int64(Int(bitPattern: lower(value)))))
+        writeInt(&buf, lower(value))
     }
 }
 
 
-
-
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
-public func FfiConverterTypeHorcruxSessionManager_lift(_ pointer: UnsafeMutableRawPointer) throws -> HorcruxSessionManager {
-    return try FfiConverterTypeHorcruxSessionManager.lift(pointer)
+public func FfiConverterTypeHorcruxSessionManager_lift(_ handle: UInt64) throws -> HorcruxSessionManager {
+    return try FfiConverterTypeHorcruxSessionManager.lift(handle)
 }
 
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
-public func FfiConverterTypeHorcruxSessionManager_lower(_ value: HorcruxSessionManager) -> UnsafeMutableRawPointer {
+public func FfiConverterTypeHorcruxSessionManager_lower(_ value: HorcruxSessionManager) -> UInt64 {
     return FfiConverterTypeHorcruxSessionManager.lower(value)
 }
+
+
 
 
 
@@ -1099,7 +1129,7 @@ public func FfiConverterTypeHorcruxSessionManager_lower(_ value: HorcruxSessionM
 /**
  * Thread-safe shard registry for tracking key shards across wallets.
  */
-public protocol HorcruxShardManagerProtocol : AnyObject {
+public protocol HorcruxShardManagerProtocol: AnyObject, Sendable {
     
     /**
      * Register a shard in the in-memory registry.
@@ -1117,62 +1147,64 @@ public protocol HorcruxShardManagerProtocol : AnyObject {
     func shardsForKey(publicKey: Data)  -> [FfiShardInfo]
     
 }
-
 /**
  * Thread-safe shard registry for tracking key shards across wallets.
  */
-open class HorcruxShardManager:
-    HorcruxShardManagerProtocol {
-    fileprivate let pointer: UnsafeMutableRawPointer!
+open class HorcruxShardManager: HorcruxShardManagerProtocol, @unchecked Sendable {
+    fileprivate let handle: UInt64
 
-    /// Used to instantiate a [FFIObject] without an actual pointer, for fakes in tests, mostly.
+    /// Used to instantiate a [FFIObject] without an actual handle, for fakes in tests, mostly.
 #if swift(>=5.8)
     @_documentation(visibility: private)
 #endif
-    public struct NoPointer {
+    public struct NoHandle {
         public init() {}
     }
 
     // TODO: We'd like this to be `private` but for Swifty reasons,
     // we can't implement `FfiConverter` without making this `required` and we can't
     // make it `required` without making it `public`.
-    required public init(unsafeFromRawPointer pointer: UnsafeMutableRawPointer) {
-        self.pointer = pointer
+#if swift(>=5.8)
+    @_documentation(visibility: private)
+#endif
+    required public init(unsafeFromHandle handle: UInt64) {
+        self.handle = handle
     }
 
     // This constructor can be used to instantiate a fake object.
-    // - Parameter noPointer: Placeholder value so we can have a constructor separate from the default empty one that may be implemented for classes extending [FFIObject].
+    // - Parameter noHandle: Placeholder value so we can have a constructor separate from the default empty one that may be implemented for classes extending [FFIObject].
     //
     // - Warning:
-    //     Any object instantiated with this constructor cannot be passed to an actual Rust-backed object. Since there isn't a backing [Pointer] the FFI lower functions will crash.
+    //     Any object instantiated with this constructor cannot be passed to an actual Rust-backed object. Since there isn't a backing handle the FFI lower functions will crash.
 #if swift(>=5.8)
     @_documentation(visibility: private)
 #endif
-    public init(noPointer: NoPointer) {
-        self.pointer = nil
+    public init(noHandle: NoHandle) {
+        self.handle = 0
     }
 
 #if swift(>=5.8)
     @_documentation(visibility: private)
 #endif
-    public func uniffiClonePointer() -> UnsafeMutableRawPointer {
-        return try! rustCall { uniffi_horcrux_core_fn_clone_horcruxshardmanager(self.pointer, $0) }
+    public func uniffiCloneHandle() -> UInt64 {
+        return try! rustCall { uniffi_horcrux_core_fn_clone_horcruxshardmanager(self.handle, $0) }
     }
 public convenience init() {
-    let pointer =
+    let handle =
         try! rustCall() {
     uniffi_horcrux_core_fn_constructor_horcruxshardmanager_new($0
     )
 }
-    self.init(unsafeFromRawPointer: pointer)
+    self.init(unsafeFromHandle: handle)
 }
 
     deinit {
-        guard let pointer = pointer else {
+        if handle == 0 {
+            // Mock objects have handle=0 don't try to free them
             return
         }
 
-        try! rustCall { uniffi_horcrux_core_fn_free_horcruxshardmanager(pointer, $0) }
+        try! rustCall { uniffi_horcrux_core_fn_free_horcruxshardmanager(handle, $0) }
     }
 
     
@@ -1181,9 +1213,10 @@ public convenience init() {
     /**
      * Register a shard in the in-memory registry.
      */
-open func addShard(info: FfiShardInfo) {try! rustCall() {
-    uniffi_horcrux_core_fn_method_horcruxshardmanager_add_shard(self.uniffiClonePointer(),
-        FfiConverterTypeFfiShardInfo.lower(info),$0
+open func addShard(info: FfiShardInfo)  {try! rustCall() {
+    uniffi_horcrux_core_fn_method_horcruxshardmanager_add_shard(
+            self.uniffiCloneHandle(),
+        FfiConverterTypeFfiShardInfo_lower(info),$0
     )
 }
 }
@@ -1191,9 +1224,10 @@ open func addShard(info: FfiShardInfo) {try! rustCall() {
     /**
      * List all registered shards.
      */
-open func listShards() -> [FfiShardInfo] {
+open func listShards() -> [FfiShardInfo]  {
     return try!  FfiConverterSequenceTypeFfiShardInfo.lift(try! rustCall() {
-    uniffi_horcrux_core_fn_method_horcruxshardmanager_list_shards(self.uniffiClonePointer(),$0
+    uniffi_horcrux_core_fn_method_horcruxshardmanager_list_shards(
+            self.uniffiCloneHandle(),$0
     )
 })
 }
@@ -1201,73 +1235,67 @@ open func listShards() -> [FfiShardInfo] {
     /**
      * Filter shards by their associated public key.
      */
-open func shardsForKey(publicKey: Data) -> [FfiShardInfo] {
+open func shardsForKey(publicKey: Data) -> [FfiShardInfo]  {
     return try!  FfiConverterSequenceTypeFfiShardInfo.lift(try! rustCall() {
-    uniffi_horcrux_core_fn_method_horcruxshardmanager_shards_for_key(self.uniffiClonePointer(),
+    uniffi_horcrux_core_fn_method_horcruxshardmanager_shards_for_key(
+            self.uniffiCloneHandle(),
         FfiConverterData.lower(publicKey),$0
     )
 })
 }
     
 
+    
 }
+
 
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
 public struct FfiConverterTypeHorcruxShardManager: FfiConverter {
-
-    typealias FfiType = UnsafeMutableRawPointer
+    typealias FfiType = UInt64
     typealias SwiftType = HorcruxShardManager
 
-    public static func lift(_ pointer: UnsafeMutableRawPointer) throws -> HorcruxShardManager {
-        return HorcruxShardManager(unsafeFromRawPointer: pointer)
+    public static func lift(_ handle: UInt64) throws -> HorcruxShardManager {
+        return HorcruxShardManager(unsafeFromHandle: handle)
     }
 
-    public static func lower(_ value: HorcruxShardManager) -> UnsafeMutableRawPointer {
-        return value.uniffiClonePointer()
+    public static func lower(_ value: HorcruxShardManager) -> UInt64 {
+        return value.uniffiCloneHandle()
     }
 
     public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> HorcruxShardManager {
-        let v: UInt64 = try readInt(&buf)
-        // The Rust code won't compile if a pointer won't fit in a UInt64.
-        // We have to go via `UInt` because that's the thing that's the size of a pointer.
-        let ptr = UnsafeMutableRawPointer(bitPattern: UInt(truncatingIfNeeded: v))
-        if (ptr == nil) {
-            throw UniffiInternalError.unexpectedNullPointer
-        }
-        return try lift(ptr!)
+        let handle: UInt64 = try readInt(&buf)
+        return try lift(handle)
     }
 
     public static func write(_ value: HorcruxShardManager, into buf: inout [UInt8]) {
-        // This fiddling is because `Int` is the thing that's the same size as a pointer.
-        // The Rust code won't compile if a pointer won't fit in a `UInt64`.
-        writeInt(&buf, UInt64(bitPattern: Int64(Int(bitPattern: lower(value)))))
+        writeInt(&buf, lower(value))
     }
 }
 
 
-
-
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
-public func FfiConverterTypeHorcruxShardManager_lift(_ pointer: UnsafeMutableRawPointer) throws -> HorcruxShardManager {
-    return try FfiConverterTypeHorcruxShardManager.lift(pointer)
+public func FfiConverterTypeHorcruxShardManager_lift(_ handle: UInt64) throws -> HorcruxShardManager {
+    return try FfiConverterTypeHorcruxShardManager.lift(handle)
 }
 
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
-public func FfiConverterTypeHorcruxShardManager_lower(_ value: HorcruxShardManager) -> UnsafeMutableRawPointer {
+public func FfiConverterTypeHorcruxShardManager_lower(_ value: HorcruxShardManager) -> UInt64 {
     return FfiConverterTypeHorcruxShardManager.lower(value)
 }
+
+
 
 
 /**
  * A Bitcoin UTXO input reference.
  */
-public struct FfiBtcInput {
+public struct FfiBtcInput: Equatable, Hashable {
     public var txid: String
     public var vout: UInt32
     public var value: UInt64
@@ -1297,39 +1325,15 @@ public struct FfiBtcInput {
         self.pubkeyHash = pubkeyHash
         self.prevTxRaw = prevTxRaw
     }
+
+    
+
+    
 }
 
-
-
-extension FfiBtcInput: Equatable, Hashable {
-    public static func ==(lhs: FfiBtcInput, rhs: FfiBtcInput) -> Bool {
-        if lhs.txid != rhs.txid {
-            return false
-        }
-        if lhs.vout != rhs.vout {
-            return false
-        }
-        if lhs.value != rhs.value {
-            return false
-        }
-        if lhs.pubkeyHash != rhs.pubkeyHash {
-            return false
-        }
-        if lhs.prevTxRaw != rhs.prevTxRaw {
-            return false
-        }
-        return true
-    }
-
-    public func hash(into hasher: inout Hasher) {
-        hasher.combine(txid)
-        hasher.combine(vout)
-        hasher.combine(value)
-        hasher.combine(pubkeyHash)
-        hasher.combine(prevTxRaw)
-    }
-}
-
+#if compiler(>=6)
+extension FfiBtcInput: Sendable {}
+#endif
 
 #if swift(>=5.8)
 @_documentation(visibility: private)
@@ -1374,7 +1378,7 @@ public func FfiConverterTypeFfiBtcInput_lower(_ value: FfiBtcInput) -> RustBuffe
 /**
  * A Bitcoin transaction output (destination + amount).
  */
-public struct FfiBtcOutput {
+public struct FfiBtcOutput: Equatable, Hashable {
     public var address: String
     public var value: UInt64
     public var scriptPubkey: Data?
@@ -1386,31 +1390,15 @@ public struct FfiBtcOutput {
         self.value = value
         self.scriptPubkey = scriptPubkey
     }
+
+    
+
+    
 }
 
-
-
-extension FfiBtcOutput: Equatable, Hashable {
-    public static func ==(lhs: FfiBtcOutput, rhs: FfiBtcOutput) -> Bool {
-        if lhs.address != rhs.address {
-            return false
-        }
-        if lhs.value != rhs.value {
-            return false
-        }
-        if lhs.scriptPubkey != rhs.scriptPubkey {
-            return false
-        }
-        return true
-    }
-
-    public func hash(into hasher: inout Hasher) {
-        hasher.combine(address)
-        hasher.combine(value)
-        hasher.combine(scriptPubkey)
-    }
-}
-
+#if compiler(>=6)
+extension FfiBtcOutput: Sendable {}
+#endif
 
 #if swift(>=5.8)
 @_documentation(visibility: private)
@@ -1451,7 +1439,7 @@ public func FfiConverterTypeFfiBtcOutput_lower(_ value: FfiBtcOutput) -> RustBuf
 /**
  * Bitcoin P2WPKH transaction parameters.
  */
-public struct FfiBtcTxParams {
+public struct FfiBtcTxParams: Equatable, Hashable {
     public var inputs: [FfiBtcInput]
     public var outputs: [FfiBtcOutput]
     public var testnet: Bool
@@ -1463,31 +1451,15 @@ public struct FfiBtcTxParams {
         self.outputs = outputs
         self.testnet = testnet
     }
+
+    
+
+    
 }
 
-
-
-extension FfiBtcTxParams: Equatable, Hashable {
-    public static func ==(lhs: FfiBtcTxParams, rhs: FfiBtcTxParams) -> Bool {
-        if lhs.inputs != rhs.inputs {
-            return false
-        }
-        if lhs.outputs != rhs.outputs {
-            return false
-        }
-        if lhs.testnet != rhs.testnet {
-            return false
-        }
-        return true
-    }
-
-    public func hash(into hasher: inout Hasher) {
-        hasher.combine(inputs)
-        hasher.combine(outputs)
-        hasher.combine(testnet)
-    }
-}
-
+#if compiler(>=6)
+extension FfiBtcTxParams: Sendable {}
+#endif
 
 #if swift(>=5.8)
 @_documentation(visibility: private)
@@ -1528,7 +1500,7 @@ public func FfiConverterTypeFfiBtcTxParams_lower(_ value: FfiBtcTxParams) -> Rus
 /**
  * AES-256-GCM encrypted shard with nonce and PBKDF2 salt.
  */
-public struct FfiEncryptedShard {
+public struct FfiEncryptedShard: Equatable, Hashable {
     public var nonce: Data
     public var ciphertext: Data
     public var salt: Data
@@ -1540,31 +1512,15 @@ public struct FfiEncryptedShard {
         self.ciphertext = ciphertext
         self.salt = salt
     }
+
+    
+
+    
 }
 
-
-
-extension FfiEncryptedShard: Equatable, Hashable {
-    public static func ==(lhs: FfiEncryptedShard, rhs: FfiEncryptedShard) -> Bool {
-        if lhs.nonce != rhs.nonce {
-            return false
-        }
-        if lhs.ciphertext != rhs.ciphertext {
-            return false
-        }
-        if lhs.salt != rhs.salt {
-            return false
-        }
-        return true
-    }
-
-    public func hash(into hasher: inout Hasher) {
-        hasher.combine(nonce)
-        hasher.combine(ciphertext)
-        hasher.combine(salt)
-    }
-}
-
+#if compiler(>=6)
+extension FfiEncryptedShard: Sendable {}
+#endif
 
 #if swift(>=5.8)
 @_documentation(visibility: private)
@@ -1605,7 +1561,7 @@ public func FfiConverterTypeFfiEncryptedShard_lower(_ value: FfiEncryptedShard) 
 /**
  * EIP-1559 Ethereum transaction parameters.
  */
-public struct FfiEvmTxParams {
+public struct FfiEvmTxParams: Equatable, Hashable {
     public var to: String
     public var valueWei: String
     public var nonce: UInt64
@@ -1627,51 +1583,15 @@ public struct FfiEvmTxParams {
         self.chainId = chainId
         self.data = data
     }
+
+    
+
+    
 }
 
-
-
-extension FfiEvmTxParams: Equatable, Hashable {
-    public static func ==(lhs: FfiEvmTxParams, rhs: FfiEvmTxParams) -> Bool {
-        if lhs.to != rhs.to {
-            return false
-        }
-        if lhs.valueWei != rhs.valueWei {
-            return false
-        }
-        if lhs.nonce != rhs.nonce {
-            return false
-        }
-        if lhs.gasLimit != rhs.gasLimit {
-            return false
-        }
-        if lhs.maxFeePerGas != rhs.maxFeePerGas {
-            return false
-        }
-        if lhs.maxPriorityFeePerGas != rhs.maxPriorityFeePerGas {
-            return false
-        }
-        if lhs.chainId != rhs.chainId {
-            return false
-        }
-        if lhs.data != rhs.data {
-            return false
-        }
-        return true
-    }
-
-    public func hash(into hasher: inout Hasher) {
-        hasher.combine(to)
-        hasher.combine(valueWei)
-        hasher.combine(nonce)
-        hasher.combine(gasLimit)
-        hasher.combine(maxFeePerGas)
-        hasher.combine(maxPriorityFeePerGas)
-        hasher.combine(chainId)
-        hasher.combine(data)
-    }
-}
-
+#if compiler(>=6)
+extension FfiEvmTxParams: Sendable {}
+#endif
 
 #if swift(>=5.8)
 @_documentation(visibility: private)
@@ -1722,7 +1642,7 @@ public func FfiConverterTypeFfiEvmTxParams_lower(_ value: FfiEvmTxParams) -> Rus
 /**
  * MPC ceremony configuration passed from the host application.
  */
-public struct FfiHorcruxConfig {
+public struct FfiHorcruxConfig: Equatable, Hashable {
     public var threshold: UInt16
     public var totalParties: UInt16
     public var partyIndex: UInt16
@@ -1736,35 +1656,15 @@ public struct FfiHorcruxConfig {
         self.partyIndex = partyIndex
         self.curve = curve
     }
+
+    
+
+    
 }
 
-
-
-extension FfiHorcruxConfig: Equatable, Hashable {
-    public static func ==(lhs: FfiHorcruxConfig, rhs: FfiHorcruxConfig) -> Bool {
-        if lhs.threshold != rhs.threshold {
-            return false
-        }
-        if lhs.totalParties != rhs.totalParties {
-            return false
-        }
-        if lhs.partyIndex != rhs.partyIndex {
-            return false
-        }
-        if lhs.curve != rhs.curve {
-            return false
-        }
-        return true
-    }
-
-    public func hash(into hasher: inout Hasher) {
-        hasher.combine(threshold)
-        hasher.combine(totalParties)
-        hasher.combine(partyIndex)
-        hasher.combine(curve)
-    }
-}
-
+#if compiler(>=6)
+extension FfiHorcruxConfig: Sendable {}
+#endif
 
 #if swift(>=5.8)
 @_documentation(visibility: private)
@@ -1807,7 +1707,7 @@ public func FfiConverterTypeFfiHorcruxConfig_lower(_ value: FfiHorcruxConfig) ->
 /**
  * Result of a distributed key generation ceremony.
  */
-public struct FfiKeygenResult {
+public struct FfiKeygenResult: Equatable, Hashable {
     public var publicKey: Data
     public var shardData: Data
     public var partyIndex: UInt16
@@ -1823,39 +1723,15 @@ public struct FfiKeygenResult {
         self.threshold = threshold
         self.totalParties = totalParties
     }
+
+    
+
+    
 }
 
-
-
-extension FfiKeygenResult: Equatable, Hashable {
-    public static func ==(lhs: FfiKeygenResult, rhs: FfiKeygenResult) -> Bool {
-        if lhs.publicKey != rhs.publicKey {
-            return false
-        }
-        if lhs.shardData != rhs.shardData {
-            return false
-        }
-        if lhs.partyIndex != rhs.partyIndex {
-            return false
-        }
-        if lhs.threshold != rhs.threshold {
-            return false
-        }
-        if lhs.totalParties != rhs.totalParties {
-            return false
-        }
-        return true
-    }
-
-    public func hash(into hasher: inout Hasher) {
-        hasher.combine(publicKey)
-        hasher.combine(shardData)
-        hasher.combine(partyIndex)
-        hasher.combine(threshold)
-        hasher.combine(totalParties)
-    }
-}
-
+#if compiler(>=6)
+extension FfiKeygenResult: Sendable {}
+#endif
 
 #if swift(>=5.8)
 @_documentation(visibility: private)
@@ -1900,7 +1776,7 @@ public func FfiConverterTypeFfiKeygenResult_lower(_ value: FfiKeygenResult) -> R
 /**
  * An MPC protocol message serialized for the FFI boundary.
  */
-public struct FfiMpcMessage {
+public struct FfiMpcMessage: Equatable, Hashable {
     public var fromParty: UInt16
     public var toParty: UInt16
     public var round: UInt32
@@ -1916,39 +1792,15 @@ public struct FfiMpcMessage {
         self.sessionId = sessionId
         self.payload = payload
     }
+
+    
+
+    
 }
 
-
-
-extension FfiMpcMessage: Equatable, Hashable {
-    public static func ==(lhs: FfiMpcMessage, rhs: FfiMpcMessage) -> Bool {
-        if lhs.fromParty != rhs.fromParty {
-            return false
-        }
-        if lhs.toParty != rhs.toParty {
-            return false
-        }
-        if lhs.round != rhs.round {
-            return false
-        }
-        if lhs.sessionId != rhs.sessionId {
-            return false
-        }
-        if lhs.payload != rhs.payload {
-            return false
-        }
-        return true
-    }
-
-    public func hash(into hasher: inout Hasher) {
-        hasher.combine(fromParty)
-        hasher.combine(toParty)
-        hasher.combine(round)
-        hasher.combine(sessionId)
-        hasher.combine(payload)
-    }
-}
-
+#if compiler(>=6)
+extension FfiMpcMessage: Sendable {}
+#endif
 
 #if swift(>=5.8)
 @_documentation(visibility: private)
@@ -1993,7 +1845,7 @@ public func FfiConverterTypeFfiMpcMessage_lower(_ value: FfiMpcMessage) -> RustB
 /**
  * Curve25519 static keypair for Noise protocol (FFI-safe, not zeroized).
  */
-public struct FfiNoiseKeypair {
+public struct FfiNoiseKeypair: Equatable, Hashable {
     public var privateKey: Data
     public var publicKey: Data
 
@@ -2003,27 +1855,15 @@ public struct FfiNoiseKeypair {
         self.privateKey = privateKey
         self.publicKey = publicKey
     }
+
+    
+
+    
 }
 
-
-
-extension FfiNoiseKeypair: Equatable, Hashable {
-    public static func ==(lhs: FfiNoiseKeypair, rhs: FfiNoiseKeypair) -> Bool {
-        if lhs.privateKey != rhs.privateKey {
-            return false
-        }
-        if lhs.publicKey != rhs.publicKey {
-            return false
-        }
-        return true
-    }
-
-    public func hash(into hasher: inout Hasher) {
-        hasher.combine(privateKey)
-        hasher.combine(publicKey)
-    }
-}
-
+#if compiler(>=6)
+extension FfiNoiseKeypair: Sendable {}
+#endif
 
 #if swift(>=5.8)
 @_documentation(visibility: private)
@@ -2062,7 +1902,7 @@ public func FfiConverterTypeFfiNoiseKeypair_lower(_ value: FfiNoiseKeypair) -> R
 /**
  * Noise-encrypted message envelope (handshake or transport payload).
  */
-public struct FfiSealedEnvelope {
+public struct FfiSealedEnvelope: Equatable, Hashable {
     public var ciphertext: Data
     public var handshake: Bool
 
@@ -2072,27 +1912,15 @@ public struct FfiSealedEnvelope {
         self.ciphertext = ciphertext
         self.handshake = handshake
     }
+
+    
+
+    
 }
 
-
-
-extension FfiSealedEnvelope: Equatable, Hashable {
-    public static func ==(lhs: FfiSealedEnvelope, rhs: FfiSealedEnvelope) -> Bool {
-        if lhs.ciphertext != rhs.ciphertext {
-            return false
-        }
-        if lhs.handshake != rhs.handshake {
-            return false
-        }
-        return true
-    }
-
-    public func hash(into hasher: inout Hasher) {
-        hasher.combine(ciphertext)
-        hasher.combine(handshake)
-    }
-}
-
+#if compiler(>=6)
+extension FfiSealedEnvelope: Sendable {}
+#endif
 
 #if swift(>=5.8)
 @_documentation(visibility: private)
@@ -2131,7 +1959,7 @@ public func FfiConverterTypeFfiSealedEnvelope_lower(_ value: FfiSealedEnvelope) 
 /**
  * Session token containing room credentials for relay access control.
  */
-public struct FfiSessionToken {
+public struct FfiSessionToken: Equatable, Hashable {
     public var roomSecret: Data
     public var accessToken: Data
     public var roomId: String
@@ -2143,31 +1971,15 @@ public struct FfiSessionToken {
         self.accessToken = accessToken
         self.roomId = roomId
     }
+
+    
+
+    
 }
 
-
-
-extension FfiSessionToken: Equatable, Hashable {
-    public static func ==(lhs: FfiSessionToken, rhs: FfiSessionToken) -> Bool {
-        if lhs.roomSecret != rhs.roomSecret {
-            return false
-        }
-        if lhs.accessToken != rhs.accessToken {
-            return false
-        }
-        if lhs.roomId != rhs.roomId {
-            return false
-        }
-        return true
-    }
-
-    public func hash(into hasher: inout Hasher) {
-        hasher.combine(roomSecret)
-        hasher.combine(accessToken)
-        hasher.combine(roomId)
-    }
-}
-
+#if compiler(>=6)
+extension FfiSessionToken: Sendable {}
+#endif
 
 #if swift(>=5.8)
 @_documentation(visibility: private)
@@ -2208,7 +2020,7 @@ public func FfiConverterTypeFfiSessionToken_lower(_ value: FfiSessionToken) -> R
 /**
  * Metadata about a stored key shard (no secret material).
  */
-public struct FfiShardInfo {
+public struct FfiShardInfo: Equatable, Hashable {
     public var shardId: String
     public var publicKey: Data
     public var partyIndex: UInt16
@@ -2230,51 +2042,15 @@ public struct FfiShardInfo {
         self.createdAt = createdAt
         self.isLocal = isLocal
     }
+
+    
+
+    
 }
 
-
-
-extension FfiShardInfo: Equatable, Hashable {
-    public static func ==(lhs: FfiShardInfo, rhs: FfiShardInfo) -> Bool {
-        if lhs.shardId != rhs.shardId {
-            return false
-        }
-        if lhs.publicKey != rhs.publicKey {
-            return false
-        }
-        if lhs.partyIndex != rhs.partyIndex {
-            return false
-        }
-        if lhs.threshold != rhs.threshold {
-            return false
-        }
-        if lhs.totalParties != rhs.totalParties {
-            return false
-        }
-        if lhs.curve != rhs.curve {
-            return false
-        }
-        if lhs.createdAt != rhs.createdAt {
-            return false
-        }
-        if lhs.isLocal != rhs.isLocal {
-            return false
-        }
-        return true
-    }
-
-    public func hash(into hasher: inout Hasher) {
-        hasher.combine(shardId)
-        hasher.combine(publicKey)
-        hasher.combine(partyIndex)
-        hasher.combine(threshold)
-        hasher.combine(totalParties)
-        hasher.combine(curve)
-        hasher.combine(createdAt)
-        hasher.combine(isLocal)
-    }
-}
-
+#if compiler(>=6)
+extension FfiShardInfo: Sendable {}
+#endif
 
 #if swift(>=5.8)
 @_documentation(visibility: private)
@@ -2325,7 +2101,7 @@ public func FfiConverterTypeFfiShardInfo_lower(_ value: FfiShardInfo) -> RustBuf
 /**
  * Result of a threshold signing ceremony (ECDSA / EdDSA).
  */
-public struct FfiSigningResult {
+public struct FfiSigningResult: Equatable, Hashable {
     public var signature: Data
     public var r: Data
     public var s: Data
@@ -2339,35 +2115,15 @@ public struct FfiSigningResult {
         self.s = s
         self.recoveryId = recoveryId
     }
+
+    
+
+    
 }
 
-
-
-extension FfiSigningResult: Equatable, Hashable {
-    public static func ==(lhs: FfiSigningResult, rhs: FfiSigningResult) -> Bool {
-        if lhs.signature != rhs.signature {
-            return false
-        }
-        if lhs.r != rhs.r {
-            return false
-        }
-        if lhs.s != rhs.s {
-            return false
-        }
-        if lhs.recoveryId != rhs.recoveryId {
-            return false
-        }
-        return true
-    }
-
-    public func hash(into hasher: inout Hasher) {
-        hasher.combine(signature)
-        hasher.combine(r)
-        hasher.combine(s)
-        hasher.combine(recoveryId)
-    }
-}
-
+#if compiler(>=6)
+extension FfiSigningResult: Sendable {}
+#endif
 
 #if swift(>=5.8)
 @_documentation(visibility: private)
@@ -2410,7 +2166,7 @@ public func FfiConverterTypeFfiSigningResult_lower(_ value: FfiSigningResult) ->
 /**
  * Solana native SOL transfer parameters.
  */
-public struct FfiSolanaTxParams {
+public struct FfiSolanaTxParams: Equatable, Hashable {
     public var fromAddress: String
     public var toAddress: String
     public var lamports: UInt64
@@ -2474,51 +2230,15 @@ public struct FfiSolanaTxParams {
         self.durableNonce = durableNonce
         self.devnet = devnet
     }
+
+    
+
+    
 }
 
-
-
-extension FfiSolanaTxParams: Equatable, Hashable {
-    public static func ==(lhs: FfiSolanaTxParams, rhs: FfiSolanaTxParams) -> Bool {
-        if lhs.fromAddress != rhs.fromAddress {
-            return false
-        }
-        if lhs.toAddress != rhs.toAddress {
-            return false
-        }
-        if lhs.lamports != rhs.lamports {
-            return false
-        }
-        if lhs.recentBlockhash != rhs.recentBlockhash {
-            return false
-        }
-        if lhs.blockhashFetchedAtUnixMs != rhs.blockhashFetchedAtUnixMs {
-            return false
-        }
-        if lhs.nowUnixMs != rhs.nowUnixMs {
-            return false
-        }
-        if lhs.durableNonce != rhs.durableNonce {
-            return false
-        }
-        if lhs.devnet != rhs.devnet {
-            return false
-        }
-        return true
-    }
-
-    public func hash(into hasher: inout Hasher) {
-        hasher.combine(fromAddress)
-        hasher.combine(toAddress)
-        hasher.combine(lamports)
-        hasher.combine(recentBlockhash)
-        hasher.combine(blockhashFetchedAtUnixMs)
-        hasher.combine(nowUnixMs)
-        hasher.combine(durableNonce)
-        hasher.combine(devnet)
-    }
-}
-
+#if compiler(>=6)
+extension FfiSolanaTxParams: Sendable {}
+#endif
 
 #if swift(>=5.8)
 @_documentation(visibility: private)
@@ -2569,7 +2289,7 @@ public func FfiConverterTypeFfiSolanaTxParams_lower(_ value: FfiSolanaTxParams) 
 /**
  * Chain-agnostic built transaction: raw serialized bytes + hash to sign.
  */
-public struct FfiTransaction {
+public struct FfiTransaction: Equatable, Hashable {
     public var chainType: String
     public var rawData: Data
     public var signHash: Data
@@ -2581,31 +2301,15 @@ public struct FfiTransaction {
         self.rawData = rawData
         self.signHash = signHash
     }
+
+    
+
+    
 }
 
-
-
-extension FfiTransaction: Equatable, Hashable {
-    public static func ==(lhs: FfiTransaction, rhs: FfiTransaction) -> Bool {
-        if lhs.chainType != rhs.chainType {
-            return false
-        }
-        if lhs.rawData != rhs.rawData {
-            return false
-        }
-        if lhs.signHash != rhs.signHash {
-            return false
-        }
-        return true
-    }
-
-    public func hash(into hasher: inout Hasher) {
-        hasher.combine(chainType)
-        hasher.combine(rawData)
-        hasher.combine(signHash)
-    }
-}
-
+#if compiler(>=6)
+extension FfiTransaction: Sendable {}
+#endif
 
 #if swift(>=5.8)
 @_documentation(visibility: private)
@@ -2643,7 +2347,7 @@ public func FfiConverterTypeFfiTransaction_lower(_ value: FfiTransaction) -> Rus
 }
 
 
-public enum ChainError {
+public enum ChainError: Swift.Error, Equatable, Hashable, Foundation.LocalizedError {
 
     
     
@@ -2658,8 +2362,21 @@ public enum ChainError {
     )
     case Other(msg: String
     )
+
+    
+
+    
+
+    
+    public var errorDescription: String? {
+        String(reflecting: self)
+    }
+    
 }
 
+#if compiler(>=6)
+extension ChainError: Sendable {}
+#endif
 
 #if swift(>=5.8)
 @_documentation(visibility: private)
@@ -2737,12 +2454,18 @@ public struct FfiConverterTypeChainError: FfiConverterRustBuffer {
 }
 
 
-extension ChainError: Equatable, Hashable {}
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeChainError_lift(_ buf: RustBuffer) throws -> ChainError {
+    return try FfiConverterTypeChainError.lift(buf)
+}
 
-extension ChainError: Foundation.LocalizedError {
-    public var errorDescription: String? {
-        String(reflecting: self)
-    }
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeChainError_lower(_ value: ChainError) -> RustBuffer {
+    return FfiConverterTypeChainError.lower(value)
 }
 
 // Note that we don't yet support `indirect` for enums.
@@ -2751,12 +2474,20 @@ extension ChainError: Foundation.LocalizedError {
  * Elliptic curve type selector for the FFI boundary.
  */
 
-public enum FfiCurveType {
+public enum FfiCurveType: Equatable, Hashable {
     
     case secp256k1
     case ed25519
+
+
+
+
+
 }
 
+#if compiler(>=6)
+extension FfiCurveType: Sendable {}
+#endif
 
 #if swift(>=5.8)
 @_documentation(visibility: private)
@@ -2807,11 +2538,6 @@ public func FfiConverterTypeFfiCurveType_lower(_ value: FfiCurveType) -> RustBuf
 }
 
 
-
-extension FfiCurveType: Equatable, Hashable {}
-
-
-
 // Note that we don't yet support `indirect` for enums.
 // See https://github.com/mozilla/uniffi-rs/issues/396 for further discussion.
 /**
@@ -2821,7 +2547,7 @@ extension FfiCurveType: Equatable, Hashable {}
  * hence the translation layer).
  */
 
-public enum FfiDecodedCall {
+public enum FfiDecodedCall: Equatable, Hashable {
     
     /**
      * Empty calldata — native value transfer.
@@ -2853,8 +2579,16 @@ public enum FfiDecodedCall {
      */
     case unknown(selectorHex: String, dataLen: UInt32
     )
+
+
+
+
+
 }
 
+#if compiler(>=6)
+extension FfiDecodedCall: Sendable {}
+#endif
 
 #if swift(>=5.8)
 @_documentation(visibility: private)
@@ -2947,12 +2681,7 @@ public func FfiConverterTypeFfiDecodedCall_lower(_ value: FfiDecodedCall) -> Rus
 
 
 
-extension FfiDecodedCall: Equatable, Hashable {}
-
-
-
-
-public enum FfiE2eError {
+public enum FfiE2eError: Swift.Error, Equatable, Hashable, Foundation.LocalizedError {
 
     
     
@@ -2964,8 +2693,21 @@ public enum FfiE2eError {
     )
     case Decryption(msg: String
     )
+
+    
+
+    
+
+    
+    public var errorDescription: String? {
+        String(reflecting: self)
+    }
+    
 }
 
+#if compiler(>=6)
+extension FfiE2eError: Sendable {}
+#endif
 
 #if swift(>=5.8)
 @_documentation(visibility: private)
@@ -3030,16 +2772,22 @@ public struct FfiConverterTypeFfiE2EError: FfiConverterRustBuffer {
 }
 
 
-extension FfiE2eError: Equatable, Hashable {}
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeFfiE2EError_lift(_ buf: RustBuffer) throws -> FfiE2eError {
+    return try FfiConverterTypeFfiE2EError.lift(buf)
+}
 
-extension FfiE2eError: Foundation.LocalizedError {
-    public var errorDescription: String? {
-        String(reflecting: self)
-    }
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeFfiE2EError_lower(_ value: FfiE2eError) -> RustBuffer {
+    return FfiConverterTypeFfiE2EError.lower(value)
 }
 
 
-public enum HorcruxError {
+public enum HorcruxError: Swift.Error, Equatable, Hashable, Foundation.LocalizedError {
 
     
     
@@ -3061,8 +2809,21 @@ public enum HorcruxError {
     )
     case InsufficientParties(needed: UInt16, got: UInt16
     )
+
+    
+
+    
+
+    
+    public var errorDescription: String? {
+        String(reflecting: self)
+    }
+    
 }
 
+#if compiler(>=6)
+extension HorcruxError: Sendable {}
+#endif
 
 #if swift(>=5.8)
 @_documentation(visibility: private)
@@ -3167,12 +2928,18 @@ public struct FfiConverterTypeHorcruxError: FfiConverterRustBuffer {
 }
 
 
-extension HorcruxError: Equatable, Hashable {}
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeHorcruxError_lift(_ buf: RustBuffer) throws -> HorcruxError {
+    return try FfiConverterTypeHorcruxError.lift(buf)
+}
 
-extension HorcruxError: Foundation.LocalizedError {
-    public var errorDescription: String? {
-        String(reflecting: self)
-    }
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeHorcruxError_lower(_ value: HorcruxError) -> RustBuffer {
+    return FfiConverterTypeHorcruxError.lower(value)
 }
 
 #if swift(>=5.8)
@@ -3422,8 +3189,8 @@ fileprivate struct FfiConverterSequenceTypeFfiShardInfo: FfiConverterRustBuffer 
 /**
  * Derive a bech32m Bitcoin address from a compressed secp256k1 public key (33 bytes).
  */
-public func horcruxBtcAddress(compressedPubkey: Data, hrp: String)throws  -> String {
-    return try  FfiConverterString.lift(try rustCallWithError(FfiConverterTypeChainError.lift) {
+public func horcruxBtcAddress(compressedPubkey: Data, hrp: String)throws  -> String  {
+    return try  FfiConverterString.lift(try rustCallWithError(FfiConverterTypeChainError_lift) {
     uniffi_horcrux_core_fn_func_horcrux_btc_address(
         FfiConverterData.lower(compressedPubkey),
         FfiConverterString.lower(hrp),$0
@@ -3433,10 +3200,10 @@ public func horcruxBtcAddress(compressedPubkey: Data, hrp: String)throws  -> Str
 /**
  * Build a Bitcoin transaction (P2WPKH segwit) and return the BIP-143 sighash for a given input.
  */
-public func horcruxBuildBtcTransaction(params: FfiBtcTxParams, inputIndex: UInt32)throws  -> FfiTransaction {
-    return try  FfiConverterTypeFfiTransaction.lift(try rustCallWithError(FfiConverterTypeChainError.lift) {
+public func horcruxBuildBtcTransaction(params: FfiBtcTxParams, inputIndex: UInt32)throws  -> FfiTransaction  {
+    return try  FfiConverterTypeFfiTransaction_lift(try rustCallWithError(FfiConverterTypeChainError_lift) {
     uniffi_horcrux_core_fn_func_horcrux_build_btc_transaction(
-        FfiConverterTypeFfiBtcTxParams.lower(params),
+        FfiConverterTypeFfiBtcTxParams_lower(params),
         FfiConverterUInt32.lower(inputIndex),$0
     )
 })
@@ -3444,20 +3211,20 @@ public func horcruxBuildBtcTransaction(params: FfiBtcTxParams, inputIndex: UInt3
 /**
  * Build an EVM (EIP-1559) transaction and return the signing hash.
  */
-public func horcruxBuildEvmTransaction(params: FfiEvmTxParams)throws  -> FfiTransaction {
-    return try  FfiConverterTypeFfiTransaction.lift(try rustCallWithError(FfiConverterTypeChainError.lift) {
+public func horcruxBuildEvmTransaction(params: FfiEvmTxParams)throws  -> FfiTransaction  {
+    return try  FfiConverterTypeFfiTransaction_lift(try rustCallWithError(FfiConverterTypeChainError_lift) {
     uniffi_horcrux_core_fn_func_horcrux_build_evm_transaction(
-        FfiConverterTypeFfiEvmTxParams.lower(params),$0
+        FfiConverterTypeFfiEvmTxParams_lower(params),$0
     )
 })
 }
 /**
  * Build a Solana transfer transaction and return the signing hash.
  */
-public func horcruxBuildSolanaTransaction(params: FfiSolanaTxParams)throws  -> FfiTransaction {
-    return try  FfiConverterTypeFfiTransaction.lift(try rustCallWithError(FfiConverterTypeChainError.lift) {
+public func horcruxBuildSolanaTransaction(params: FfiSolanaTxParams)throws  -> FfiTransaction  {
+    return try  FfiConverterTypeFfiTransaction_lift(try rustCallWithError(FfiConverterTypeChainError_lift) {
     uniffi_horcrux_core_fn_func_horcrux_build_solana_transaction(
-        FfiConverterTypeFfiSolanaTxParams.lower(params),$0
+        FfiConverterTypeFfiSolanaTxParams_lower(params),$0
     )
 })
 }
@@ -3470,8 +3237,8 @@ public func horcruxBuildSolanaTransaction(params: FfiSolanaTxParams)throws  -> F
  * Callers must pass the entire calldata (including the 4-byte selector),
  * not just the arguments.
  */
-public func horcruxDecodeEvmCalldata(data: Data) -> FfiDecodedCall {
-    return try!  FfiConverterTypeFfiDecodedCall.lift(try! rustCall() {
+public func horcruxDecodeEvmCalldata(data: Data) -> FfiDecodedCall  {
+    return try!  FfiConverterTypeFfiDecodedCall_lift(try! rustCall() {
     uniffi_horcrux_core_fn_func_horcrux_decode_evm_calldata(
         FfiConverterData.lower(data),$0
     )
@@ -3481,10 +3248,10 @@ public func horcruxDecodeEvmCalldata(data: Data) -> FfiDecodedCall {
  * Decrypt a previously encrypted key shard. See `horcrux_encrypt_shard` for
  * the semantics of `device_key` / `pin`.
  */
-public func horcruxDecryptShard(encrypted: FfiEncryptedShard, deviceKey: Data, pin: Data)throws  -> Data {
-    return try  FfiConverterData.lift(try rustCallWithError(FfiConverterTypeHorcruxError.lift) {
+public func horcruxDecryptShard(encrypted: FfiEncryptedShard, deviceKey: Data, pin: Data)throws  -> Data  {
+    return try  FfiConverterData.lift(try rustCallWithError(FfiConverterTypeHorcruxError_lift) {
     uniffi_horcrux_core_fn_func_horcrux_decrypt_shard(
-        FfiConverterTypeFfiEncryptedShard.lower(encrypted),
+        FfiConverterTypeFfiEncryptedShard_lower(encrypted),
         FfiConverterData.lower(deviceKey),
         FfiConverterData.lower(pin),$0
     )
@@ -3503,8 +3270,8 @@ public func horcruxDecryptShard(encrypted: FfiEncryptedShard, deviceKey: Data, p
  * with existing UniFFI Swift bindings. See
  * `ios/Horcrux/Security/SecureKeyVault.swift` for the full architecture.
  */
-public func horcruxEncryptShard(plaintext: Data, deviceKey: Data, pin: Data)throws  -> FfiEncryptedShard {
-    return try  FfiConverterTypeFfiEncryptedShard.lift(try rustCallWithError(FfiConverterTypeHorcruxError.lift) {
+public func horcruxEncryptShard(plaintext: Data, deviceKey: Data, pin: Data)throws  -> FfiEncryptedShard  {
+    return try  FfiConverterTypeFfiEncryptedShard_lift(try rustCallWithError(FfiConverterTypeHorcruxError_lift) {
     uniffi_horcrux_core_fn_func_horcrux_encrypt_shard(
         FfiConverterData.lower(plaintext),
         FfiConverterData.lower(deviceKey),
@@ -3515,8 +3282,8 @@ public func horcruxEncryptShard(plaintext: Data, deviceKey: Data, pin: Data)thro
 /**
  * Derive an Ethereum address from an uncompressed secp256k1 public key (65 bytes).
  */
-public func horcruxEvmAddress(uncompressedPubkey: Data)throws  -> String {
-    return try  FfiConverterString.lift(try rustCallWithError(FfiConverterTypeChainError.lift) {
+public func horcruxEvmAddress(uncompressedPubkey: Data)throws  -> String  {
+    return try  FfiConverterString.lift(try rustCallWithError(FfiConverterTypeChainError_lift) {
     uniffi_horcrux_core_fn_func_horcrux_evm_address(
         FfiConverterData.lower(uncompressedPubkey),$0
     )
@@ -3525,8 +3292,8 @@ public func horcruxEvmAddress(uncompressedPubkey: Data)throws  -> String {
 /**
  * Generate a fresh Curve25519 Noise keypair for E2E encrypted communication.
  */
-public func horcruxGenerateNoiseKeypair()throws  -> FfiNoiseKeypair {
-    return try  FfiConverterTypeFfiNoiseKeypair.lift(try rustCallWithError(FfiConverterTypeFfiE2EError.lift) {
+public func horcruxGenerateNoiseKeypair()throws  -> FfiNoiseKeypair  {
+    return try  FfiConverterTypeFfiNoiseKeypair_lift(try rustCallWithError(FfiConverterTypeFfiE2EError_lift) {
     uniffi_horcrux_core_fn_func_horcrux_generate_noise_keypair($0
     )
 })
@@ -3534,8 +3301,8 @@ public func horcruxGenerateNoiseKeypair()throws  -> FfiNoiseKeypair {
 /**
  * Generate a random session token (room_id, room_secret, access_token) for relay access.
  */
-public func horcruxGenerateSessionToken()throws  -> FfiSessionToken {
-    return try  FfiConverterTypeFfiSessionToken.lift(try rustCallWithError(FfiConverterTypeFfiE2EError.lift) {
+public func horcruxGenerateSessionToken()throws  -> FfiSessionToken  {
+    return try  FfiConverterTypeFfiSessionToken_lift(try rustCallWithError(FfiConverterTypeFfiE2EError_lift) {
     uniffi_horcrux_core_fn_func_horcrux_generate_session_token($0
     )
 })
@@ -3543,7 +3310,7 @@ public func horcruxGenerateSessionToken()throws  -> FfiSessionToken {
 /**
  * Compute Keccak-256 hash (used for Ethereum address derivation and signing).
  */
-public func horcruxKeccak256(data: Data) -> Data {
+public func horcruxKeccak256(data: Data) -> Data  {
     return try!  FfiConverterData.lift(try! rustCall() {
     uniffi_horcrux_core_fn_func_horcrux_keccak256(
         FfiConverterData.lower(data),$0
@@ -3553,7 +3320,7 @@ public func horcruxKeccak256(data: Data) -> Data {
 /**
  * Current number of pregenerated prime pairs available in the pool.
  */
-public func horcruxPrimePoolCount() -> UInt32 {
+public func horcruxPrimePoolCount() -> UInt32  {
     return try!  FfiConverterUInt32.lift(try! rustCall() {
     uniffi_horcrux_core_fn_func_horcrux_prime_pool_count($0
     )
@@ -3565,7 +3332,7 @@ public func horcruxPrimePoolCount() -> UInt32 {
  * low-priority background thread (iOS `Task.detached(priority: .background)`).
  * Returns `Ok(())` on success, error string otherwise.
  */
-public func horcruxPrimePoolGenerateOne()throws  {try rustCallWithError(FfiConverterTypeHorcruxError.lift) {
+public func horcruxPrimePoolGenerateOne()throws   {try rustCallWithError(FfiConverterTypeHorcruxError_lift) {
     uniffi_horcrux_core_fn_func_horcrux_prime_pool_generate_one($0
     )
 }
@@ -3574,7 +3341,7 @@ public func horcruxPrimePoolGenerateOne()throws  {try rustCallWithError(FfiConve
  * Install the pool directory. Must be called once at app startup before any
  * DKG / refresh ceremony. Subsequent calls overwrite the prior path.
  */
-public func horcruxPrimePoolInit(dir: String)throws  {try rustCallWithError(FfiConverterTypeHorcruxError.lift) {
+public func horcruxPrimePoolInit(dir: String)throws   {try rustCallWithError(FfiConverterTypeHorcruxError_lift) {
     uniffi_horcrux_core_fn_func_horcrux_prime_pool_init(
         FfiConverterString.lower(dir),$0
     )
@@ -3583,8 +3350,8 @@ public func horcruxPrimePoolInit(dir: String)throws  {try rustCallWithError(FfiC
 /**
  * Derive a base58 Solana address from an Ed25519 public key (32 bytes).
  */
-public func horcruxSolanaAddress(pubkey: Data)throws  -> String {
-    return try  FfiConverterString.lift(try rustCallWithError(FfiConverterTypeChainError.lift) {
+public func horcruxSolanaAddress(pubkey: Data)throws  -> String  {
+    return try  FfiConverterString.lift(try rustCallWithError(FfiConverterTypeChainError_lift) {
     uniffi_horcrux_core_fn_func_horcrux_solana_address(
         FfiConverterData.lower(pubkey),$0
     )
@@ -3598,130 +3365,132 @@ private enum InitializationResult {
 }
 // Use a global variable to perform the versioning checks. Swift ensures that
 // the code inside is only computed once.
-private var initializationResult: InitializationResult = {
+private let initializationResult: InitializationResult = {
     // Get the bindings contract version from our ComponentInterface
-    let bindings_contract_version = 26
+    let bindings_contract_version = 30
     // Get the scaffolding contract version by calling the into the dylib
     let scaffolding_contract_version = ffi_horcrux_core_uniffi_contract_version()
     if bindings_contract_version != scaffolding_contract_version {
         return InitializationResult.contractVersionMismatch
     }
-    if (uniffi_horcrux_core_checksum_func_horcrux_btc_address() != 35696) {
+    if (uniffi_horcrux_core_checksum_func_horcrux_btc_address() != 56900) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_horcrux_core_checksum_func_horcrux_build_btc_transaction() != 64810) {
+    if (uniffi_horcrux_core_checksum_func_horcrux_build_btc_transaction() != 6435) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_horcrux_core_checksum_func_horcrux_build_evm_transaction() != 17961) {
+    if (uniffi_horcrux_core_checksum_func_horcrux_build_evm_transaction() != 46371) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_horcrux_core_checksum_func_horcrux_build_solana_transaction() != 40488) {
+    if (uniffi_horcrux_core_checksum_func_horcrux_build_solana_transaction() != 31312) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_horcrux_core_checksum_func_horcrux_decode_evm_calldata() != 61416) {
+    if (uniffi_horcrux_core_checksum_func_horcrux_decode_evm_calldata() != 32553) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_horcrux_core_checksum_func_horcrux_decrypt_shard() != 36161) {
+    if (uniffi_horcrux_core_checksum_func_horcrux_decrypt_shard() != 6099) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_horcrux_core_checksum_func_horcrux_encrypt_shard() != 48434) {
+    if (uniffi_horcrux_core_checksum_func_horcrux_encrypt_shard() != 19433) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_horcrux_core_checksum_func_horcrux_evm_address() != 6260) {
+    if (uniffi_horcrux_core_checksum_func_horcrux_evm_address() != 16195) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_horcrux_core_checksum_func_horcrux_generate_noise_keypair() != 41959) {
+    if (uniffi_horcrux_core_checksum_func_horcrux_generate_noise_keypair() != 47139) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_horcrux_core_checksum_func_horcrux_generate_session_token() != 13730) {
+    if (uniffi_horcrux_core_checksum_func_horcrux_generate_session_token() != 3742) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_horcrux_core_checksum_func_horcrux_keccak256() != 29475) {
+    if (uniffi_horcrux_core_checksum_func_horcrux_keccak256() != 12789) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_horcrux_core_checksum_func_horcrux_prime_pool_count() != 41137) {
+    if (uniffi_horcrux_core_checksum_func_horcrux_prime_pool_count() != 24964) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_horcrux_core_checksum_func_horcrux_prime_pool_generate_one() != 22306) {
+    if (uniffi_horcrux_core_checksum_func_horcrux_prime_pool_generate_one() != 35298) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_horcrux_core_checksum_func_horcrux_prime_pool_init() != 1262) {
+    if (uniffi_horcrux_core_checksum_func_horcrux_prime_pool_init() != 13390) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_horcrux_core_checksum_func_horcrux_solana_address() != 22087) {
+    if (uniffi_horcrux_core_checksum_func_horcrux_solana_address() != 2574) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_horcrux_core_checksum_method_horcruxnoisechannel_is_handshake_finished() != 4594) {
+    if (uniffi_horcrux_core_checksum_method_horcruxnoisechannel_is_handshake_finished() != 3372) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_horcrux_core_checksum_method_horcruxnoisechannel_open() != 14291) {
+    if (uniffi_horcrux_core_checksum_method_horcruxnoisechannel_open() != 5196) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_horcrux_core_checksum_method_horcruxnoisechannel_read_handshake() != 7520) {
+    if (uniffi_horcrux_core_checksum_method_horcruxnoisechannel_read_handshake() != 41667) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_horcrux_core_checksum_method_horcruxnoisechannel_remote_static_key() != 23256) {
+    if (uniffi_horcrux_core_checksum_method_horcruxnoisechannel_remote_static_key() != 29163) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_horcrux_core_checksum_method_horcruxnoisechannel_seal() != 23269) {
+    if (uniffi_horcrux_core_checksum_method_horcruxnoisechannel_seal() != 29558) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_horcrux_core_checksum_method_horcruxnoisechannel_write_handshake() != 17542) {
+    if (uniffi_horcrux_core_checksum_method_horcruxnoisechannel_write_handshake() != 29084) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_horcrux_core_checksum_method_horcruxsessionmanager_create_keygen() != 15041) {
+    if (uniffi_horcrux_core_checksum_method_horcruxsessionmanager_create_keygen() != 62881) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_horcrux_core_checksum_method_horcruxsessionmanager_create_refresh() != 6495) {
+    if (uniffi_horcrux_core_checksum_method_horcruxsessionmanager_create_refresh() != 33504) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_horcrux_core_checksum_method_horcruxsessionmanager_create_signing() != 55500) {
+    if (uniffi_horcrux_core_checksum_method_horcruxsessionmanager_create_signing() != 25467) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_horcrux_core_checksum_method_horcruxsessionmanager_get_keygen_result() != 62251) {
+    if (uniffi_horcrux_core_checksum_method_horcruxsessionmanager_get_keygen_result() != 17835) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_horcrux_core_checksum_method_horcruxsessionmanager_get_refresh_result() != 13379) {
+    if (uniffi_horcrux_core_checksum_method_horcruxsessionmanager_get_refresh_result() != 33232) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_horcrux_core_checksum_method_horcruxsessionmanager_get_signing_result() != 36798) {
+    if (uniffi_horcrux_core_checksum_method_horcruxsessionmanager_get_signing_result() != 7611) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_horcrux_core_checksum_method_horcruxsessionmanager_handle_authenticated_message() != 22786) {
+    if (uniffi_horcrux_core_checksum_method_horcruxsessionmanager_handle_authenticated_message() != 33069) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_horcrux_core_checksum_method_horcruxsessionmanager_handle_message() != 30269) {
+    if (uniffi_horcrux_core_checksum_method_horcruxsessionmanager_handle_message() != 29506) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_horcrux_core_checksum_method_horcruxsessionmanager_remove_session() != 27155) {
+    if (uniffi_horcrux_core_checksum_method_horcruxsessionmanager_remove_session() != 46616) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_horcrux_core_checksum_method_horcruxshardmanager_add_shard() != 95) {
+    if (uniffi_horcrux_core_checksum_method_horcruxshardmanager_add_shard() != 48707) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_horcrux_core_checksum_method_horcruxshardmanager_list_shards() != 37486) {
+    if (uniffi_horcrux_core_checksum_method_horcruxshardmanager_list_shards() != 3485) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_horcrux_core_checksum_method_horcruxshardmanager_shards_for_key() != 14241) {
+    if (uniffi_horcrux_core_checksum_method_horcruxshardmanager_shards_for_key() != 53624) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_horcrux_core_checksum_constructor_horcruxnoisechannel_new_initiator() != 40779) {
+    if (uniffi_horcrux_core_checksum_constructor_horcruxnoisechannel_new_initiator() != 34887) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_horcrux_core_checksum_constructor_horcruxnoisechannel_new_responder() != 4320) {
+    if (uniffi_horcrux_core_checksum_constructor_horcruxnoisechannel_new_responder() != 14731) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_horcrux_core_checksum_constructor_horcruxsessionmanager_new() != 54717) {
+    if (uniffi_horcrux_core_checksum_constructor_horcruxsessionmanager_new() != 62141) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_horcrux_core_checksum_constructor_horcruxshardmanager_new() != 2197) {
+    if (uniffi_horcrux_core_checksum_constructor_horcruxshardmanager_new() != 5448) {
         return InitializationResult.apiChecksumMismatch
     }
 
     return InitializationResult.ok
 }()
 
-private func uniffiEnsureInitialized() {
+// Make the ensure init function public so that other modules which have external type references to
+// our types can call it.
+public func uniffiEnsureHorcruxCoreInitialized() {
     switch initializationResult {
     case .ok:
         break

@@ -50,9 +50,9 @@ typedef void (*UniffiRustFutureContinuationCallback)(uint64_t, int8_t
     );
 
 #endif
-#ifndef UNIFFI_FFIDEF_FOREIGN_FUTURE_FREE
-#define UNIFFI_FFIDEF_FOREIGN_FUTURE_FREE
-typedef void (*UniffiForeignFutureFree)(uint64_t
+#ifndef UNIFFI_FFIDEF_FOREIGN_FUTURE_DROPPED_CALLBACK
+#define UNIFFI_FFIDEF_FOREIGN_FUTURE_DROPPED_CALLBACK
+typedef void (*UniffiForeignFutureDroppedCallback)(uint64_t
     );
 
 #endif
@@ -62,335 +62,327 @@ typedef void (*UniffiCallbackInterfaceFree)(uint64_t
     );
 
 #endif
-#ifndef UNIFFI_FFIDEF_FOREIGN_FUTURE
-#define UNIFFI_FFIDEF_FOREIGN_FUTURE
-typedef struct UniffiForeignFuture {
-    uint64_t handle;
-    UniffiForeignFutureFree _Nonnull free;
-} UniffiForeignFuture;
+#ifndef UNIFFI_FFIDEF_CALLBACK_INTERFACE_CLONE
+#define UNIFFI_FFIDEF_CALLBACK_INTERFACE_CLONE
+typedef uint64_t (*UniffiCallbackInterfaceClone)(uint64_t
+    );
 
 #endif
-#ifndef UNIFFI_FFIDEF_FOREIGN_FUTURE_STRUCT_U8
-#define UNIFFI_FFIDEF_FOREIGN_FUTURE_STRUCT_U8
-typedef struct UniffiForeignFutureStructU8 {
+#ifndef UNIFFI_FFIDEF_FOREIGN_FUTURE_DROPPED_CALLBACK_STRUCT
+#define UNIFFI_FFIDEF_FOREIGN_FUTURE_DROPPED_CALLBACK_STRUCT
+typedef struct UniffiForeignFutureDroppedCallbackStruct {
+    uint64_t handle;
+    UniffiForeignFutureDroppedCallback _Nonnull free;
+} UniffiForeignFutureDroppedCallbackStruct;
+
+#endif
+#ifndef UNIFFI_FFIDEF_FOREIGN_FUTURE_RESULT_U8
+#define UNIFFI_FFIDEF_FOREIGN_FUTURE_RESULT_U8
+typedef struct UniffiForeignFutureResultU8 {
     uint8_t returnValue;
     RustCallStatus callStatus;
-} UniffiForeignFutureStructU8;
+} UniffiForeignFutureResultU8;
 
 #endif
 #ifndef UNIFFI_FFIDEF_FOREIGN_FUTURE_COMPLETE_U8
 #define UNIFFI_FFIDEF_FOREIGN_FUTURE_COMPLETE_U8
-typedef void (*UniffiForeignFutureCompleteU8)(uint64_t, UniffiForeignFutureStructU8
+typedef void (*UniffiForeignFutureCompleteU8)(uint64_t, UniffiForeignFutureResultU8
     );
 
 #endif
-#ifndef UNIFFI_FFIDEF_FOREIGN_FUTURE_STRUCT_I8
-#define UNIFFI_FFIDEF_FOREIGN_FUTURE_STRUCT_I8
-typedef struct UniffiForeignFutureStructI8 {
+#ifndef UNIFFI_FFIDEF_FOREIGN_FUTURE_RESULT_I8
+#define UNIFFI_FFIDEF_FOREIGN_FUTURE_RESULT_I8
+typedef struct UniffiForeignFutureResultI8 {
     int8_t returnValue;
     RustCallStatus callStatus;
-} UniffiForeignFutureStructI8;
+} UniffiForeignFutureResultI8;
 
 #endif
 #ifndef UNIFFI_FFIDEF_FOREIGN_FUTURE_COMPLETE_I8
 #define UNIFFI_FFIDEF_FOREIGN_FUTURE_COMPLETE_I8
-typedef void (*UniffiForeignFutureCompleteI8)(uint64_t, UniffiForeignFutureStructI8
+typedef void (*UniffiForeignFutureCompleteI8)(uint64_t, UniffiForeignFutureResultI8
     );
 
 #endif
-#ifndef UNIFFI_FFIDEF_FOREIGN_FUTURE_STRUCT_U16
-#define UNIFFI_FFIDEF_FOREIGN_FUTURE_STRUCT_U16
-typedef struct UniffiForeignFutureStructU16 {
+#ifndef UNIFFI_FFIDEF_FOREIGN_FUTURE_RESULT_U16
+#define UNIFFI_FFIDEF_FOREIGN_FUTURE_RESULT_U16
+typedef struct UniffiForeignFutureResultU16 {
     uint16_t returnValue;
     RustCallStatus callStatus;
-} UniffiForeignFutureStructU16;
+} UniffiForeignFutureResultU16;
 
 #endif
 #ifndef UNIFFI_FFIDEF_FOREIGN_FUTURE_COMPLETE_U16
 #define UNIFFI_FFIDEF_FOREIGN_FUTURE_COMPLETE_U16
-typedef void (*UniffiForeignFutureCompleteU16)(uint64_t, UniffiForeignFutureStructU16
+typedef void (*UniffiForeignFutureCompleteU16)(uint64_t, UniffiForeignFutureResultU16
     );
 
 #endif
-#ifndef UNIFFI_FFIDEF_FOREIGN_FUTURE_STRUCT_I16
-#define UNIFFI_FFIDEF_FOREIGN_FUTURE_STRUCT_I16
-typedef struct UniffiForeignFutureStructI16 {
+#ifndef UNIFFI_FFIDEF_FOREIGN_FUTURE_RESULT_I16
+#define UNIFFI_FFIDEF_FOREIGN_FUTURE_RESULT_I16
+typedef struct UniffiForeignFutureResultI16 {
     int16_t returnValue;
     RustCallStatus callStatus;
-} UniffiForeignFutureStructI16;
+} UniffiForeignFutureResultI16;
 
 #endif
 #ifndef UNIFFI_FFIDEF_FOREIGN_FUTURE_COMPLETE_I16
 #define UNIFFI_FFIDEF_FOREIGN_FUTURE_COMPLETE_I16
-typedef void (*UniffiForeignFutureCompleteI16)(uint64_t, UniffiForeignFutureStructI16
+typedef void (*UniffiForeignFutureCompleteI16)(uint64_t, UniffiForeignFutureResultI16
     );
 
 #endif
-#ifndef UNIFFI_FFIDEF_FOREIGN_FUTURE_STRUCT_U32
-#define UNIFFI_FFIDEF_FOREIGN_FUTURE_STRUCT_U32
-typedef struct UniffiForeignFutureStructU32 {
+#ifndef UNIFFI_FFIDEF_FOREIGN_FUTURE_RESULT_U32
+#define UNIFFI_FFIDEF_FOREIGN_FUTURE_RESULT_U32
+typedef struct UniffiForeignFutureResultU32 {
     uint32_t returnValue;
     RustCallStatus callStatus;
-} UniffiForeignFutureStructU32;
+} UniffiForeignFutureResultU32;
 
 #endif
 #ifndef UNIFFI_FFIDEF_FOREIGN_FUTURE_COMPLETE_U32
 #define UNIFFI_FFIDEF_FOREIGN_FUTURE_COMPLETE_U32
-typedef void (*UniffiForeignFutureCompleteU32)(uint64_t, UniffiForeignFutureStructU32
+typedef void (*UniffiForeignFutureCompleteU32)(uint64_t, UniffiForeignFutureResultU32
     );
 
 #endif
-#ifndef UNIFFI_FFIDEF_FOREIGN_FUTURE_STRUCT_I32
-#define UNIFFI_FFIDEF_FOREIGN_FUTURE_STRUCT_I32
-typedef struct UniffiForeignFutureStructI32 {
+#ifndef UNIFFI_FFIDEF_FOREIGN_FUTURE_RESULT_I32
+#define UNIFFI_FFIDEF_FOREIGN_FUTURE_RESULT_I32
+typedef struct UniffiForeignFutureResultI32 {
     int32_t returnValue;
     RustCallStatus callStatus;
-} UniffiForeignFutureStructI32;
+} UniffiForeignFutureResultI32;
 
 #endif
 #ifndef UNIFFI_FFIDEF_FOREIGN_FUTURE_COMPLETE_I32
 #define UNIFFI_FFIDEF_FOREIGN_FUTURE_COMPLETE_I32
-typedef void (*UniffiForeignFutureCompleteI32)(uint64_t, UniffiForeignFutureStructI32
+typedef void (*UniffiForeignFutureCompleteI32)(uint64_t, UniffiForeignFutureResultI32
     );
 
 #endif
-#ifndef UNIFFI_FFIDEF_FOREIGN_FUTURE_STRUCT_U64
-#define UNIFFI_FFIDEF_FOREIGN_FUTURE_STRUCT_U64
-typedef struct UniffiForeignFutureStructU64 {
+#ifndef UNIFFI_FFIDEF_FOREIGN_FUTURE_RESULT_U64
+#define UNIFFI_FFIDEF_FOREIGN_FUTURE_RESULT_U64
+typedef struct UniffiForeignFutureResultU64 {
     uint64_t returnValue;
     RustCallStatus callStatus;
-} UniffiForeignFutureStructU64;
+} UniffiForeignFutureResultU64;
 
 #endif
 #ifndef UNIFFI_FFIDEF_FOREIGN_FUTURE_COMPLETE_U64
 #define UNIFFI_FFIDEF_FOREIGN_FUTURE_COMPLETE_U64
-typedef void (*UniffiForeignFutureCompleteU64)(uint64_t, UniffiForeignFutureStructU64
+typedef void (*UniffiForeignFutureCompleteU64)(uint64_t, UniffiForeignFutureResultU64
     );
 
 #endif
-#ifndef UNIFFI_FFIDEF_FOREIGN_FUTURE_STRUCT_I64
-#define UNIFFI_FFIDEF_FOREIGN_FUTURE_STRUCT_I64
-typedef struct UniffiForeignFutureStructI64 {
+#ifndef UNIFFI_FFIDEF_FOREIGN_FUTURE_RESULT_I64
+#define UNIFFI_FFIDEF_FOREIGN_FUTURE_RESULT_I64
+typedef struct UniffiForeignFutureResultI64 {
     int64_t returnValue;
     RustCallStatus callStatus;
-} UniffiForeignFutureStructI64;
+} UniffiForeignFutureResultI64;
 
 #endif
 #ifndef UNIFFI_FFIDEF_FOREIGN_FUTURE_COMPLETE_I64
 #define UNIFFI_FFIDEF_FOREIGN_FUTURE_COMPLETE_I64
-typedef void (*UniffiForeignFutureCompleteI64)(uint64_t, UniffiForeignFutureStructI64
+typedef void (*UniffiForeignFutureCompleteI64)(uint64_t, UniffiForeignFutureResultI64
     );
 
 #endif
-#ifndef UNIFFI_FFIDEF_FOREIGN_FUTURE_STRUCT_F32
-#define UNIFFI_FFIDEF_FOREIGN_FUTURE_STRUCT_F32
-typedef struct UniffiForeignFutureStructF32 {
+#ifndef UNIFFI_FFIDEF_FOREIGN_FUTURE_RESULT_F32
+#define UNIFFI_FFIDEF_FOREIGN_FUTURE_RESULT_F32
+typedef struct UniffiForeignFutureResultF32 {
     float returnValue;
     RustCallStatus callStatus;
-} UniffiForeignFutureStructF32;
+} UniffiForeignFutureResultF32;
 
 #endif
 #ifndef UNIFFI_FFIDEF_FOREIGN_FUTURE_COMPLETE_F32
 #define UNIFFI_FFIDEF_FOREIGN_FUTURE_COMPLETE_F32
-typedef void (*UniffiForeignFutureCompleteF32)(uint64_t, UniffiForeignFutureStructF32
+typedef void (*UniffiForeignFutureCompleteF32)(uint64_t, UniffiForeignFutureResultF32
     );
 
 #endif
-#ifndef UNIFFI_FFIDEF_FOREIGN_FUTURE_STRUCT_F64
-#define UNIFFI_FFIDEF_FOREIGN_FUTURE_STRUCT_F64
-typedef struct UniffiForeignFutureStructF64 {
+#ifndef UNIFFI_FFIDEF_FOREIGN_FUTURE_RESULT_F64
+#define UNIFFI_FFIDEF_FOREIGN_FUTURE_RESULT_F64
+typedef struct UniffiForeignFutureResultF64 {
     double returnValue;
     RustCallStatus callStatus;
-} UniffiForeignFutureStructF64;
+} UniffiForeignFutureResultF64;
 
 #endif
 #ifndef UNIFFI_FFIDEF_FOREIGN_FUTURE_COMPLETE_F64
 #define UNIFFI_FFIDEF_FOREIGN_FUTURE_COMPLETE_F64
-typedef void (*UniffiForeignFutureCompleteF64)(uint64_t, UniffiForeignFutureStructF64
+typedef void (*UniffiForeignFutureCompleteF64)(uint64_t, UniffiForeignFutureResultF64
     );
 
 #endif
-#ifndef UNIFFI_FFIDEF_FOREIGN_FUTURE_STRUCT_POINTER
-#define UNIFFI_FFIDEF_FOREIGN_FUTURE_STRUCT_POINTER
-typedef struct UniffiForeignFutureStructPointer {
-    void*_Nonnull returnValue;
-    RustCallStatus callStatus;
-} UniffiForeignFutureStructPointer;
-
-#endif
-#ifndef UNIFFI_FFIDEF_FOREIGN_FUTURE_COMPLETE_POINTER
-#define UNIFFI_FFIDEF_FOREIGN_FUTURE_COMPLETE_POINTER
-typedef void (*UniffiForeignFutureCompletePointer)(uint64_t, UniffiForeignFutureStructPointer
-    );
-
-#endif
-#ifndef UNIFFI_FFIDEF_FOREIGN_FUTURE_STRUCT_RUST_BUFFER
-#define UNIFFI_FFIDEF_FOREIGN_FUTURE_STRUCT_RUST_BUFFER
-typedef struct UniffiForeignFutureStructRustBuffer {
+#ifndef UNIFFI_FFIDEF_FOREIGN_FUTURE_RESULT_RUST_BUFFER
+#define UNIFFI_FFIDEF_FOREIGN_FUTURE_RESULT_RUST_BUFFER
+typedef struct UniffiForeignFutureResultRustBuffer {
     RustBuffer returnValue;
     RustCallStatus callStatus;
-} UniffiForeignFutureStructRustBuffer;
+} UniffiForeignFutureResultRustBuffer;
 
 #endif
 #ifndef UNIFFI_FFIDEF_FOREIGN_FUTURE_COMPLETE_RUST_BUFFER
 #define UNIFFI_FFIDEF_FOREIGN_FUTURE_COMPLETE_RUST_BUFFER
-typedef void (*UniffiForeignFutureCompleteRustBuffer)(uint64_t, UniffiForeignFutureStructRustBuffer
+typedef void (*UniffiForeignFutureCompleteRustBuffer)(uint64_t, UniffiForeignFutureResultRustBuffer
     );
 
 #endif
-#ifndef UNIFFI_FFIDEF_FOREIGN_FUTURE_STRUCT_VOID
-#define UNIFFI_FFIDEF_FOREIGN_FUTURE_STRUCT_VOID
-typedef struct UniffiForeignFutureStructVoid {
+#ifndef UNIFFI_FFIDEF_FOREIGN_FUTURE_RESULT_VOID
+#define UNIFFI_FFIDEF_FOREIGN_FUTURE_RESULT_VOID
+typedef struct UniffiForeignFutureResultVoid {
     RustCallStatus callStatus;
-} UniffiForeignFutureStructVoid;
+} UniffiForeignFutureResultVoid;
 
 #endif
 #ifndef UNIFFI_FFIDEF_FOREIGN_FUTURE_COMPLETE_VOID
 #define UNIFFI_FFIDEF_FOREIGN_FUTURE_COMPLETE_VOID
-typedef void (*UniffiForeignFutureCompleteVoid)(uint64_t, UniffiForeignFutureStructVoid
+typedef void (*UniffiForeignFutureCompleteVoid)(uint64_t, UniffiForeignFutureResultVoid
     );
 
 #endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_HORCRUX_CORE_FN_CLONE_HORCRUXNOISECHANNEL
 #define UNIFFI_FFIDEF_UNIFFI_HORCRUX_CORE_FN_CLONE_HORCRUXNOISECHANNEL
-void*_Nonnull uniffi_horcrux_core_fn_clone_horcruxnoisechannel(void*_Nonnull ptr, RustCallStatus *_Nonnull out_status
+uint64_t uniffi_horcrux_core_fn_clone_horcruxnoisechannel(uint64_t handle, RustCallStatus *_Nonnull out_status
 );
 #endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_HORCRUX_CORE_FN_FREE_HORCRUXNOISECHANNEL
 #define UNIFFI_FFIDEF_UNIFFI_HORCRUX_CORE_FN_FREE_HORCRUXNOISECHANNEL
-void uniffi_horcrux_core_fn_free_horcruxnoisechannel(void*_Nonnull ptr, RustCallStatus *_Nonnull out_status
+void uniffi_horcrux_core_fn_free_horcruxnoisechannel(uint64_t handle, RustCallStatus *_Nonnull out_status
 );
 #endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_HORCRUX_CORE_FN_CONSTRUCTOR_HORCRUXNOISECHANNEL_NEW_INITIATOR
 #define UNIFFI_FFIDEF_UNIFFI_HORCRUX_CORE_FN_CONSTRUCTOR_HORCRUXNOISECHANNEL_NEW_INITIATOR
-void*_Nonnull uniffi_horcrux_core_fn_constructor_horcruxnoisechannel_new_initiator(RustBuffer keypair, RustCallStatus *_Nonnull out_status
+uint64_t uniffi_horcrux_core_fn_constructor_horcruxnoisechannel_new_initiator(RustBuffer keypair, RustCallStatus *_Nonnull out_status
 );
 #endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_HORCRUX_CORE_FN_CONSTRUCTOR_HORCRUXNOISECHANNEL_NEW_RESPONDER
 #define UNIFFI_FFIDEF_UNIFFI_HORCRUX_CORE_FN_CONSTRUCTOR_HORCRUXNOISECHANNEL_NEW_RESPONDER
-void*_Nonnull uniffi_horcrux_core_fn_constructor_horcruxnoisechannel_new_responder(RustBuffer keypair, RustCallStatus *_Nonnull out_status
+uint64_t uniffi_horcrux_core_fn_constructor_horcruxnoisechannel_new_responder(RustBuffer keypair, RustCallStatus *_Nonnull out_status
 );
 #endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_HORCRUX_CORE_FN_METHOD_HORCRUXNOISECHANNEL_IS_HANDSHAKE_FINISHED
 #define UNIFFI_FFIDEF_UNIFFI_HORCRUX_CORE_FN_METHOD_HORCRUXNOISECHANNEL_IS_HANDSHAKE_FINISHED
-int8_t uniffi_horcrux_core_fn_method_horcruxnoisechannel_is_handshake_finished(void*_Nonnull ptr, RustCallStatus *_Nonnull out_status
+int8_t uniffi_horcrux_core_fn_method_horcruxnoisechannel_is_handshake_finished(uint64_t ptr, RustCallStatus *_Nonnull out_status
 );
 #endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_HORCRUX_CORE_FN_METHOD_HORCRUXNOISECHANNEL_OPEN
 #define UNIFFI_FFIDEF_UNIFFI_HORCRUX_CORE_FN_METHOD_HORCRUXNOISECHANNEL_OPEN
-RustBuffer uniffi_horcrux_core_fn_method_horcruxnoisechannel_open(void*_Nonnull ptr, RustBuffer envelope, RustCallStatus *_Nonnull out_status
+RustBuffer uniffi_horcrux_core_fn_method_horcruxnoisechannel_open(uint64_t ptr, RustBuffer envelope, RustCallStatus *_Nonnull out_status
 );
 #endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_HORCRUX_CORE_FN_METHOD_HORCRUXNOISECHANNEL_READ_HANDSHAKE
 #define UNIFFI_FFIDEF_UNIFFI_HORCRUX_CORE_FN_METHOD_HORCRUXNOISECHANNEL_READ_HANDSHAKE
-RustBuffer uniffi_horcrux_core_fn_method_horcruxnoisechannel_read_handshake(void*_Nonnull ptr, RustBuffer message, RustCallStatus *_Nonnull out_status
+RustBuffer uniffi_horcrux_core_fn_method_horcruxnoisechannel_read_handshake(uint64_t ptr, RustBuffer message, RustCallStatus *_Nonnull out_status
 );
 #endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_HORCRUX_CORE_FN_METHOD_HORCRUXNOISECHANNEL_REMOTE_STATIC_KEY
 #define UNIFFI_FFIDEF_UNIFFI_HORCRUX_CORE_FN_METHOD_HORCRUXNOISECHANNEL_REMOTE_STATIC_KEY
-RustBuffer uniffi_horcrux_core_fn_method_horcruxnoisechannel_remote_static_key(void*_Nonnull ptr, RustCallStatus *_Nonnull out_status
+RustBuffer uniffi_horcrux_core_fn_method_horcruxnoisechannel_remote_static_key(uint64_t ptr, RustCallStatus *_Nonnull out_status
 );
 #endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_HORCRUX_CORE_FN_METHOD_HORCRUXNOISECHANNEL_SEAL
 #define UNIFFI_FFIDEF_UNIFFI_HORCRUX_CORE_FN_METHOD_HORCRUXNOISECHANNEL_SEAL
-RustBuffer uniffi_horcrux_core_fn_method_horcruxnoisechannel_seal(void*_Nonnull ptr, RustBuffer plaintext, RustCallStatus *_Nonnull out_status
+RustBuffer uniffi_horcrux_core_fn_method_horcruxnoisechannel_seal(uint64_t ptr, RustBuffer plaintext, RustCallStatus *_Nonnull out_status
 );
 #endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_HORCRUX_CORE_FN_METHOD_HORCRUXNOISECHANNEL_WRITE_HANDSHAKE
 #define UNIFFI_FFIDEF_UNIFFI_HORCRUX_CORE_FN_METHOD_HORCRUXNOISECHANNEL_WRITE_HANDSHAKE
-RustBuffer uniffi_horcrux_core_fn_method_horcruxnoisechannel_write_handshake(void*_Nonnull ptr, RustBuffer payload, RustCallStatus *_Nonnull out_status
+RustBuffer uniffi_horcrux_core_fn_method_horcruxnoisechannel_write_handshake(uint64_t ptr, RustBuffer payload, RustCallStatus *_Nonnull out_status
 );
 #endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_HORCRUX_CORE_FN_CLONE_HORCRUXSESSIONMANAGER
 #define UNIFFI_FFIDEF_UNIFFI_HORCRUX_CORE_FN_CLONE_HORCRUXSESSIONMANAGER
-void*_Nonnull uniffi_horcrux_core_fn_clone_horcruxsessionmanager(void*_Nonnull ptr, RustCallStatus *_Nonnull out_status
+uint64_t uniffi_horcrux_core_fn_clone_horcruxsessionmanager(uint64_t handle, RustCallStatus *_Nonnull out_status
 );
 #endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_HORCRUX_CORE_FN_FREE_HORCRUXSESSIONMANAGER
 #define UNIFFI_FFIDEF_UNIFFI_HORCRUX_CORE_FN_FREE_HORCRUXSESSIONMANAGER
-void uniffi_horcrux_core_fn_free_horcruxsessionmanager(void*_Nonnull ptr, RustCallStatus *_Nonnull out_status
+void uniffi_horcrux_core_fn_free_horcruxsessionmanager(uint64_t handle, RustCallStatus *_Nonnull out_status
 );
 #endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_HORCRUX_CORE_FN_CONSTRUCTOR_HORCRUXSESSIONMANAGER_NEW
 #define UNIFFI_FFIDEF_UNIFFI_HORCRUX_CORE_FN_CONSTRUCTOR_HORCRUXSESSIONMANAGER_NEW
-void*_Nonnull uniffi_horcrux_core_fn_constructor_horcruxsessionmanager_new(RustCallStatus *_Nonnull out_status
+uint64_t uniffi_horcrux_core_fn_constructor_horcruxsessionmanager_new(RustCallStatus *_Nonnull out_status
     
 );
 #endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_HORCRUX_CORE_FN_METHOD_HORCRUXSESSIONMANAGER_CREATE_KEYGEN
 #define UNIFFI_FFIDEF_UNIFFI_HORCRUX_CORE_FN_METHOD_HORCRUXSESSIONMANAGER_CREATE_KEYGEN
-RustBuffer uniffi_horcrux_core_fn_method_horcruxsessionmanager_create_keygen(void*_Nonnull ptr, RustBuffer session_id, RustBuffer config, RustCallStatus *_Nonnull out_status
+RustBuffer uniffi_horcrux_core_fn_method_horcruxsessionmanager_create_keygen(uint64_t ptr, RustBuffer session_id, RustBuffer config, RustCallStatus *_Nonnull out_status
 );
 #endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_HORCRUX_CORE_FN_METHOD_HORCRUXSESSIONMANAGER_CREATE_REFRESH
 #define UNIFFI_FFIDEF_UNIFFI_HORCRUX_CORE_FN_METHOD_HORCRUXSESSIONMANAGER_CREATE_REFRESH
-RustBuffer uniffi_horcrux_core_fn_method_horcruxsessionmanager_create_refresh(void*_Nonnull ptr, RustBuffer session_id, RustBuffer config, RustBuffer shard_data, RustCallStatus *_Nonnull out_status
+RustBuffer uniffi_horcrux_core_fn_method_horcruxsessionmanager_create_refresh(uint64_t ptr, RustBuffer session_id, RustBuffer config, RustBuffer shard_data, RustCallStatus *_Nonnull out_status
 );
 #endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_HORCRUX_CORE_FN_METHOD_HORCRUXSESSIONMANAGER_CREATE_SIGNING
 #define UNIFFI_FFIDEF_UNIFFI_HORCRUX_CORE_FN_METHOD_HORCRUXSESSIONMANAGER_CREATE_SIGNING
-RustBuffer uniffi_horcrux_core_fn_method_horcruxsessionmanager_create_signing(void*_Nonnull ptr, RustBuffer session_id, RustBuffer config, RustBuffer message_hash, RustBuffer shard_data, RustBuffer participants, RustCallStatus *_Nonnull out_status
+RustBuffer uniffi_horcrux_core_fn_method_horcruxsessionmanager_create_signing(uint64_t ptr, RustBuffer session_id, RustBuffer config, RustBuffer message_hash, RustBuffer shard_data, RustBuffer participants, RustCallStatus *_Nonnull out_status
 );
 #endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_HORCRUX_CORE_FN_METHOD_HORCRUXSESSIONMANAGER_GET_KEYGEN_RESULT
 #define UNIFFI_FFIDEF_UNIFFI_HORCRUX_CORE_FN_METHOD_HORCRUXSESSIONMANAGER_GET_KEYGEN_RESULT
-RustBuffer uniffi_horcrux_core_fn_method_horcruxsessionmanager_get_keygen_result(void*_Nonnull ptr, RustBuffer session_id, RustCallStatus *_Nonnull out_status
+RustBuffer uniffi_horcrux_core_fn_method_horcruxsessionmanager_get_keygen_result(uint64_t ptr, RustBuffer session_id, RustCallStatus *_Nonnull out_status
 );
 #endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_HORCRUX_CORE_FN_METHOD_HORCRUXSESSIONMANAGER_GET_REFRESH_RESULT
 #define UNIFFI_FFIDEF_UNIFFI_HORCRUX_CORE_FN_METHOD_HORCRUXSESSIONMANAGER_GET_REFRESH_RESULT
-RustBuffer uniffi_horcrux_core_fn_method_horcruxsessionmanager_get_refresh_result(void*_Nonnull ptr, RustBuffer session_id, RustCallStatus *_Nonnull out_status
+RustBuffer uniffi_horcrux_core_fn_method_horcruxsessionmanager_get_refresh_result(uint64_t ptr, RustBuffer session_id, RustCallStatus *_Nonnull out_status
 );
 #endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_HORCRUX_CORE_FN_METHOD_HORCRUXSESSIONMANAGER_GET_SIGNING_RESULT
 #define UNIFFI_FFIDEF_UNIFFI_HORCRUX_CORE_FN_METHOD_HORCRUXSESSIONMANAGER_GET_SIGNING_RESULT
-RustBuffer uniffi_horcrux_core_fn_method_horcruxsessionmanager_get_signing_result(void*_Nonnull ptr, RustBuffer session_id, RustCallStatus *_Nonnull out_status
+RustBuffer uniffi_horcrux_core_fn_method_horcruxsessionmanager_get_signing_result(uint64_t ptr, RustBuffer session_id, RustCallStatus *_Nonnull out_status
 );
 #endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_HORCRUX_CORE_FN_METHOD_HORCRUXSESSIONMANAGER_HANDLE_AUTHENTICATED_MESSAGE
 #define UNIFFI_FFIDEF_UNIFFI_HORCRUX_CORE_FN_METHOD_HORCRUXSESSIONMANAGER_HANDLE_AUTHENTICATED_MESSAGE
-RustBuffer uniffi_horcrux_core_fn_method_horcruxsessionmanager_handle_authenticated_message(void*_Nonnull ptr, RustBuffer msg, uint16_t authenticated_from, RustCallStatus *_Nonnull out_status
+RustBuffer uniffi_horcrux_core_fn_method_horcruxsessionmanager_handle_authenticated_message(uint64_t ptr, RustBuffer msg, uint16_t authenticated_from, RustCallStatus *_Nonnull out_status
 );
 #endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_HORCRUX_CORE_FN_METHOD_HORCRUXSESSIONMANAGER_HANDLE_MESSAGE
 #define UNIFFI_FFIDEF_UNIFFI_HORCRUX_CORE_FN_METHOD_HORCRUXSESSIONMANAGER_HANDLE_MESSAGE
-RustBuffer uniffi_horcrux_core_fn_method_horcruxsessionmanager_handle_message(void*_Nonnull ptr, RustBuffer msg, RustCallStatus *_Nonnull out_status
+RustBuffer uniffi_horcrux_core_fn_method_horcruxsessionmanager_handle_message(uint64_t ptr, RustBuffer msg, RustCallStatus *_Nonnull out_status
 );
 #endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_HORCRUX_CORE_FN_METHOD_HORCRUXSESSIONMANAGER_REMOVE_SESSION
 #define UNIFFI_FFIDEF_UNIFFI_HORCRUX_CORE_FN_METHOD_HORCRUXSESSIONMANAGER_REMOVE_SESSION
-void uniffi_horcrux_core_fn_method_horcruxsessionmanager_remove_session(void*_Nonnull ptr, RustBuffer session_id, RustCallStatus *_Nonnull out_status
+void uniffi_horcrux_core_fn_method_horcruxsessionmanager_remove_session(uint64_t ptr, RustBuffer session_id, RustCallStatus *_Nonnull out_status
 );
 #endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_HORCRUX_CORE_FN_CLONE_HORCRUXSHARDMANAGER
 #define UNIFFI_FFIDEF_UNIFFI_HORCRUX_CORE_FN_CLONE_HORCRUXSHARDMANAGER
-void*_Nonnull uniffi_horcrux_core_fn_clone_horcruxshardmanager(void*_Nonnull ptr, RustCallStatus *_Nonnull out_status
+uint64_t uniffi_horcrux_core_fn_clone_horcruxshardmanager(uint64_t handle, RustCallStatus *_Nonnull out_status
 );
 #endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_HORCRUX_CORE_FN_FREE_HORCRUXSHARDMANAGER
 #define UNIFFI_FFIDEF_UNIFFI_HORCRUX_CORE_FN_FREE_HORCRUXSHARDMANAGER
-void uniffi_horcrux_core_fn_free_horcruxshardmanager(void*_Nonnull ptr, RustCallStatus *_Nonnull out_status
+void uniffi_horcrux_core_fn_free_horcruxshardmanager(uint64_t handle, RustCallStatus *_Nonnull out_status
 );
 #endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_HORCRUX_CORE_FN_CONSTRUCTOR_HORCRUXSHARDMANAGER_NEW
 #define UNIFFI_FFIDEF_UNIFFI_HORCRUX_CORE_FN_CONSTRUCTOR_HORCRUXSHARDMANAGER_NEW
-void*_Nonnull uniffi_horcrux_core_fn_constructor_horcruxshardmanager_new(RustCallStatus *_Nonnull out_status
+uint64_t uniffi_horcrux_core_fn_constructor_horcruxshardmanager_new(RustCallStatus *_Nonnull out_status
     
 );
 #endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_HORCRUX_CORE_FN_METHOD_HORCRUXSHARDMANAGER_ADD_SHARD
 #define UNIFFI_FFIDEF_UNIFFI_HORCRUX_CORE_FN_METHOD_HORCRUXSHARDMANAGER_ADD_SHARD
-void uniffi_horcrux_core_fn_method_horcruxshardmanager_add_shard(void*_Nonnull ptr, RustBuffer info, RustCallStatus *_Nonnull out_status
+void uniffi_horcrux_core_fn_method_horcruxshardmanager_add_shard(uint64_t ptr, RustBuffer info, RustCallStatus *_Nonnull out_status
 );
 #endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_HORCRUX_CORE_FN_METHOD_HORCRUXSHARDMANAGER_LIST_SHARDS
 #define UNIFFI_FFIDEF_UNIFFI_HORCRUX_CORE_FN_METHOD_HORCRUXSHARDMANAGER_LIST_SHARDS
-RustBuffer uniffi_horcrux_core_fn_method_horcruxshardmanager_list_shards(void*_Nonnull ptr, RustCallStatus *_Nonnull out_status
+RustBuffer uniffi_horcrux_core_fn_method_horcruxshardmanager_list_shards(uint64_t ptr, RustCallStatus *_Nonnull out_status
 );
 #endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_HORCRUX_CORE_FN_METHOD_HORCRUXSHARDMANAGER_SHARDS_FOR_KEY
 #define UNIFFI_FFIDEF_UNIFFI_HORCRUX_CORE_FN_METHOD_HORCRUXSHARDMANAGER_SHARDS_FOR_KEY
-RustBuffer uniffi_horcrux_core_fn_method_horcruxshardmanager_shards_for_key(void*_Nonnull ptr, RustBuffer public_key, RustCallStatus *_Nonnull out_status
+RustBuffer uniffi_horcrux_core_fn_method_horcruxshardmanager_shards_for_key(uint64_t ptr, RustBuffer public_key, RustCallStatus *_Nonnull out_status
 );
 #endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_HORCRUX_CORE_FN_FUNC_HORCRUX_BTC_ADDRESS
@@ -690,26 +682,6 @@ void ffi_horcrux_core_rust_future_free_f64(uint64_t handle
 #ifndef UNIFFI_FFIDEF_FFI_HORCRUX_CORE_RUST_FUTURE_COMPLETE_F64
 #define UNIFFI_FFIDEF_FFI_HORCRUX_CORE_RUST_FUTURE_COMPLETE_F64
 double ffi_horcrux_core_rust_future_complete_f64(uint64_t handle, RustCallStatus *_Nonnull out_status
-);
-#endif
-#ifndef UNIFFI_FFIDEF_FFI_HORCRUX_CORE_RUST_FUTURE_POLL_POINTER
-#define UNIFFI_FFIDEF_FFI_HORCRUX_CORE_RUST_FUTURE_POLL_POINTER
-void ffi_horcrux_core_rust_future_poll_pointer(uint64_t handle, UniffiRustFutureContinuationCallback _Nonnull callback, uint64_t callback_data
-);
-#endif
-#ifndef UNIFFI_FFIDEF_FFI_HORCRUX_CORE_RUST_FUTURE_CANCEL_POINTER
-#define UNIFFI_FFIDEF_FFI_HORCRUX_CORE_RUST_FUTURE_CANCEL_POINTER
-void ffi_horcrux_core_rust_future_cancel_pointer(uint64_t handle
-);
-#endif
-#ifndef UNIFFI_FFIDEF_FFI_HORCRUX_CORE_RUST_FUTURE_FREE_POINTER
-#define UNIFFI_FFIDEF_FFI_HORCRUX_CORE_RUST_FUTURE_FREE_POINTER
-void ffi_horcrux_core_rust_future_free_pointer(uint64_t handle
-);
-#endif
-#ifndef UNIFFI_FFIDEF_FFI_HORCRUX_CORE_RUST_FUTURE_COMPLETE_POINTER
-#define UNIFFI_FFIDEF_FFI_HORCRUX_CORE_RUST_FUTURE_COMPLETE_POINTER
-void*_Nonnull ffi_horcrux_core_rust_future_complete_pointer(uint64_t handle, RustCallStatus *_Nonnull out_status
 );
 #endif
 #ifndef UNIFFI_FFIDEF_FFI_HORCRUX_CORE_RUST_FUTURE_POLL_RUST_BUFFER
