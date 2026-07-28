@@ -33,6 +33,36 @@ cargo build --workspace --release
       release on a vulnerable dep.
 - [ ] `cargo build --workspace --release` — succeeds
 - [ ] `./scripts/validate-codeowners.sh` — passes
+- [ ] **Multi-party MPC suite green.** Dispatch it and wait — do not
+      tag until it passes:
+
+    ```bash
+    gh workflow run mpc-e2e.yml
+    gh run watch "$(gh run list --workflow=mpc-e2e.yml --limit 1 --json databaseId -q '.[0].databaseId')" --exit-status
+    ```
+
+    Runs the three `#[ignore]`d ceremonies in
+    `horcrux-core/tests/multi_party_ecdsa.rs` (3-of-3 DKG + sign,
+    3-of-3 refresh, 5-of-5 DKG + sign). Nothing else in CI covers
+    proactive refresh at all, or CGGMP21 past n=2 through the real
+    `SessionManager` — `cargo test --workspace` skips all three.
+    Budget 30-50 min.
+
+    > Run it **here**, not by relying on the tag trigger. The
+    > workflow also fires on `v*` tags (excluding `-dev.N`), but by
+    > then the tag exists, and a failure means deleting and
+    > re-cutting it.
+
+    Locally the equivalent is:
+
+    ```bash
+    cargo test -p horcrux-core --release --test multi_party_ecdsa -- \
+      --ignored --nocapture --test-threads=1
+    ```
+
+    `--release` is required; a debug build is roughly an order of
+    magnitude slower.
+
 - [ ] No hand-written `TODO` / `FIXME` / `HACK` in `horcrux-core/src`
       or `horcrux-relay/src`
       (`git grep -nE '(TODO|FIXME|HACK)' horcrux-core/src horcrux-relay/src`
