@@ -1,0 +1,34 @@
+# Horcrux v0.5.0 — reproducible-build evidence
+#
+# Produced by: scripts/verify-build.sh (verify mode)
+# Date:        2026-07-29T17:20:53Z
+# Commit:      ad9a392c721d76a45e6ae53b9dd92d5b9c734339
+# Host:        Darwin arm64
+# Toolchain:   rustc 1.97.1 — Xcode 26.6
+#
+# Three successive clean rebuilds on this host hashed identically.
+# Cross-host divergence in the static libs is a known caveat — see
+# docs/reproducible-build.md.
+
+## verify-build.sh transcript
+
+    🔨 Building horcrux-core for iOS (clean)…
+    ✅ build finished
+    📋 Computing SHA-256 manifest…
+    ✅ build matches committed manifest (byte-identical)
+
+## Verified SHA-256 manifest
+
+# Horcrux reproducible-build manifest
+# Generated 2026-07-29T17:18:41Z by scripts/verify-build.sh --update
+# Host: Darwin arm64 — rustc 1.97.1 — Xcode 26.6
+
+80a571b0b9d1fa0d2713df9ab9422ef9d2478c1dbfaa6b9212f24af045833d31  ios/Horcrux/Core/Generated/horcrux_core.swift
+0edb89325320488d3454d96676241e0b58dc3209416183fb02733f08984d8f93  ios/Horcrux/Core/Generated/horcrux_coreFFI.h
+1811a334d5108cb1990f86766d32a970a4e1a815cc0d135b99be42776f8d8487  ios/Horcrux/Core/Generated/horcrux_coreFFI.modulemap
+0edb89325320488d3454d96676241e0b58dc3209416183fb02733f08984d8f93  ios/Horcrux/Core/Frameworks/HorcruxCore.xcframework/ios-arm64-simulator/Headers/horcrux_coreFFI.h
+1811a334d5108cb1990f86766d32a970a4e1a815cc0d135b99be42776f8d8487  ios/Horcrux/Core/Frameworks/HorcruxCore.xcframework/ios-arm64-simulator/Headers/module.modulemap
+c089fa32d2271bef0c34e85c5d3517cd41cbc59f0ececbf9dcc1d77fdb2ffcba  ios/Horcrux/Core/Frameworks/HorcruxCore.xcframework/ios-arm64-simulator/libhorcrux_core.a
+0edb89325320488d3454d96676241e0b58dc3209416183fb02733f08984d8f93  ios/Horcrux/Core/Frameworks/HorcruxCore.xcframework/ios-arm64/Headers/horcrux_coreFFI.h
+1811a334d5108cb1990f86766d32a970a4e1a815cc0d135b99be42776f8d8487  ios/Horcrux/Core/Frameworks/HorcruxCore.xcframework/ios-arm64/Headers/module.modulemap
+e49df7357e482215d49959b2d51f3570bf6718e7f97774c980a41e009d148eb7  ios/Horcrux/Core/Frameworks/HorcruxCore.xcframework/ios-arm64/libhorcrux_core.a
