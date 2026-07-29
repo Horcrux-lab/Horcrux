@@ -195,10 +195,14 @@ final class CertificatePinner: NSObject, @unchecked Sendable {
         // treat TOFU-loaded entries (merged in by `loadTOFUPins` earlier
         // in init) as known pins.
         let known: [String: Set<String>] = [
-            // Cloudflare / LlamaRPC (shared Cloudflare CDN cert chain)
-            "eth.llamarpc.com": [
-                "Wf0FMBpVcyFnBCJdFBpmIGe96D6xMKdjXWEag+ao1Xg=", // Cloudflare Inc ECC CA-3
-                "jQJTbIh0grw0/1TkHSumWb+Fs0Ggogr621gT3PvPKG0=", // Baltimore CyberTrust Root (backup CA)
+            // PublicNode — the default Ethereum mainnet endpoint
+            // (`EVMNetwork.mainnet.publicDefaultRPC`). Chain as served on
+            // 2026-07-29: leaf CN=publicnode.com → GTS WE1 → GTS Root R4.
+            // Pinned at CA level, not leaf, so the ~90-day leaf rotation
+            // doesn't brick the host.
+            "ethereum-rpc.publicnode.com": [
+                "kIdp6NNEd8wsugYyyIYFsi1ylMCED3hZbSR8ZFsa/A4=", // Google Trust Services WE1
+                "mEflZT5enoR1FuXLgYYGqnVEoZvmf9c2bVBpiOjYQ0c=", // GTS Root R4 (backup CA)
             ],
             // Blockstream (Bitcoin API)
             "blockstream.info": [

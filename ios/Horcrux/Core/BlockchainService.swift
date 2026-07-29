@@ -887,50 +887,54 @@ actor BlockchainService {
 
     // MARK: - Generic balance fetch
 
+    /// Fetch the native-asset balance, routed through the fault-aware
+    /// fallback helper so this path gets the same cooldown filtering and
+    /// health reporting as every other RPC call. It previously walked
+    /// `orderedAttempts` by hand without either, which meant the app's
+    /// single hottest read path re-tried known-dead endpoints on every
+    /// refresh and never fed results back into the health registry.
     func balance(for wallet: Wallet, config: NetworkConfig) async throws -> String {
-        let attempts = RPCFallbacks.orderedAttempts(for: wallet.chain, config: config)
-        var lastError: Error = BlockchainError.invalidURL("no endpoints")
-        for (idx, url) in attempts.enumerated() {
-            do {
-                if wallet.chain.isEVM {
-                    let wei = try await ethBalance(address: wallet.address, rpcURL: url)
-                    if idx > 0 { SecureLog.info("RPC fallback \(idx) succeeded for \(wallet.chain.symbol) balance") }
-                    let symbol: String = {
-                        if wallet.chain == .ethereum {
-                            return EVMNetwork(rawValue: config.evmChainId)?.nativeSymbol ?? "ETH"
-                        }
-                        return wallet.chain.symbol
-                    }()
-                    return formatEthBalance(wei: wei, symbol: symbol)
-                }
-                switch wallet.chain {
-                case .bitcoin:
-                    let sats = try await btcBalance(address: wallet.address, apiURL: url)
-                    if idx > 0 { SecureLog.info("RPC fallback \(idx) succeeded for BTC balance") }
-                    return formatBtcBalance(satoshis: sats)
-                case .litecoin:
-                    // litecoinspace.org exposes the Esplora API, same shape as Blockstream.
-                    let litoshi = try await btcBalance(address: wallet.address, apiURL: url)
-                    if idx > 0 { SecureLog.info("RPC fallback \(idx) succeeded for LTC balance") }
-                    return formatGenericSatoshis(litoshi, symbol: "LTC")
-                case .solana:
-                    let lamports = try await solBalance(address: wallet.address, rpcURL: url)
-                    if idx > 0 { SecureLog.info("RPC fallback \(idx) succeeded for SOL balance") }
-                    return formatSolBalance(lamports: lamports)
-                case .tron:
-                    let sun = try await tronBalance(address: wallet.address, apiURL: url)
-                    if idx > 0 { SecureLog.info("RPC fallback \(idx) succeeded for TRX balance") }
-                    return formatTronBalance(sun: sun)
-                default:
-                    throw BlockchainError.invalidURL("Unsupported chain: \(wallet.chain)")
-                }
-            } catch {
-                lastError = error
-                SecureLog.info("RPC attempt \(idx) failed for \(wallet.chain): \(error.localizedDescription)")
-                continue
+        // Reject unsupported chains up front. Discovering this inside the
+        // loop would walk every endpoint to reach the same conclusion,
+        // burning latency and marking healthy endpoints as failures.
+        switch wallet.chain {
+        case .bitcoin, .litecoin, .solana, .tron:
+            break
+        default:
+            guard wallet.chain.isEVM else {
+                throw BlockchainError.invalidURL("Unsupported chain: \(wallet.chain)")
             }
         }
-        throw lastError
+
+        return try await withFallbackURL(chain: wallet.chain, config: config) { url in
+            if wallet.chain.isEVM {
+                let wei = try await ethBalance(address: wallet.address, rpcURL: url)
+                let symbol: String = {
+                    if wallet.chain == .ethereum {
+                        return EVMNetwork(rawValue: config.evmChainId)?.nativeSymbol ?? "ETH"
+                    }
+                    return wallet.chain.symbol
+                }()
+                return formatEthBalance(wei: wei, symbol: symbol)
+            }
+            switch wallet.chain {
+            case .bitcoin:
+                let sats = try await btcBalance(address: wallet.address, apiURL: url)
+                return formatBtcBalance(satoshis: sats)
+            case .litecoin:
+                // litecoinspace.org exposes the Esplora API, same shape as Blockstream.
+                let litoshi = try await btcBalance(address: wallet.address, apiURL: url)
+                return formatGenericSatoshis(litoshi, symbol: "LTC")
+            case .solana:
+                let lamports = try await solBalance(address: wallet.address, rpcURL: url)
+                return formatSolBalance(lamports: lamports)
+            case .tron:
+                let sun = try await tronBalance(address: wallet.address, apiURL: url)
+                return formatTronBalance(sun: sun)
+            default:
+                throw BlockchainError.invalidURL("Unsupported chain: \(wallet.chain)")
+            }
+        }
     }
 
     // MARK: - Token Balances

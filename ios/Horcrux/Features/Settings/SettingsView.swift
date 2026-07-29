@@ -1193,7 +1193,7 @@ struct BlockchainNodeSettingsView: View {
                     Text(L10n.NodeSettings.rpcURL)
                         .font(.caption)
                         .foregroundStyle(.secondary)
-                    TextField("https://eth.llamarpc.com", text: $config.ethereumRPC)
+                    TextField("https://ethereum-rpc.publicnode.com", text: $config.ethereumRPC)
                         .font(.system(.body, design: .monospaced))
                         .autocorrectionDisabled()
                         .textInputAutocapitalization(.never)

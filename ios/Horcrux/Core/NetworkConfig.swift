@@ -644,6 +644,15 @@ final class NetworkConfig: ObservableObject, @unchecked Sendable {
         let deadEthereum: Set<String> = [
             "https://polygon-rpc.com",                 // "tenant disabled"
             "https://eth-sepolia.public.blastapi.io",  // "Blast API is no longer available"
+            // LlamaRPC went dark across every host we listed (measured
+            // 2026-07-29: HTTP 521 on eth/base, connection refused on
+            // polygon/arbitrum/optimism). Anyone who selected it is stuck
+            // on a hostname that no longer answers.
+            "https://eth.llamarpc.com",
+            "https://polygon.llamarpc.com",
+            "https://arbitrum.llamarpc.com",
+            "https://base.llamarpc.com",
+            "https://optimism.llamarpc.com",
         ]
         if let stored = ud.string(forKey: Keys.ethereumRPC),
            deadEthereum.contains(stored)
@@ -1312,7 +1321,12 @@ enum RPCFallbacks {
                 ? ["https://api.devnet.solana.com"]
                 : [
                     "https://api.mainnet-beta.solana.com",
-                    "https://solana.publicnode.com"
+                    // Canonical PublicNode hostname — matches
+                    // `SolanaNetwork.mainnet.publicDefaultRPC` so it dedupes
+                    // away for default installs instead of listing the same
+                    // operator twice under an alias and looking like
+                    // redundancy it isn't.
+                    "https://solana-rpc.publicnode.com"
                 ]
         case .tron:
             return [
@@ -1333,37 +1347,45 @@ enum RPCFallbacks {
         switch net {
         case .mainnet:
             return [
-                "https://eth.llamarpc.com",
-                "https://ethereum.publicnode.com"
+                // Same hostname as `publicDefaultRPC` so `orderedAttempts`
+                // dedupes it away for unconfigured installs instead of
+                // listing publicnode twice under two aliases (which looked
+                // like redundancy but shares one operator).
+                "https://ethereum-rpc.publicnode.com",
+                "https://eth.drpc.org",
+                "https://1rpc.io/eth"
             ]
         case .sepolia:
             return [
-                "https://eth-sepolia.public.blastapi.io",
-                "https://ethereum-sepolia.publicnode.com"
+                // Canonical PublicNode hostname, matching `publicDefaultRPC`
+                // so it dedupes for default installs.
+                "https://ethereum-sepolia-rpc.publicnode.com",
+                "https://sepolia.drpc.org",
+                "https://1rpc.io/sepolia"
             ]
         case .polygon:
             return [
-                "https://polygon-rpc.com",
-                "https://polygon.llamarpc.com",
-                "https://polygon.publicnode.com"
+                "https://polygon-bor-rpc.publicnode.com",
+                "https://polygon.drpc.org",
+                "https://1rpc.io/matic"
             ]
         case .arbitrumOne:
             return [
                 "https://arb1.arbitrum.io/rpc",
-                "https://arbitrum.llamarpc.com",
-                "https://arbitrum.publicnode.com"
+                "https://arbitrum.publicnode.com",
+                "https://arbitrum.drpc.org"
             ]
         case .base:
             return [
                 "https://mainnet.base.org",
-                "https://base.llamarpc.com",
-                "https://base.publicnode.com"
+                "https://base.publicnode.com",
+                "https://base.drpc.org"
             ]
         case .optimism:
             return [
                 "https://mainnet.optimism.io",
-                "https://optimism.llamarpc.com",
-                "https://optimism.publicnode.com"
+                "https://optimism.publicnode.com",
+                "https://optimism.drpc.org"
             ]
         case .bnb:
             return [
@@ -1374,7 +1396,8 @@ enum RPCFallbacks {
         case .avalanche:
             return [
                 "https://api.avax.network/ext/bc/C/rpc",
-                "https://avalanche.publicnode.com"
+                "https://avalanche.publicnode.com",
+                "https://avalanche.drpc.org"
                 // Ankr removed from free list (Apr 2026): the public
                 // `rpc.ankr.com/*` endpoints now reject keyless requests
                 // with HTTP 401, producing retry noise and no useful
@@ -1413,17 +1436,36 @@ enum RPCFallbacks {
         return out
     }
 
-    /// Ordered attempts with per-URL cooldown filtering applied.
+    /// Ordered attempts with per-URL cooldown filtering *and* health-aware
+    /// ordering applied.
     ///
     /// URLs that recently answered with 401/403 (auth failure) are hidden
     /// for 30 minutes; URLs that recently failed with transient errors
     /// are hidden for 5 minutes. If *every* candidate is currently cooling,
     /// the full `orderedAttempts` list is returned unchanged — a cool
     /// endpoint is still better than no endpoint. See `RPCEndpointHealth`.
+    ///
+    /// Survivors after the primary are then sorted by observed health, so a
+    /// reachable-but-flaky fallback stops permanently outranking a healthy
+    /// one just because it appears earlier in the curated table. The sort is
+    /// stable, so the curated order still breaks ties within a tier.
     static func resolvedAttempts(for chain: Chain, config: NetworkConfig) -> [String] {
         let all = orderedAttempts(for: chain, config: config)
         let healthy = all.filter { !RPCEndpointHealth.isCoolingDown($0) }
-        return healthy.isEmpty ? all : healthy
+        let candidates = healthy.isEmpty ? all : healthy
+        guard let primary = candidates.first else { return candidates }
+        // The primary is the user's configured endpoint (or the shipped
+        // default). An explicit choice outranks our measurements, so it is
+        // never demoted — only the fallbacks behind it get reordered.
+        let ranked = candidates.dropFirst()
+            .enumerated()
+            .sorted { lhs, rhs in
+                let lTier = RPCEndpointHealth.tier(lhs.element)
+                let rTier = RPCEndpointHealth.tier(rhs.element)
+                return lTier == rTier ? lhs.offset < rhs.offset : lTier < rTier
+            }
+            .map(\.element)
+        return [primary] + ranked
     }
 }
 
@@ -1438,6 +1480,14 @@ enum RPCFallbacks {
 enum RPCEndpointHealth {
     private static let queue = DispatchQueue(label: "com.horcrux.rpc.health")
     private static var cooldowns: [String: Date] = [:]
+    /// Last time each URL answered successfully. Drives routing preference —
+    /// the cooldown map alone only knows about failures, so without this the
+    /// router cannot tell a proven-good endpoint from an untried one.
+    private static var lastOk: [String: Date] = [:]
+    /// Last time each URL failed, retained after its cooldown expires so a
+    /// recently-flaky endpoint sorts below a healthy one instead of silently
+    /// returning to parity.
+    private static var lastFail: [String: Date] = [:]
 
     /// 401 / 403 / -32000 Unauthorized. Endpoint is almost certainly
     /// behind a paid tier or revoked key; no point retrying for a while.
@@ -1445,17 +1495,54 @@ enum RPCEndpointHealth {
     /// 5xx / timeout / URLError. Endpoint had a bad moment; brief cool-off
     /// gives it time to recover before we poll again.
     static let transientCooldown: TimeInterval = 5 * 60
+    /// How long a success keeps an endpoint in the preferred routing tier.
+    static let successTTL: TimeInterval = 10 * 60
 
     static func markAuthFailed(_ url: String) {
-        queue.sync { cooldowns[url] = Date().addingTimeInterval(authCooldown) }
+        queue.sync {
+            cooldowns[url] = Date().addingTimeInterval(authCooldown)
+            lastFail[url] = Date()
+        }
     }
 
     static func markTransientFailed(_ url: String) {
-        queue.sync { cooldowns[url] = Date().addingTimeInterval(transientCooldown) }
+        queue.sync {
+            cooldowns[url] = Date().addingTimeInterval(transientCooldown)
+            lastFail[url] = Date()
+        }
     }
 
     static func markOk(_ url: String) {
-        queue.sync { cooldowns.removeValue(forKey: url); return }
+        queue.sync {
+            cooldowns.removeValue(forKey: url)
+            lastOk[url] = Date()
+        }
+    }
+
+    /// Routing preference tier for a URL. Lower sorts earlier.
+    ///
+    /// - `0` — answered successfully within `successTTL` and hasn't failed since.
+    /// - `1` — never tried, or its last success has aged out.
+    /// - `2` — failed more recently than it succeeded.
+    ///
+    /// Untried ranks above known-flaky deliberately: an endpoint we have no
+    /// evidence about is a better bet than one we watched fail.
+    static func tier(_ url: String) -> Int {
+        queue.sync {
+            let ok = lastOk[url]
+            let fail = lastFail[url]
+            switch (ok, fail) {
+            case (nil, nil):
+                return 1
+            case (nil, _?):
+                return 2
+            case (let o?, nil):
+                return Date().timeIntervalSince(o) < successTTL ? 0 : 1
+            case (let o?, let f?):
+                if f > o { return 2 }
+                return Date().timeIntervalSince(o) < successTTL ? 0 : 1
+            }
+        }
     }
 
     static func isCoolingDown(_ url: String) -> Bool {
@@ -1473,12 +1560,20 @@ enum RPCEndpointHealth {
     /// entry from a URL the user just discarded doesn't leak into the
     /// freshly-restored config.
     static func clearAll() {
-        queue.sync { cooldowns.removeAll(); return }
+        queue.sync {
+            cooldowns.removeAll()
+            lastOk.removeAll()
+            lastFail.removeAll()
+        }
     }
 
     /// Testing / debug affordance — wipe all cooldowns.
     static func resetForTests() {
-        queue.sync { cooldowns.removeAll(); return }
+        queue.sync {
+            cooldowns.removeAll()
+            lastOk.removeAll()
+            lastFail.removeAll()
+        }
     }
 
     /// Snapshot of currently cooling URLs with their release dates.
@@ -1502,7 +1597,12 @@ enum RPCEndpointHealth {
     /// again on the next call. Useful as a manual "I fixed my key, stop
     /// avoiding this URL" affordance.
     static func clear(_ url: String) {
-        queue.sync { cooldowns.removeValue(forKey: url); return }
+        queue.sync {
+            cooldowns.removeValue(forKey: url)
+            // Also forget the failure so the endpoint returns to neutral
+            // rather than staying demoted by health-aware ordering.
+            lastFail.removeValue(forKey: url)
+        }
     }
 }
 

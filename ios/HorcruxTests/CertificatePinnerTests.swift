@@ -10,8 +10,8 @@ final class CertificatePinnerTests: XCTestCase {
         let pinner = CertificatePinner.shared
 
         // After init, known hosts should have pins registered.
-        XCTAssertTrue(pinner.hasPins(for: "eth.llamarpc.com"),
-                       "LlamaRPC should have pinned hashes after init")
+        XCTAssertTrue(pinner.hasPins(for: "ethereum-rpc.publicnode.com"),
+                       "PublicNode (default Ethereum RPC) should have pinned hashes after init")
         XCTAssertTrue(pinner.hasPins(for: "blockstream.info"),
                        "Blockstream should have pinned hashes after init")
         XCTAssertTrue(pinner.hasPins(for: "api.mainnet-beta.solana.com"),
@@ -47,15 +47,15 @@ final class CertificatePinnerTests: XCTestCase {
     func testPinValidationRejectsUnknownHash() {
         let pinner = CertificatePinner.shared
 
-        // eth.llamarpc.com has known pins. Build a SecTrust with our self-signed
-        // cert whose SPKI hash won't match the registered pins.
+        // ethereum-rpc.publicnode.com has known pins. Build a SecTrust with our
+        // self-signed cert whose SPKI hash won't match the registered pins.
         guard let (_, cert) = Self.makeSelfSignedCert(),
-              let trust = Self.makeTrust(certificate: cert, host: "eth.llamarpc.com") else {
+              let trust = Self.makeTrust(certificate: cert, host: "ethereum-rpc.publicnode.com") else {
             XCTFail("Could not create test certificate / trust")
             return
         }
 
-        let result = pinner.validate(serverTrust: trust, host: "eth.llamarpc.com")
+        let result = pinner.validate(serverTrust: trust, host: "ethereum-rpc.publicnode.com")
         XCTAssertFalse(result,
                        "Validation should reject a certificate whose SPKI hash doesn't match known pins")
     }
