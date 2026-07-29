@@ -1,13 +1,13 @@
 # Horcrux reproducible-build manifest
-# Generated 2026-04-23T05:43:27Z by scripts/verify-build.sh --update
-# Host: Darwin arm64 — rustc 1.90.0 — Xcode 26.4
+# Generated 2026-07-29T17:18:41Z by scripts/verify-build.sh --update
+# Host: Darwin arm64 — rustc 1.97.1 — Xcode 26.6
 
-4ad08d2599f45466be1adeba36138d8d9ae49481dfce5f49829703a7a0faf2ba  ios/Horcrux/Core/Generated/horcrux_core.swift
-55fad56f677ed17a0357776efa238ad4540427aeceea2281e69189204d658f93  ios/Horcrux/Core/Generated/horcrux_coreFFI.h
-d7be6e15e369a317c35d107da5123b6c66aae9f67d02e09a4be59a8a02789cc9  ios/Horcrux/Core/Generated/horcrux_coreFFI.modulemap
-55fad56f677ed17a0357776efa238ad4540427aeceea2281e69189204d658f93  ios/Horcrux/Core/Frameworks/HorcruxCore.xcframework/ios-arm64-simulator/Headers/horcrux_coreFFI.h
-d7be6e15e369a317c35d107da5123b6c66aae9f67d02e09a4be59a8a02789cc9  ios/Horcrux/Core/Frameworks/HorcruxCore.xcframework/ios-arm64-simulator/Headers/module.modulemap
-93f7a5c6e999a897e255a633ffa839273fe6272b17f885d35dc90c0857df3c37  ios/Horcrux/Core/Frameworks/HorcruxCore.xcframework/ios-arm64-simulator/libhorcrux_core.a
-55fad56f677ed17a0357776efa238ad4540427aeceea2281e69189204d658f93  ios/Horcrux/Core/Frameworks/HorcruxCore.xcframework/ios-arm64/Headers/horcrux_coreFFI.h
-d7be6e15e369a317c35d107da5123b6c66aae9f67d02e09a4be59a8a02789cc9  ios/Horcrux/Core/Frameworks/HorcruxCore.xcframework/ios-arm64/Headers/module.modulemap
-a2bd7eaa0d0c45f2b7a737bf8f560d610e468b1048b7f985deb9532525f0e6c1  ios/Horcrux/Core/Frameworks/HorcruxCore.xcframework/ios-arm64/libhorcrux_core.a
+80a571b0b9d1fa0d2713df9ab9422ef9d2478c1dbfaa6b9212f24af045833d31  ios/Horcrux/Core/Generated/horcrux_core.swift
+0edb89325320488d3454d96676241e0b58dc3209416183fb02733f08984d8f93  ios/Horcrux/Core/Generated/horcrux_coreFFI.h
+1811a334d5108cb1990f86766d32a970a4e1a815cc0d135b99be42776f8d8487  ios/Horcrux/Core/Generated/horcrux_coreFFI.modulemap
+0edb89325320488d3454d96676241e0b58dc3209416183fb02733f08984d8f93  ios/Horcrux/Core/Frameworks/HorcruxCore.xcframework/ios-arm64-simulator/Headers/horcrux_coreFFI.h
+1811a334d5108cb1990f86766d32a970a4e1a815cc0d135b99be42776f8d8487  ios/Horcrux/Core/Frameworks/HorcruxCore.xcframework/ios-arm64-simulator/Headers/module.modulemap
+c089fa32d2271bef0c34e85c5d3517cd41cbc59f0ececbf9dcc1d77fdb2ffcba  ios/Horcrux/Core/Frameworks/HorcruxCore.xcframework/ios-arm64-simulator/libhorcrux_core.a
+0edb89325320488d3454d96676241e0b58dc3209416183fb02733f08984d8f93  ios/Horcrux/Core/Frameworks/HorcruxCore.xcframework/ios-arm64/Headers/horcrux_coreFFI.h
+1811a334d5108cb1990f86766d32a970a4e1a815cc0d135b99be42776f8d8487  ios/Horcrux/Core/Frameworks/HorcruxCore.xcframework/ios-arm64/Headers/module.modulemap
+e49df7357e482215d49959b2d51f3570bf6718e7f97774c980a41e009d148eb7  ios/Horcrux/Core/Frameworks/HorcruxCore.xcframework/ios-arm64/libhorcrux_core.a
