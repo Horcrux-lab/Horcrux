@@ -7,6 +7,48 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### iOS — RPC endpoint reliability
+
+- **Purged seven dead RPC endpoints** from the shipped fallback
+  tables. Five were LlamaRPC (`eth`/`polygon`/`arbitrum`/`base`/
+  `optimism`, all HTTP 521 or refusing connections), and it sat
+  *first* in the recovery path for each of those five chains — so
+  every failover paid a full timeout before reaching a working host.
+  The other two were `polygon-rpc.com` (401, "tenant disabled") and
+  `eth-sepolia.public.blastapi.io`. Replaced with endpoints verified
+  live at the time of the change. A measurement of all 35 shipped
+  endpoints found the remaining 29 healthy at 100–300 ms, so the
+  felt unreliability was list rot in the recovery path rather than
+  public infrastructure being unusable.
+- **Removed false redundancy.** `ethereum.publicnode.com` and
+  `ethereum-rpc.publicnode.com` are aliases of one operator, but
+  `orderedAttempts` deduplicates by exact string, so the router
+  believed it held two independent options and would fail both at
+  once. Solana had the same pattern. Fallback tables now use
+  canonical hostnames.
+- **Health data now influences routing.** `RPCEndpointHealth` records
+  `lastOk`/`lastFail` and exposes `tier(_:)`; `resolvedAttempts`
+  pins the user's primary endpoint first, then orders the remainder
+  by tier. Untried endpoints deliberately rank above known-flaky
+  ones — no evidence beats bad evidence.
+- **Closed two routing bypasses.** `BlockchainService.balance` — the
+  hottest read path — and both `TransactionConfirmationPoller`
+  helpers ignored cooldowns and never reported health, so a dead
+  endpoint kept being retried on every refresh and its failures
+  never reached the health registry. All three now route through
+  the standard fallback path.
+- **Certificate pinning retargeted.** The registry pinned a LlamaRPC
+  host that no longer resolves; it now pins the actual default
+  Ethereum host (GTS WE1 + GTS Root R4).
+- **Rot detection automated.** `scripts/probe-rpc-endpoints.sh`
+  parses endpoints out of `NetworkConfig.swift` (so it cannot drift
+  from the source) and probes each one. A weekly workflow runs it
+  and files a deduplicated issue after two consecutive failures.
+  This is the important part of the change: `eth-sepolia.public.
+  blastapi.io` had been recognised as dead months earlier and added
+  to the migration set, yet was never removed from the Sepolia
+  table it still led. The new script caught it on its first run.
+
 ## [0.5.0] - 2026-07-29
 
 First stable release of the 0.5 line, promoting `v0.5.0-rc.2` after
