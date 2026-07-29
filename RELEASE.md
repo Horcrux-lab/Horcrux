@@ -5,10 +5,12 @@ release. Follow it top-to-bottom; skipping a step has historically
 produced unsigned artifacts, broken TOFU pins, or a CHANGELOG that
 lies about what shipped.
 
-> **Current state** — the repository is at `v0.5.0`. The next tag
-> will be either `v0.5.1` (a hotfix, branched from the tag — see
-> "Emergency hotfix" at the bottom) or the start of a `v0.6.0-dev.N`
-> series. The procedure below is identical; pick the tag at step 3.
+> **Current state** — the latest release is `v0.5.0`; `main` has
+> since opened the next cycle at `0.6.0-dev.0`. The next tag will
+> therefore be a `v0.6.0-dev.N` snapshot, unless a critical fix
+> forces a `v0.5.1` hotfix — which branches from the `v0.5.0` tag,
+> not from `main` (see "Emergency hotfix" at the bottom). The
+> procedure below is identical; pick the tag at step 3.
 
 ---
 
@@ -190,10 +192,31 @@ git push origin main
 Only if relay code changed this release.
 
 - [ ] `relay-image.yml` workflow built and tagged the image
-      `ghcr.io/horcrux-lab/horcrux-relay:X.Y.Z`.
+      `ghcr.io/horcrux-lab/horcrux-relay:X.Y.Z`. Note there is **no
+      `v` prefix** — `docker/metadata-action`'s
+      `type=semver,{{version}}` strips it. The tag also publishes
+      `X.Y`, `latest` and `sha-<short>`.
 - [ ] Image digest recorded in `CHANGELOG.md` under the versioned
       section (so downstreams can pin by digest).
-- [ ] `relay-smoke.yml` green on the new tag.
+
+    > Getting the digest is more annoying than it should be. The
+    > workflow's "Image digest" step only echoes the *tags*, and
+    > `gh api .../packages/container/horcrux-relay/versions` needs
+    > the `read:packages` scope, which a default `gh auth login`
+    > token does not carry. The reliable route is the build log:
+    >
+    > ```bash
+    > job=$(gh run view "$run" --json jobs -q '.jobs[0].databaseId')
+    > gh run view --log --job="$job" \
+    >   | grep -oE 'pushing manifest for [^ ]+' | head -1
+    > ```
+    >
+    > All tags in one run share a single manifest digest.
+
+- [ ] `relay-smoke.yml` green on the new tag. Needs a live relay —
+      the workflow takes a URL at dispatch, or reads a staging URL
+      repository variable. Without a deployment this cannot be
+      ticked; open a tracking issue rather than skipping silently.
 
 ## 6 — iOS release (if bumping app store)
 
