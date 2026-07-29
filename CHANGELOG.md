@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-07-29
+
+First stable release of the 0.5 line, promoting `v0.5.0-rc.2` after
+the round-19 close-out. Two themes dominate. On iOS, EVM RPC calls
+now route through a fault-aware endpoint router with per-URL
+cooldowns, and the signing ceremony gained timeout notifications and
+a Siri balance intent. Off-device, three months of CI and
+supply-chain drift were repaired: the relay container had not built
+since `2026-04-24`, `cargo-deny` had never actually run, the declared
+MSRV was eight releases stale, and the multi-party MPC ceremonies had
+never been exercised by CI at all. Nine property-test suites complete
+the round-18/19 robustness work.
+
 ### iOS — ceremony UX (v0.5.0-dev.8+)
 
 - **Signing timeout notification.** When the initiator stays in the

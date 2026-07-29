@@ -5,10 +5,10 @@ release. Follow it top-to-bottom; skipping a step has historically
 produced unsigned artifacts, broken TOFU pins, or a CHANGELOG that
 lies about what shipped.
 
-> **Current state** — the repository is at `v0.5.0-rc.2`. The next
-> tag will be either another `-rc.N` (if the audit turns up must-fix
-> findings) or `v0.5.0` (if the audit passes clean). The procedure
-> below is identical; pick the tag at step 3.
+> **Current state** — the repository is at `v0.5.0`. The next tag
+> will be either `v0.5.1` (a hotfix, branched from the tag — see
+> "Emergency hotfix" at the bottom) or the start of a `v0.6.0-dev.N`
+> series. The procedure below is identical; pick the tag at step 3.
 
 ---
 
@@ -90,9 +90,21 @@ Move everything under `## [Unreleased]` into a new versioned section.
 
 - [ ] `[Unreleased]` is now empty (keep the heading for the next cycle).
 - [ ] New version heading uses ISO date `YYYY-MM-DD`.
-- [ ] Entries are grouped in the KeepAChangelog order:
-      `Added` → `Changed` → `Deprecated` → `Removed` → `Fixed` →
-      `Security` → `Governance` → `Documentation`.
+- [ ] A short summary paragraph sits directly under the version
+      heading naming the release's themes — `[0.5.0]`,
+      `[0.5.0-rc.2]` and `[0.5.0-rc.1]` all carry one.
+- [ ] `###` subsections are grouped **thematically** (`Security`,
+      `Supply chain`, `Testing`, `Governance`, `iOS — …`), not by the
+      KeepAChangelog categories. Those categories belong to the
+      `-dev.N` snapshots, where a section is one or two bullets;
+      every release section in this file — `0.3.0`, `0.5.0-rc.1`,
+      `0.5.0-rc.2` — groups by theme instead, because past ~30
+      entries a heading like "Changed" stops carrying information.
+      The file header still cites Keep a Changelog for the overall
+      shape (version ordering, ISO dates, `[Unreleased]` on top).
+- [ ] No heading is repeated inside one section. `[0.5.0-rc.2]` has
+      three separate `### Security` blocks — that is a defect to
+      avoid, not the pattern to copy.
 
 ## 2 — Bump version strings
 
@@ -154,14 +166,22 @@ Publish the build-manifest evidence so users can reproduce the
 artifacts byte-for-byte.
 
 ```bash
-./scripts/verify-build.sh > build_out/vX.Y.Z.txt
-git add build_out/vX.Y.Z.txt docs/reproducible-build.manifest
+mkdir -p docs/build-evidence
+./scripts/verify-build.sh | tee docs/build-evidence/vX.Y.Z.txt
+git add docs/build-evidence/vX.Y.Z.txt docs/reproducible-build.manifest
 git commit -m "release: vX.Y.Z reproducible-build manifest ..."
 git push origin main
 ```
 
+> Write the evidence under `docs/`, **not** `build_out/` — that
+> directory is Xcode scratch and is ignored (`.gitignore`), so
+> `git add` there fails outright.
+
 - [ ] Hashes in `docs/reproducible-build.manifest` match what
-      `verify-build.sh` emits on a clean container.
+      `verify-build.sh` emits on a clean container. A toolchain
+      change since the manifest was last generated (its header
+      records the rustc + Xcode versions) will diverge the static
+      libs; regenerate with `--update` and say so in the CHANGELOG.
 - [ ] Manifest covers: horcrux-core (release rlib), horcrux-relay
       binary, Dockerfile image digest, iOS XCFramework (if rebuilt).
 

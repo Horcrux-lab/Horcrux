@@ -4,7 +4,7 @@
 [![codecov](https://codecov.io/gh/Horcrux-lab/Horcrux/branch/main/graph/badge.svg)](https://codecov.io/gh/Horcrux-lab/Horcrux)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Rust 1.88+](https://img.shields.io/badge/Rust-1.88%2B-orange.svg)](https://www.rust-lang.org)
-[![Version](https://img.shields.io/badge/version-0.5.0--rc.2-green.svg)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-0.5.0-green.svg)](CHANGELOG.md)
 
 > Your keys are your horcruxes. Split them. Guard them. No single point of failure.
 
@@ -147,8 +147,10 @@ cargo run -p uniffi-bindgen generate \
 
 ### Test Coverage
 
-- **173+ Rust tests** (123 core + 36 relay + 14 bindgen) — 0 clippy warnings
-- **19 Swift test files** — ViewModels, services, security, crypto
+- **260 Rust tests** (204 core + 56 relay; `uniffi-bindgen` has none) — 0 clippy warnings
+- Three further multi-party MPC ceremonies are release-gated, not run by
+  `cargo test` — see `.github/workflows/mpc-e2e.yml`
+- **32 Swift test files** — ViewModels, services, security, crypto
 
 ## CI/CD
 

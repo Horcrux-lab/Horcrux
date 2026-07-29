@@ -21,7 +21,7 @@ addition to** the full repository; they are not a substitute for
 2. Each firm receives:
    - This `audit-rfp/` directory (tarballed).
    - A link to the public repository at the review tag (e.g.
-     `v0.5.0-rc.2`).
+     `v0.5.0`).
    - The private write-up of any still-open findings from
      `docs/security-audit-2026-04.md` with their remediation plans.
 3. Firms return a proposal referencing the scope / severity / deliverable

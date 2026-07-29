@@ -1,7 +1,8 @@
 # Audit Scope
 
-**Review tag**: `v0.5.0-rc.2` (subject to bump if further fixes land
-before the audit starts — the final tag will be frozen at kickoff).
+**Review tag**: `v0.5.0` (frozen at kickoff; bumped from
+`v0.5.0-rc.2` because the round-19 close-out, the CI/supply-chain
+repairs and the MSRV correction all landed after that candidate).
 
 ## In scope
 
