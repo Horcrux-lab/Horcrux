@@ -229,4 +229,42 @@ final class RPCRoutingTests: XCTestCase {
         XCTAssertFalse(RPCEndpointHealth.isCoolingDown("https://fixed-my-key.example"))
         XCTAssertEqual(RPCEndpointHealth.tier("https://fixed-my-key.example"), 1)
     }
+
+    // MARK: - Keyless fallbacks must stay keyless
+
+    /// The Tenderly public gateways added as free fallbacks share a host
+    /// family with the Tenderly *paid provider template*
+    /// (`https://{chain}.gateway.tenderly.co/{KEY}`), and
+    /// `substituteAPIKey` selects a key by host substring. Only the
+    /// `{KEY}` guard keeps the two apart.
+    ///
+    /// If that guard were ever relaxed into "append the key when the host
+    /// matches", every free fallback on a provider the user happens to
+    /// hold a key for would start spending that key's quota, and would
+    /// bind anonymous fallback traffic to the user's billing identity —
+    /// the exact privacy property the free tier is there to preserve.
+    func test_keylessFallbackURLs_areNeverRewrittenWithAConfiguredKey() {
+        let config = NetworkConfig.shared
+        config.tenderlyAPIKey = "test-tenderly-key"
+        config.drpcAPIKey = "test-drpc-key"
+        defer {
+            config.tenderlyAPIKey = ""
+            config.drpcAPIKey = ""
+        }
+
+        var checked = 0
+        for net in EVMNetwork.allCases {
+            config.evmChainId = net.rawValue
+            for url in RPCFallbacks.endpoints(for: .ethereum, config: config) {
+                checked += 1
+                let substituted = config.substituteAPIKey(in: url, chain: .ethereum)
+                XCTAssertEqual(substituted, url,
+                               "curated fallback \(url) was rewritten to \(substituted)")
+                XCTAssertFalse(substituted.contains("test-tenderly-key"))
+                XCTAssertFalse(substituted.contains("test-drpc-key"))
+            }
+        }
+
+        XCTAssertGreaterThan(checked, 0, "the sweep should have inspected some endpoints")
+    }
 }

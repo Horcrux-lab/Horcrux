@@ -1,7 +1,8 @@
 # Node Configuration: Free-Tier Reliability and the Provider-Key Question
 
 **Date:** 2026-07-29
-**Status:** Proposed — Part 1 implemented, Part 2 awaiting product decision
+**Status:** Part 1 implemented and merged (`83d0828`, `1b4e827`,
+`733e80b`). Part 2 awaiting a product decision — tracked in issue #27.
 
 ## Problem
 
@@ -57,9 +58,11 @@ Every **default** endpoint a new install actually starts on is healthy.
 `EVMNetwork.publicDefaultRPC` (NetworkConfig.swift:66–80) points at
 publicnode and official chain RPCs — never at LlamaRPC.
 
-Not probed: testnet-only entries (Sepolia fallbacks, Solana devnet,
-Tron Shasta/Nile) and the Bitcoin testnet Esplora hosts. They matter
-less and should be swept by the automation in Part 1.4.
+Not probed in this snapshot: testnet-only entries (Sepolia fallbacks,
+Solana devnet, Tron Shasta/Nile) and the Bitcoin testnet Esplora hosts.
+The automation in Part 1.4 covers them — its first run probes 42
+endpoints, and it immediately found a seventh dead host this manual
+sweep had missed (see 1.4).
 
 ## Diagnosis
 
@@ -197,12 +200,15 @@ adopt B, so they carry no product risk.
 `polygon-rpc.com` from `RPCFallbacks`. Ethereum mainnet's fallback
 becomes `ethereum-rpc.publicnode.com` (matching the verified default
 hostname rather than the different, unverified `ethereum.publicnode.com`
-the table currently used) plus `eth.drpc.org`. Polygon keeps
-`polygon-bor-rpc.publicnode.com` and gains `polygon.drpc.org`. Arbitrum,
+the table currently used), `eth.drpc.org` and
+`mainnet.gateway.tenderly.co`. Polygon keeps
+`polygon-bor-rpc.publicnode.com` and gains `polygon.drpc.org` and
+`polygon.gateway.tenderly.co`. Arbitrum,
 Base and Optimism keep their official and publicnode entries and gain
 their dRPC equivalents, so every chain retains at least three
-independent providers. Drop the LlamaRPC pin from `CertificatePinner`
-and its placeholder from the Settings text field.
+independent providers. Drop the LlamaRPC pin from `CertificatePinner`,
+retargeting it onto the real default host, and remove the dead
+placeholder from the Settings text field.
 
 **1.1a Endpoints must be verified from CI, not from a laptop.** The
 first replacement set used `1rpc.io` for Ethereum, Sepolia and Polygon.
@@ -247,6 +253,26 @@ consecutively. This is the systemic fix: the list rotted for months
 because nothing watched it, and purging it today without this guarantees
 we are back here in six months.
 
+The evidence that this was the important deliverable, not the purge,
+arrived immediately and twice over:
+
+- On its first run the script found a *seventh* dead endpoint the
+  manual sweep had missed. `eth-sepolia.public.blastapi.io` had already
+  been recognised as dead months earlier — someone added it to the
+  `deadEndpoints` migration set — and was still sitting first in the
+  Sepolia fallback table it should have been removed from. Someone
+  knew, and the table still did not get fixed.
+- An hour after the workflow merged, it failed on the endpoints added
+  in the same change (see 1.1a). The automation caught its own author.
+
+Two implementation notes. The probe skips the `deadEndpoints`
+migration array, which is a list of URLs that are *supposed* to be dead
+and would otherwise make the script permanently self-failing. And the
+report embeds response fragments from third-party servers, so it
+reaches the job summary and the issue body through a file only — never
+interpolated into a shell command or a `${{ }}` expression, which would
+be a script-injection sink fed by untrusted input.
+
 ### Part 2 — requires a product decision, specced only
 
 **2.1 Onboarding step.** A "node provider" screen after PIN setup:
@@ -274,18 +300,28 @@ option is private; the user should get to choose knowingly.
 
 ## Testing
 
-Part 1.1 is covered by asserting no fallback list contains a
-known-dead host and that every chain retains ≥2 distinct provider
-families. Part 1.2 is covered by asserting that a cooling endpoint is
-excluded from the balance path's attempt list and that a business error
-aborts instead of walking the list. Part 1.3 is covered by unit tests
-over the ordering function with a seeded health registry: recent-success
-first, user URL always first, stable within a tier. Part 1.4 is
-validated by running the probe workflow manually against a
-deliberately-broken entry.
+Part 1.1 is covered by asserting that no fallback list contains a
+banned host, across all three ban categories — measured-dead,
+vantage-dependent and private-relay — with the reason carried into the
+failure message, and by asserting every chain retains ≥2 distinct
+provider families. The tables currently ship three per chain; the
+assertion is set at two so that removing one dead entry in an
+emergency does not fail the build, while collapsing to a single
+operator still does. Part 1.2 is covered by asserting that a cooling
+endpoint is excluded from the balance path's attempt list and that a
+business error aborts instead of walking the list. Part 1.3 is covered
+by unit tests over the ordering function with a seeded health registry:
+recent-success first, user URL always first, stable within a tier.
+
+Part 1.4 needed no synthetic validation. It failed against real
+regressions twice within an hour of merging — first the Sepolia entry
+the manual sweep missed, then the 1RPC endpoints added alongside it.
 
 The endpoint measurements in this document are a snapshot, not a test
-fixture; tests must not depend on live network calls.
+fixture; tests must not depend on live network calls. Liveness is a
+property of the internet, not of a build, and belongs to the scheduled
+probe. This division matters: it is why the test suite stays
+deterministic and offline while endpoint rot still gets caught.
 
 ## Open questions
 
@@ -293,7 +329,11 @@ fixture; tests must not depend on live network calls.
   hide user IPs from providers, but it would put Horcrux itself in the
   position of seeing every address — the exact concentration this
   document argues against for commercial providers. Not proposed here.
-- Whether to pin certificates for the new default hosts, or accept TOFU.
-  The current known-pin set is stale relative to the endpoints actually
-  in use: `eth.llamarpc.com` is pinned while `ethereum-rpc.publicnode.com`,
-  the real default, is not.
+- Whether certificate pinning should track the fallback tables. 1.1
+  retargeted the stale `eth.llamarpc.com` pin onto
+  `ethereum-rpc.publicnode.com`, the real default, but coverage is
+  still only three hosts — the dRPC and Tenderly fallbacks are TOFU.
+  Either pinning follows the tables (and every endpoint change becomes
+  a pinning change, with a bricking risk on CA rotation) or it stays
+  deliberately narrow and we say so. Currently it is narrow by
+  accident, which is the worst of the two.
