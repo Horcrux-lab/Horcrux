@@ -1,0 +1,113 @@
+name: rpc-endpoints
+
+# Weekly liveness sweep of every public RPC endpoint shipped in
+# NetworkConfig.swift.
+#
+# Why: on 2026-07-29 a manual probe found seven dead endpoints in the
+# fallback tables. Five were LlamaRPC — a provider that had gone dark
+# entirely while still sitting as the *first* fallback for Ethereum,
+# Polygon, Arbitrum, Base and Optimism. One (Blast API's Sepolia host) had
+# already been recognised as dead months earlier and added to the
+# migration list, yet was never removed from the fallback table it was
+# still being served from.
+#
+# Nothing watched the list, so it rotted in silence and users experienced
+# it as "the free nodes are unreliable". This job is the watch.
+#
+# A failure here is not an outage — it means the shipped table needs
+# editing. See docs/superpowers/specs/2026-07-29-node-configuration-design.md.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "ios/Horcrux/Core/NetworkConfig.swift"
+      - "scripts/probe-rpc-endpoints.sh"
+      - ".github/workflows/rpc-endpoints.yml"
+  pull_request:
+    branches: [main]
+    paths:
+      - "ios/Horcrux/Core/NetworkConfig.swift"
+      - "scripts/probe-rpc-endpoints.sh"
+      - ".github/workflows/rpc-endpoints.yml"
+  schedule:
+    # 07:41 UTC every Monday — offset from cargo-deny (06:17) and
+    # cargo-audit (05:23) to avoid a thundering herd on GH runners.
+    - cron: "41 7 * * 1"
+  workflow_dispatch:
+
+concurrency:
+  group: rpc-endpoints-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  probe:
+    name: Probe shipped RPC endpoints
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - name: Probe endpoints
+        id: probe
+        run: |
+          set +e
+          # Public endpoints rate-limit and have bad seconds. Requiring two
+          # consecutive failures keeps a single blip from filing an issue,
+          # while a genuinely dead host still fails both passes.
+          ./scripts/probe-rpc-endpoints.sh > probe-report.txt 2>&1
+          STATUS=$?
+          if [ "$STATUS" -ne 0 ]; then
+            echo "First pass reported failures; re-probing in 60s to rule out a transient blip."
+            sleep 60
+            ./scripts/probe-rpc-endpoints.sh > probe-report.txt 2>&1
+            STATUS=$?
+          fi
+          cat probe-report.txt
+          echo "status=$STATUS" >> "$GITHUB_OUTPUT"
+          exit 0
+
+      - name: Summarise
+        # The report embeds response fragments from third-party servers, so
+        # it is never interpolated into a shell command or a `${{ }}`
+        # expression — it moves through a file only.
+        run: |
+          {
+            echo '## RPC endpoint sweep'
+            echo
+            echo '```'
+            cat probe-report.txt
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Open an issue for dead endpoints
+        # Only from main / schedule: pull_request runs from forks have no
+        # write token, and a PR author should see the failed check instead.
+        if: steps.probe.outputs.status != '0' && github.event_name != 'pull_request'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TITLE="Dead RPC endpoints in the shipped fallback tables"
+          # Reuse the existing issue rather than filing a new one each week.
+          EXISTING=$(gh issue list --state open --search "$TITLE in:title" \
+            --json number --jq '.[0].number // empty')
+          {
+            cat probe-report.txt
+            echo
+            echo '---'
+            echo "Detected by \`.github/workflows/rpc-endpoints.yml\` on run $GITHUB_RUN_ID."
+          } > issue-body.txt
+          if [ -n "$EXISTING" ]; then
+            gh issue comment "$EXISTING" --body-file issue-body.txt
+          else
+            gh issue create --title "$TITLE" --body-file issue-body.txt
+          fi
+
+      - name: Fail the job when endpoints are dead
+        if: steps.probe.outputs.status != '0'
+        run: |
+          echo "One or more shipped RPC endpoints did not answer twice in a row." >&2
+          exit 1
