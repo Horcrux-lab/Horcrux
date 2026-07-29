@@ -40,6 +40,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Certificate pinning retargeted.** The registry pinned a LlamaRPC
   host that no longer resolves; it now pins the actual default
   Ethereum host (GTS WE1 + GTS Root R4).
+- **Rejected two endpoint classes that liveness probes cannot catch.**
+  The first replacement set used 1RPC, which passed local
+  verification and failed the scheduled probe minutes later: it
+  answers residential clients and returns "unknown network" to
+  datacenter egress. Many wallet users reach the internet through a
+  commercial VPN and are indistinguishable from a CI runner, so they
+  would have hit this silently on a fallback path. Replaced with
+  Tenderly's public gateways, verified from both vantage points.
+  Private relays such as Flashbots Protect and MEVBlocker are also
+  now rejected: they answer reads perfectly, so they look healthy to
+  any probe, but they do not broadcast to the public mempool, and a
+  transaction failing over onto one could sit unmined with no error
+  surfacing. Both classes are asserted against in tests.
 - **Rot detection automated.** `scripts/probe-rpc-endpoints.sh`
   parses endpoints out of `NetworkConfig.swift` (so it cannot drift
   from the source) and probes each one. A weekly workflow runs it

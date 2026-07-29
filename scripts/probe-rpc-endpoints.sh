@@ -12,6 +12,13 @@
 # The endpoint list is parsed out of the Swift source rather than
 # duplicated here, so this script cannot drift from what the app ships.
 #
+# Run this from CI, not just from a laptop, before trusting a new endpoint.
+# Within minutes of the first sweep it caught three freshly-added 1rpc.io
+# URLs that answer residential clients but return "unknown network" to
+# datacenter egress. A local check would have passed them. Many wallet
+# users reach the internet through commercial VPNs, which look exactly
+# like the CI runner, so a laptop is not a representative vantage point.
+#
 # Usage:
 #   scripts/probe-rpc-endpoints.sh            # probe all, report, exit 1 on any failure
 #   scripts/probe-rpc-endpoints.sh --quiet    # only print failures

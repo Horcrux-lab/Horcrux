@@ -23,6 +23,40 @@ final class RPCRoutingTests: XCTestCase {
         "eth-sepolia.public.blastapi.io"   // "Blast API is no longer available"
     ]
 
+    /// Hosts that answer from some vantage points and not others. These are
+    /// worse than dead hosts, because they pass a developer's local check and
+    /// then fail for a subset of users.
+    ///
+    /// `1rpc.io` serves residential clients normally but returns "unknown
+    /// network" to datacenter egress — caught by the probe workflow running on
+    /// Azure-hosted runners minutes after these URLs were added. A large share
+    /// of wallet users reach the internet through commercial VPNs, which are
+    /// datacenter IPs, so this is a real user-facing failure and not a CI
+    /// artefact. Keyed 1RPC access remains available as a provider template,
+    /// where it is the user's explicit, visible choice.
+    ///
+    /// Mechanism aside — geo-routing or IP policy — an endpoint whose
+    /// availability depends on who is asking cannot be a silent fallback.
+    private static let vantageDependentHosts = ["1rpc.io"]
+
+    /// Endpoints that do not broadcast to the public mempool. Private relays
+    /// answer reads correctly, so they look healthy to every probe, but a
+    /// transaction sent through one does not propagate normally and can sit
+    /// unmined without any error surfacing. They must never appear in a
+    /// fallback path the user did not choose.
+    private static let privateRelayHosts = [
+        "rpc.flashbots.net",
+        "rpc.mevblocker.io",
+        "rpc.titanbuilder.xyz",
+        "rpc.beaverbuild.org"
+    ]
+
+    private static var bannedHosts: [(host: String, reason: String)] {
+        knownDeadHosts.map { ($0, "measured dead") }
+            + vantageDependentHosts.map { ($0, "unavailable from datacenter egress") }
+            + privateRelayHosts.map { ($0, "private mempool, does not broadcast publicly") }
+    }
+
     override func setUp() {
         super.setUp()
         RPCEndpointHealth.resetForTests()
@@ -37,16 +71,16 @@ final class RPCRoutingTests: XCTestCase {
 
     // MARK: - Curated table hygiene
 
-    func test_noFallbackTable_containsAKnownDeadHost() {
+    func test_noFallbackTable_containsABannedHost() {
         let config = NetworkConfig.shared
         var checked = 0
 
         for chain in Chain.allCases {
             for url in RPCFallbacks.endpoints(for: chain, config: config) {
                 checked += 1
-                for dead in Self.knownDeadHosts {
-                    XCTAssertFalse(url.contains(dead),
-                                   "\(chain) fallback still lists dead host \(dead): \(url)")
+                for banned in Self.bannedHosts {
+                    XCTAssertFalse(url.contains(banned.host),
+                                   "\(chain) fallback lists \(banned.host) — \(banned.reason): \(url)")
                 }
             }
         }
@@ -58,9 +92,9 @@ final class RPCRoutingTests: XCTestCase {
             config.evmChainId = net.rawValue
             for url in RPCFallbacks.endpoints(for: .ethereum, config: config) {
                 checked += 1
-                for dead in Self.knownDeadHosts {
-                    XCTAssertFalse(url.contains(dead),
-                                   "\(net) fallback still lists dead host \(dead): \(url)")
+                for banned in Self.bannedHosts {
+                    XCTAssertFalse(url.contains(banned.host),
+                                   "\(net) fallback lists \(banned.host) — \(banned.reason): \(url)")
                 }
             }
         }

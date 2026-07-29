@@ -1353,7 +1353,7 @@ enum RPCFallbacks {
                 // like redundancy but shares one operator).
                 "https://ethereum-rpc.publicnode.com",
                 "https://eth.drpc.org",
-                "https://1rpc.io/eth"
+                "https://mainnet.gateway.tenderly.co"
             ]
         case .sepolia:
             return [
@@ -1361,13 +1361,13 @@ enum RPCFallbacks {
                 // so it dedupes for default installs.
                 "https://ethereum-sepolia-rpc.publicnode.com",
                 "https://sepolia.drpc.org",
-                "https://1rpc.io/sepolia"
+                "https://sepolia.gateway.tenderly.co"
             ]
         case .polygon:
             return [
                 "https://polygon-bor-rpc.publicnode.com",
                 "https://polygon.drpc.org",
-                "https://1rpc.io/matic"
+                "https://polygon.gateway.tenderly.co"
             ]
         case .arbitrumOne:
             return [

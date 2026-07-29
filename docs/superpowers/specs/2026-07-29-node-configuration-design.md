@@ -204,6 +204,32 @@ their dRPC equivalents, so every chain retains at least three
 independent providers. Drop the LlamaRPC pin from `CertificatePinner`
 and its placeholder from the Settings text field.
 
+**1.1a Endpoints must be verified from CI, not from a laptop.** The
+first replacement set used `1rpc.io` for Ethereum, Sepolia and Polygon.
+Every one passed local verification and every one failed the scheduled
+probe minutes later: 1RPC answers residential clients normally and
+returns "unknown network" to datacenter egress. This is not a CI
+artefact to be waived. A large share of wallet users reach the internet
+through a commercial VPN, and to 1RPC those users are indistinguishable
+from the runner — they would have hit exactly this failure, silently,
+on a fallback path. Whatever the mechanism, an endpoint whose
+availability depends on who is asking cannot be a silent fallback. They
+were replaced with Tenderly's public gateways, verified from both
+vantage points.
+
+Two categories of endpoint are now rejected outright and asserted
+against in tests, because neither is caught by a liveness probe:
+
+- *Vantage-dependent* hosts, as above. They pass every check the
+  developer runs and fail for a subset of users.
+- *Private relays* (`rpc.flashbots.net`, `rpc.mevblocker.io` and
+  similar). These answer reads perfectly, so they look healthy to any
+  probe, but they do not broadcast to the public mempool. A
+  transaction that failed over onto one would not propagate normally
+  and could sit unmined with no error surfacing anywhere. They are
+  legitimate for a user who deliberately wants MEV protection; they
+  are indefensible as an invisible fallback.
+
 **1.2 Route the read path through the health-aware helper.** Change
 `balance(for:config:)` and both `TransactionConfirmationPoller` helpers
 to use `withFallbackURL`, giving them cooldown filtering, health
