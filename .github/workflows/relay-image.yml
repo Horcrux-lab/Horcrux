@@ -5,7 +5,8 @@ name: Relay Image
 #
 # Triggers:
 #   - Push to main        → tags ghcr.io/<owner>/horcrux-relay:edge
-#   - Tag v* (release)    → tags :vX.Y.Z and :latest
+#   - Tag v* (release)    → tags :X.Y.Z, :X.Y and :latest
+#                           (metadata-action strips the leading `v`)
 #   - Manual dispatch     → tags :<short-sha>
 #
 # The published image is the reference self-hosters pull via the

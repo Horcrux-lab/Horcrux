@@ -340,6 +340,44 @@ Full rpc-routing-plan audit — all plan items closed.
   source file set (verified by comparing file-reference counts
   against `HEAD`).
 
+- **Relay container image.** Published by `relay-image.yml` on the
+  `v0.5.0` tag, `linux/amd64` + `linux/arm64`, with provenance and
+  SBOM attestations:
+
+  ```
+  ghcr.io/horcrux-lab/horcrux-relay:0.5.0
+  ghcr.io/horcrux-lab/horcrux-relay:0.5
+  ghcr.io/horcrux-lab/horcrux-relay:latest
+  ghcr.io/horcrux-lab/horcrux-relay:sha-ad9a392
+
+  digest: sha256:9003998310f840cc5854d32f1587dc186cc6883678614bdd231836f706d0f306
+  ```
+
+  Pin by digest to get an immutable reference. Note the tag carries
+  **no `v` prefix** — `docker/metadata-action`'s
+  `type=semver,{{version}}` strips it. `docker-compose.yml`'s
+  commented pin example said `:v0.5.0-rc.1`, a tag that has never
+  existed; corrected here along with the same error in the
+  `relay-image.yml` header comment.
+
+  > **Open issue, not fixed by this release.** The GHCR package is
+  > not publicly readable — an anonymous
+  > `GET /v2/horcrux-lab/horcrux-relay/manifests/0.5.0` returns
+  > `401`, and the token endpoint refuses to mint an anonymous pull
+  > token. Self-hosters following `docker-compose.yml` therefore
+  > cannot pull the image. Package visibility is a GHCR-side setting
+  > that is not expressible in this repository; a maintainer has to
+  > flip it in the package settings UI.
+
+- **Reproducible-build manifest regenerated.**
+  `docs/reproducible-build.manifest` had described April artifacts
+  built by rustc 1.90.0 under Xcode 26.4, so all nine of its hashes
+  diverged — three months of legitimate API change, not a
+  reproducibility failure. Rebuilt against rustc 1.97.1 / Xcode
+  26.6, with the verification transcript published at
+  `docs/build-evidence/v0.5.0.txt`. Three successive clean rebuilds
+  on one host now hash identically, including both static libs.
+
 - **README version badge realigned `0.3.0` → `0.5.0-rc.2`**, two
   minor versions stale and not previously flagged.
 

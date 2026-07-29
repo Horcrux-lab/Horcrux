@@ -18,8 +18,11 @@
 services:
   horcrux-relay:
     image: ghcr.io/horcrux-lab/horcrux-relay:latest
-    # Pin to a specific tag in production, e.g.
-    #   image: ghcr.io/horcrux-lab/horcrux-relay:v0.5.0-rc.1
+    # Pin to a specific tag — or better, an immutable digest — in
+    # production. The Relay Image workflow publishes `X.Y.Z` with no
+    # `v` prefix (docker/metadata-action `type=semver,{{version}}`):
+    #   image: ghcr.io/horcrux-lab/horcrux-relay:0.5.0
+    #   image: ghcr.io/horcrux-lab/horcrux-relay@sha256:9003998310f840cc5854d32f1587dc186cc6883678614bdd231836f706d0f306
     container_name: horcrux-relay
     restart: unless-stopped
     environment:
