@@ -42,6 +42,7 @@
 		412776403F6D4CB19CF35E3F /* AuditExportTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4D6DF2DF65312D23533540F7 /* AuditExportTests.swift */; };
 		413FFA707333203A9879D9D9 /* QRTransport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A849C84C85BCB4D83640A5B /* QRTransport.swift */; };
 		42EB2E003EEBA8C2BC66D843 /* Localizable.strings in Resources */ = {isa = PBXBuildFile; fileRef = 4ADE5780233CC702F9DEFC2D /* Localizable.strings */; };
+		43524B363D75B75968C36433 /* NodeSettingsMigrationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB86BD0CD39FE862C621AD23 /* NodeSettingsMigrationTests.swift */; };
 		4464CA3F4629F5A2DA4272C7 /* HorcruxApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8D5302000BBC22EADA2A1F6 /* HorcruxApp.swift */; };
 		4473C32496DD313F260D2116 /* horcrux_core.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1AF9DEBF9BECD65C63B64B81 /* horcrux_core.swift */; };
 		45DA893F35C68A553D0E1CA0 /* DKGTestView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9BC6D798ADA312303C951B6D /* DKGTestView.swift */; };
@@ -264,6 +265,7 @@
 		A6B362D566641A53BD4DD16E /* CertificatePinnerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CertificatePinnerTests.swift; sourceTree = "<group>"; };
 		AA75292634745BB38B72881E /* AccountStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccountStore.swift; sourceTree = "<group>"; };
 		AA86EE21AC4AFEDCF529C518 /* RecoveryKeyManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecoveryKeyManager.swift; sourceTree = "<group>"; };
+		AB86BD0CD39FE862C621AD23 /* NodeSettingsMigrationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NodeSettingsMigrationTests.swift; sourceTree = "<group>"; };
 		AE9C9AA24E5D352EF0382FDB /* PriceService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PriceService.swift; sourceTree = "<group>"; };
 		B2D81D2873A804DCFE6F7442 /* BtcSigner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BtcSigner.swift; sourceTree = "<group>"; };
 		B557F92FAAF7C0F38B2CC6C6 /* WiFiLANTransport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WiFiLANTransport.swift; sourceTree = "<group>"; };
@@ -535,6 +537,7 @@
 				678F55EA0F92269FF77CA18E /* NetworkConfigTests.swift */,
 				09FDAD0B647208C08CA5D02C /* NodeErrorMapperTests.swift */,
 				83448F8610DEDFCBE45618C7 /* NodeProviderTests.swift */,
+				AB86BD0CD39FE862C621AD23 /* NodeSettingsMigrationTests.swift */,
 				C5777E46F80335B4C7DE9E2E /* PendingBroadcastQueueTests.swift */,
 				EBE439C22E1CABB66A71A4AF /* PinHashTests.swift */,
 				8622DE820B92BAE12389D7BC /* PortfolioMetricsTests.swift */,
@@ -748,6 +751,7 @@
 				563DA275111031BB4FCE5CF4 /* NetworkConfigTests.swift in Sources */,
 				F63B208B16FFDB8F96621F31 /* NodeErrorMapperTests.swift in Sources */,
 				2CE145D5BF7B08E331A1C386 /* NodeProviderTests.swift in Sources */,
+				43524B363D75B75968C36433 /* NodeSettingsMigrationTests.swift in Sources */,
 				08CC5D1741B466360A4A2DF3 /* PendingBroadcastQueueTests.swift in Sources */,
 				272EF60E67B5AF4EA28D33EC /* PinHashTests.swift in Sources */,
 				0F938C5911BEDC1E7C3390EB /* PortfolioMetricsTests.swift in Sources */,
