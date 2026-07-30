@@ -15,14 +15,14 @@ enum EndpointSource: Equatable, Hashable {
 
 extension NetworkConfig {
     /// Pure single source of truth for endpoint precedence. No singleton reads.
-    /// Branch order mirrors `resolveRawURL` exactly.
+    /// Branch order is the canonical definition; `resolved(for:)` drives it.
     ///
     /// - Parameters:
     ///   - isOverridden: Whether `ChainEndpointOverrides.url(for: chain)` is non-nil.
     ///   - provider: The active `NodeProvider`, or nil for public defaults.
     ///   - hasKey: Whether a non-empty API key is configured for `provider`.
     ///   - solanaMainnet: `true` when the Solana cluster is mainnet (`!solDevnet`).
-    ///     The `!` inversion exists in exactly one place — the instance convenience below.
+    ///     The `!` inversion exists in exactly one place — `resolved(for:)`.
     static func endpointSource(
         for chain: Chain,
         isOverridden: Bool,
@@ -40,19 +40,38 @@ extension NetworkConfig {
         return .publicDefault
     }
 
-    /// Instance convenience for the UI. Reads live singletons once and
-    /// delegates to the pure classifier.
+    /// Reads live state **once** and returns both the source classification and
+    /// the resolved URL in a single pass.
     ///
-    /// Reads `url(for:)` (lock-guarded storage), **not** the `overrides`
-    /// mirror — the mirror is there to drive SwiftUI reactivity but may lag.
-    func endpointSource(for chain: Chain) -> EndpointSource {
+    /// This is the single adapter between live state and the pure classifier.
+    /// `endpointSource(for:)` and `resolveRawURL(for:)` both project out of it,
+    /// so they are structurally incapable of disagreeing. The `!solDevnet`
+    /// inversion and the `ChainEndpointOverrides` lock acquire each happen
+    /// exactly once per call here, eliminating the TOCTOU window where an
+    /// override could change between two independent reads.
+    func resolved(for chain: Chain) -> (source: EndpointSource, url: String) {
+        let overrideURL = ChainEndpointOverrides.shared.url(for: chain)
         let provider = activeProvider
-        return Self.endpointSource(
+        let solanaMainnet = !solDevnet                  // the ONLY place !solDevnet is computed
+        let source = Self.endpointSource(
             for: chain,
-            isOverridden: ChainEndpointOverrides.shared.url(for: chain) != nil,
+            isOverridden: overrideURL != nil,
             provider: provider,
             hasKey: provider.map { !apiKey(for: $0).isEmpty } ?? false,
             evmChainId: evmChainId,
-            solanaMainnet: !solDevnet)       // the ONLY place !solDevnet is computed
+            solanaMainnet: solanaMainnet)
+        switch source {
+        case .override:
+            // ?? arm unreachable by construction; guards against future classifier changes.
+            return (source, overrideURL ?? publicDefault(for: chain))
+        case .provider(let p):
+            return (source, p.template(for: chain, evmChainId: evmChainId,
+                                       solanaMainnet: solanaMainnet) ?? publicDefault(for: chain))
+        case .publicDefault:
+            return (source, publicDefault(for: chain))
+        }
     }
+
+    func endpointSource(for chain: Chain) -> EndpointSource { resolved(for: chain).source }
 }
+

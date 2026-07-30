@@ -314,36 +314,11 @@ final class NetworkConfig: ObservableObject, @unchecked Sendable {
     /// Resolve `chain` to a raw URL, which may still contain `{KEY}`.
     /// Callers wanting a request-ready URL should use `rpcURL(for:)`.
     ///
-    /// Order: explicit override, then the active provider's template, then
-    /// the public default. A provider with no key configured is skipped
-    /// rather than returning a template that would be sent with a literal
-    /// `{KEY}` in the path.
-    ///
-    /// Routing is derived from the single-source-of-truth classifier in
-    /// `EndpointSource.swift` so the badge and the resolver can never
-    /// disagree about which path is taken.
-    func resolveRawURL(for chain: Chain) -> String {
-        let overrideURL = ChainEndpointOverrides.shared.url(for: chain)
-        let provider = activeProvider
-        switch Self.endpointSource(
-            for: chain,
-            isOverridden: overrideURL != nil,
-            provider: provider,
-            hasKey: provider.map { !apiKey(for: $0).isEmpty } ?? false,
-            evmChainId: evmChainId,
-            solanaMainnet: !solDevnet
-        ) {
-        case .override:
-            // Both ?? arms are unreachable by construction; they guard
-            // against a future classifier change that could otherwise crash.
-            return overrideURL ?? publicDefault(for: chain)
-        case .provider(let p):
-            return p.template(for: chain, evmChainId: evmChainId, solanaMainnet: !solDevnet)
-                ?? publicDefault(for: chain)
-        case .publicDefault:
-            return publicDefault(for: chain)
-        }
-    }
+    /// Precedence: explicit override → active provider template (key required) →
+    /// public default. Implementation delegates to `resolved(for:)` in
+    /// `EndpointSource.swift`, which shares the computation with
+    /// `endpointSource(for:)` so the badge and the resolver can never diverge.
+    func resolveRawURL(for chain: Chain) -> String { resolved(for: chain).url }
 
     /// Resolve the user-configured WebSocket URL for a chain, performing
     /// the same `{KEY}` → Keychain-backed-key substitution we do for HTTP
