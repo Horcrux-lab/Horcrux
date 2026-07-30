@@ -251,4 +251,32 @@ final class NodeSettingsMigrationTests: XCTestCase {
             defaults.integer(forKey: "com.horcrux.rpc.settingsMigrationVersion"), 0,
             "a no-op migration must still record its version or it reruns forever")
     }
+
+    func test_runIfNeeded_isSkippedOnceTheVersionIsRecorded() {
+        let suiteName = "migration-test-\(UUID().uuidString)"
+        guard let defaults = UserDefaults(suiteName: suiteName) else {
+            return XCTFail("could not create a test defaults suite")
+        }
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        let config = NetworkConfig.shared
+        let originalChainId = config.evmChainId
+        let originalProvider = config.activeProvider
+        let originalEthRPC = config.ethereumRPC
+        defer {
+            config.evmChainId = originalChainId
+            config.ethereumRPC = originalEthRPC
+            config.activeProvider = originalProvider
+            ChainEndpointOverrides.shared.removeAll()
+        }
+
+        NodeSettingsMigration.runIfNeeded(config: config, defaults: defaults)
+        let firstRunProvider = config.activeProvider
+
+        config.activeProvider = nil
+        NodeSettingsMigration.runIfNeeded(config: config, defaults: defaults)
+        XCTAssertNil(config.activeProvider,
+                     "a second run must be a no-op, not re-derive state the user has since changed")
+        _ = firstRunProvider
+    }
 }

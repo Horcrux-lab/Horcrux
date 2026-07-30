@@ -277,6 +277,7 @@ final class NetworkConfig: ObservableObject, @unchecked Sendable {
         self.activeProvider = storedProvider.flatMap(NodeProvider.init(rawValue:))
         self.ethereumWSS = ud.string(forKey: Keys.ethereumWSS) ?? ""
         self.solanaWSS = ud.string(forKey: Keys.solanaWSS) ?? ""
+        NodeSettingsMigration.runIfNeeded(config: self)
     }
 
     func rpcURL(for chain: Chain) -> String {
