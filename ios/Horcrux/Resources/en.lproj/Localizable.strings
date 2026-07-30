@@ -548,6 +548,17 @@
 "nodeSettings.coveragePartial" = "%1$@ covers %2$d of %3$d chains. %4$@ stay on public endpoints.";
 "nodeSettings.coveragePartialWithOverrides" = "%1$@ covers %2$d of %3$d chains. %4$@ stay on public endpoints; %5$d also use your own endpoints.";
 
+/* Chain list — badge labels align with coverage-caption vocabulary */
+"nodeSettings.chainsSection" = "Chains";
+"nodeSettings.sourceLabelCustom" = "Custom";
+"nodeSettings.sourceLabelPublic" = "Public";
+
+/* Chain detail */
+"nodeSettings.effectiveEndpointSection" = "Effective endpoint";
+"nodeSettings.sourceLabel" = "Source: %1$@";
+"nodeSettings.customURLSection" = "Custom URL";
+"nodeSettings.useDefault" = "Use the default";
+
 /* Node Status */
 "nodeStatus.notChecked" = "Not checked";
 "nodeStatus.connected" = "Connected";

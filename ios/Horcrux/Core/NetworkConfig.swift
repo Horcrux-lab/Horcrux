@@ -318,17 +318,31 @@ final class NetworkConfig: ObservableObject, @unchecked Sendable {
     /// the public default. A provider with no key configured is skipped
     /// rather than returning a template that would be sent with a literal
     /// `{KEY}` in the path.
+    ///
+    /// Routing is derived from the single-source-of-truth classifier in
+    /// `EndpointSource.swift` so the badge and the resolver can never
+    /// disagree about which path is taken.
     func resolveRawURL(for chain: Chain) -> String {
-        if let override = ChainEndpointOverrides.shared.url(for: chain) {
-            return override
+        let overrideURL = ChainEndpointOverrides.shared.url(for: chain)
+        let provider = activeProvider
+        switch Self.endpointSource(
+            for: chain,
+            isOverridden: overrideURL != nil,
+            provider: provider,
+            hasKey: provider.map { !apiKey(for: $0).isEmpty } ?? false,
+            evmChainId: evmChainId,
+            solanaMainnet: !solDevnet
+        ) {
+        case .override:
+            // Both ?? arms are unreachable by construction; they guard
+            // against a future classifier change that could otherwise crash.
+            return overrideURL ?? publicDefault(for: chain)
+        case .provider(let p):
+            return p.template(for: chain, evmChainId: evmChainId, solanaMainnet: !solDevnet)
+                ?? publicDefault(for: chain)
+        case .publicDefault:
+            return publicDefault(for: chain)
         }
-        if let provider = activeProvider,
-           !apiKey(for: provider).isEmpty,
-           let template = provider.template(for: chain, evmChainId: evmChainId,
-                                            solanaMainnet: !solDevnet) {
-            return template
-        }
-        return publicDefault(for: chain)
     }
 
     /// Resolve the user-configured WebSocket URL for a chain, performing

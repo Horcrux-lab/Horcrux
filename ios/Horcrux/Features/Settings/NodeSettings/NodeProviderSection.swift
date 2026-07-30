@@ -52,7 +52,7 @@ struct NodeProviderSection: View {
         return ProviderCoverageSummary(
             provider: provider,
             hasKey: provider.map { !config.apiKey(for: $0).isEmpty } ?? false,
-            overriddenChains: Set(chainOverrides.overrides.keys.compactMap(Chain.init(rawValue:))),
+            overriddenChains: chainOverrides.allChains(),
             evmChainId: config.evmChainId,
             solanaMainnet: !config.solDevnet)
     }
