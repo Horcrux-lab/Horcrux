@@ -180,50 +180,87 @@ final class EndpointSourceTests: XCTestCase {
 
     // MARK: - Agreement sweep: endpointSource must agree with resolveRawURL
 
-    /// For every combination of (provider, hasKey, solDevnet, overridden) the
-    /// instance `endpointSource(for:)` must agree with `resolveRawURL(for:)`:
-    /// - `.override`    → resolveRawURL == stored override URL
-    /// - `.provider(p)` → resolveRawURL == provider template
+    /// For the nil-provider path and every keyed-provider path, the pair
+    /// `(config.endpointSource(for:), config.resolveRawURL(for:))` must agree:
+    /// - `.override`      → resolveRawURL == stored override URL
+    /// - `.provider(p)`   → resolveRawURL == provider template
     /// - `.publicDefault` → resolveRawURL == publicDefault(for:)
+    ///
+    /// After Fix 1 these two functions project from a single `resolved(for:)`
+    /// call, so disagreement is structurally impossible. The sweep remains
+    /// valuable as an integration guard: it verifies that the URL returned by
+    /// `resolved` equals the *independently recomputed* template, catching bugs
+    /// in the template wiring or the `solanaMainnet` inversion.
+    ///
+    /// Keychain hygiene:
+    /// - The **nil-provider pass** requires no key writes at all.
+    /// - The **keyed pass** overwrites one provider's key at a time (never
+    ///   blanks it to "") and restores it immediately before the next provider,
+    ///   so at most one key differs from the developer's real value at any instant.
+    /// - `(provider ≠ nil, hasKey == false)` is not swept here because it
+    ///   classifies identically to `provider == nil` for every chain; that
+    ///   logic is already covered by the pure-classifier tests above and
+    ///   blanking all keys to prove it adds no new coverage.
     func test_endpointSource_agreesWithResolveRawURL_sweepAll() {
-        withCleanConfig { config in
-            let providers: [NodeProvider?] = [nil] + NodeProvider.allCases.map(Optional.some)
-            for provider in providers {
-                for hasKey in [false, true] {
-                    for solDevnet in [false, true] {
-                        for isOverridden in [false, true] {
-                            self.assertAgreement(
-                                config: config,
-                                provider: provider,
-                                hasKey: hasKey,
-                                solDevnet: solDevnet,
-                                isOverridden: isOverridden)
-                        }
-                    }
-                }
+        let config = NetworkConfig.shared
+        let savedProvider = config.activeProvider
+        let savedChainId  = config.evmChainId
+        let savedDevnet   = config.solDevnet
+        let savedEthRPC   = config.ethereumRPC
+        let savedSolRPC   = config.solanaRPC
+        let savedKeys: [(NodeProvider, String)] = NodeProvider.allCases.map { ($0, config.apiKey(for: $0)) }
+        defer {
+            config.activeProvider = savedProvider
+            config.evmChainId     = savedChainId
+            config.solDevnet      = savedDevnet
+            // Keys before RPC URLs: key didSet may trigger autoSwap.
+            restoreKeys(savedKeys, on: config)
+            config.ethereumRPC = savedEthRPC
+            config.solanaRPC   = savedSolRPC
+            ChainEndpointOverrides.shared.removeAll()
+        }
+        config.evmChainId = 1   // mainnet; predictable Ethereum behaviour
+
+        // --- Pass A: no provider — no key writes at all ---
+        config.activeProvider = nil
+        for solDevnet in [false, true] {
+            for isOverridden in [false, true] {
+                assertAgreement(config: config, provider: nil, solDevnet: solDevnet, isOverridden: isOverridden)
             }
         }
+
+        // --- Pass B: each provider keyed; one key overwritten at a time ---
+        for (provider, savedKey) in savedKeys {
+            // Overwrite this provider's key with a test sentinel.
+            // The real value is in `savedKey`; we restore it synchronously
+            // at the end of the iteration so only one key ever differs from
+            // the developer's real state at a time.
+            config.setAPIKey("test-key", for: provider)
+            config.activeProvider = provider
+            for solDevnet in [false, true] {
+                for isOverridden in [false, true] {
+                    assertAgreement(config: config, provider: provider, solDevnet: solDevnet, isOverridden: isOverridden)
+                }
+            }
+            config.setAPIKey(savedKey, for: provider)   // restore before next iteration
+        }
+        config.activeProvider = nil
     }
 
     // MARK: - Helpers
 
+    /// Asserts agreement between `endpointSource(for:)` and `resolveRawURL(for:)`
+    /// across all 14 chains. Caller is responsible for setting `activeProvider`
+    /// and the associated API key; this function only manages `solDevnet` and
+    /// per-chain overrides.
     private func assertAgreement(
         config: NetworkConfig,
         provider: NodeProvider?,
-        hasKey: Bool,
         solDevnet: Bool,
         isOverridden: Bool,
         file: StaticString = #file,
         line: UInt = #line
     ) {
-        config.activeProvider = provider
-        if let provider {
-            config.setAPIKey(hasKey ? "test-key" : "", for: provider)
-        }
-        defer {
-            // Restore key so the next call starts from the same baseline.
-            if let provider { config.setAPIKey("", for: provider) }
-        }
         config.solDevnet = solDevnet
 
         for chain in Chain.allCases {
@@ -237,7 +274,7 @@ final class EndpointSourceTests: XCTestCase {
 
             let source = config.endpointSource(for: chain)
             let rawURL = config.resolveRawURL(for: chain)
-            let ctx = "provider=\(String(describing: provider)) hasKey=\(hasKey) "
+            let ctx = "provider=\(String(describing: provider)) "
                 + "solDevnet=\(solDevnet) overridden=\(isOverridden) chain=\(chain)"
 
             switch source {
@@ -265,38 +302,6 @@ final class EndpointSourceTests: XCTestCase {
                     file: file, line: line)
             }
         }
-    }
-
-    /// Snapshot and restore all global state touched during the agreement sweep.
-    ///
-    /// Follows the pattern from `EndpointResolutionTests.withCleanConfig`:
-    /// keys are restored before `ethereumRPC`/`solanaRPC` because setting a key
-    /// can trigger `autoSwapPaidPublicDefaultsOnKeyChange`; restoring the RPC
-    /// URLs last undoes any auto-swap side effect.
-    private func withCleanConfig(_ body: (NetworkConfig) -> Void) {
-        let config = NetworkConfig.shared
-        let savedProvider = config.activeProvider
-        let savedChainId = config.evmChainId
-        let savedDevnet = config.solDevnet
-        let savedEthRPC = config.ethereumRPC
-        let savedSolRPC = config.solanaRPC
-        let savedKeys: [(NodeProvider, String)] = NodeProvider.allCases.map { ($0, config.apiKey(for: $0)) }
-        defer {
-            config.activeProvider = savedProvider
-            config.evmChainId = savedChainId
-            config.solDevnet = savedDevnet
-            // Restore keys before RPC URLs — the key didSet may auto-swap them.
-            restoreKeys(savedKeys, on: config)
-            config.ethereumRPC = savedEthRPC
-            config.solanaRPC = savedSolRPC
-            ChainEndpointOverrides.shared.removeAll()
-        }
-        config.activeProvider = nil
-        for provider in NodeProvider.allCases {
-            config.setAPIKey("", for: provider)
-        }
-        ChainEndpointOverrides.shared.removeAll()
-        body(config)
     }
 
     private func restoreKeys(_ saved: [(NodeProvider, String)], on config: NetworkConfig) {

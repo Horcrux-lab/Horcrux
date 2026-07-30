@@ -38,7 +38,6 @@ struct ProviderCoverageSummary {
         // Normalise: a nil provider has no key by definition.
         let normalizedHasKey = provider != nil && hasKey
         self.hasKey = normalizedHasKey
-        self.overridden = overriddenChains
 
         // Classify every chain through the single-source-of-truth classifier
         // so the partition stays consistent with resolveRawURL.
@@ -51,6 +50,11 @@ struct ProviderCoverageSummary {
                 evmChainId: evmChainId,
                 solanaMainnet: solanaMainnet)
         }
+        // All three sets are derived from the classifier so the partition
+        // is fully structural. groups[.override] intersects with Chain.allCases,
+        // so a stale stored key that no longer maps to a live Chain case cannot
+        // leak into the count.
+        self.overridden      = Set(groups[.override] ?? [])
         self.providerCovered = provider.map { Set(groups[.provider($0)] ?? []) } ?? []
         self.publicDefault   = Set(groups[.publicDefault] ?? [])
     }
