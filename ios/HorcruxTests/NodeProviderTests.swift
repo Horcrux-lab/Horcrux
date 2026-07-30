@@ -149,6 +149,36 @@ final class NodeProviderTests: XCTestCase {
         XCTAssertEqual(config.apiKey(for: .ankr), "")
     }
 
+    // MARK: - setAPIKey round-trip
+
+    /// Every provider's key must land in its own Keychain slot.
+    ///
+    /// A pure round-trip (set then read back the same provider) would pass
+    /// even if `.drpc` and `.nodeReal` both wrote `nodeRealAPIKey`: the last
+    /// writer would win and each provider would still appear to round-trip.
+    /// This test defeats that failure mode by giving every provider a distinct
+    /// value, writing all eight, then verifying the full set — any two-slot
+    /// collision causes one provider to read back the wrong value.
+    func test_setAPIKey_roundTripsForAllProviders_withNoCrossSlotContamination() {
+        let config = NetworkConfig.shared
+        let previous = NodeProvider.allCases.map { ($0, config.apiKey(for: $0)) }
+        defer { restoreKeys(previous, on: config) }
+
+        // Unique, recognisable token per provider — index guarantees distinctness.
+        let testValues: [(NodeProvider, String)] = NodeProvider.allCases.enumerated().map { idx, p in
+            (p, "roundtrip-\(p.rawValue)-\(idx)")
+        }
+
+        for (provider, value) in testValues {
+            config.setAPIKey(value, for: provider)
+        }
+
+        for (provider, expected) in testValues {
+            XCTAssertEqual(config.apiKey(for: provider), expected,
+                           "\(provider.rawValue) read back the wrong value — likely a slot collision")
+        }
+    }
+
     /// Restores rather than blanks: leaking "" into the shared config would
     /// be the same class of cross-test contamination that made the Solana
     /// assertions cluster-dependent before Task 1 was fixed.
