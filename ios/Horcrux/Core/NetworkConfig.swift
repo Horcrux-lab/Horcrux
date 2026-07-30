@@ -277,6 +277,29 @@ final class NetworkConfig: ObservableObject, @unchecked Sendable {
         return substituteAPIKey(in: raw, chain: chain)
     }
 
+    /// The keyless public endpoint for `chain`, honouring the Ethereum,
+    /// Bitcoin and Solana network toggles. Never returns a `{KEY}`
+    /// template and never returns an empty string.
+    func publicDefault(for chain: Chain) -> String {
+        switch chain {
+        case .ethereum:
+            return (EVMNetwork(rawValue: evmChainId) ?? .mainnet).publicDefaultRPC
+        case .bitcoin:
+            return (btcTestnet ? BitcoinNetwork.testnet : BitcoinNetwork.mainnet).defaultAPI
+        case .litecoin:
+            return Defaults.litecoinAPI
+        case .solana:
+            return (solDevnet ? SolanaNetwork.devnet : SolanaNetwork.mainnet).publicDefaultRPC
+        case .tron:
+            return Defaults.tronAPI
+        case .bnb, .polygon, .arbitrum, .base, .avalanche,
+             .optimism, .zksync, .linea, .scroll:
+            // Each maps to exactly one EVMNetwork, so the nil path is
+            // unreachable; the ?? keeps the expression total anyway.
+            return chain.defaultEVMNetwork?.publicDefaultRPC ?? ""
+        }
+    }
+
     /// Resolve the user-configured WebSocket URL for a chain, performing
     /// the same `{KEY}` → Keychain-backed-key substitution we do for HTTP
     /// RPC. Returns `nil` when the field is empty or the chain has no

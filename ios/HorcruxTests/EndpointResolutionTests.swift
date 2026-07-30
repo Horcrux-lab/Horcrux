@@ -164,4 +164,34 @@ final class EndpointResolutionTests: XCTestCase {
         }
         wait(for: [done], timeout: 30)
     }
+
+    func test_publicDefault_isNonEmptyAndPlaceholderFreeForEveryChain() {
+        let config = NetworkConfig.shared
+        for chain in Chain.allCases {
+            let url = config.publicDefault(for: chain)
+            XCTAssertFalse(url.isEmpty, "\(chain) has no public default")
+            XCTAssertFalse(url.contains("{KEY}"),
+                           "\(chain) public default must need no key: \(url)")
+        }
+    }
+
+    func test_publicDefault_forPreviouslyUnconfigurableChains() {
+        let config = NetworkConfig.shared
+        XCTAssertEqual(config.publicDefault(for: .base), "https://mainnet.base.org")
+        XCTAssertEqual(config.publicDefault(for: .scroll), "https://rpc.scroll.io")
+        XCTAssertEqual(config.publicDefault(for: .bnb), "https://bsc-dataseed.bnbchain.org")
+    }
+
+    func test_publicDefault_forEthereum_followsTheNetworkToggle() {
+        let config = NetworkConfig.shared
+        let original = config.evmChainId
+        defer { config.evmChainId = original }
+
+        config.evmChainId = 1
+        XCTAssertEqual(config.publicDefault(for: .ethereum),
+                       "https://ethereum-rpc.publicnode.com")
+        config.evmChainId = 11_155_111
+        XCTAssertEqual(config.publicDefault(for: .ethereum),
+                       "https://ethereum-sepolia-rpc.publicnode.com")
+    }
 }
