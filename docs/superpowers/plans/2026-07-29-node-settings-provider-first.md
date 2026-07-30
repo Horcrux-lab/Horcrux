@@ -67,11 +67,13 @@ unrelated to this work. Use `-only-testing:` and do not try to fix them.
 | `ios/Horcrux/Core/ChainEndpointOverrides.swift` | Sparse per-chain URL store with `UserDefaults` persistence. |
 | `ios/Horcrux/Core/NodeSettingsMigration.swift` | One-time migration from the legacy five-field model. |
 | `ios/Horcrux/Features/Settings/NodeSettings/NodeProviderSection.swift` | Provider picker, key field, coverage line. |
+| `ios/Horcrux/Features/Settings/NodeSettings/ProviderCoverageSummary.swift` | Pure partition: overridden / provider-covered / public-default. Override-aware so the coverage line can't misreport a user endpoint as public. |
 | `ios/Horcrux/Features/Settings/NodeSettings/ChainEndpointList.swift` | The fourteen-row list with source badges. |
 | `ios/Horcrux/Features/Settings/NodeSettings/ChainEndpointDetailView.swift` | Per-chain detail and override editor. |
 | `ios/HorcruxTests/NodeProviderTests.swift` | Coverage matrix and template lookup. |
 | `ios/HorcruxTests/EndpointResolutionTests.swift` | The three-step resolver. |
 | `ios/HorcruxTests/NodeSettingsMigrationTests.swift` | Table-driven migration cases. |
+| `ios/HorcruxTests/ProviderCoverageSummaryTests.swift` | Table-driven partition tests and partition invariant. |
 
 **Modify:**
 
@@ -2092,23 +2094,26 @@ Legacy URL fields stay until the UI stops binding to them."
 
 **Files:**
 - Create: `ios/Horcrux/Features/Settings/NodeSettings/NodeProviderSection.swift`
+- Create: `ios/Horcrux/Features/Settings/NodeSettings/ProviderCoverageSummary.swift`
 
 - [ ] **Step 1: Write the view**
 
-Create `ios/Horcrux/Features/Settings/NodeSettings/NodeProviderSection.swift`:
+Create `ios/Horcrux/Features/Settings/NodeSettings/NodeProviderSection.swift`.
+Coverage logic lives in `ProviderCoverageSummary` (see Step 1b). The view
+observes `ChainEndpointOverrides.shared` so the coverage line updates live when
+overrides change; all user-facing strings route through `L10n.NodeSettings.*`.
 
 ```swift
 import SwiftUI
 
-/// Primary node configuration: pick a provider, paste one key, and see
-/// exactly which chains that covers.
 struct NodeProviderSection: View {
     @ObservedObject private var config = NetworkConfig.shared
+    @ObservedObject private var chainOverrides = ChainEndpointOverrides.shared
 
     var body: some View {
-        Section("Node provider") {
-            Picker("Provider", selection: providerSelection) {
-                Text("Public defaults").tag(nil as NodeProvider?)
+        Section(L10n.NodeSettings.providerSection) {
+            Picker(L10n.NodeSettings.providerPicker, selection: providerSelection) {
+                Text(L10n.NodeSettings.providerPublicDefaults).tag(nil as NodeProvider?)
                 ForEach(NodeProvider.allCases) { provider in
                     Text(provider.displayName).tag(provider as NodeProvider?)
                 }
@@ -2117,60 +2122,41 @@ struct NodeProviderSection: View {
             .accessibilityIdentifier("nodeSettings_providerPicker")
 
             if let provider = config.activeProvider {
-                // Direct binding — every keystroke writes through to NetworkConfig.
-                // Matches SettingsView.swift:1040 and avoids two failure modes that
-                // @State draftKey + .onSubmit introduces: (1) the key is lost if the
-                // user navigates away before pressing return, and (2) lazy-row
-                // .onAppear fires on scroll-back, silently discarding a typed draft.
-                SecureField("\(provider.displayName) API key", text: keyBinding(for: provider))
+                SecureField(L10n.NodeSettings.providerKeyLabel(provider.displayName),
+                            text: keyBinding(for: provider))
                     .textInputAutocapitalization(.never)
                     .autocorrectionDisabled()
                     .accessibilityIdentifier("nodeSettings_providerKeyField")
 
-                Text(coverageText(for: provider))
+                Text(coverageSummary(for: provider).formattedCaption)
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .accessibilityIdentifier("nodeSettings_coverageLine")
             } else {
-                Text("Every chain uses its public endpoint. Add a provider key for a dedicated rate limit.")
+                Text(L10n.NodeSettings.providerPublicCaption)
                     .font(.caption)
                     .foregroundStyle(.secondary)
+                    .accessibilityIdentifier("nodeSettings_coverageLine")
             }
         }
     }
 
-    private var providerSelection: Binding<NodeProvider?> {
-        Binding(get: { config.activeProvider },
-                set: { config.activeProvider = $0 })
-    }
-
-    private func keyBinding(for provider: NodeProvider) -> Binding<String> {
-        Binding(get: { config.apiKey(for: provider) },
-                set: { config.setAPIKey($0, for: provider) })
-    }
-
-    /// Names the gaps explicitly. A user who binds a key and assumes it
-    /// covers everything, when it does not, has no reason to look again —
-    /// so the silent gap is worse than having no key at all.
-    private func coverageText(for provider: NodeProvider) -> String {
-        if config.apiKey(for: provider).isEmpty {
-            return "No key set — using public endpoints."
-        }
-        let uncovered = provider.uncoveredChains(evmChainId: config.evmChainId,
-                                                 solanaMainnet: !config.solDevnet)
-        let covered = Chain.allCases.count - uncovered.count
-        if uncovered.isEmpty {
-            return "\(provider.displayName) covers all \(Chain.allCases.count) chains."
-        }
-        let names = uncovered
-            .sorted { $0.displayName < $1.displayName }
-            .map(\.displayName)
-            .joined(separator: ", ")
-        return "\(provider.displayName) covers \(covered) of \(Chain.allCases.count) chains. "
-            + "\(names) stay on public endpoints."
-    }
+    private var providerSelection: Binding<NodeProvider?> { ... }
+    private func keyBinding(for provider: NodeProvider) -> Binding<String> { ... }
+    private func coverageSummary(for provider: NodeProvider) -> ProviderCoverageSummary { ... }
 }
 ```
+
+Create `ios/Horcrux/Features/Settings/NodeSettings/ProviderCoverageSummary.swift`.
+The coverage summary is extracted to a pure, testable struct rather than a
+private `View` method. It partitions chains into three disjoint groups:
+`overridden` (user endpoint), `providerCovered` (provider serves + key set +
+no override), and `publicDefault` (the gap). Overrides are taken as a
+parameter so the struct stays pure; the view passes
+`ChainEndpointOverrides.shared.overrides`. This prevents two bugs from the
+original `coverageText`: (1) a migrated Bitcoin override would be falsely
+reported as "stays on public endpoints", and (2) a private-chain override
+shadowing a provider would be reported as provider-covered.
 
 - [ ] **Step 2: Add the key setter**
 
