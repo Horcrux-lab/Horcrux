@@ -2127,23 +2127,21 @@ struct NodeProviderSection: View {
                     .textInputAutocapitalization(.never)
                     .autocorrectionDisabled()
                     .accessibilityIdentifier("nodeSettings_providerKeyField")
-
-                Text(coverageSummary(for: provider).formattedCaption)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .accessibilityIdentifier("nodeSettings_coverageLine")
-            } else {
-                Text(L10n.NodeSettings.providerPublicCaption)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .accessibilityIdentifier("nodeSettings_coverageLine")
             }
+
+            // Single caption path — works for nil provider too, so the view
+            // cannot grow a divergent else branch that drifts out of sync.
+            Text(coverageSummary.formattedCaption)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .accessibilityIdentifier("nodeSettings_coverageLine")
         }
     }
 
     private var providerSelection: Binding<NodeProvider?> { ... }
     private func keyBinding(for provider: NodeProvider) -> Binding<String> { ... }
-    private func coverageSummary(for provider: NodeProvider) -> ProviderCoverageSummary { ... }
+    // coverageSummary is a computed var (not a function) — uses config.activeProvider directly.
+    private var coverageSummary: ProviderCoverageSummary { ... }
 }
 ```
 
@@ -2156,7 +2154,12 @@ parameter so the struct stays pure; the view passes
 `ChainEndpointOverrides.shared.overrides`. This prevents two bugs from the
 original `coverageText`: (1) a migrated Bitcoin override would be falsely
 reported as "stays on public endpoints", and (2) a private-chain override
-shadowing a provider would be reported as provider-covered.
+shadowing a provider would be reported as provider-covered. `provider` is
+`NodeProvider?` so the struct owns every screen state, including the nil-provider
+case; the view has one caption path and no divergent else branch. The list
+separator is localised (`L10n.NodeSettings.chainListSeparator`), using `"、"`
+in zh-Hans. `coverageNoKeyWithOverrides` is used when no key is set but
+overrides exist, so the nil-provider branch can also tell the truth.
 
 - [ ] **Step 2: Add the key setter**
 
