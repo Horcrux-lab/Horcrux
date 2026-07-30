@@ -351,68 +351,6 @@ final class NetworkConfig: ObservableObject, @unchecked Sendable {
         return resolved
     }
 
-    /// Raw URL stored for the chain's primary field (before `{KEY}` substitution).
-    /// Used by the settings UI so the "Switch endpoint" menu can compare
-    /// against the exact string the user sees in the TextField. Returns nil
-    /// for chains that don't have a dedicated field (secondary EVM chains).
-    func fieldValue(for chain: Chain) -> String? {
-        switch chain {
-        case .ethereum: return ethereumRPC
-        case .bitcoin: return bitcoinAPI
-        case .litecoin: return litecoinAPI
-        case .solana: return solanaRPC
-        case .tron: return tronAPI
-        default: return nil
-        }
-    }
-
-    /// Set the user-visible URL field for a chain. No-op for chains without
-    /// a dedicated field. Used by the "Switch endpoint" menu to swap providers
-    /// with one tap.
-    func setFieldValue(_ url: String, for chain: Chain) {
-        switch chain {
-        case .ethereum: ethereumRPC = url
-        case .bitcoin: bitcoinAPI = url
-        case .litecoin: litecoinAPI = url
-        case .solana: solanaRPC = url
-        case .tron: tronAPI = url
-        default: break
-        }
-    }
-
-    /// Reset only this chain's field to its built-in default, leaving the
-    /// other chains (and the EVM / BTC / SOL network selectors) alone.
-    /// Used by the per-section "恢复默认" link. The default we reset to
-    /// depends on whether the user has a paid key configured — key present
-    /// → paid template; key absent → free public endpoint.
-    func resetField(for chain: Chain) {
-        let hasKey = !alchemyAPIKey.isEmpty
-        // Wipe URL-level cooldowns for this chain so the freshly-reset URL
-        // isn't immediately suppressed by a stale entry from the URL we
-        // just discarded. Safe to clear all: cooldowns are in-memory only
-        // and will re-populate on the first real failure.
-        RPCEndpointHealth.clearAll()
-        switch chain {
-        case .ethereum:
-            if let net = EVMNetwork(rawValue: evmChainId) {
-                ethereumRPC = net.effectiveDefaultRPC(hasPaidKey: hasKey)
-            } else {
-                ethereumRPC = Defaults.ethereumRPC
-            }
-        case .bitcoin:
-            bitcoinAPI = (btcTestnet ? BitcoinNetwork.testnet : BitcoinNetwork.mainnet).defaultAPI
-        case .litecoin:
-            litecoinAPI = Defaults.litecoinAPI
-        case .solana:
-            let net = solDevnet ? SolanaNetwork.devnet : SolanaNetwork.mainnet
-            solanaRPC = net.effectiveDefaultRPC(hasPaidKey: hasKey)
-        case .tron:
-            tronAPI = Defaults.tronAPI
-        default:
-            break
-        }
-    }
-
     /// Replace `{KEY}` placeholder in a URL template with the appropriate
     /// per-provider Keychain-stored API key. The provider is picked by URL
     /// host so a user who stores both Alchemy and Infura keys can freely
@@ -521,23 +459,17 @@ final class NetworkConfig: ObservableObject, @unchecked Sendable {
         }
     }
 
-    /// Apply a named network preset (mainnet or testnet). Preset URLs are
-    /// stored as Alchemy paid-provider templates. If the user has no
-    /// Alchemy key, we down-convert to the equivalent public endpoint so
-    /// the stored URL stays immediately usable instead of showing a
-    /// literal `{KEY}` placeholder.
+    /// Apply a named network preset (mainnet or testnet).
+    /// Sets the three network-selector toggles (`evmChainId`, `btcTestnet`,
+    /// `solDevnet`). The URL fields (`ethereumRPC`, `bitcoinAPI`, `solanaRPC`)
+    /// are updated as a side effect via the `didSet` auto-swap helpers, which
+    /// keep recognised defaults in sync with the selected network. User-
+    /// customised URLs (not in the recognised-default sets) are preserved.
+    ///
+    /// Endpoint overrides in `ChainEndpointOverrides` are intentionally left
+    /// untouched: overrides represent an explicit user choice that should
+    /// survive a preset flip.
     func applyPreset(_ preset: NetworkPreset) {
-        let hasKey = !alchemyAPIKey.isEmpty
-        if hasKey {
-            ethereumRPC = preset.ethereumRPC
-            solanaRPC = preset.solanaRPC
-        } else {
-            let evm = EVMNetwork(rawValue: preset.evmChainId) ?? .mainnet
-            ethereumRPC = evm.publicDefaultRPC
-            let sol: SolanaNetwork = preset.solDevnet ? .devnet : .mainnet
-            solanaRPC = sol.publicDefaultRPC
-        }
-        bitcoinAPI = preset.bitcoinAPI
         evmChainId = preset.evmChainId
         btcTestnet = preset.btcTestnet
         solDevnet = preset.solDevnet

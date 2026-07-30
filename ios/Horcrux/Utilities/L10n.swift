@@ -1107,16 +1107,9 @@ enum L10n {
     enum NodeSettings {
         static let title = NSLocalizedString("nodeSettings.title", comment: "")
         static let quickPresets = NSLocalizedString("nodeSettings.quickPresets", comment: "")
-        static let ethereumEVM = NSLocalizedString("nodeSettings.ethereumEVM", comment: "")
-        static let rpcURL = NSLocalizedString("nodeSettings.rpcURL", comment: "")
         static let networkPicker = NSLocalizedString("nodeSettings.networkPicker", comment: "")
-        static let bitcoin = NSLocalizedString("nodeSettings.bitcoin", comment: "")
-        static let restAPIURL = NSLocalizedString("nodeSettings.restAPIURL", comment: "")
-        static let testnet = NSLocalizedString("nodeSettings.testnet", comment: "")
-        static let testnetHint = NSLocalizedString("nodeSettings.testnetHint", comment: "")
-        static let solana = NSLocalizedString("nodeSettings.solana", comment: "")
-        static let devnet = NSLocalizedString("nodeSettings.devnet", comment: "")
-        static let devnetHint = NSLocalizedString("nodeSettings.devnetHint", comment: "")
+        static let mainnet = NSLocalizedString("nodeSettings.mainnet", comment: "")
+        static let sepolia = NSLocalizedString("nodeSettings.sepolia", comment: "")
         static let resetToDefaults = NSLocalizedString("nodeSettings.resetToDefaults", comment: "")
         static let resetHint = NSLocalizedString("nodeSettings.resetHint", comment: "")
         static let resetConfirmTitle = NSLocalizedString("nodeSettings.resetConfirmTitle", comment: "")
@@ -1154,26 +1147,11 @@ enum L10n {
             String(format: NSLocalizedString("nodeSettings.wssOK", comment: ""), ms)
         }
 
-        static let paidProviderPicker = NSLocalizedString("nodeSettings.paidProviderPicker", comment: "")
-
         static let presetConfirmTitle = NSLocalizedString("nodeSettings.presetConfirmTitle", comment: "")
         static let presetApply = NSLocalizedString("nodeSettings.presetApply", comment: "")
 
-        static func applyProviderFor(_ provider: String, _ chain: String) -> String {
-            String(format: NSLocalizedString("nodeSettings.applyProviderFor", comment: ""), provider, chain)
-        }
-
-        static func providerActiveFor(_ provider: String, _ chain: String) -> String {
-            String(format: NSLocalizedString("nodeSettings.providerActiveFor", comment: ""), provider, chain)
-        }
-
-        static let advancedFields = NSLocalizedString("nodeSettings.advancedFields", comment: "")
         static let apiKeysSection = NSLocalizedString("nodeSettings.apiKeysSection", comment: "")
         static let apiKeysHint = NSLocalizedString("nodeSettings.apiKeysHint", comment: "")
-
-        static func providerUnsupportedOnChain(_ provider: String, _ chain: String) -> String {
-            String(format: NSLocalizedString("nodeSettings.providerUnsupportedOnChain", comment: ""), provider, chain)
-        }
 
         // MARK: NodeProviderSection
         static let providerSection = NSLocalizedString("nodeSettings.providerSection", comment: "")
