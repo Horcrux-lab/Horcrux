@@ -319,6 +319,26 @@ final class NetworkConfig: ObservableObject, @unchecked Sendable {
         }
     }
 
+    /// Resolve `chain` to a raw URL, which may still contain `{KEY}`.
+    /// Callers wanting a request-ready URL should use `rpcURL(for:)`.
+    ///
+    /// Order: explicit override, then the active provider's template, then
+    /// the public default. A provider with no key configured is skipped
+    /// rather than returning a template that would be sent with a literal
+    /// `{KEY}` in the path.
+    func resolveRawURL(for chain: Chain) -> String {
+        if let override = ChainEndpointOverrides.shared.url(for: chain) {
+            return override
+        }
+        if let provider = activeProvider,
+           !apiKey(for: provider).isEmpty,
+           let template = provider.template(for: chain, evmChainId: evmChainId,
+                                            solanaMainnet: !solDevnet) {
+            return template
+        }
+        return publicDefault(for: chain)
+    }
+
     /// Resolve the user-configured WebSocket URL for a chain, performing
     /// the same `{KEY}` → Keychain-backed-key substitution we do for HTTP
     /// RPC. Returns `nil` when the field is empty or the chain has no
