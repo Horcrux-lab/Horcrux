@@ -149,33 +149,40 @@ final class NodeProviderTests: XCTestCase {
         XCTAssertEqual(config.apiKey(for: .ankr), "")
     }
 
-    // MARK: - setAPIKey round-trip
+    // MARK: - setAPIKey isolated write
 
-    /// Every provider's key must land in its own Keychain slot.
+    /// Each provider's setter must write ONLY its own slot.
     ///
-    /// A pure round-trip (set then read back the same provider) would pass
-    /// even if `.drpc` and `.nodeReal` both wrote `nodeRealAPIKey`: the last
-    /// writer would win and each provider would still appear to round-trip.
-    /// This test defeats that failure mode by giving every provider a distinct
-    /// value, writing all eight, then verifying the full set — any two-slot
-    /// collision causes one provider to read back the wrong value.
-    func test_setAPIKey_roundTripsForAllProviders_withNoCrossSlotContamination() {
+    /// For every provider the test: (1) restores all eight slots to their
+    /// originals, (2) writes a unique sentinel to exactly that one provider,
+    /// (3) asserts the target slot holds the sentinel, and (4) asserts the
+    /// other seven slots still hold their originals.
+    ///
+    /// A write-all-then-read approach cannot detect a cross-slot write: if
+    /// `.alchemy` accidentally also wrote `.infura`'s slot, the later
+    /// `.infura` write would repair the collision before any assertion ran.
+    /// This test isolates each write so that collision is visible.
+    func test_setAPIKey_writesOnlyItsOwnSlot() {
         let config = NetworkConfig.shared
-        let previous = NodeProvider.allCases.map { ($0, config.apiKey(for: $0)) }
-        defer { restoreKeys(previous, on: config) }
+        let originals: [(NodeProvider, String)] = NodeProvider.allCases.map { ($0, config.apiKey(for: $0)) }
+        defer { restoreKeys(originals, on: config) }
 
-        // Unique, recognisable token per provider — index guarantees distinctness.
-        let testValues: [(NodeProvider, String)] = NodeProvider.allCases.enumerated().map { idx, p in
-            (p, "roundtrip-\(p.rawValue)-\(idx)")
-        }
+        for (index, provider) in NodeProvider.allCases.enumerated() {
+            let sentinel = "isolate-\(provider.rawValue)-\(index)"
 
-        for (provider, value) in testValues {
-            config.setAPIKey(value, for: provider)
-        }
+            // Start each iteration from a clean baseline so a previous
+            // iteration's side-effects cannot mask a cross-slot write here.
+            restoreKeys(originals, on: config)
+            config.setAPIKey(sentinel, for: provider)
 
-        for (provider, expected) in testValues {
-            XCTAssertEqual(config.apiKey(for: provider), expected,
-                           "\(provider.rawValue) read back the wrong value — likely a slot collision")
+            XCTAssertEqual(config.apiKey(for: provider), sentinel,
+                           "\(provider.rawValue): did not read back its own sentinel")
+
+            for (other, original) in originals where other != provider {
+                XCTAssertEqual(config.apiKey(for: other), original,
+                               "setting \(provider.rawValue) must not touch \(other.rawValue): " +
+                               "expected '\(original)', got '\(config.apiKey(for: other))'")
+            }
         }
     }
 

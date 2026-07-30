@@ -537,6 +537,7 @@
 "nodeSettings.wssTesting" = "连接中…";
 "nodeSettings.wssOK" = "WebSocket 可用（%dms）";
 "nodeSettings.providerSection" = "节点服务商";
+"nodeSettings.chainListSeparator" = "、";
 "nodeSettings.providerPicker" = "服务商";
 "nodeSettings.providerPublicDefaults" = "公共默认节点";
 "nodeSettings.providerKeyLabel" = "%@ API 密钥";

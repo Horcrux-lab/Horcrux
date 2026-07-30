@@ -28,17 +28,12 @@ struct NodeProviderSection: View {
                     .textInputAutocapitalization(.never)
                     .autocorrectionDisabled()
                     .accessibilityIdentifier("nodeSettings_providerKeyField")
-
-                Text(coverageSummary(for: provider).formattedCaption)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .accessibilityIdentifier("nodeSettings_coverageLine")
-            } else {
-                Text(L10n.NodeSettings.providerPublicCaption)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .accessibilityIdentifier("nodeSettings_coverageLine")
             }
+
+            Text(coverageSummary.formattedCaption)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .accessibilityIdentifier("nodeSettings_coverageLine")
         }
     }
 
@@ -52,10 +47,11 @@ struct NodeProviderSection: View {
                 set: { config.setAPIKey($0, for: provider) })
     }
 
-    private func coverageSummary(for provider: NodeProvider) -> ProviderCoverageSummary {
-        ProviderCoverageSummary(
+    private var coverageSummary: ProviderCoverageSummary {
+        let provider = config.activeProvider
+        return ProviderCoverageSummary(
             provider: provider,
-            hasKey: !config.apiKey(for: provider).isEmpty,
+            hasKey: provider.map { !config.apiKey(for: $0).isEmpty } ?? false,
             overriddenChains: Set(chainOverrides.overrides.keys.compactMap(Chain.init(rawValue:))),
             evmChainId: config.evmChainId,
             solanaMainnet: !config.solDevnet)

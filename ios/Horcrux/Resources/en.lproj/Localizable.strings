@@ -537,6 +537,7 @@
 "nodeSettings.wssTesting" = "Connecting…";
 "nodeSettings.wssOK" = "WebSocket OK (%dms)";
 "nodeSettings.providerSection" = "Node provider";
+"nodeSettings.chainListSeparator" = ", ";
 "nodeSettings.providerPicker" = "Provider";
 "nodeSettings.providerPublicDefaults" = "Public defaults";
 "nodeSettings.providerKeyLabel" = "%@ API key";
