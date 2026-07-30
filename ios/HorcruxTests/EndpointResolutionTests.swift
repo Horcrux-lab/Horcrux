@@ -254,12 +254,11 @@ final class EndpointResolutionTests: XCTestCase {
         let ankr = config.ankrAPIKey
         let ethereumRPC = config.ethereumRPC
         let solanaRPC = config.solanaRPC
-        // Snapshot tenderlyAPIKey so tests that mutate it do not destroy the
-        // developer's real Tenderly credential stored in the device Keychain.
-        // tenderlyAPIKey.didSet only calls saveKeychain + invalidateBalances
-        // (no autoSwap side effects), so restoring it here is safe without
-        // snapshotting any additional derived fields.
+        // Snapshot keys whose didSet only calls saveKeychain + invalidateBalances
+        // (no autoSwap side effects) so tests that mutate them do not destroy the
+        // developer's real Keychain credentials.
         let tenderly = config.tenderlyAPIKey
+        let infura = config.infuraAPIKey
         defer {
             config.activeProvider = provider
             config.evmChainId = chainId
@@ -269,10 +268,12 @@ final class EndpointResolutionTests: XCTestCase {
             config.ethereumRPC = ethereumRPC
             config.solanaRPC = solanaRPC
             config.tenderlyAPIKey = tenderly
+            config.infuraAPIKey = infura
         }
         config.activeProvider = nil
         config.alchemyAPIKey = ""
         config.ankrAPIKey = ""
+        config.infuraAPIKey = ""
         ChainEndpointOverrides.shared.removeAll()
         body(config)
     }
@@ -412,11 +413,17 @@ final class EndpointResolutionTests: XCTestCase {
     }
 
     func test_rpcURL_appliesTheProviderKey() {
+        // .alchemy would be a tautology for .base because the old hardcoded switch
+        // returned EVMNetwork.base.defaultRPC which is the Alchemy template, so the
+        // same key would produce the same result either way. Use Infura instead --
+        // its Base template differs ("infura.io/v3/") and the old switch ignored the
+        // provider entirely, so this test is red under the old body and green only
+        // when the one-liner routes through resolveRawURL.
         withCleanConfig { config in
-            config.activeProvider = .alchemy
-            config.alchemyAPIKey = "abc123"
+            config.activeProvider = .infura
+            config.infuraAPIKey = "abc123"
             XCTAssertEqual(config.rpcURL(for: .base),
-                           "https://base-mainnet.g.alchemy.com/v2/abc123")
+                           "https://base-mainnet.infura.io/v3/abc123")
         }
     }
 
