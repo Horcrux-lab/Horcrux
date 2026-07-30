@@ -194,4 +194,37 @@ final class EndpointResolutionTests: XCTestCase {
         XCTAssertEqual(config.publicDefault(for: .ethereum),
                        "https://ethereum-sepolia-rpc.publicnode.com")
     }
+
+    func test_activeProvider_persistsTheChoice() {
+        let config = NetworkConfig.shared
+        let original = config.activeProvider
+        defer { config.activeProvider = original }
+
+        config.activeProvider = .infura
+        XCTAssertEqual(config.activeProvider, .infura)
+        XCTAssertEqual(
+            UserDefaults.standard.string(forKey: "com.horcrux.rpc.activeProvider"),
+            "infura",
+            "not persisted, so the choice is lost on next launch")
+    }
+
+    func test_activeProvider_nilClearsTheStoredValue() {
+        let config = NetworkConfig.shared
+        let original = config.activeProvider
+        defer { config.activeProvider = original }
+
+        config.activeProvider = .alchemy
+        config.activeProvider = nil
+
+        XCTAssertNil(config.activeProvider)
+        XCTAssertNil(
+            UserDefaults.standard.string(forKey: "com.horcrux.rpc.activeProvider"),
+            "going back to public must remove the key, not leave the old provider on disk")
+    }
+
+    func test_activeProvider_unknownStoredValue_readsAsPublic() {
+        // A provider dropped in a later version must degrade to public
+        // defaults, not crash and not resurrect as some other vendor.
+        XCTAssertNil(NodeProvider(rawValue: "quicknode"))
+    }
 }
