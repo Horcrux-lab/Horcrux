@@ -206,8 +206,8 @@ final class EndpointSourceTests: XCTestCase {
         let savedProvider = config.activeProvider
         let savedChainId  = config.evmChainId
         let savedDevnet   = config.solDevnet
-        let savedEthRPC   = config.ethereumRPC
-        let savedSolRPC   = config.solanaRPC
+        let savedEthRPC   = config.legacyEthereumRPC
+        let savedSolRPC   = config.legacySolanaRPC
         let savedKeys: [(NodeProvider, String)] = NodeProvider.allCases.map { ($0, config.apiKey(for: $0)) }
         defer {
             config.activeProvider = savedProvider
@@ -215,8 +215,8 @@ final class EndpointSourceTests: XCTestCase {
             config.solDevnet      = savedDevnet
             // Keys before RPC URLs: key didSet may trigger autoSwap.
             restoreKeys(savedKeys, on: config)
-            config.ethereumRPC = savedEthRPC
-            config.solanaRPC   = savedSolRPC
+            config.legacyEthereumRPC = savedEthRPC
+            config.legacySolanaRPC   = savedSolRPC
             ChainEndpointOverrides.shared.removeAll()
         }
         config.evmChainId = 1   // mainnet; predictable Ethereum behaviour

@@ -252,8 +252,8 @@ final class EndpointResolutionTests: XCTestCase {
         let devnet = config.solDevnet
         let alchemy = config.alchemyAPIKey
         let ankr = config.ankrAPIKey
-        let ethereumRPC = config.ethereumRPC
-        let solanaRPC = config.solanaRPC
+        let ethereumRPC = config.legacyEthereumRPC
+        let solanaRPC = config.legacySolanaRPC
         // Snapshot keys whose didSet only calls saveKeychain + invalidateBalances
         // (no autoSwap side effects) so tests that mutate them do not destroy the
         // developer's real Keychain credentials.
@@ -265,8 +265,8 @@ final class EndpointResolutionTests: XCTestCase {
             config.solDevnet = devnet
             config.alchemyAPIKey = alchemy
             config.ankrAPIKey = ankr
-            config.ethereumRPC = ethereumRPC
-            config.solanaRPC = solanaRPC
+            config.legacyEthereumRPC = ethereumRPC
+            config.legacySolanaRPC = solanaRPC
             config.tenderlyAPIKey = tenderly
             config.infuraAPIKey = infura
         }

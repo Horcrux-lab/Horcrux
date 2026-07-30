@@ -18,33 +18,56 @@ import Combine
 final class NetworkConfig: ObservableObject, @unchecked Sendable {
     static let shared = NetworkConfig()
 
-    @Published var ethereumRPC: String {
+    /// Legacy shadow of the Ethereum RPC URL.
+    ///
+    /// **Not read by routing.** Routing goes through `rpcURL(for:)` →
+    /// `ChainEndpointOverrides`. This property is retained solely because:
+    ///   - `NodeSettingsMigration` reads it at launch to seed overrides.
+    ///   - `RPCConfigSnapshot` reads/writes it for export/import (Task 13 owns it).
+    /// A direct read anywhere else is almost certainly a bug.
+    var legacyEthereumRPC: String {
         didSet {
-            save(ethereumRPC, forKey: Keys.ethereumRPC)
+            save(legacyEthereumRPC, forKey: Keys.ethereumRPC)
             invalidateBalances()
         }
     }
-    @Published var bitcoinAPI: String {
+
+    /// Legacy shadow of the Bitcoin API URL.
+    ///
+    /// **Not read by routing.** See `legacyEthereumRPC` for the full rationale.
+    var legacyBitcoinAPI: String {
         didSet {
-            save(bitcoinAPI, forKey: Keys.bitcoinAPI)
+            save(legacyBitcoinAPI, forKey: Keys.bitcoinAPI)
             invalidateBalances()
         }
     }
-    @Published var litecoinAPI: String {
+
+    /// Legacy shadow of the Litecoin API URL.
+    ///
+    /// **Not read by routing.** See `legacyEthereumRPC` for the full rationale.
+    var legacyLitecoinAPI: String {
         didSet {
-            save(litecoinAPI, forKey: Keys.litecoinAPI)
+            save(legacyLitecoinAPI, forKey: Keys.litecoinAPI)
             invalidateBalances()
         }
     }
-    @Published var tronAPI: String {
+
+    /// Legacy shadow of the Tron API URL.
+    ///
+    /// **Not read by routing.** See `legacyEthereumRPC` for the full rationale.
+    var legacyTronAPI: String {
         didSet {
-            save(tronAPI, forKey: Keys.tronAPI)
+            save(legacyTronAPI, forKey: Keys.tronAPI)
             invalidateBalances()
         }
     }
-    @Published var solanaRPC: String {
+
+    /// Legacy shadow of the Solana RPC URL.
+    ///
+    /// **Not read by routing.** See `legacyEthereumRPC` for the full rationale.
+    var legacySolanaRPC: String {
         didSet {
-            save(solanaRPC, forKey: Keys.solanaRPC)
+            save(legacySolanaRPC, forKey: Keys.solanaRPC)
             invalidateBalances()
         }
     }
@@ -266,11 +289,11 @@ final class NetworkConfig: ObservableObject, @unchecked Sendable {
         self.getblockAPIKey = getblock
         self.tenderlyAPIKey = tenderly
         self.oneRPCAPIKey = oneRPC
-        self.ethereumRPC = ud.string(forKey: Keys.ethereumRPC) ?? evmDefault
-        self.bitcoinAPI = ud.string(forKey: Keys.bitcoinAPI) ?? Defaults.bitcoinAPI
-        self.litecoinAPI = ud.string(forKey: Keys.litecoinAPI) ?? Defaults.litecoinAPI
-        self.tronAPI = ud.string(forKey: Keys.tronAPI) ?? Defaults.tronAPI
-        self.solanaRPC = ud.string(forKey: Keys.solanaRPC) ?? solDefault
+        self.legacyEthereumRPC = ud.string(forKey: Keys.ethereumRPC) ?? evmDefault
+        self.legacyBitcoinAPI = ud.string(forKey: Keys.bitcoinAPI) ?? Defaults.bitcoinAPI
+        self.legacyLitecoinAPI = ud.string(forKey: Keys.litecoinAPI) ?? Defaults.litecoinAPI
+        self.legacyTronAPI = ud.string(forKey: Keys.tronAPI) ?? Defaults.tronAPI
+        self.legacySolanaRPC = ud.string(forKey: Keys.solanaRPC) ?? solDefault
         self.evmChainId = chainId
         self.btcTestnet = ud.bool(forKey: Keys.btcTestnet)
         self.solDevnet = solDevnetFlag
@@ -427,6 +450,16 @@ final class NetworkConfig: ObservableObject, @unchecked Sendable {
     }
 
     func resetToDefaults() {
+        // Clear every per-chain override — routing now goes through
+        // ChainEndpointOverrides, so clearing it is required to actually
+        // return to public defaults, not just reset the toggles.
+        ChainEndpointOverrides.shared.removeAll()
+        // Deactivate the paid provider. Routing will fall through to
+        // publicDefault for every chain. The API key itself is NOT cleared
+        // (keys are credentials, not routing state; wiping them on an
+        // "RPC URLs" reset would be a separate dishonesty in the other
+        // direction, and assigning "" deletes the Keychain item).
+        activeProvider = nil
         applyPreset(.mainnet)
         RPCEndpointHealth.clearAll()
     }
@@ -436,20 +469,34 @@ final class NetworkConfig: ObservableObject, @unchecked Sendable {
     ///
     /// Used by wallet UI (list rows + detail hero) so users can tell at
     /// a glance whether they're looking at real-value funds. Labels stay
-    /// short so they fit in a capsule next to the chain name. For EVM
-    /// chains other than Ethereum (Polygon, Base, Arbitrum, Optimism,
-    /// BNB, Avalanche, zkSync Era, Linea, Scroll) we only have a single
-    /// mainnet wiring today, so this returns nil. Litecoin/Tron detect
-    /// testnet purely from the API URL (no dedicated flag).
+    /// short so they fit in a capsule next to the chain name.
+    ///
+    /// When a per-chain override is present, the badge is derived from
+    /// the override URL rather than from the network-selector flag. This
+    /// keeps the badge consistent with the endpoint the app actually uses.
+    /// If the override URL matches no known network marker, nil is returned
+    /// — we cannot determine which network the custom endpoint targets, and
+    /// claiming "Mainnet" (implied by nil) could be equally false.
     func testnetBadge(for chain: Chain) -> String? {
         switch chain {
         case .ethereum:
+            if let overrideURL = ChainEndpointOverrides.shared.url(for: .ethereum) {
+                let u = overrideURL.lowercased()
+                if u.contains("sepolia") || u.contains("11155111") { return "Sepolia" }
+                return nil  // unknown target; don't claim mainnet
+            }
             return EVMNetwork(rawValue: evmChainId) == .sepolia ? "Sepolia" : nil
         case .bitcoin:
+            if let overrideURL = ChainEndpointOverrides.shared.url(for: .bitcoin) {
+                return overrideURL.lowercased().contains("testnet") ? "Testnet" : nil
+            }
             return btcTestnet ? "Testnet" : nil
         case .litecoin:
             return rpcURL(for: .litecoin).lowercased().contains("testnet") ? "Testnet" : nil
         case .solana:
+            if let overrideURL = ChainEndpointOverrides.shared.url(for: .solana) {
+                return overrideURL.lowercased().contains("devnet") ? "Devnet" : nil
+            }
             return solDevnet ? "Devnet" : nil
         case .tron:
             let api = rpcURL(for: .tron).lowercased()
@@ -518,7 +565,7 @@ final class NetworkConfig: ObservableObject, @unchecked Sendable {
 
     // MARK: - Auto-swap helpers
 
-    /// Swap `ethereumRPC` to the new chain's default when the previous value was
+    /// Swap `legacyEthereumRPC` to the new chain's default when the previous value was
     /// a recognized default (public or Alchemy template) for *any* known chain.
     /// User-customized URLs are preserved untouched.
     private func autoSwapEthereumRPCIfDefault(previousChainId: UInt64) {
@@ -528,23 +575,18 @@ final class NetworkConfig: ObservableObject, @unchecked Sendable {
 
         guard let newNet = EVMNetwork(rawValue: evmChainId) else { return }
 
-        if alchemyTemplates.contains(ethereumRPC) {
-            // User is on the paid Alchemy default — stay on the Alchemy
-            // template for the new chain if one exists, else fall back to
-            // the new chain's default (which is publicDefaultRPC for BNB).
-            ethereumRPC = RPCProviderTemplate.alchemy(evm: newNet) ?? newNet.defaultRPC
-        } else if publicDefaults.contains(ethereumRPC) {
-            // User deliberately picked a public endpoint; keep them on a
-            // public endpoint for the new chain.
-            ethereumRPC = newNet.publicDefaultRPC
+        if alchemyTemplates.contains(legacyEthereumRPC) {
+            legacyEthereumRPC = RPCProviderTemplate.alchemy(evm: newNet) ?? newNet.defaultRPC
+        } else if publicDefaults.contains(legacyEthereumRPC) {
+            legacyEthereumRPC = newNet.publicDefaultRPC
         }
     }
 
     private func autoSwapBitcoinAPIIfDefault(previousTestnet: Bool) {
         guard previousTestnet != btcTestnet else { return }
         let known: Set<String> = [BitcoinNetwork.mainnet.defaultAPI, BitcoinNetwork.testnet.defaultAPI]
-        guard known.contains(bitcoinAPI) else { return }
-        bitcoinAPI = (btcTestnet ? BitcoinNetwork.testnet : BitcoinNetwork.mainnet).defaultAPI
+        guard known.contains(legacyBitcoinAPI) else { return }
+        legacyBitcoinAPI = (btcTestnet ? BitcoinNetwork.testnet : BitcoinNetwork.mainnet).defaultAPI
     }
 
     private func autoSwapSolanaRPCIfDefault(previousDevnet: Bool) {
@@ -555,22 +597,21 @@ final class NetworkConfig: ObservableObject, @unchecked Sendable {
             SolanaNetwork.mainnet.publicDefaultRPC,
             SolanaNetwork.devnet.publicDefaultRPC,
         ]
-        guard known.contains(solanaRPC) else { return }
+        guard known.contains(legacySolanaRPC) else { return }
         let target = solDevnet ? SolanaNetwork.devnet : SolanaNetwork.mainnet
-        // Preserve public-vs-paid choice across the flip.
-        if solanaRPC == SolanaNetwork.mainnet.publicDefaultRPC
-            || solanaRPC == SolanaNetwork.devnet.publicDefaultRPC
+        if legacySolanaRPC == SolanaNetwork.mainnet.publicDefaultRPC
+            || legacySolanaRPC == SolanaNetwork.devnet.publicDefaultRPC
         {
-            solanaRPC = target.publicDefaultRPC
+            legacySolanaRPC = target.publicDefaultRPC
         } else {
-            solanaRPC = target.defaultRPC
+            legacySolanaRPC = target.defaultRPC
         }
     }
 
     /// When an Alchemy key is pasted (empty → non-empty) or removed
     /// (non-empty → empty), flip any stored URL that is currently on the
     /// "other default" to the matching new default. A user who hasn't
-    /// customised `ethereumRPC` / `solanaRPC` will see:
+    /// customised the legacy fields will see:
     ///
     ///   * "No key configured" → URL shows the free public endpoint.
     ///   * "Key configured"    → URL shows the Alchemy paid template.
@@ -587,10 +628,10 @@ final class NetworkConfig: ObservableObject, @unchecked Sendable {
         })
         let evmPublics = Set(EVMNetwork.allCases.map(\.publicDefaultRPC))
         if let net = EVMNetwork(rawValue: evmChainId) {
-            if newHasKey, evmPublics.contains(ethereumRPC) {
-                ethereumRPC = net.defaultRPC
-            } else if !newHasKey, evmTemplates.contains(ethereumRPC) {
-                ethereumRPC = net.publicDefaultRPC
+            if newHasKey, evmPublics.contains(legacyEthereumRPC) {
+                legacyEthereumRPC = net.defaultRPC
+            } else if !newHasKey, evmTemplates.contains(legacyEthereumRPC) {
+                legacyEthereumRPC = net.publicDefaultRPC
             }
         }
 
@@ -604,10 +645,10 @@ final class NetworkConfig: ObservableObject, @unchecked Sendable {
             SolanaNetwork.devnet.publicDefaultRPC,
         ]
         let solNet: SolanaNetwork = solDevnet ? .devnet : .mainnet
-        if newHasKey, solPublics.contains(solanaRPC) {
-            solanaRPC = solNet.defaultRPC
-        } else if !newHasKey, solTemplates.contains(solanaRPC) {
-            solanaRPC = solNet.publicDefaultRPC
+        if newHasKey, solPublics.contains(legacySolanaRPC) {
+            legacySolanaRPC = solNet.defaultRPC
+        } else if !newHasKey, solTemplates.contains(legacySolanaRPC) {
+            legacySolanaRPC = solNet.publicDefaultRPC
         }
     }
 

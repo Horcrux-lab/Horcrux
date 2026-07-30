@@ -954,6 +954,7 @@ struct BlockchainNodeSettingsView: View {
     @EnvironmentObject private var appState: AppState
     @ObservedObject private var config = NetworkConfig.shared
     @ObservedObject private var health = NodeHealthStore.shared
+    @ObservedObject private var overrides = ChainEndpointOverrides.shared
     @State private var showResetConfirm = false
     @State private var showImportSheet = false
     @State private var showExportSheet = false
@@ -1087,6 +1088,13 @@ struct BlockchainNodeSettingsView: View {
                 if let p = pendingPreset { config.applyPreset(p) }
                 pendingPreset = nil
             }
+            if !overrides.allChains().isEmpty {
+                Button(L10n.NodeSettings.presetApplyAndClear) {
+                    if let p = pendingPreset { config.applyPreset(p) }
+                    ChainEndpointOverrides.shared.removeAll()
+                    pendingPreset = nil
+                }
+            }
             Button(L10n.Common.cancel, role: .cancel) { pendingPreset = nil }
         } message: {
             if let p = pendingPreset {
@@ -1116,27 +1124,28 @@ struct BlockchainNodeSettingsView: View {
     }
 
     private func isCurrentPreset(_ preset: NetworkPreset) -> Bool {
-        // Compare only the logical network identity, not the exact RPC
-        // URL strings. `applyPreset` down-converts the paid template to
-        // the free public endpoint when no Alchemy key is configured,
-        // so after `applyPreset(.testnet)` with no key we end up with
-        //   config.ethereumRPC = "https://ethereum-sepolia-rpc.publicnode.com"
-        //   preset.ethereumRPC = "https://eth-sepolia.g.alchemy.com/v2/{KEY}"
-        // A string-equality check would return false for both presets
-        // after restart — neither button would be highlighted — and the
-        // user would see the preset as "not saved". The chainId +
-        // testnet flags are the ground truth for which network the app
-        // is talking to; URLs are provider preferences layered on top.
-        config.evmChainId == preset.evmChainId &&
-        config.btcTestnet == preset.btcTestnet &&
-        config.solDevnet == preset.solDevnet
+        // Compare only the logical network identity (chainId + flags), not URLs.
+        // Additionally: if any chain override is set, the preset is only partially
+        // in effect (that chain's traffic goes to the custom endpoint, not the
+        // preset's logical network). The button must not render as selected in
+        // that case — doing so would claim a network identity that isn't fully true.
+        guard overrides.allChains().isEmpty else { return false }
+        return config.evmChainId == preset.evmChainId &&
+               config.btcTestnet == preset.btcTestnet &&
+               config.solDevnet == preset.solDevnet
     }
 
     private func presetPreviewMessage(_ p: NetworkPreset) -> String {
         let ethNet = (EVMNetwork(rawValue: p.evmChainId) ?? .mainnet).displayName
         let btcNet = p.btcTestnet ? "Testnet" : "Mainnet"
         let solNet = p.solDevnet ? "Devnet" : "Mainnet"
-        return "ETH · \(ethNet)\nBTC · \(btcNet)\nSOL · \(solNet)"
+        var msg = "ETH · \(ethNet)\nBTC · \(btcNet)\nSOL · \(solNet)"
+        let overriddenChains = overrides.allChains()
+        if !overriddenChains.isEmpty {
+            let names = overriddenChains.map(\.displayName).joined(separator: ", ")
+            msg += "\n\n" + L10n.NodeSettings.presetOverrideWarning(count: overriddenChains.count, names: names)
+        }
+        return msg
     }
 }
 
@@ -1326,6 +1335,7 @@ struct NodeStatusRow: View {
 /// URL so the menu shows only *alternatives*.
 struct EndpointSwitcher: View {
     let chain: Chain
+    @Binding var draft: String
     @ObservedObject private var config = NetworkConfig.shared
     @ObservedObject private var overrides = ChainEndpointOverrides.shared
 
@@ -1337,6 +1347,9 @@ struct EndpointSwitcher: View {
             Menu {
                 ForEach(candidates, id: \.self) { url in
                     Button {
+                        // Update draft and storage atomically so commitDraft()
+                        // on .onDisappear never sees a stale draft.
+                        draft = url
                         ChainEndpointOverrides.shared.set(url, for: chain)
                     } label: {
                         VStack(alignment: .leading) {
@@ -1478,6 +1491,7 @@ struct ProviderBadge: View {
 /// safe to copy and paste elsewhere.
 struct ChainFieldActions: View {
     let chain: Chain
+    @Binding var draft: String
     @ObservedObject private var overrides = ChainEndpointOverrides.shared
 
     var body: some View {
@@ -1494,6 +1508,10 @@ struct ChainFieldActions: View {
             }
             Spacer()
             Button {
+                // Update draft and storage atomically so commitDraft() on
+                // .onDisappear never sees a stale draft pointing at the
+                // cleared override and writes it straight back.
+                draft = ""
                 ChainEndpointOverrides.shared.clear(chain)
             } label: {
                 Label(L10n.NodeStatus.resetThisChain, systemImage: "arrow.uturn.backward")
@@ -1799,11 +1817,11 @@ struct RPCConfigSnapshot: Codable, Equatable {
     var solanaWSS: String?
 
     init(from config: NetworkConfig) {
-        self.ethereumRPC = config.ethereumRPC
-        self.bitcoinAPI = config.bitcoinAPI
-        self.litecoinAPI = config.litecoinAPI
-        self.solanaRPC = config.solanaRPC
-        self.tronAPI = config.tronAPI
+        self.ethereumRPC = config.legacyEthereumRPC
+        self.bitcoinAPI = config.legacyBitcoinAPI
+        self.litecoinAPI = config.legacyLitecoinAPI
+        self.solanaRPC = config.legacySolanaRPC
+        self.tronAPI = config.legacyTronAPI
         self.evmChainId = config.evmChainId
         self.btcTestnet = config.btcTestnet
         self.solDevnet = config.solDevnet
@@ -1824,11 +1842,11 @@ struct RPCConfigSnapshot: Codable, Equatable {
     }
 
     func apply(to config: NetworkConfig) {
-        if config.ethereumRPC != ethereumRPC { config.ethereumRPC = ethereumRPC }
-        if config.bitcoinAPI != bitcoinAPI { config.bitcoinAPI = bitcoinAPI }
-        if config.litecoinAPI != litecoinAPI { config.litecoinAPI = litecoinAPI }
-        if config.solanaRPC != solanaRPC { config.solanaRPC = solanaRPC }
-        if config.tronAPI != tronAPI { config.tronAPI = tronAPI }
+        if config.legacyEthereumRPC != ethereumRPC { config.legacyEthereumRPC = ethereumRPC }
+        if config.legacyBitcoinAPI != bitcoinAPI { config.legacyBitcoinAPI = bitcoinAPI }
+        if config.legacyLitecoinAPI != litecoinAPI { config.legacyLitecoinAPI = litecoinAPI }
+        if config.legacySolanaRPC != solanaRPC { config.legacySolanaRPC = solanaRPC }
+        if config.legacyTronAPI != tronAPI { config.legacyTronAPI = tronAPI }
         if config.evmChainId != evmChainId { config.evmChainId = evmChainId }
         if config.btcTestnet != btcTestnet { config.btcTestnet = btcTestnet }
         if config.solDevnet != solDevnet { config.solDevnet = solDevnet }
@@ -1844,11 +1862,11 @@ struct RPCConfigSnapshot: Codable, Equatable {
         func add(_ label: String, _ before: String, _ after: String) {
             if before != after { rows.append((label, before, after)) }
         }
-        add("Ethereum RPC", config.ethereumRPC, ethereumRPC)
-        add("Bitcoin API", config.bitcoinAPI, bitcoinAPI)
-        add("Litecoin API", config.litecoinAPI, litecoinAPI)
-        add("Solana RPC", config.solanaRPC, solanaRPC)
-        add("Tron API", config.tronAPI, tronAPI)
+        add("Ethereum RPC", config.legacyEthereumRPC, ethereumRPC)
+        add("Bitcoin API", config.legacyBitcoinAPI, bitcoinAPI)
+        add("Litecoin API", config.legacyLitecoinAPI, litecoinAPI)
+        add("Solana RPC", config.legacySolanaRPC, solanaRPC)
+        add("Tron API", config.legacyTronAPI, tronAPI)
         add("EVM Chain ID", String(config.evmChainId), String(evmChainId))
         add("BTC Testnet", config.btcTestnet ? "on" : "off", btcTestnet ? "on" : "off")
         add("SOL Devnet", config.solDevnet ? "on" : "off", solDevnet ? "on" : "off")

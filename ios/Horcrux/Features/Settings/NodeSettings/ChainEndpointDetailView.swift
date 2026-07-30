@@ -83,8 +83,8 @@ struct ChainEndpointDetailView: View {
                 }
                 .disabled(overrides.url(for: chain) == nil)
 
-                EndpointSwitcher(chain: chain)
-                ChainFieldActions(chain: chain)
+                EndpointSwitcher(chain: chain, draft: $draft)
+                ChainFieldActions(chain: chain, draft: $draft)
             }
 
             // WebSocket endpoint for chains that support it (Ethereum, Solana).
@@ -105,14 +105,31 @@ struct ChainEndpointDetailView: View {
         .onDisappear { commitDraft() }
     }
 
-    private func commitDraft() {
-        // Trim explicitly so callers see the behaviour rather than relying
-        // on ChainEndpointOverrides.set treating whitespace-only as a clear.
+    // MARK: - Draft commit
+
+    /// Pure decision function for commitDraft — extracted so it can be
+    /// unit-tested without SwiftUI lifecycle dependencies.
+    ///
+    /// - Parameters:
+    ///   - draft:  The current TextField value (may have leading/trailing whitespace).
+    ///   - stored: The current value in ChainEndpointOverrides, or nil if none.
+    /// - Returns: The trimmed URL to persist, or nil when draft already matches
+    ///   storage and no write is needed. An empty return value means "clear".
+    ///
+    /// The `@Binding`-based fix in `EndpointSwitcher` and `ChainFieldActions`
+    /// ensures draft and storage always move together, so this function should
+    /// never receive a stale `draft` that differs from `stored` due to an
+    /// external storage mutation. This pure function remains the authoritative
+    /// guard against unnecessary writes.
+    static func commitDecision(draft: String, stored: String?) -> String? {
         let trimmed = draft.trimmingCharacters(in: .whitespacesAndNewlines)
-        // Skip the write when nothing has changed: set("") routes to clear →
-        // mutate → UserDefaults write + objectWillChange, re-rendering all
-        // fourteen badges even for an untouched row.
-        guard trimmed != (overrides.url(for: chain) ?? "") else { return }
-        overrides.set(trimmed, for: chain)
+        guard trimmed != (stored ?? "") else { return nil }
+        return trimmed
+    }
+
+    private func commitDraft() {
+        if let value = Self.commitDecision(draft: draft, stored: overrides.url(for: chain)) {
+            overrides.set(value, for: chain)
+        }
     }
 }
