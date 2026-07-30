@@ -134,4 +134,36 @@ final class NodeProviderTests: XCTestCase {
             $0 + $1.coveredChains(evmChainId: 1, solanaMainnet: true).count
         }
     }
+
+    func test_keyLookup_readsTheProvidersOwnKeychainField() {
+        let config = NetworkConfig.shared
+        let previous = NodeProvider.allCases.map { ($0, config.apiKey(for: $0)) }
+        defer { restoreKeys(previous, on: config) }
+
+        config.alchemyAPIKey = "alchemy-test"
+        config.infuraAPIKey = "infura-test"
+        config.ankrAPIKey = ""
+
+        XCTAssertEqual(config.apiKey(for: .alchemy), "alchemy-test")
+        XCTAssertEqual(config.apiKey(for: .infura), "infura-test")
+        XCTAssertEqual(config.apiKey(for: .ankr), "")
+    }
+
+    /// Restores rather than blanks: leaking "" into the shared config would
+    /// be the same class of cross-test contamination that made the Solana
+    /// assertions cluster-dependent before Task 1 was fixed.
+    private func restoreKeys(_ saved: [(NodeProvider, String)], on config: NetworkConfig) {
+        for (provider, value) in saved {
+            switch provider {
+            case .alchemy:  config.alchemyAPIKey = value
+            case .infura:   config.infuraAPIKey = value
+            case .ankr:     config.ankrAPIKey = value
+            case .blockpi:  config.blockpiAPIKey = value
+            case .drpc:     config.drpcAPIKey = value
+            case .nodeReal: config.nodeRealAPIKey = value
+            case .tenderly: config.tenderlyAPIKey = value
+            case .oneRPC:   config.oneRPCAPIKey = value
+            }
+        }
+    }
 }
