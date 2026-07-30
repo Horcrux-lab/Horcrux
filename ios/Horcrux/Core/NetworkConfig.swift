@@ -70,6 +70,23 @@ final class NetworkConfig: ObservableObject, @unchecked Sendable {
         }
     }
 
+    /// The account-scoped provider whose templates are preferred for every
+    /// chain it covers. `nil` means public defaults.
+    ///
+    /// This is not a secret — it names a company, not a credential — so it
+    /// lives in UserDefaults beside the other routing preferences. The key
+    /// itself stays in the Keychain.
+    @Published var activeProvider: NodeProvider? {
+        didSet {
+            if let raw = activeProvider?.rawValue {
+                UserDefaults.standard.set(raw, forKey: Keys.activeProvider)
+            } else {
+                UserDefaults.standard.removeObject(forKey: Keys.activeProvider)
+            }
+            invalidateBalances()
+        }
+    }
+
     /// Alchemy API key for EVM. Stored in Keychain (never UserDefaults).
     /// When `ethereumRPC` contains the `{KEY}` placeholder, this value is
     /// substituted in at RPC-call time. When this key transitions between
@@ -235,6 +252,7 @@ final class NetworkConfig: ObservableObject, @unchecked Sendable {
         let chainId = UInt64(storedChainId == 0 ? 1 : storedChainId)
         let evmDefault = (EVMNetwork(rawValue: chainId) ?? .mainnet).effectiveDefaultRPC(hasPaidKey: hasAlchemy)
         let solDevnetFlag = ud.bool(forKey: Keys.solDevnet)
+        let storedProvider = ud.string(forKey: Keys.activeProvider)
         let solDefault = (solDevnetFlag ? SolanaNetwork.devnet : .mainnet).effectiveDefaultRPC(hasPaidKey: hasAlchemy)
 
         self.alchemyAPIKey = alchemy
@@ -256,6 +274,7 @@ final class NetworkConfig: ObservableObject, @unchecked Sendable {
         self.evmChainId = chainId
         self.btcTestnet = ud.bool(forKey: Keys.btcTestnet)
         self.solDevnet = solDevnetFlag
+        self.activeProvider = storedProvider.flatMap(NodeProvider.init(rawValue:))
         self.ethereumWSS = ud.string(forKey: Keys.ethereumWSS) ?? ""
         self.solanaWSS = ud.string(forKey: Keys.solanaWSS) ?? ""
     }
@@ -1009,6 +1028,7 @@ private extension NetworkConfig {
         static let oneRPCKey = "com.horcrux.rpc.oneRPCAPIKey"
         static let ethereumWSS = "com.horcrux.rpc.ethereumWSS"
         static let solanaWSS = "com.horcrux.rpc.solanaWSS"
+        static let activeProvider = "com.horcrux.rpc.activeProvider"
     }
 
     enum Defaults {
