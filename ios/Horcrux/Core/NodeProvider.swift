@@ -87,3 +87,23 @@ enum NodeProvider: String, CaseIterable, Identifiable, Codable {
             .subtracting(coveredChains(evmChainId: evmChainId, solanaMainnet: solanaMainnet))
     }
 }
+
+extension NetworkConfig {
+    /// The Keychain-backed key for `provider`, or "" when unset.
+    ///
+    /// Kept here rather than in `substituteAPIKey`'s host-substring chain
+    /// because that function matches on hostname and must keep working
+    /// for URLs the user pasted by hand, which carry no provider identity.
+    func apiKey(for provider: NodeProvider) -> String {
+        switch provider {
+        case .alchemy:  return alchemyAPIKey
+        case .infura:   return infuraAPIKey
+        case .ankr:     return ankrAPIKey
+        case .blockpi:  return blockpiAPIKey
+        case .drpc:     return drpcAPIKey
+        case .nodeReal: return nodeRealAPIKey
+        case .tenderly: return tenderlyAPIKey
+        case .oneRPC:   return oneRPCAPIKey
+        }
+    }
+}
