@@ -548,6 +548,17 @@
 "nodeSettings.coveragePartial" = "%1$@ 覆盖 %3$d 条链中的 %2$d 条，%4$@ 仍使用公共节点。";
 "nodeSettings.coveragePartialWithOverrides" = "%1$@ 覆盖 %3$d 条链中的 %2$d 条，%4$@ 仍使用公共节点；另有 %5$d 条使用你的自定义节点。";
 
+/* Chain list — badge labels align with coverage-caption vocabulary */
+"nodeSettings.chainsSection" = "链";
+"nodeSettings.sourceLabelCustom" = "自定义";
+"nodeSettings.sourceLabelPublic" = "公共";
+
+/* Chain detail */
+"nodeSettings.effectiveEndpointSection" = "当前节点";
+"nodeSettings.sourceLabel" = "来源：%1$@";
+"nodeSettings.customURLSection" = "自定义 URL";
+"nodeSettings.useDefault" = "使用默认节点";
+
 /* Node Status */
 "nodeStatus.notChecked" = "未检查";
 "nodeStatus.connected" = "已连接";

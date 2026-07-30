@@ -1206,6 +1206,23 @@ enum L10n {
             String(format: NSLocalizedString("nodeSettings.coveragePartialWithOverrides", comment: ""),
                    providerName, coveredCount, totalCount, names, ownCount)
         }
+
+        // MARK: ChainEndpointList
+        static let chainsSection = NSLocalizedString("nodeSettings.chainsSection", comment: "")
+        /// Badge for a chain whose traffic goes to a user-set custom URL.
+        /// Aligns with "your own endpoints" vocabulary in coverage captions.
+        static let sourceLabelCustom = NSLocalizedString("nodeSettings.sourceLabelCustom", comment: "")
+        /// Badge for a chain served by the public default endpoint.
+        /// Aligns with "public endpoints" vocabulary in coverage captions.
+        static let sourceLabelPublic = NSLocalizedString("nodeSettings.sourceLabelPublic", comment: "")
+
+        // MARK: ChainEndpointDetailView
+        static let effectiveEndpointSection = NSLocalizedString("nodeSettings.effectiveEndpointSection", comment: "")
+        static func sourceLabel(_ source: String) -> String {
+            String(format: NSLocalizedString("nodeSettings.sourceLabel", comment: ""), source)
+        }
+        static let customURLSection = NSLocalizedString("nodeSettings.customURLSection", comment: "")
+        static let useDefault = NSLocalizedString("nodeSettings.useDefault", comment: "")
     }
 
     // MARK: - Node Status

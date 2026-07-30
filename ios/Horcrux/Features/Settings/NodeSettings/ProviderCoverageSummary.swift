@@ -34,19 +34,25 @@ struct ProviderCoverageSummary {
          overriddenChains: Set<Chain>,
          evmChainId: UInt64,
          solanaMainnet: Bool) {
-        let covered: Set<Chain>
-        if let provider = provider, hasKey {
-            covered = provider.coveredChains(evmChainId: evmChainId, solanaMainnet: solanaMainnet)
-        } else {
-            covered = []
-        }
         self.provider = provider
         // Normalise: a nil provider has no key by definition.
-        self.hasKey = provider != nil && hasKey
+        let normalizedHasKey = provider != nil && hasKey
+        self.hasKey = normalizedHasKey
         self.overridden = overriddenChains
-        let effective = covered.subtracting(overriddenChains)
-        self.providerCovered = effective
-        self.publicDefault = Set(Chain.allCases).subtracting(overriddenChains).subtracting(effective)
+
+        // Classify every chain through the single-source-of-truth classifier
+        // so the partition stays consistent with resolveRawURL.
+        let groups = Dictionary(grouping: Chain.allCases) { chain in
+            NetworkConfig.endpointSource(
+                for: chain,
+                isOverridden: overriddenChains.contains(chain),
+                provider: provider,
+                hasKey: normalizedHasKey,      // local avoids capturing self before init completes
+                evmChainId: evmChainId,
+                solanaMainnet: solanaMainnet)
+        }
+        self.providerCovered = provider.map { Set(groups[.provider($0)] ?? []) } ?? []
+        self.publicDefault   = Set(groups[.publicDefault] ?? [])
     }
 
     var formattedCaption: String {

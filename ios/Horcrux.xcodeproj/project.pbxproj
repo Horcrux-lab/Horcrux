@@ -20,6 +20,7 @@
 		15A5B160337F5ACA4625D4C0 /* WiFiLANTransport.swift in Sources */ = {isa = PBXBuildFile; fileRef = B557F92FAAF7C0F38B2CC6C6 /* WiFiLANTransport.swift */; };
 		1929C70C2E419C8D2D7A499C /* ShardsListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F01AE22958DB93BC491B9519 /* ShardsListView.swift */; };
 		1A286F0E6C2F3FD1B7669F57 /* HorcruxBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = 85CA60ED6C18A20962BDD93C /* HorcruxBridge.swift */; };
+		1BADDBB95DE4B8BC864D9FDC /* ChainEndpointDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C45263885A64041FCD023E9D /* ChainEndpointDetailView.swift */; };
 		1C65F9B0BC2BEE47CAD05017 /* SecureEnclaveManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 60602609EBFD9982939E260C /* SecureEnclaveManager.swift */; };
 		1FF4562440BA4836269A35B4 /* HorcruxTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 03BCB86ADC990211CDD81BEF /* HorcruxTheme.swift */; };
 		21D17F35C9811DFF172642B8 /* InfoHint.swift in Sources */ = {isa = PBXBuildFile; fileRef = 78B55C6F5BC31FCC6755DC9F /* InfoHint.swift */; };
@@ -35,6 +36,7 @@
 		31F7AA8D7864624009E83AB9 /* AccountStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA75292634745BB38B72881E /* AccountStore.swift */; };
 		358CA5D8F1B3F29B200DD29B /* RefreshTracker.swift in Sources */ = {isa = PBXBuildFile; fileRef = FD6B54BEC97DB28C77D606D2 /* RefreshTracker.swift */; };
 		35C8A96CF69D926E6C97D5E1 /* PendingBroadcastQueue.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8FFF986C29A1F3165AFA16CD /* PendingBroadcastQueue.swift */; };
+		3771D1A4A43B80A1C6E03922 /* ChainEndpointList.swift in Sources */ = {isa = PBXBuildFile; fileRef = 33A2590D4F97BE81D976BC57 /* ChainEndpointList.swift */; };
 		39B4F1C6D79643D7C392D480 /* NodeProviderSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6D5915316EEE567F86FD8ED5 /* NodeProviderSection.swift */; };
 		3A2C65309D796E0746FCA9C9 /* RefreshShardCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = E28FFAFF9BE0949A94CC104D /* RefreshShardCoordinator.swift */; };
 		3FB4D6BC29E078FDD296EC80 /* ShardHealthView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 576275CC33EBC4584CF819DB /* ShardHealthView.swift */; };
@@ -47,6 +49,7 @@
 		4464CA3F4629F5A2DA4272C7 /* HorcruxApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8D5302000BBC22EADA2A1F6 /* HorcruxApp.swift */; };
 		4473C32496DD313F260D2116 /* horcrux_core.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1AF9DEBF9BECD65C63B64B81 /* horcrux_core.swift */; };
 		45DA893F35C68A553D0E1CA0 /* DKGTestView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9BC6D798ADA312303C951B6D /* DKGTestView.swift */; };
+		473C3A01DB144DAB80D59C3A /* EndpointSource.swift in Sources */ = {isa = PBXBuildFile; fileRef = D9265C09B5C350000F474B15 /* EndpointSource.swift */; };
 		4B7B6F204D8AFDEB4EACE5EB /* ShardsViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 18E722F82F4851FF4C37CDA4 /* ShardsViewModel.swift */; };
 		4C4F745DC9B848647BC3F360 /* JoinSigningView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5918A98EB3F7837001C759F5 /* JoinSigningView.swift */; };
 		4D5DD751835A8DA3C47BAE55 /* PortableBackupCrypto.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6FFA4225B41BFAAD41678A18 /* PortableBackupCrypto.swift */; };
@@ -104,6 +107,7 @@
 		A1A8B7219650EA8D76C62127 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 12C11D20C4929E2BE2553316 /* Assets.xcassets */; };
 		A456FDA7DBAE247DC816E072 /* WalletAvatarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 98062316CA738168EF54F467 /* WalletAvatarView.swift */; };
 		A4A201AC92EB06E94030380A /* BlockchainServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5DC97913C4CE8685D3D981E /* BlockchainServiceTests.swift */; };
+		AC051838DAA0623239DA3532 /* EndpointSourceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2C649DA6FE4894AAB6C94D4E /* EndpointSourceTests.swift */; };
 		AD348005CA4C2DFFACF04FA8 /* SecureLog.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0E78608F2CD0ED1CADF94547 /* SecureLog.swift */; };
 		AE38F5EE8CB8B850EA1CBBDD /* AddressBook.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2F16FEAB7A7D83404E721639 /* AddressBook.swift */; };
 		AF36FB7F85B0E8E9F35D2AA1 /* SecureKeyVaultTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F00104BD55BFFC248C99EE8E /* SecureKeyVaultTests.swift */; };
@@ -192,8 +196,10 @@
 		262F8D757D7E32834A03160B /* Bech32.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Bech32.swift; sourceTree = "<group>"; };
 		2B1F155AE9F080060144E472 /* SecureEnclaveManagerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SecureEnclaveManagerTests.swift; sourceTree = "<group>"; };
 		2C2DFEADD4C7F811A28CE435 /* RelayConfigTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RelayConfigTests.swift; sourceTree = "<group>"; };
+		2C649DA6FE4894AAB6C94D4E /* EndpointSourceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EndpointSourceTests.swift; sourceTree = "<group>"; };
 		2F16FEAB7A7D83404E721639 /* AddressBook.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AddressBook.swift; sourceTree = "<group>"; };
 		3175D60C78853AD441A91030 /* BLETransport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BLETransport.swift; sourceTree = "<group>"; };
+		33A2590D4F97BE81D976BC57 /* ChainEndpointList.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChainEndpointList.swift; sourceTree = "<group>"; };
 		348DBC6D87E304C4653BD1A0 /* ProviderCoverageSummary.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProviderCoverageSummary.swift; sourceTree = "<group>"; };
 		36BF7F56D454A6F78D4A2F37 /* CertificatePinner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CertificatePinner.swift; sourceTree = "<group>"; };
 		3935002B5AD730445E22C6BD /* TransportProtocol.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TransportProtocol.swift; sourceTree = "<group>"; };
@@ -282,6 +288,7 @@
 		BA64A6444AFEACE5BEAF5C37 /* RecentCoSignersStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecentCoSignersStore.swift; sourceTree = "<group>"; };
 		BD8CC5A0AC3FBD7B276F77BE /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		BE6DF0A887F8A0C59358C3CA /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
+		C45263885A64041FCD023E9D /* ChainEndpointDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChainEndpointDetailView.swift; sourceTree = "<group>"; };
 		C5777E46F80335B4C7DE9E2E /* PendingBroadcastQueueTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PendingBroadcastQueueTests.swift; sourceTree = "<group>"; };
 		C583709075015A9792E114A7 /* Horcrux.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = Horcrux.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		CAFF03A08D23796EC5BF3119 /* WalletStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WalletStore.swift; sourceTree = "<group>"; };
@@ -292,6 +299,7 @@
 		D307B5C167392C9CA551EE9E /* AddressBookView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AddressBookView.swift; sourceTree = "<group>"; };
 		D7473CDCC445DA4468C1E10B /* ColdSigningCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ColdSigningCoordinator.swift; sourceTree = "<group>"; };
 		D886FBBE2DF6B3AA6FA5A29C /* Components.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Components.swift; sourceTree = "<group>"; };
+		D9265C09B5C350000F474B15 /* EndpointSource.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EndpointSource.swift; sourceTree = "<group>"; };
 		DD030979CCAA127E220D7660 /* TokenModelsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TokenModelsTests.swift; sourceTree = "<group>"; };
 		DD9E26CC00E6FEDD1A1F95E8 /* RelayConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RelayConfig.swift; sourceTree = "<group>"; };
 		E1427E0D4CE4032F2665694B /* ProviderCoverageSummaryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProviderCoverageSummaryTests.swift; sourceTree = "<group>"; };
@@ -529,6 +537,9 @@
 		C854894C074EC297301A87CF /* NodeSettings */ = {
 			isa = PBXGroup;
 			children = (
+				C45263885A64041FCD023E9D /* ChainEndpointDetailView.swift */,
+				33A2590D4F97BE81D976BC57 /* ChainEndpointList.swift */,
+				D9265C09B5C350000F474B15 /* EndpointSource.swift */,
 				6D5915316EEE567F86FD8ED5 /* NodeProviderSection.swift */,
 				348DBC6D87E304C4653BD1A0 /* ProviderCoverageSummary.swift */,
 			);
@@ -550,6 +561,7 @@
 				0996A676D3CD4B28950E3F90 /* DeepLinkRouterTests.swift */,
 				8BB50EE7E823225B340C4C0C /* DkgPeerBindingTests.swift */,
 				0C0C6BE3464B8B466F380C37 /* EndpointResolutionTests.swift */,
+				2C649DA6FE4894AAB6C94D4E /* EndpointSourceTests.swift */,
 				A418982CCA628D972E97D905 /* MessagePaddingTests.swift */,
 				B9E84BAFAE73EC309601D40C /* ModelTests.swift */,
 				678F55EA0F92269FF77CA18E /* NetworkConfigTests.swift */,
@@ -766,6 +778,7 @@
 				5BC458CA15D9972155012F63 /* DeepLinkRouterTests.swift in Sources */,
 				6C4DADBAE905FE8B19A3BD46 /* DkgPeerBindingTests.swift in Sources */,
 				F8AFD0BB432E20681624EAB8 /* EndpointResolutionTests.swift in Sources */,
+				AC051838DAA0623239DA3532 /* EndpointSourceTests.swift in Sources */,
 				567E1DBE06932F612270F002 /* MessagePaddingTests.swift in Sources */,
 				514981C1384F66B055401254 /* ModelTests.swift in Sources */,
 				563DA275111031BB4FCE5CF4 /* NetworkConfigTests.swift in Sources */,
@@ -816,6 +829,8 @@
 				40EE00FC37AC4A9BD0D5B5F1 /* BtcSigner.swift in Sources */,
 				8B6DABC2BA6DA13BE06406AA /* CeremonyStateManager.swift in Sources */,
 				52FD2C971898C344961F87A6 /* CertificatePinner.swift in Sources */,
+				1BADDBB95DE4B8BC864D9FDC /* ChainEndpointDetailView.swift in Sources */,
+				3771D1A4A43B80A1C6E03922 /* ChainEndpointList.swift in Sources */,
 				7B8B2CA50AA9094D5833102F /* ChainEndpointOverrides.swift in Sources */,
 				C3F663E12F4D2CC213624F7F /* ColdSigningCoordinator.swift in Sources */,
 				2482523E5D2C54B27D4D7C23 /* ColdSigningCoordinatorV2.swift in Sources */,
@@ -835,6 +850,7 @@
 				792D01EFC687A2F2CDE2248F /* DeviceIdentity.swift in Sources */,
 				2A0E7EB1A7E9AD6E8BC1EA20 /* DkgEstimate.swift in Sources */,
 				83D25BF65526FEE56A62181C /* ENSResolver.swift in Sources */,
+				473C3A01DB144DAB80D59C3A /* EndpointSource.swift in Sources */,
 				E5641825CBA2C537A4AAEF48 /* EvmSigner.swift in Sources */,
 				10631E68BC1CCBD1C1AB1E76 /* Haptics.swift in Sources */,
 				4464CA3F4629F5A2DA4272C7 /* HorcruxApp.swift in Sources */,
