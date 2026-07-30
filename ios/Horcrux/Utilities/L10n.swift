@@ -1182,7 +1182,6 @@ enum L10n {
         static func providerKeyLabel(_ name: String) -> String {
             String(format: NSLocalizedString("nodeSettings.providerKeyLabel", comment: ""), name)
         }
-        static let providerPublicCaption = NSLocalizedString("nodeSettings.providerPublicCaption", comment: "")
 
         // MARK: ProviderCoverageSummary
         static let chainListSeparator = NSLocalizedString("nodeSettings.chainListSeparator", comment: "")
