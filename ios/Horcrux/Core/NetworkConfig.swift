@@ -1372,34 +1372,89 @@ enum RPCFallbacks {
             guard let net = EVMNetwork(rawValue: config.evmChainId) else { return [] }
             return endpoints(forEVMNetwork: net)
         case .bitcoin:
-            return config.btcTestnet
-                ? ["https://blockstream.info/testnet/api", "https://mempool.space/testnet/api"]
-                : ["https://blockstream.info/api", "https://mempool.space/api"]
+            return bitcoinEndpoints(testnet: config.btcTestnet)
         case .litecoin:
-            return [
-                "https://litecoinspace.org/api"
-            ]
+            return litecoinEndpoints
         case .solana:
-            return config.solDevnet
-                ? ["https://api.devnet.solana.com"]
-                : [
-                    "https://api.mainnet-beta.solana.com",
-                    // Canonical PublicNode hostname — matches
-                    // `SolanaNetwork.mainnet.publicDefaultRPC` so it dedupes
-                    // away for default installs instead of listing the same
-                    // operator twice under an alias and looking like
-                    // redundancy it isn't.
-                    "https://solana-rpc.publicnode.com"
-                ]
+            return solanaEndpoints(devnet: config.solDevnet)
         case .tron:
-            return [
-                "https://api.trongrid.io",
-                "https://api.tronstack.io",
-                "https://api.shasta.trongrid.io",
-                "https://nile.trongrid.io"
-            ]
+            return tronEndpoints
         default:
             return []
+        }
+    }
+
+    private static func bitcoinEndpoints(testnet: Bool) -> [String] {
+        testnet
+            ? ["https://blockstream.info/testnet/api", "https://mempool.space/testnet/api"]
+            : ["https://blockstream.info/api", "https://mempool.space/api"]
+    }
+
+    private static let litecoinEndpoints = [
+        "https://litecoinspace.org/api"
+    ]
+
+    private static func solanaEndpoints(devnet: Bool) -> [String] {
+        devnet
+            ? ["https://api.devnet.solana.com"]
+            : [
+                "https://api.mainnet-beta.solana.com",
+                // Canonical PublicNode hostname — matches
+                // `SolanaNetwork.mainnet.publicDefaultRPC` so it dedupes
+                // away for default installs instead of listing the same
+                // operator twice under an alias and looking like
+                // redundancy it isn't.
+                "https://solana-rpc.publicnode.com"
+            ]
+    }
+
+    private static let tronEndpoints = [
+        "https://api.trongrid.io",
+        "https://api.tronstack.io",
+        "https://api.shasta.trongrid.io",
+        "https://nile.trongrid.io"
+    ]
+
+    /// Every endpoint this app has ever handed out for `chain` as a
+    /// default or a fallback, across **both** network selections.
+    ///
+    /// Deliberately cluster-agnostic, and deliberately not a function of
+    /// `NetworkConfig`. The migration uses this to tell a hand-typed URL
+    /// from one of ours, and that judgement must not change when the user
+    /// flips a network toggle: a devnet user still holding the mainnet
+    /// Solana default would otherwise have it frozen into a permanent
+    /// mainnet override. `detectMismatch` returns nil for Solana, so
+    /// nothing downstream would ever catch it, and Solana addresses are
+    /// byte-identical across clusters.
+    static func allShippedEndpoints(for chain: Chain) -> Set<String> {
+        switch chain {
+        case .ethereum:
+            var set = Set(endpoints(forEVMNetwork: .mainnet))
+            set.formUnion(endpoints(forEVMNetwork: .sepolia))
+            set.formUnion([EVMNetwork.mainnet, .sepolia]
+                .flatMap { [$0.publicDefaultRPC, $0.defaultRPC] })
+            return set
+        case .bitcoin:
+            var set = Set(bitcoinEndpoints(testnet: false))
+            set.formUnion(bitcoinEndpoints(testnet: true))
+            set.formUnion([BitcoinNetwork.mainnet.defaultAPI,
+                           BitcoinNetwork.testnet.defaultAPI])
+            return set
+        case .litecoin:
+            return Set(litecoinEndpoints)
+        case .solana:
+            var set = Set(solanaEndpoints(devnet: false))
+            set.formUnion(solanaEndpoints(devnet: true))
+            set.formUnion([SolanaNetwork.mainnet, .devnet]
+                .flatMap { [$0.publicDefaultRPC, $0.defaultRPC] })
+            return set
+        case .tron:
+            return Set(tronEndpoints)
+        default:
+            guard let net = chain.defaultEVMNetwork else { return [] }
+            var set = Set(endpoints(forEVMNetwork: net))
+            set.formUnion([net.publicDefaultRPC, net.defaultRPC])
+            return set
         }
     }
 
