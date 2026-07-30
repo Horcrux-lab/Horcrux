@@ -120,30 +120,49 @@ import XCTest
 final class NodeProviderTests: XCTestCase {
 
     func test_alchemy_servesPolygon_withItsOwnTemplate() {
-        let url = NodeProvider.alchemy.template(for: .polygon, evmChainId: 1)
+        let url = NodeProvider.alchemy.template(for: .polygon, evmChainId: 1, solanaMainnet: true)
         XCTAssertEqual(url, "https://polygon-mainnet.g.alchemy.com/v2/{KEY}")
     }
 
     /// Alchemy has no BNB product. Returning a wrong-chain URL here would
     /// send Ethereum traffic to a BNB address, so the gap must be nil.
     func test_alchemy_doesNotServeBNB() {
-        XCTAssertNil(NodeProvider.alchemy.template(for: .bnb, evmChainId: 1))
+        XCTAssertNil(NodeProvider.alchemy.template(for: .bnb, evmChainId: 1, solanaMainnet: true))
     }
 
-    /// Ethereum is the one EVM chain whose network is user-selectable.
+    /// Ethereum occupies the app's one user-selectable EVM slot, so it is
+    /// the only chain whose template follows evmChainId.
     func test_ethereumTemplate_followsTheEVMChainIdToggle() {
-        XCTAssertEqual(NodeProvider.alchemy.template(for: .ethereum, evmChainId: 1),
+        XCTAssertEqual(NodeProvider.alchemy.template(for: .ethereum, evmChainId: 1, solanaMainnet: true),
                        "https://eth-mainnet.g.alchemy.com/v2/{KEY}")
-        XCTAssertEqual(NodeProvider.alchemy.template(for: .ethereum, evmChainId: 11_155_111),
+        XCTAssertEqual(NodeProvider.alchemy.template(for: .ethereum, evmChainId: 11_155_111, solanaMainnet: true),
                        "https://eth-sepolia.g.alchemy.com/v2/{KEY}")
+    }
+
+    /// The Ethereum slot accepts any of the eleven EVMNetwork values, not
+    /// just mainnet and Sepolia. Pinned so nobody "simplifies" the
+    /// `?? .mainnet` fallback into a wrong-chain bug.
+    func test_ethereumSlot_followsAnyEVMNetworkSelection() {
+        XCTAssertEqual(NodeProvider.alchemy.template(for: .ethereum, evmChainId: 137, solanaMainnet: true),
+                       "https://polygon-mainnet.g.alchemy.com/v2/{KEY}")
+    }
+
+    /// An unrecognised stored chain ID must land somewhere real rather
+    /// than returning nil and stranding the Ethereum slot.
+    func test_unknownEVMChainId_fallsBackToMainnet() {
+        XCTAssertEqual(NodeProvider.alchemy.template(for: .ethereum, evmChainId: 999_999, solanaMainnet: true),
+                       "https://eth-mainnet.g.alchemy.com/v2/{KEY}")
     }
 
     /// No provider in this enum serves the non-EVM, non-Solana chains.
     func test_noProvider_claimsBitcoinLitecoinOrTron() {
         for provider in NodeProvider.allCases {
             for chain in [Chain.bitcoin, .litecoin, .tron] {
-                XCTAssertNil(provider.template(for: chain, evmChainId: 1),
-                             "\(provider) must not claim \(chain)")
+                for solanaMainnet in [true, false] {
+                    XCTAssertNil(provider.template(for: chain, evmChainId: 1,
+                                                   solanaMainnet: solanaMainnet),
+                                 "\(provider) must not claim \(chain)")
+                }
             }
         }
     }
@@ -154,29 +173,82 @@ final class NodeProviderTests: XCTestCase {
         var checked = 0
         for provider in NodeProvider.allCases {
             for chain in Chain.allCases {
-                guard let t = provider.template(for: chain, evmChainId: 1) else { continue }
+                guard let t = provider.template(for: chain, evmChainId: 1,
+                                                solanaMainnet: true) else { continue }
                 checked += 1
                 XCTAssertTrue(t.contains("{KEY}"), "\(provider)/\(chain): \(t)")
             }
         }
-        XCTAssertGreaterThan(checked, 0)
+        // Exact, not `> 0`: a regression that nils out most providers would
+        // otherwise still report green on the placeholder invariant.
+        XCTAssertEqual(checked, expectedMainnetTemplateCount)
     }
 
+    /// Alchemy's exact coverage on mainnet. An exact set fails loudly if
+    /// the matrix drifts; a `contains` spot-check would not.
     func test_coveredChains_matchesTheDocumentedMatrix() {
-        let covered = NodeProvider.alchemy.coveredChains(evmChainId: 1)
-        XCTAssertTrue(covered.contains(.polygon))
-        XCTAssertTrue(covered.contains(.solana))
-        XCTAssertFalse(covered.contains(.bnb))
-        XCTAssertFalse(covered.contains(.bitcoin))
+        let uncovered = NodeProvider.alchemy.uncoveredChains(evmChainId: 1, solanaMainnet: true)
+        XCTAssertEqual(uncovered, [.bnb, .bitcoin, .litecoin, .tron])
     }
 
-    func test_uncoveredChains_isTheComplementOverAllChains() {
-        let uncovered = NodeProvider.alchemy.uncoveredChains(evmChainId: 1)
-        XCTAssertTrue(uncovered.contains(.bnb))
-        XCTAssertTrue(uncovered.contains(.bitcoin))
-        XCTAssertFalse(uncovered.contains(.polygon))
-        XCTAssertEqual(uncovered.count, Chain.allCases.count
-                       - NodeProvider.alchemy.coveredChains(evmChainId: 1).count)
+    // MARK: - Solana cluster safety
+
+    /// Solana addresses are byte-identical across clusters, so a provider
+    /// that only has a mainnet host must return nil on devnet rather than
+    /// hand back the mainnet URL. Ankr and dRPC are exactly that case.
+    func test_ankrAndDRPC_returnNilOnSolanaDevnet() {
+        XCTAssertEqual(NodeProvider.ankr.template(for: .solana, evmChainId: 1, solanaMainnet: true),
+                       "https://rpc.ankr.com/solana/{KEY}")
+        XCTAssertNil(NodeProvider.ankr.template(for: .solana, evmChainId: 1, solanaMainnet: false))
+
+        XCTAssertEqual(NodeProvider.drpc.template(for: .solana, evmChainId: 1, solanaMainnet: true),
+                       "https://lb.drpc.org/ogrpc?network=solana&dkey={KEY}")
+        XCTAssertNil(NodeProvider.drpc.template(for: .solana, evmChainId: 1, solanaMainnet: false))
+    }
+
+    /// No Solana template may point at a mainnet host while the caller
+    /// asked for devnet. This is the invariant that matters most here.
+    func test_noSolanaDevnetTemplate_pointsAtAMainnetHost() {
+        for provider in NodeProvider.allCases {
+            guard let t = provider.template(for: .solana, evmChainId: 1,
+                                            solanaMainnet: false) else { continue }
+            XCTAssertFalse(t.contains("mainnet"), "\(provider) devnet template: \(t)")
+            XCTAssertFalse(t.contains("rpc.ankr.com/solana"), "\(provider) devnet template: \(t)")
+            XCTAssertFalse(t.contains("network=solana"), "\(provider) devnet template: \(t)")
+        }
+    }
+
+    func test_solanaMainnetTemplates_areExact() {
+        XCTAssertEqual(NodeProvider.alchemy.template(for: .solana, evmChainId: 1, solanaMainnet: true),
+                       "https://solana-mainnet.g.alchemy.com/v2/{KEY}")
+        XCTAssertNil(NodeProvider.blockpi.template(for: .solana, evmChainId: 1, solanaMainnet: true))
+        XCTAssertNil(NodeProvider.nodeReal.template(for: .solana, evmChainId: 1, solanaMainnet: true))
+        XCTAssertNil(NodeProvider.tenderly.template(for: .solana, evmChainId: 1, solanaMainnet: true))
+    }
+
+    /// Coverage must depend only on its arguments. If this ever fails,
+    /// something started reading NetworkConfig.shared again.
+    func test_coverage_isPureAcrossTheDevnetToggle() {
+        let previous = NetworkConfig.shared.solDevnet
+        defer { NetworkConfig.shared.solDevnet = previous }
+
+        NetworkConfig.shared.solDevnet = false
+        let a = NodeProvider.ankr.coveredChains(evmChainId: 1, solanaMainnet: true)
+        NetworkConfig.shared.solDevnet = true
+        let b = NodeProvider.ankr.coveredChains(evmChainId: 1, solanaMainnet: true)
+        XCTAssertEqual(a, b)
+        XCTAssertTrue(a.contains(.solana))
+
+        XCTAssertFalse(NodeProvider.ankr
+            .coveredChains(evmChainId: 1, solanaMainnet: false).contains(.solana))
+    }
+
+    /// Derived from the matrix rather than hand-counted, so the assertion
+    /// above stays honest when a provider or chain is added.
+    private var expectedMainnetTemplateCount: Int {
+        NodeProvider.allCases.reduce(0) {
+            $0 + $1.coveredChains(evmChainId: 1, solanaMainnet: true).count
+        }
     }
 }
 ```
@@ -227,10 +299,15 @@ enum NodeProvider: String, CaseIterable, Identifiable, Codable {
     /// The `{KEY}`-bearing URL template this provider serves `chain` on,
     /// or nil when it does not serve that chain at all.
     ///
-    /// `evmChainId` is consulted only for `.ethereum`, whose network is
-    /// user-selectable between mainnet and Sepolia. Every other EVM chain
-    /// maps to exactly one `EVMNetwork`.
-    func template(for chain: Chain, evmChainId: UInt64) -> String? {
+    /// Both network selectors are explicit parameters. Reading either from
+    /// `NetworkConfig.shared` would make this type return different answers
+    /// for identical arguments, which a cached coverage set in the UI has no
+    /// way to notice.
+    ///
+    /// `evmChainId` is consulted only for `.ethereum`, which occupies the
+    /// app's one user-selectable EVM slot. Every other EVM chain maps
+    /// through its fixed `defaultEVMNetwork`.
+    func template(for chain: Chain, evmChainId: UInt64, solanaMainnet: Bool) -> String? {
         if chain.isEVM {
             guard let net = evmNetwork(for: chain, evmChainId: evmChainId) else { return nil }
             switch self {
@@ -248,13 +325,17 @@ enum NodeProvider: String, CaseIterable, Identifiable, Codable {
         guard chain == .solana else { return nil }
         // Bitcoin, Litecoin and Tron are served by no provider in this
         // enum; they fall through to public defaults or a user override.
-        let mainnet = !NetworkConfig.shared.solDevnet
         switch self {
-        case .alchemy:  return RPCProviderTemplate.alchemySolana(mainnet: mainnet)
-        case .infura:   return RPCProviderTemplate.infuraSolana(mainnet: mainnet)
-        case .ankr:     return RPCProviderTemplate.ankrSolana()
-        case .drpc:     return RPCProviderTemplate.drpcSolana()
-        case .oneRPC:   return RPCProviderTemplate.oneRPCSolana(mainnet: mainnet)
+        case .alchemy:  return RPCProviderTemplate.alchemySolana(mainnet: solanaMainnet)
+        case .infura:   return RPCProviderTemplate.infuraSolana(mainnet: solanaMainnet)
+        case .oneRPC:   return RPCProviderTemplate.oneRPCSolana(mainnet: solanaMainnet)
+        // ankrSolana() and drpcSolana() hardcode mainnet hosts and have no
+        // devnet variant. Solana addresses are byte-identical across
+        // clusters, so handing back a mainnet URL while the user believes
+        // they are on devnet would broadcast a "test" transfer against real
+        // funds. A missing endpoint is recoverable; a wrong cluster is not.
+        case .ankr:     return solanaMainnet ? RPCProviderTemplate.ankrSolana() : nil
+        case .drpc:     return solanaMainnet ? RPCProviderTemplate.drpcSolana() : nil
         case .blockpi, .nodeReal, .tenderly: return nil
         }
     }
@@ -266,19 +347,22 @@ enum NodeProvider: String, CaseIterable, Identifiable, Codable {
         return chain.defaultEVMNetwork
     }
 
-    func coveredChains(evmChainId: UInt64) -> Set<Chain> {
-        Set(Chain.allCases.filter { template(for: $0, evmChainId: evmChainId) != nil })
+    func coveredChains(evmChainId: UInt64, solanaMainnet: Bool) -> Set<Chain> {
+        Set(Chain.allCases.filter {
+            template(for: $0, evmChainId: evmChainId, solanaMainnet: solanaMainnet) != nil
+        })
     }
 
-    func uncoveredChains(evmChainId: UInt64) -> Set<Chain> {
-        Set(Chain.allCases).subtracting(coveredChains(evmChainId: evmChainId))
+    func uncoveredChains(evmChainId: UInt64, solanaMainnet: Bool) -> Set<Chain> {
+        Set(Chain.allCases)
+            .subtracting(coveredChains(evmChainId: evmChainId, solanaMainnet: solanaMainnet))
     }
 }
 ```
 
 - [ ] **Step 4: Run the test to verify it passes**
 
-Same command as Step 2. Expected: `TEST SUCCEEDED`, 7 tests.
+Same command as Step 2. Expected: `TEST SUCCEEDED`, 12 tests.
 
 - [ ] **Step 5: Commit**
 
@@ -295,7 +379,14 @@ Helius serves only Solana, so including either would make the
 one-key-many-chains contract false.
 
 Templates return nil for chains a provider does not serve, so a gap can
-never resolve to another chain's URL."
+never resolve to another chain's URL. Both network selectors are
+parameters rather than reads of NetworkConfig.shared, so coverage is a
+function of its arguments and cannot go stale behind a cached UI value.
+
+Ankr and dRPC return nil for Solana devnet because their only hosts are
+mainnet ones. Solana addresses are byte-identical across clusters, so
+handing back a mainnet URL under a Devnet badge would broadcast a test
+transfer against real funds."
 ```
 
 ### Task 2: Map providers to their Keychain fields
@@ -856,7 +947,8 @@ Insert directly after `publicDefault(for:)` in `NetworkConfig.swift`:
         }
         if let provider = activeProvider,
            !apiKey(for: provider).isEmpty,
-           let template = provider.template(for: chain, evmChainId: evmChainId) {
+           let template = provider.template(for: chain, evmChainId: evmChainId,
+                                            solanaMainnet: !solDevnet) {
             return template
         }
         return publicDefault(for: chain)
@@ -1147,7 +1239,8 @@ enum NodeSettingsMigration {
         for provider in NodeProvider.allCases {
             for chain in Chain.allCases {
                 for net in EVMNetwork.allCases {
-                    if provider.template(for: chain, evmChainId: net.rawValue) == url {
+                    if provider.template(for: chain, evmChainId: net.rawValue,
+                                         solanaMainnet: !NetworkConfig.shared.solDevnet) == url {
                         return provider
                     }
                 }
@@ -1466,7 +1559,8 @@ struct NodeProviderSection: View {
         if config.apiKey(for: provider).isEmpty {
             return "No key set — using public endpoints."
         }
-        let uncovered = provider.uncoveredChains(evmChainId: config.evmChainId)
+        let uncovered = provider.uncoveredChains(evmChainId: config.evmChainId,
+                                                 solanaMainnet: !config.solDevnet)
         let covered = Chain.allCases.count - uncovered.count
         if uncovered.isEmpty {
             return "\(provider.displayName) covers all \(Chain.allCases.count) chains."
@@ -1558,7 +1652,8 @@ extension NetworkConfig {
         if ChainEndpointOverrides.shared.url(for: chain) != nil { return .override }
         if let provider = activeProvider,
            !apiKey(for: provider).isEmpty,
-           provider.template(for: chain, evmChainId: evmChainId) != nil {
+           provider.template(for: chain, evmChainId: evmChainId,
+                            solanaMainnet: !solDevnet) != nil {
             return .provider(provider)
         }
         return .publicDefault
