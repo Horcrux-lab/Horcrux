@@ -254,6 +254,12 @@ final class EndpointResolutionTests: XCTestCase {
         let ankr = config.ankrAPIKey
         let ethereumRPC = config.ethereumRPC
         let solanaRPC = config.solanaRPC
+        // Snapshot tenderlyAPIKey so tests that mutate it do not destroy the
+        // developer's real Tenderly credential stored in the device Keychain.
+        // tenderlyAPIKey.didSet only calls saveKeychain + invalidateBalances
+        // (no autoSwap side effects), so restoring it here is safe without
+        // snapshotting any additional derived fields.
+        let tenderly = config.tenderlyAPIKey
         defer {
             config.activeProvider = provider
             config.evmChainId = chainId
@@ -262,6 +268,7 @@ final class EndpointResolutionTests: XCTestCase {
             config.ankrAPIKey = ankr
             config.ethereumRPC = ethereumRPC
             config.solanaRPC = solanaRPC
+            config.tenderlyAPIKey = tenderly
         }
         config.activeProvider = nil
         config.alchemyAPIKey = ""
@@ -379,6 +386,50 @@ final class EndpointResolutionTests: XCTestCase {
             for chain in Chain.allCases {
                 XCTAssertFalse(config.resolveRawURL(for: chain).isEmpty, "\(chain)")
             }
+        }
+    }
+
+    // MARK: - rpcURL
+
+    /// The headline fix: nine chains that could not be configured at all.
+    func test_rpcURL_honoursAnOverrideForAPreviouslyUnconfigurableChain() {
+        withCleanConfig { config in
+            ChainEndpointOverrides.shared.set("https://my-base.example", for: .base)
+            XCTAssertEqual(config.rpcURL(for: .base), "https://my-base.example")
+        }
+    }
+
+    func test_rpcURL_neverLeaksAPlaceholder() {
+        withCleanConfig { config in
+            config.activeProvider = .alchemy
+            config.alchemyAPIKey = "abc123"
+            for chain in Chain.allCases {
+                let url = config.rpcURL(for: chain)
+                XCTAssertFalse(url.contains("{KEY}"), "\(chain): \(url)")
+                XCTAssertFalse(url.isEmpty, "\(chain)")
+            }
+        }
+    }
+
+    func test_rpcURL_appliesTheProviderKey() {
+        withCleanConfig { config in
+            config.activeProvider = .alchemy
+            config.alchemyAPIKey = "abc123"
+            XCTAssertEqual(config.rpcURL(for: .base),
+                           "https://base-mainnet.g.alchemy.com/v2/abc123")
+        }
+    }
+
+    /// An override the user typed has no {KEY}, so no key may be spliced
+    /// into it even when the host matches a provider the user has a key for.
+    func test_rpcURL_doesNotInjectAKeyIntoAKeylessOverride() {
+        withCleanConfig { config in
+            config.tenderlyAPIKey = "secret-key"
+            defer { config.tenderlyAPIKey = "" }
+            ChainEndpointOverrides.shared.set("https://mainnet.gateway.tenderly.co", for: .base)
+            let url = config.rpcURL(for: .base)
+            XCTAssertEqual(url, "https://mainnet.gateway.tenderly.co")
+            XCTAssertFalse(url.contains("secret-key"))
         }
     }
 }

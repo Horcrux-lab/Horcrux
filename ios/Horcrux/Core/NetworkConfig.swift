@@ -285,20 +285,7 @@ final class NetworkConfig: ObservableObject, @unchecked Sendable {
     }
 
     func rpcURL(for chain: Chain) -> String {
-        let raw: String
-        switch chain {
-        case .ethereum: raw = ethereumRPC
-        case .bnb, .polygon, .arbitrum, .base, .avalanche, .optimism, .zksync, .linea, .scroll:
-            // New EVM chains use hardcoded defaults for now; no per-chain
-            // override field yet. Users can reach the same node via RPC
-            // fallbacks if the default is unreachable.
-            raw = chain.defaultEVMNetwork?.defaultRPC ?? ""
-        case .bitcoin: raw = bitcoinAPI
-        case .litecoin: raw = litecoinAPI
-        case .solana: raw = solanaRPC
-        case .tron: raw = tronAPI
-        }
-        return substituteAPIKey(in: raw, chain: chain)
+        return substituteAPIKey(in: resolveRawURL(for: chain), chain: chain)
     }
 
     /// The keyless public endpoint for `chain`, honouring the Ethereum,
