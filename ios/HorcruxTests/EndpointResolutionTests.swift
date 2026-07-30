@@ -40,6 +40,10 @@ final class EndpointResolutionTests: XCTestCase {
         ChainEndpointOverrides.shared.set("", for: .polygon)
         XCTAssertNil(ChainEndpointOverrides.shared.url(for: .polygon),
                      "an emptied field must fall back to provider/public, not store \"\"")
+        // url(for:) alone cannot tell "cleared" from "stored empty string".
+        // Without these, an implementation that persisted "" would pass.
+        XCTAssertFalse(ChainEndpointOverrides.shared.allChains().contains(.polygon))
+        XCTAssertNil(ChainEndpointOverrides.shared.snapshot()[Chain.polygon.rawValue])
     }
 
     /// Whitespace-only input is the same user intent as an empty field.
@@ -47,6 +51,8 @@ final class EndpointResolutionTests: XCTestCase {
         ChainEndpointOverrides.shared.set("https://my-node.example", for: .polygon)
         ChainEndpointOverrides.shared.set("   \n ", for: .polygon)
         XCTAssertNil(ChainEndpointOverrides.shared.url(for: .polygon))
+        XCTAssertFalse(ChainEndpointOverrides.shared.allChains().contains(.polygon))
+        XCTAssertNil(ChainEndpointOverrides.shared.snapshot()[Chain.polygon.rawValue])
     }
 
     func test_setTrimsSurroundingWhitespace() {
@@ -88,8 +94,74 @@ final class EndpointResolutionTests: XCTestCase {
     /// must be ignored rather than crashing the settings list.
     func test_unknownStoredKeys_areIgnored() {
         UserDefaults.standard.set(["NotAChain": "https://ghost.example"],
-                                  forKey: "com.horcrux.rpc.chainOverrides")
+                                  forKey: ChainEndpointOverrides.storageKey)
         ChainEndpointOverrides.shared.reloadFromDisk()
         XCTAssertTrue(ChainEndpointOverrides.shared.allChains().isEmpty)
+    }
+
+    /// clear() must reach disk. If it only mutated memory, a user's
+    /// cleared override would come back on next launch — and setUp's
+    /// removeAll() would stop isolating tests from each other.
+    func test_clearIsPersisted() {
+        ChainEndpointOverrides.shared.set("https://gone.example", for: .optimism)
+        ChainEndpointOverrides.shared.clear(.optimism)
+        ChainEndpointOverrides.shared.reloadFromDisk()
+        XCTAssertNil(ChainEndpointOverrides.shared.url(for: .optimism))
+    }
+
+    func test_removeAllIsPersisted() {
+        ChainEndpointOverrides.shared.set("https://a.example", for: .polygon)
+        ChainEndpointOverrides.shared.set("https://b.example", for: .base)
+        ChainEndpointOverrides.shared.removeAll()
+        ChainEndpointOverrides.shared.reloadFromDisk()
+        XCTAssertTrue(ChainEndpointOverrides.shared.allChains().isEmpty)
+    }
+
+    /// One unreadable value must not take the rest of the user's
+    /// hand-entered node addresses with it. A wholesale
+    /// `as? [String: String]` cast would return nil here and wipe all three.
+    func test_oneCorruptValue_doesNotDiscardTheGoodOnes() {
+        UserDefaults.standard.set([Chain.polygon.rawValue: "https://poly.example",
+                                   Chain.base.rawValue: "https://base.example",
+                                   Chain.solana.rawValue: 42],
+                                  forKey: ChainEndpointOverrides.storageKey)
+        ChainEndpointOverrides.shared.reloadFromDisk()
+        XCTAssertEqual(ChainEndpointOverrides.shared.url(for: .polygon), "https://poly.example")
+        XCTAssertEqual(ChainEndpointOverrides.shared.url(for: .base), "https://base.example")
+        XCTAssertNil(ChainEndpointOverrides.shared.url(for: .solana))
+    }
+
+    /// An empty value on disk must be adopted as "no override", so the
+    /// settings list and the resolver cannot disagree about whether a
+    /// chain is overridden.
+    func test_emptyValueOnDisk_isTreatedAsNoOverride() {
+        UserDefaults.standard.set([Chain.linea.rawValue: "  "],
+                                  forKey: ChainEndpointOverrides.storageKey)
+        ChainEndpointOverrides.shared.reloadFromDisk()
+        XCTAssertNil(ChainEndpointOverrides.shared.url(for: .linea))
+        XCTAssertTrue(ChainEndpointOverrides.shared.allChains().isEmpty)
+    }
+
+    /// Concurrent reads during writes must not crash. Dictionary
+    /// reallocates as it grows, which is the race the lock exists for.
+    func test_concurrentReadsAndWrites_doNotCrash() {
+        let done = expectation(description: "concurrent access")
+        done.expectedFulfillmentCount = 2
+
+        DispatchQueue.global().async {
+            for i in 0..<500 {
+                ChainEndpointOverrides.shared.set("https://w\(i).example", for: .polygon)
+                ChainEndpointOverrides.shared.set("https://x\(i).example", for: .base)
+            }
+            done.fulfill()
+        }
+        DispatchQueue.global().async {
+            for _ in 0..<500 {
+                _ = ChainEndpointOverrides.shared.url(for: .polygon)
+                _ = ChainEndpointOverrides.shared.allChains()
+            }
+            done.fulfill()
+        }
+        wait(for: [done], timeout: 30)
     }
 }

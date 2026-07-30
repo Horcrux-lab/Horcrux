@@ -402,18 +402,45 @@ Append to `NodeProviderTests`:
 ```swift
     func test_keyLookup_readsTheProvidersOwnKeychainField() {
         let config = NetworkConfig.shared
+        let previous = NodeProvider.allCases.map { ($0, config.apiKey(for: $0)) }
+        defer { for (p, v) in previous { config.setAPIKeyForTesting(v, for: p) } }
+
         config.alchemyAPIKey = "alchemy-test"
         config.infuraAPIKey = "infura-test"
-        defer {
-            config.alchemyAPIKey = ""
-            config.infuraAPIKey = ""
-        }
+        config.ankrAPIKey = ""
 
         XCTAssertEqual(config.apiKey(for: .alchemy), "alchemy-test")
         XCTAssertEqual(config.apiKey(for: .infura), "infura-test")
         XCTAssertEqual(config.apiKey(for: .ankr), "")
     }
 ```
+
+Restoring the previous values rather than blanking them keeps this test
+from leaking state into whatever runs next — the same hazard that made
+the Solana assertions in Task 1 cluster-dependent.
+
+`setAPIKeyForTesting` does not exist yet; Task 10 introduces the real
+`setAPIKey(_:for:)`. Until then, write the restore loop against the
+stored properties directly:
+
+```swift
+    private func restoreKeys(_ saved: [(NodeProvider, String)], on config: NetworkConfig) {
+        for (provider, value) in saved {
+            switch provider {
+            case .alchemy:  config.alchemyAPIKey = value
+            case .infura:   config.infuraAPIKey = value
+            case .ankr:     config.ankrAPIKey = value
+            case .blockpi:  config.blockpiAPIKey = value
+            case .drpc:     config.drpcAPIKey = value
+            case .nodeReal: config.nodeRealAPIKey = value
+            case .tenderly: config.tenderlyAPIKey = value
+            case .oneRPC:   config.oneRPCAPIKey = value
+            }
+        }
+    }
+```
+
+and call `defer { restoreKeys(previous, on: config) }`.
 
 - [ ] **Step 2: Run the test to verify it fails**
 
@@ -454,7 +481,7 @@ extension NetworkConfig {
 
 - [ ] **Step 4: Run the test to verify it passes**
 
-Same command. Expected: `TEST SUCCEEDED`, 8 tests.
+Same command. Expected: `TEST SUCCEEDED`, 13 tests.
 
 - [ ] **Step 5: Commit**
 
@@ -525,6 +552,24 @@ final class EndpointResolutionTests: XCTestCase {
         ChainEndpointOverrides.shared.set("", for: .polygon)
         XCTAssertNil(ChainEndpointOverrides.shared.url(for: .polygon),
                      "an emptied field must fall back to provider/public, not store \"\"")
+        // url(for:) alone cannot tell "cleared" from "stored empty string".
+        // Without these, an implementation that persisted "" would pass.
+        XCTAssertFalse(ChainEndpointOverrides.shared.allChains().contains(.polygon))
+        XCTAssertNil(ChainEndpointOverrides.shared.snapshot()[Chain.polygon.rawValue])
+    }
+
+    /// Whitespace-only input is the same user intent as an empty field.
+    func test_settingWhitespaceOnly_clearsTheOverride() {
+        ChainEndpointOverrides.shared.set("https://my-node.example", for: .polygon)
+        ChainEndpointOverrides.shared.set("   \n ", for: .polygon)
+        XCTAssertNil(ChainEndpointOverrides.shared.url(for: .polygon))
+        XCTAssertFalse(ChainEndpointOverrides.shared.allChains().contains(.polygon))
+        XCTAssertNil(ChainEndpointOverrides.shared.snapshot()[Chain.polygon.rawValue])
+    }
+
+    func test_setTrimsSurroundingWhitespace() {
+        ChainEndpointOverrides.shared.set("  https://padded.example  ", for: .linea)
+        XCTAssertEqual(ChainEndpointOverrides.shared.url(for: .linea), "https://padded.example")
     }
 
     func test_clear_removesOnlyThatChain() {
@@ -535,11 +580,101 @@ final class EndpointResolutionTests: XCTestCase {
         XCTAssertEqual(ChainEndpointOverrides.shared.url(for: .base), "https://base.example")
     }
 
+    func test_allChains_reportsExactlyTheOverriddenChains() {
+        ChainEndpointOverrides.shared.set("https://poly.example", for: .polygon)
+        ChainEndpointOverrides.shared.set("https://sol.example", for: .solana)
+        XCTAssertEqual(ChainEndpointOverrides.shared.allChains(), [.polygon, .solana])
+    }
+
+    /// Chains whose raw value contains spaces must survive the round trip
+    /// through UserDefaults keys.
+    func test_chainsWithSpacesInRawValue_roundTrip() {
+        ChainEndpointOverrides.shared.set("https://bnb.example", for: .bnb)
+        ChainEndpointOverrides.shared.reloadFromDisk()
+        XCTAssertEqual(ChainEndpointOverrides.shared.url(for: .bnb), "https://bnb.example")
+        XCTAssertEqual(ChainEndpointOverrides.shared.allChains(), [.bnb])
+    }
+
     func test_overridesSurviveAReload() {
         ChainEndpointOverrides.shared.set("https://persisted.example", for: .scroll)
         ChainEndpointOverrides.shared.reloadFromDisk()
         XCTAssertEqual(ChainEndpointOverrides.shared.url(for: .scroll),
                        "https://persisted.example")
+    }
+
+    /// A key that no longer maps to a Chain (a renamed or removed case)
+    /// must be ignored rather than crashing the settings list.
+    func test_unknownStoredKeys_areIgnored() {
+        UserDefaults.standard.set(["NotAChain": "https://ghost.example"],
+                                  forKey: ChainEndpointOverrides.storageKey)
+        ChainEndpointOverrides.shared.reloadFromDisk()
+        XCTAssertTrue(ChainEndpointOverrides.shared.allChains().isEmpty)
+    }
+
+    /// clear() must reach disk. If it only mutated memory, a user's
+    /// cleared override would come back on next launch — and setUp's
+    /// removeAll() would stop isolating tests from each other.
+    func test_clearIsPersisted() {
+        ChainEndpointOverrides.shared.set("https://gone.example", for: .optimism)
+        ChainEndpointOverrides.shared.clear(.optimism)
+        ChainEndpointOverrides.shared.reloadFromDisk()
+        XCTAssertNil(ChainEndpointOverrides.shared.url(for: .optimism))
+    }
+
+    func test_removeAllIsPersisted() {
+        ChainEndpointOverrides.shared.set("https://a.example", for: .polygon)
+        ChainEndpointOverrides.shared.set("https://b.example", for: .base)
+        ChainEndpointOverrides.shared.removeAll()
+        ChainEndpointOverrides.shared.reloadFromDisk()
+        XCTAssertTrue(ChainEndpointOverrides.shared.allChains().isEmpty)
+    }
+
+    /// One unreadable value must not take the rest of the user's
+    /// hand-entered node addresses with it. A wholesale
+    /// `as? [String: String]` cast would return nil here and wipe all three.
+    func test_oneCorruptValue_doesNotDiscardTheGoodOnes() {
+        UserDefaults.standard.set([Chain.polygon.rawValue: "https://poly.example",
+                                   Chain.base.rawValue: "https://base.example",
+                                   Chain.solana.rawValue: 42],
+                                  forKey: ChainEndpointOverrides.storageKey)
+        ChainEndpointOverrides.shared.reloadFromDisk()
+        XCTAssertEqual(ChainEndpointOverrides.shared.url(for: .polygon), "https://poly.example")
+        XCTAssertEqual(ChainEndpointOverrides.shared.url(for: .base), "https://base.example")
+        XCTAssertNil(ChainEndpointOverrides.shared.url(for: .solana))
+    }
+
+    /// An empty value on disk must be adopted as "no override", so the
+    /// settings list and the resolver cannot disagree about whether a
+    /// chain is overridden.
+    func test_emptyValueOnDisk_isTreatedAsNoOverride() {
+        UserDefaults.standard.set([Chain.linea.rawValue: "  "],
+                                  forKey: ChainEndpointOverrides.storageKey)
+        ChainEndpointOverrides.shared.reloadFromDisk()
+        XCTAssertNil(ChainEndpointOverrides.shared.url(for: .linea))
+        XCTAssertTrue(ChainEndpointOverrides.shared.allChains().isEmpty)
+    }
+
+    /// Concurrent reads during writes must not crash. Dictionary
+    /// reallocates as it grows, which is the race the lock exists for.
+    func test_concurrentReadsAndWrites_doNotCrash() {
+        let done = expectation(description: "concurrent access")
+        done.expectedFulfillmentCount = 2
+
+        DispatchQueue.global().async {
+            for i in 0..<500 {
+                ChainEndpointOverrides.shared.set("https://w\(i).example", for: .polygon)
+                ChainEndpointOverrides.shared.set("https://x\(i).example", for: .base)
+            }
+            done.fulfill()
+        }
+        DispatchQueue.global().async {
+            for _ in 0..<500 {
+                _ = ChainEndpointOverrides.shared.url(for: .polygon)
+                _ = ChainEndpointOverrides.shared.allChains()
+            }
+            done.fulfill()
+        }
+        wait(for: [done], timeout: 30)
     }
 }
 ```
@@ -570,11 +705,33 @@ import Foundation
 /// an entry for every chain would freeze each user on whatever the
 /// defaults happened to be the day they migrated — the same failure mode
 /// `NetworkConfig.migrateDeadEndpoints` exists to clean up after.
+///
+/// Reads happen off the main thread. `BlockchainService` is an `actor` and
+/// calls `NetworkConfig.rpcURL(for:)` from its own executor, so once the
+/// resolver consults this store an RPC thread will be reading the
+/// dictionary while a settings screen mutates it on main. A `Dictionary`
+/// reallocates its buffer as it grows, so that race can hand a reader
+/// freed storage. Hence the lock. Marking the type `@MainActor` instead —
+/// as `NodeHealthStore` is — is not available: it would make the
+/// synchronous read from the actor-isolated RPC path impossible.
 final class ChainEndpointOverrides: ObservableObject, @unchecked Sendable {
     static let shared = ChainEndpointOverrides()
 
-    private static let storageKey = "com.horcrux.rpc.chainOverrides"
+    /// Not private: tests assert against the real stored payload, and a
+    /// duplicated string literal there would silently start testing
+    /// nothing the day this key is renamed.
+    static let storageKey = "com.horcrux.rpc.chainOverrides"
 
+    private let lock = NSLock()
+
+    /// The authoritative store, guarded by `lock`. Keyed by
+    /// `Chain.rawValue` rather than `Chain` so the dictionary can go
+    /// straight into `UserDefaults`, which only accepts property-list types.
+    private var storage: [String: String] = [:]
+
+    /// Main-thread mirror, for SwiftUI only. Do not read this from the RPC
+    /// path — it is updated asynchronously and may lag `storage`. Use
+    /// `url(for:)` or `snapshot()`, which take the lock.
     @Published private(set) var overrides: [String: String] = [:]
 
     private init() {
@@ -582,8 +739,9 @@ final class ChainEndpointOverrides: ObservableObject, @unchecked Sendable {
     }
 
     func url(for chain: Chain) -> String? {
-        guard let value = overrides[chain.rawValue], !value.isEmpty else { return nil }
-        return value
+        lock.lock()
+        defer { lock.unlock() }
+        return storage[chain.rawValue]
     }
 
     /// Storing an empty string clears the entry rather than persisting "",
@@ -595,39 +753,78 @@ final class ChainEndpointOverrides: ObservableObject, @unchecked Sendable {
             clear(chain)
             return
         }
-        overrides[chain.rawValue] = trimmed
-        persist()
+        mutate { $0[chain.rawValue] = trimmed }
     }
 
     func clear(_ chain: Chain) {
-        overrides.removeValue(forKey: chain.rawValue)
-        persist()
+        mutate { $0.removeValue(forKey: chain.rawValue) }
     }
 
     func removeAll() {
-        overrides = [:]
-        persist()
+        mutate { $0.removeAll() }
     }
 
     /// Chains that currently carry an override, for the settings list.
+    /// Unknown keys are dropped: a stored value for a chain this build no
+    /// longer has must not crash the list or resurrect a dead case.
     func allChains() -> Set<Chain> {
-        Set(overrides.keys.compactMap(Chain.init(rawValue:)))
+        Set(snapshot().keys.compactMap(Chain.init(rawValue:)))
+    }
+
+    /// A consistent copy for callers that need the whole map, such as
+    /// config export.
+    func snapshot() -> [String: String] {
+        lock.lock()
+        defer { lock.unlock() }
+        return storage
     }
 
     func reloadFromDisk() {
-        let stored = UserDefaults.standard.dictionary(forKey: Self.storageKey) as? [String: String]
-        overrides = stored ?? [:]
+        // Filtered per entry rather than cast wholesale. `as? [String: String]`
+        // on the container is all-or-nothing: one non-String value — from a
+        // newer build's payload after a downgrade, managed app config, or
+        // plain plist corruption — would nil the whole dictionary and drop
+        // every hand-entered self-hosted address the user has. The next
+        // write would then make that loss permanent.
+        let raw = UserDefaults.standard.dictionary(forKey: Self.storageKey) ?? [:]
+        let cleaned = raw.compactMapValues { value -> String? in
+            guard let text = value as? String else { return nil }
+            let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+            return trimmed.isEmpty ? nil : trimmed
+        }
+        lock.lock()
+        storage = cleaned
+        lock.unlock()
+        publishMirror(cleaned)
     }
 
-    private func persist() {
-        UserDefaults.standard.set(overrides, forKey: Self.storageKey)
+    /// Empty values are dropped at the disk boundary above, so `storage`
+    /// never holds one. That keeps `url(for:)`, `allChains()` and
+    /// `snapshot()` agreeing on what "has an override" means — a store
+    /// whose whole semantics rest on "absent means follow the default"
+    /// cannot afford two answers to that question.
+    private func mutate(_ body: (inout [String: String]) -> Void) {
+        lock.lock()
+        body(&storage)
+        let updated = storage
+        lock.unlock()
+        UserDefaults.standard.set(updated, forKey: Self.storageKey)
+        publishMirror(updated)
+    }
+
+    private func publishMirror(_ value: [String: String]) {
+        if Thread.isMainThread {
+            overrides = value
+        } else {
+            DispatchQueue.main.async { [weak self] in self?.overrides = value }
+        }
     }
 }
 ```
 
 - [ ] **Step 4: Run the test to verify it passes**
 
-Same command. Expected: `TEST SUCCEEDED`, 6 tests.
+Same command. Expected: `TEST SUCCEEDED`, 16 tests.
 
 - [ ] **Step 5: Commit**
 
@@ -1937,7 +2134,7 @@ and inside `init(from config: NetworkConfig)` add:
 ```swift
         self.version = RPCConfigSnapshot.currentVersion
         self.activeProvider = config.activeProvider
-        self.chainOverrides = ChainEndpointOverrides.shared.overrides
+        self.chainOverrides = ChainEndpointOverrides.shared.snapshot()
 ```
 
 Add the constant and the guard:
