@@ -2092,7 +2092,6 @@ Legacy URL fields stay until the UI stops binding to them."
 
 **Files:**
 - Create: `ios/Horcrux/Features/Settings/NodeSettings/NodeProviderSection.swift`
-- Modify: `ios/Horcrux/Features/Settings/SettingsView.swift`
 
 - [ ] **Step 1: Write the view**
 
@@ -2105,7 +2104,6 @@ import SwiftUI
 /// exactly which chains that covers.
 struct NodeProviderSection: View {
     @ObservedObject private var config = NetworkConfig.shared
-    @State private var draftKey: String = ""
 
     var body: some View {
         Section("Node provider") {
@@ -2119,13 +2117,15 @@ struct NodeProviderSection: View {
             .accessibilityIdentifier("nodeSettings_providerPicker")
 
             if let provider = config.activeProvider {
-                SecureField("\(provider.displayName) API key", text: $draftKey)
+                // Direct binding — every keystroke writes through to NetworkConfig.
+                // Matches SettingsView.swift:1040 and avoids two failure modes that
+                // @State draftKey + .onSubmit introduces: (1) the key is lost if the
+                // user navigates away before pressing return, and (2) lazy-row
+                // .onAppear fires on scroll-back, silently discarding a typed draft.
+                SecureField("\(provider.displayName) API key", text: keyBinding(for: provider))
                     .textInputAutocapitalization(.never)
                     .autocorrectionDisabled()
                     .accessibilityIdentifier("nodeSettings_providerKeyField")
-                    .onAppear { draftKey = config.apiKey(for: provider) }
-                    .onChange(of: provider) { _, new in draftKey = config.apiKey(for: new) }
-                    .onSubmit { config.setAPIKey(draftKey, for: provider) }
 
                 Text(coverageText(for: provider))
                     .font(.caption)
@@ -2142,6 +2142,11 @@ struct NodeProviderSection: View {
     private var providerSelection: Binding<NodeProvider?> {
         Binding(get: { config.activeProvider },
                 set: { config.activeProvider = $0 })
+    }
+
+    private func keyBinding(for provider: NodeProvider) -> Binding<String> {
+        Binding(get: { config.apiKey(for: provider) },
+                set: { config.setAPIKey($0, for: provider) })
     }
 
     /// Names the gaps explicitly. A user who binds a key and assumes it
