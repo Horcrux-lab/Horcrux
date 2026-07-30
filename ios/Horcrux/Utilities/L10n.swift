@@ -1174,6 +1174,34 @@ enum L10n {
         static func providerUnsupportedOnChain(_ provider: String, _ chain: String) -> String {
             String(format: NSLocalizedString("nodeSettings.providerUnsupportedOnChain", comment: ""), provider, chain)
         }
+
+        // MARK: NodeProviderSection
+        static let providerSection = NSLocalizedString("nodeSettings.providerSection", comment: "")
+        static let providerPicker = NSLocalizedString("nodeSettings.providerPicker", comment: "")
+        static let providerPublicDefaults = NSLocalizedString("nodeSettings.providerPublicDefaults", comment: "")
+        static func providerKeyLabel(_ name: String) -> String {
+            String(format: NSLocalizedString("nodeSettings.providerKeyLabel", comment: ""), name)
+        }
+        static let providerPublicCaption = NSLocalizedString("nodeSettings.providerPublicCaption", comment: "")
+
+        // MARK: ProviderCoverageSummary
+        static let coverageNoKey = NSLocalizedString("nodeSettings.coverageNoKey", comment: "")
+        static func coverageNoKeyWithOverrides(_ ownCount: Int, _ publicCount: Int) -> String {
+            String(format: NSLocalizedString("nodeSettings.coverageNoKeyWithOverrides", comment: ""),
+                   ownCount, publicCount)
+        }
+        static func coverageAllCovered(_ providerName: String, _ chainCount: Int) -> String {
+            String(format: NSLocalizedString("nodeSettings.coverageAllCovered", comment: ""),
+                   providerName, chainCount)
+        }
+        static func coverageAllWithOverrides(_ providerName: String, _ coveredCount: Int, _ ownCount: Int) -> String {
+            String(format: NSLocalizedString("nodeSettings.coverageAllWithOverrides", comment: ""),
+                   providerName, coveredCount, ownCount)
+        }
+        static func coveragePartial(_ providerName: String, _ coveredCount: Int, _ totalCount: Int, _ names: String) -> String {
+            String(format: NSLocalizedString("nodeSettings.coveragePartial", comment: ""),
+                   providerName, coveredCount, totalCount, names)
+        }
     }
 
     // MARK: - Node Status

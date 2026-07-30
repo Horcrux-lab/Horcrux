@@ -83,6 +83,7 @@
 		843756AA6FF24EF3B8B05FEB /* AuditExportView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 693AF0EBA3950107FFA1F5EE /* AuditExportView.swift */; };
 		84D95BDDAF6E254C4D577C31 /* AddressValidatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8316163DB1BF3FFBF6245C17 /* AddressValidatorTests.swift */; };
 		88380DABC0637076A7B84583 /* SigningView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 49A262F731DB964A68E24B04 /* SigningView.swift */; };
+		88912049DA2191C3B7F5A172 /* ProviderCoverageSummary.swift in Sources */ = {isa = PBXBuildFile; fileRef = 348DBC6D87E304C4653BD1A0 /* ProviderCoverageSummary.swift */; };
 		89F8EDBDD2C513909099CF0D /* CreateShardViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 69A9C998E7A806927B3E2D34 /* CreateShardViewModelTests.swift */; };
 		8B0BAADE9F87B21FC65B8E04 /* SecureClipboardTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B66CCA676948C54B9CDFAC20 /* SecureClipboardTests.swift */; };
 		8B6DABC2BA6DA13BE06406AA /* CeremonyStateManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 15830F30B8339C7263832772 /* CeremonyStateManager.swift */; };
@@ -113,6 +114,7 @@
 		B5ED87CEBDAAB853F5DF9012 /* QRScannerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F44672820EB366ADC39D77A8 /* QRScannerView.swift */; };
 		B64671FCC62F1C814889024A /* AppState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 559B2D1CE5F41320F4A9A870 /* AppState.swift */; };
 		B683B8FBCDCCE7B24B0B9664 /* DecodedCallView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1E3F716A4D34C9A617D81B3E /* DecodedCallView.swift */; };
+		BC583E60BB3FBF3E0D7E8580 /* ProviderCoverageSummaryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1427E0D4CE4032F2665694B /* ProviderCoverageSummaryTests.swift */; };
 		BE1A1D1E7A5DB0C9442778D4 /* NodeProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = A35A0E4E7C941099FD60D063 /* NodeProvider.swift */; };
 		C155C37C38CDD7B6F4AB0AFE /* SecurityEnvironmentTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 76F29DB893748A79B8E50F7E /* SecurityEnvironmentTests.swift */; };
 		C287BF7467A63911B2E5BE65 /* NodeSettingsMigration.swift in Sources */ = {isa = PBXBuildFile; fileRef = 73AA08C05D62817355866721 /* NodeSettingsMigration.swift */; };
@@ -192,6 +194,7 @@
 		2C2DFEADD4C7F811A28CE435 /* RelayConfigTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RelayConfigTests.swift; sourceTree = "<group>"; };
 		2F16FEAB7A7D83404E721639 /* AddressBook.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AddressBook.swift; sourceTree = "<group>"; };
 		3175D60C78853AD441A91030 /* BLETransport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BLETransport.swift; sourceTree = "<group>"; };
+		348DBC6D87E304C4653BD1A0 /* ProviderCoverageSummary.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProviderCoverageSummary.swift; sourceTree = "<group>"; };
 		36BF7F56D454A6F78D4A2F37 /* CertificatePinner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CertificatePinner.swift; sourceTree = "<group>"; };
 		3935002B5AD730445E22C6BD /* TransportProtocol.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TransportProtocol.swift; sourceTree = "<group>"; };
 		3B45D5364AB9F1360EFA4E5C /* WalletStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WalletStoreTests.swift; sourceTree = "<group>"; };
@@ -291,6 +294,7 @@
 		D886FBBE2DF6B3AA6FA5A29C /* Components.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Components.swift; sourceTree = "<group>"; };
 		DD030979CCAA127E220D7660 /* TokenModelsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TokenModelsTests.swift; sourceTree = "<group>"; };
 		DD9E26CC00E6FEDD1A1F95E8 /* RelayConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RelayConfig.swift; sourceTree = "<group>"; };
+		E1427E0D4CE4032F2665694B /* ProviderCoverageSummaryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProviderCoverageSummaryTests.swift; sourceTree = "<group>"; };
 		E2099762FB1979A4D8A64EA4 /* BalanceCache.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BalanceCache.swift; sourceTree = "<group>"; };
 		E25F57AE90B36D0AA1D9D066 /* horcrux_coreFFI.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = horcrux_coreFFI.h; sourceTree = "<group>"; };
 		E28FFAFF9BE0949A94CC104D /* RefreshShardCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RefreshShardCoordinator.swift; sourceTree = "<group>"; };
@@ -526,6 +530,7 @@
 			isa = PBXGroup;
 			children = (
 				6D5915316EEE567F86FD8ED5 /* NodeProviderSection.swift */,
+				348DBC6D87E304C4653BD1A0 /* ProviderCoverageSummary.swift */,
 			);
 			path = NodeSettings;
 			sourceTree = "<group>";
@@ -554,6 +559,7 @@
 				C5777E46F80335B4C7DE9E2E /* PendingBroadcastQueueTests.swift */,
 				EBE439C22E1CABB66A71A4AF /* PinHashTests.swift */,
 				8622DE820B92BAE12389D7BC /* PortfolioMetricsTests.swift */,
+				E1427E0D4CE4032F2665694B /* ProviderCoverageSummaryTests.swift */,
 				FCDDD69488277606AB6B8BEC /* RecentCoSignersStoreTests.swift */,
 				009B2C4850952397C883ED7F /* RefreshPeerBindingTests.swift */,
 				2C2DFEADD4C7F811A28CE435 /* RelayConfigTests.swift */,
@@ -769,6 +775,7 @@
 				08CC5D1741B466360A4A2DF3 /* PendingBroadcastQueueTests.swift in Sources */,
 				272EF60E67B5AF4EA28D33EC /* PinHashTests.swift in Sources */,
 				0F938C5911BEDC1E7C3390EB /* PortfolioMetricsTests.swift in Sources */,
+				BC583E60BB3FBF3E0D7E8580 /* ProviderCoverageSummaryTests.swift in Sources */,
 				B112A84A551C22C784F9E235 /* RPCRoutingTests.swift in Sources */,
 				704B7197A71DAE00F8EAB79C /* RecentCoSignersStoreTests.swift in Sources */,
 				1570F7B396E189396D124E40 /* RefreshPeerBindingTests.swift in Sources */,
@@ -853,6 +860,7 @@
 				7302CBA18BFEE7F2CE28CCFA /* PortfolioMetrics.swift in Sources */,
 				00DD6941B8D2D335E457EA30 /* PriceService.swift in Sources */,
 				2373BE1D4609B6FE583E9044 /* PrimePoolManager.swift in Sources */,
+				88912049DA2191C3B7F5A172 /* ProviderCoverageSummary.swift in Sources */,
 				B5ED87CEBDAAB853F5DF9012 /* QRScannerView.swift in Sources */,
 				413FFA707333203A9879D9D9 /* QRTransport.swift in Sources */,
 				6E853EA94530E496B2DF1887 /* ReceiveView.swift in Sources */,

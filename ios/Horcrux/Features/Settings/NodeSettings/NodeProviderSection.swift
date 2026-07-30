@@ -4,11 +4,12 @@ import SwiftUI
 /// exactly which chains that covers.
 struct NodeProviderSection: View {
     @ObservedObject private var config = NetworkConfig.shared
+    @ObservedObject private var chainOverrides = ChainEndpointOverrides.shared
 
     var body: some View {
-        Section("Node provider") {
-            Picker("Provider", selection: providerSelection) {
-                Text("Public defaults").tag(nil as NodeProvider?)
+        Section(L10n.NodeSettings.providerSection) {
+            Picker(L10n.NodeSettings.providerPicker, selection: providerSelection) {
+                Text(L10n.NodeSettings.providerPublicDefaults).tag(nil as NodeProvider?)
                 ForEach(NodeProvider.allCases) { provider in
                     Text(provider.displayName).tag(provider as NodeProvider?)
                 }
@@ -22,19 +23,21 @@ struct NodeProviderSection: View {
                 // @State draftKey + .onSubmit introduces: (1) the key is lost if the
                 // user navigates away before pressing return, and (2) lazy-row
                 // .onAppear fires on scroll-back, silently discarding a typed draft.
-                SecureField("\(provider.displayName) API key", text: keyBinding(for: provider))
+                SecureField(L10n.NodeSettings.providerKeyLabel(provider.displayName),
+                            text: keyBinding(for: provider))
                     .textInputAutocapitalization(.never)
                     .autocorrectionDisabled()
                     .accessibilityIdentifier("nodeSettings_providerKeyField")
 
-                Text(coverageText(for: provider))
+                Text(coverageSummary(for: provider).formattedCaption)
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .accessibilityIdentifier("nodeSettings_coverageLine")
             } else {
-                Text("Every chain uses its public endpoint. Add a provider key for a dedicated rate limit.")
+                Text(L10n.NodeSettings.providerPublicCaption)
                     .font(.caption)
                     .foregroundStyle(.secondary)
+                    .accessibilityIdentifier("nodeSettings_coverageLine")
             }
         }
     }
@@ -49,24 +52,13 @@ struct NodeProviderSection: View {
                 set: { config.setAPIKey($0, for: provider) })
     }
 
-    /// Names the gaps explicitly. A user who binds a key and assumes it
-    /// covers everything, when it does not, has no reason to look again —
-    /// so the silent gap is worse than having no key at all.
-    private func coverageText(for provider: NodeProvider) -> String {
-        if config.apiKey(for: provider).isEmpty {
-            return "No key set — using public endpoints."
-        }
-        let uncovered = provider.uncoveredChains(evmChainId: config.evmChainId,
-                                                 solanaMainnet: !config.solDevnet)
-        let covered = Chain.allCases.count - uncovered.count
-        if uncovered.isEmpty {
-            return "\(provider.displayName) covers all \(Chain.allCases.count) chains."
-        }
-        let names = uncovered
-            .sorted { $0.displayName < $1.displayName }
-            .map(\.displayName)
-            .joined(separator: ", ")
-        return "\(provider.displayName) covers \(covered) of \(Chain.allCases.count) chains. "
-            + "\(names) stay on public endpoints."
+    private func coverageSummary(for provider: NodeProvider) -> ProviderCoverageSummary {
+        ProviderCoverageSummary(
+            provider: provider,
+            hasKey: !config.apiKey(for: provider).isEmpty,
+            overriddenChains: Set(chainOverrides.overrides.keys.compactMap(Chain.init(rawValue:))),
+            evmChainId: config.evmChainId,
+            solanaMainnet: !config.solDevnet)
     }
 }
+
