@@ -2479,6 +2479,73 @@ push `ChainEndpointDetailView` correctly onto the existing stack.
 
 ---
 
+### Task 12 addendum: Close the read-side regression (commit `1d931f5`)
+
+**The plan omitted the consumer rerouting.** The original Task 12 steps
+fixed only the write side (the settings screen stopped writing to the
+dead fields). But every money-path call site was still reading the legacy
+stored properties (`bitcoinAPI`, `litecoinAPI`, `solanaRPC`, `tronAPI`)
+directly. A user who set a Bitcoin override would see the badge say
+"Custom" while the app broadcast to the old endpoint. Half-open is worse
+than the original bug.
+
+**Additional files modified (commit `1d931f5`):**
+- `ios/Horcrux/Core/BlockchainService.swift` — token balance fetches
+- `ios/Horcrux/Core/PendingBroadcastQueue.swift` — offline-queue broadcast
+- `ios/Horcrux/Core/TransactionConfirmationPoller.swift` — on-chain confirmation poll
+- `ios/Horcrux/Core/TransactionHistorySyncer.swift` — history fetch + TRC-20 pass
+- `ios/Horcrux/Features/Signing/SigningViewModel.swift` — 12 call sites (fee estimate,
+  UTXO fetch, blockhash, transaction build, broadcast for all four chains)
+- `ios/Horcrux/Features/Wallet/WalletHomeView.swift` — wallet-level broadcast
+- `NetworkConfig.check(chain:config:)` — health probe for all four chains
+- `NetworkConfig.testnetBadge(for:)` — Litecoin/Tron badge (same bug class)
+- `NetworkConfig.applyPreset` — added comment that `didSet` URL writes are
+  now vestigial; consumed only by `NodeSettingsMigration` and `RPCConfigSnapshot`
+
+All call sites now use `config.rpcURL(for: chain)`. The `buildP2WPKHSignHash`
+switch in `SigningViewModel` was collapsed to a single
+`let apiURL = networkConfig.rpcURL(for: wallet.chain)`.
+
+**`testnetBadge` decision:** rerouted. Displaying a stale network badge
+while an override is active is materially misleading — same class as the
+routing bug, two lines to fix.
+
+**Concurrency confirmed safe:** `rpcURL(for:)` is synchronous.
+`ChainEndpointOverrides.url(for:)` is `NSLock`-guarded (the authoritative
+`_overrides` store, not the `@Published` mirror). `BlockchainService`
+already used `rpcURL(for:)` for EVM (confirmed precedent). No new
+`@MainActor` hops required.
+
+**3 new tests added to `NodeSettingsV2RegressionTests` (total: 11):**
+- `test_overrideReflected_inRPCURL_forAllFourLegacyChains` — all four
+  chains; includes `XCTAssertNotEqual(legacyField, sentinel)` assertions
+  that document in executable form that any caller reading the legacy
+  field directly is on the wrong path
+- `test_bitcoinOverride_resolves_andLegacyFieldIsStale`
+- `test_solanaOverride_resolves_andLegacyFieldIsStale`
+
+**Mutation verification (Bitcoin and Solana):**
+- Mutation (skip Bitcoin override in `resolved(for:)`):
+  RED — `XCTAssertTrue failed: rpcURL(for: .bitcoin) must return the override. Got: https://mempool.space/api`
+- Mutation (skip Solana override):
+  RED — `XCTAssertTrue failed: rpcURL(for: .solana) must return the override. Got: https://solana-rpc.publicnode.com`
+- Both restored → GREEN.
+
+**Final grep confirms** no remaining money-path reads of the five legacy
+fields outside: `NodeSettingsMigration.swift` (boot-time seeding),
+`RPCConfigSnapshot` (Task 13), property declarations, `init`, `Keys`,
+`Defaults`, `NetworkPreset`, vestigial `didSet` auto-swap helpers, and
+test save/restore scaffolding.
+
+**Test counts (commit `1d931f5`, all green):**
+`EndpointResolutionTests` 35, `RPCRoutingTests` 11,
+`ProviderCoverageSummaryTests` 13, `NodeProviderTests` 14,
+`NodeSettingsMigrationTests` 19, `NetworkConfigTests` 10,
+`EndpointSourceTests` 12, `NodeSettingsV2RegressionTests` 11,
+`BlockchainServiceTests` (included), `SigningViewModelTests` 13 = **146 total**.
+
+---
+
 ## Phase 7 — Snapshot versioning
 
 ### Task 13: Version `RPCConfigSnapshot`
