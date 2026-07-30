@@ -5,7 +5,7 @@
 **Goal:** Make all fourteen chains configurable through a provider-first
 settings screen, with per-chain overrides as the escape hatch.
 
-**Architecture:** A new `RPCProvider` value type owns provider→chain
+**Architecture:** A new `NodeProvider` value type owns provider→chain
 template mapping. A new sparse `[Chain: String]` override store sits
 beside it. `NetworkConfig.rpcURL(for:)` resolves override → provider
 template → public default. A one-time migration moves existing users onto
@@ -63,13 +63,13 @@ unrelated to this work. Use `-only-testing:` and do not try to fix them.
 
 | File | Responsibility |
 |---|---|
-| `ios/Horcrux/Core/RPCProvider.swift` | Pure value type: which provider serves which chain, and with which template. No state, no I/O. |
+| `ios/Horcrux/Core/NodeProvider.swift` | Pure value type: which provider serves which chain, and with which template. No state, no I/O. |
 | `ios/Horcrux/Core/ChainEndpointOverrides.swift` | Sparse per-chain URL store with `UserDefaults` persistence. |
 | `ios/Horcrux/Core/NodeSettingsMigration.swift` | One-time migration from the legacy five-field model. |
 | `ios/Horcrux/Features/Settings/NodeSettings/NodeProviderSection.swift` | Provider picker, key field, coverage line. |
 | `ios/Horcrux/Features/Settings/NodeSettings/ChainEndpointList.swift` | The fourteen-row list with source badges. |
 | `ios/Horcrux/Features/Settings/NodeSettings/ChainEndpointDetailView.swift` | Per-chain detail and override editor. |
-| `ios/HorcruxTests/RPCProviderTests.swift` | Coverage matrix and template lookup. |
+| `ios/HorcruxTests/NodeProviderTests.swift` | Coverage matrix and template lookup. |
 | `ios/HorcruxTests/EndpointResolutionTests.swift` | The three-step resolver. |
 | `ios/HorcruxTests/NodeSettingsMigrationTests.swift` | Table-driven migration cases. |
 
@@ -89,11 +89,11 @@ either one further than the listed edits.
 
 ## Phase 1 — The provider value type
 
-### Task 1: `RPCProvider` enum and template lookup
+### Task 1: `NodeProvider` enum and template lookup
 
 **Files:**
-- Create: `ios/Horcrux/Core/RPCProvider.swift`
-- Test: `ios/HorcruxTests/RPCProviderTests.swift`
+- Create: `ios/Horcrux/Core/NodeProvider.swift`
+- Test: `ios/HorcruxTests/NodeProviderTests.swift`
 
 Only account-scoped, multi-chain providers belong here. GetBlock is
 excluded because its token is bound to a single chain in its dashboard,
@@ -101,38 +101,46 @@ and Helius because it serves only Solana. Both remain reachable as
 per-chain overrides in Phase 6. Putting either in this enum would make
 the "one key, many chains" promise false.
 
+**On the name:** `RPCProvider` is already taken — `NetworkConfig.swift:1214`
+defines it as a 23-case URL→display-label type used by `identify(_:)` to
+badge an endpoint with its vendor. That is a different concept from "a
+provider account the user has selected", so this type is `NodeProvider`.
+Do not rename it to `RPCProvider`; that is a redeclaration error.
+`RPCProviderTemplate` (`NetworkConfig.swift:1005`) is a third, unrelated
+type that this task calls into and must not be touched.
+
 - [ ] **Step 1: Write the failing test**
 
-Create `ios/HorcruxTests/RPCProviderTests.swift`:
+Create `ios/HorcruxTests/NodeProviderTests.swift`:
 
 ```swift
 import XCTest
 @testable import Horcrux
 
-final class RPCProviderTests: XCTestCase {
+final class NodeProviderTests: XCTestCase {
 
     func test_alchemy_servesPolygon_withItsOwnTemplate() {
-        let url = RPCProvider.alchemy.template(for: .polygon, evmChainId: 1)
+        let url = NodeProvider.alchemy.template(for: .polygon, evmChainId: 1)
         XCTAssertEqual(url, "https://polygon-mainnet.g.alchemy.com/v2/{KEY}")
     }
 
     /// Alchemy has no BNB product. Returning a wrong-chain URL here would
     /// send Ethereum traffic to a BNB address, so the gap must be nil.
     func test_alchemy_doesNotServeBNB() {
-        XCTAssertNil(RPCProvider.alchemy.template(for: .bnb, evmChainId: 1))
+        XCTAssertNil(NodeProvider.alchemy.template(for: .bnb, evmChainId: 1))
     }
 
     /// Ethereum is the one EVM chain whose network is user-selectable.
     func test_ethereumTemplate_followsTheEVMChainIdToggle() {
-        XCTAssertEqual(RPCProvider.alchemy.template(for: .ethereum, evmChainId: 1),
+        XCTAssertEqual(NodeProvider.alchemy.template(for: .ethereum, evmChainId: 1),
                        "https://eth-mainnet.g.alchemy.com/v2/{KEY}")
-        XCTAssertEqual(RPCProvider.alchemy.template(for: .ethereum, evmChainId: 11_155_111),
+        XCTAssertEqual(NodeProvider.alchemy.template(for: .ethereum, evmChainId: 11_155_111),
                        "https://eth-sepolia.g.alchemy.com/v2/{KEY}")
     }
 
     /// No provider in this enum serves the non-EVM, non-Solana chains.
     func test_noProvider_claimsBitcoinLitecoinOrTron() {
-        for provider in RPCProvider.allCases {
+        for provider in NodeProvider.allCases {
             for chain in [Chain.bitcoin, .litecoin, .tron] {
                 XCTAssertNil(provider.template(for: chain, evmChainId: 1),
                              "\(provider) must not claim \(chain)")
@@ -144,7 +152,7 @@ final class RPCProviderTests: XCTestCase {
     /// silently returns it unchanged and the key is never applied.
     func test_everyTemplate_containsTheKeyPlaceholder() {
         var checked = 0
-        for provider in RPCProvider.allCases {
+        for provider in NodeProvider.allCases {
             for chain in Chain.allCases {
                 guard let t = provider.template(for: chain, evmChainId: 1) else { continue }
                 checked += 1
@@ -155,7 +163,7 @@ final class RPCProviderTests: XCTestCase {
     }
 
     func test_coveredChains_matchesTheDocumentedMatrix() {
-        let covered = RPCProvider.alchemy.coveredChains(evmChainId: 1)
+        let covered = NodeProvider.alchemy.coveredChains(evmChainId: 1)
         XCTAssertTrue(covered.contains(.polygon))
         XCTAssertTrue(covered.contains(.solana))
         XCTAssertFalse(covered.contains(.bnb))
@@ -163,12 +171,12 @@ final class RPCProviderTests: XCTestCase {
     }
 
     func test_uncoveredChains_isTheComplementOverAllChains() {
-        let uncovered = RPCProvider.alchemy.uncoveredChains(evmChainId: 1)
+        let uncovered = NodeProvider.alchemy.uncoveredChains(evmChainId: 1)
         XCTAssertTrue(uncovered.contains(.bnb))
         XCTAssertTrue(uncovered.contains(.bitcoin))
         XCTAssertFalse(uncovered.contains(.polygon))
         XCTAssertEqual(uncovered.count, Chain.allCases.count
-                       - RPCProvider.alchemy.coveredChains(evmChainId: 1).count)
+                       - NodeProvider.alchemy.coveredChains(evmChainId: 1).count)
     }
 }
 ```
@@ -179,14 +187,14 @@ final class RPCProviderTests: XCTestCase {
 cd ios && xcodegen generate && xcodebuild test -project Horcrux.xcodeproj \
   -scheme Horcrux -destination 'platform=iOS Simulator,name=iPhone 17' \
   -skipPackagePluginValidation CODE_SIGNING_ALLOWED=NO \
-  -only-testing:HorcruxTests/RPCProviderTests 2>&1 | grep -E "error:|TEST"
+  -only-testing:HorcruxTests/NodeProviderTests 2>&1 | grep -E "error:|TEST"
 ```
 
-Expected: `error: cannot find 'RPCProvider' in scope`.
+Expected: `error: cannot find 'NodeProvider' in scope`.
 
 - [ ] **Step 3: Write the implementation**
 
-Create `ios/Horcrux/Core/RPCProvider.swift`:
+Create `ios/Horcrux/Core/NodeProvider.swift`:
 
 ```swift
 import Foundation
@@ -198,7 +206,7 @@ import Foundation
 /// bound to a single chain in its dashboard, and Helius serves only
 /// Solana, so neither satisfies the account-scoped contract this type
 /// represents. Both remain available as per-chain overrides.
-enum RPCProvider: String, CaseIterable, Identifiable, Codable {
+enum NodeProvider: String, CaseIterable, Identifiable, Codable {
     case alchemy, infura, ankr, blockpi, drpc, nodeReal, tenderly, oneRPC
 
     var id: String { rawValue }
@@ -276,9 +284,9 @@ Same command as Step 2. Expected: `TEST SUCCEEDED`, 7 tests.
 
 ```bash
 cd /Users/bill/Documents/GitHub/Horcrux
-git add ios/Horcrux/Core/RPCProvider.swift ios/HorcruxTests/RPCProviderTests.swift \
+git add ios/Horcrux/Core/NodeProvider.swift ios/HorcruxTests/NodeProviderTests.swift \
         ios/Horcrux.xcodeproj/project.pbxproj
-git commit -m "feat(ios): add RPCProvider value type for account-scoped providers
+git commit -m "feat(ios): add NodeProvider value type for account-scoped providers
 
 One key from an account-scoped provider works across every chain it
 serves, which is the unit users actually own. GetBlock and Helius are
@@ -293,12 +301,12 @@ never resolve to another chain's URL."
 ### Task 2: Map providers to their Keychain fields
 
 **Files:**
-- Modify: `ios/Horcrux/Core/RPCProvider.swift`
-- Test: `ios/HorcruxTests/RPCProviderTests.swift`
+- Modify: `ios/Horcrux/Core/NodeProvider.swift`
+- Test: `ios/HorcruxTests/NodeProviderTests.swift`
 
 - [ ] **Step 1: Write the failing test**
 
-Append to `RPCProviderTests`:
+Append to `NodeProviderTests`:
 
 ```swift
     func test_keyLookup_readsTheProvidersOwnKeychainField() {
@@ -322,14 +330,14 @@ Append to `RPCProviderTests`:
 cd ios && xcodebuild test -project Horcrux.xcodeproj -scheme Horcrux \
   -destination 'platform=iOS Simulator,name=iPhone 17' \
   -skipPackagePluginValidation CODE_SIGNING_ALLOWED=NO \
-  -only-testing:HorcruxTests/RPCProviderTests 2>&1 | grep -E "error:|TEST"
+  -only-testing:HorcruxTests/NodeProviderTests 2>&1 | grep -E "error:|TEST"
 ```
 
 Expected: `error: value of type 'NetworkConfig' has no member 'apiKey'`.
 
 - [ ] **Step 3: Write the implementation**
 
-Append to `ios/Horcrux/Core/RPCProvider.swift`:
+Append to `ios/Horcrux/Core/NodeProvider.swift`:
 
 ```swift
 extension NetworkConfig {
@@ -338,7 +346,7 @@ extension NetworkConfig {
     /// Kept here rather than in `substituteAPIKey`'s host-substring chain
     /// because that function matches on hostname and must keep working
     /// for URLs the user pasted by hand, which carry no provider identity.
-    func apiKey(for provider: RPCProvider) -> String {
+    func apiKey(for provider: NodeProvider) -> String {
         switch provider {
         case .alchemy:  return alchemyAPIKey
         case .infura:   return infuraAPIKey
@@ -360,8 +368,8 @@ Same command. Expected: `TEST SUCCEEDED`, 8 tests.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add ios/Horcrux/Core/RPCProvider.swift ios/HorcruxTests/RPCProviderTests.swift
-git commit -m "feat(ios): route RPCProvider to its Keychain field"
+git add ios/Horcrux/Core/NodeProvider.swift ios/HorcruxTests/NodeProviderTests.swift
+git commit -m "feat(ios): route NodeProvider to its Keychain field"
 ```
 
 ---
@@ -700,7 +708,7 @@ after the `solDevnet` block (currently ends line 71):
     /// This is not a secret — it names a company, not a credential — so it
     /// lives in UserDefaults beside the other routing preferences. The key
     /// itself stays in the Keychain.
-    @Published var activeProvider: RPCProvider? {
+    @Published var activeProvider: NodeProvider? {
         didSet {
             UserDefaults.standard.set(activeProvider?.rawValue, forKey: Keys.activeProvider)
             invalidateBalances()
@@ -718,7 +726,7 @@ block starting around line 227), add:
 and with the other `self.` assignments near line 249:
 
 ```swift
-        self.activeProvider = storedProvider.flatMap(RPCProvider.init(rawValue:))
+        self.activeProvider = storedProvider.flatMap(NodeProvider.init(rawValue:))
 ```
 
 Swift requires every stored property to be initialised before `self` is
@@ -1061,7 +1069,7 @@ import Foundation
 enum NodeSettingsMigration {
 
     struct Plan: Equatable {
-        var activeProvider: RPCProvider?
+        var activeProvider: NodeProvider?
         var overrides: [Chain: String]
         var evmChainId: UInt64
     }
@@ -1078,7 +1086,7 @@ enum NodeSettingsMigration {
         evmChainId: UInt64
     ) -> Plan {
         var overrides: [Chain: String] = [:]
-        var provider: RPCProvider?
+        var provider: NodeProvider?
         var resolvedChainId = evmChainId
 
         // The Ethereum slot could be pointed at any EVM network. When it
@@ -1134,9 +1142,9 @@ enum NodeSettingsMigration {
         return shipped.contains(value)
     }
 
-    private static func detectProvider(in url: String) -> RPCProvider? {
+    private static func detectProvider(in url: String) -> NodeProvider? {
         guard url.contains("{KEY}") else { return nil }
-        for provider in RPCProvider.allCases {
+        for provider in NodeProvider.allCases {
             for chain in Chain.allCases {
                 for net in EVMNetwork.allCases {
                     if provider.template(for: chain, evmChainId: net.rawValue) == url {
@@ -1417,9 +1425,9 @@ struct NodeProviderSection: View {
     var body: some View {
         Section("Node provider") {
             Picker("Provider", selection: providerSelection) {
-                Text("Public defaults").tag(nil as RPCProvider?)
-                ForEach(RPCProvider.allCases) { provider in
-                    Text(provider.displayName).tag(provider as RPCProvider?)
+                Text("Public defaults").tag(nil as NodeProvider?)
+                ForEach(NodeProvider.allCases) { provider in
+                    Text(provider.displayName).tag(provider as NodeProvider?)
                 }
             }
             .pickerStyle(.menu)
@@ -1446,7 +1454,7 @@ struct NodeProviderSection: View {
         }
     }
 
-    private var providerSelection: Binding<RPCProvider?> {
+    private var providerSelection: Binding<NodeProvider?> {
         Binding(get: { config.activeProvider },
                 set: { config.activeProvider = $0 })
     }
@@ -1454,7 +1462,7 @@ struct NodeProviderSection: View {
     /// Names the gaps explicitly. A user who binds a key and assumes it
     /// covers everything, when it does not, has no reason to look again —
     /// so the silent gap is worse than having no key at all.
-    private func coverageText(for provider: RPCProvider) -> String {
+    private func coverageText(for provider: NodeProvider) -> String {
         if config.apiKey(for: provider).isEmpty {
             return "No key set — using public endpoints."
         }
@@ -1475,11 +1483,11 @@ struct NodeProviderSection: View {
 
 - [ ] **Step 2: Add the key setter**
 
-Append to `ios/Horcrux/Core/RPCProvider.swift`:
+Append to `ios/Horcrux/Core/NodeProvider.swift`:
 
 ```swift
 extension NetworkConfig {
-    func setAPIKey(_ value: String, for provider: RPCProvider) {
+    func setAPIKey(_ value: String, for provider: NodeProvider) {
         switch provider {
         case .alchemy:  alchemyAPIKey = value
         case .infura:   infuraAPIKey = value
@@ -1508,7 +1516,7 @@ Expected: `BUILD SUCCEEDED`.
 
 ```bash
 git add ios/Horcrux/Features/Settings/NodeSettings/NodeProviderSection.swift \
-        ios/Horcrux/Core/RPCProvider.swift ios/Horcrux.xcodeproj/project.pbxproj
+        ios/Horcrux/Core/NodeProvider.swift ios/Horcrux.xcodeproj/project.pbxproj
 git commit -m "feat(ios): add the provider section with an honest coverage line
 
 The coverage line names the chains the selected provider does not serve.
@@ -1533,7 +1541,7 @@ import SwiftUI
 /// the old screen could not answer for nine of the fourteen chains.
 enum EndpointSource {
     case override
-    case provider(RPCProvider)
+    case provider(NodeProvider)
     case publicDefault
 
     var label: String {
@@ -1722,13 +1730,13 @@ cd ios && xcodegen generate && xcodebuild test -project Horcrux.xcodeproj \
   -only-testing:HorcruxTests/EndpointResolutionTests \
   -only-testing:HorcruxTests/NetworkConfigTests \
   -only-testing:HorcruxTests/RPCRoutingTests \
-  -only-testing:HorcruxTests/RPCProviderTests \
+  -only-testing:HorcruxTests/NodeProviderTests \
   -only-testing:HorcruxTests/NodeSettingsMigrationTests 2>&1 | grep -E "error:|Executed|TEST"
 ```
 
 Expected: `BUILD SUCCEEDED` and all tests pass. Fix any reference to a
 deleted symbol (`selectedEVMProvider`, `detectActiveEVMProvider`,
-`PaidEVMProvider`) by deleting it — `RPCProvider` replaces all three.
+`PaidEVMProvider`) by deleting it — `NodeProvider` replaces all three.
 
 - [ ] **Step 3: Commit**
 
@@ -1825,7 +1833,7 @@ In `RPCConfigSnapshot` (SettingsView.swift:2118) add the properties:
 
 ```swift
     var version: Int?
-    var activeProvider: RPCProvider?
+    var activeProvider: NodeProvider?
     var chainOverrides: [String: String]?
 ```
 
@@ -1938,7 +1946,7 @@ cd ios && xcodebuild test -project Horcrux.xcodeproj -scheme Horcrux \
   -destination 'platform=iOS Simulator,name=iPhone 17' \
   -skipPackagePluginValidation CODE_SIGNING_ALLOWED=NO \
   -only-testing:HorcruxTests/RPCRoutingTests \
-  -only-testing:HorcruxTests/RPCProviderTests \
+  -only-testing:HorcruxTests/NodeProviderTests \
   -only-testing:HorcruxTests/EndpointResolutionTests \
   -only-testing:HorcruxTests/NodeSettingsMigrationTests \
   -only-testing:HorcruxTests/NetworkConfigTests \
@@ -1988,7 +1996,7 @@ this change touches `NetworkConfig.swift`, which is one of its triggers.
 
 **Why this exists:** the provider picker is the only UI that ever wrote
 `getblockAPIKey` (`SettingsView.swift:1048`, inside `keyBinding(for:)`).
-GetBlock is not in `RPCProvider` — its token is bound to one chain in
+GetBlock is not in `NodeProvider` — its token is bound to one chain in
 its dashboard, so it can't be an account-wide provider — which means
 Task 10 removes the last way to set that key. A user pasting GetBlock's
 `https://go.getblock.io/{KEY}/` as a per-chain override would then be
