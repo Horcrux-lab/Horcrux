@@ -1185,6 +1185,7 @@ enum L10n {
         static let providerPublicCaption = NSLocalizedString("nodeSettings.providerPublicCaption", comment: "")
 
         // MARK: ProviderCoverageSummary
+        static let chainListSeparator = NSLocalizedString("nodeSettings.chainListSeparator", comment: "")
         static let coverageNoKey = NSLocalizedString("nodeSettings.coverageNoKey", comment: "")
         static func coverageNoKeyWithOverrides(_ ownCount: Int, _ publicCount: Int) -> String {
             String(format: NSLocalizedString("nodeSettings.coverageNoKeyWithOverrides", comment: ""),

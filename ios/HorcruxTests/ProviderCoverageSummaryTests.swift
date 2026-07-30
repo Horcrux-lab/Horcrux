@@ -174,9 +174,28 @@ final class ProviderCoverageSummaryTests: XCTestCase {
         }
     }
 
+    // MARK: - nil provider
+
+    /// When no provider is selected, any chain with an override must NOT be
+    /// reported as a public endpoint — that is the lie the old else-branch
+    /// providerPublicCaption told.
+    func test_nilProvider_withOverrides_doesNotClaimEveryChainIsPublic() {
+        let s = summary(nil, hasKey: false, overrides: [.bitcoin])
+        XCTAssertTrue(s.providerCovered.isEmpty, "nil provider must have no provider-covered chains")
+        XCTAssertTrue(s.overridden.contains(.bitcoin), "bitcoin override must be in overridden")
+        XCTAssertFalse(s.publicDefault.contains(.bitcoin),
+                       "overridden chain must not be in publicDefault")
+        // The caption must not be the "every chain is public" string.
+        XCTAssertNotEqual(s.formattedCaption, L10n.NodeSettings.coverageNoKey,
+                          "nil provider + override must not claim every chain is on a public endpoint")
+        // The caption must mention the overridden count so the numbers are honest.
+        XCTAssertTrue(s.formattedCaption.contains(String(s.overridden.count)),
+                      "nil provider + override caption must include the overridden count")
+    }
+
     // MARK: - Helpers
 
-    private func summary(_ provider: NodeProvider,
+    private func summary(_ provider: NodeProvider?,
                          hasKey: Bool,
                          overrides: Set<Chain>) -> ProviderCoverageSummary {
         ProviderCoverageSummary(provider: provider,
