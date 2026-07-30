@@ -959,17 +959,48 @@ override/provider/public path."
 
 Append to `EndpointResolutionTests`:
 
-```swift
-    func test_activeProvider_defaultsToNilMeaningPublic() {
-        NetworkConfig.shared.activeProvider = nil
-        XCTAssertNil(NetworkConfig.shared.activeProvider)
-    }
+`activeProvider` is only useful if it survives a relaunch, so each test
+asserts the UserDefaults side effect rather than just reading the
+property back — a `didSet` that forgets to write would pass a
+property-only round-trip. `Keys` is `private`, so the on-disk string is
+spelled out; that literal *is* the compatibility contract, and a test
+that fails when someone renames the key is the point.
 
-    func test_activeProvider_roundTripsThroughStorage() {
+Save and restore the previous value rather than blanking it: `TEST_HOST`
+is `Horcrux.app`, so `UserDefaults.standard` here is the real app domain.
+
+```swift
+    func test_activeProvider_persistsTheChoice() {
         let config = NetworkConfig.shared
-        defer { config.activeProvider = nil }
+        let original = config.activeProvider
+        defer { config.activeProvider = original }
+
         config.activeProvider = .infura
         XCTAssertEqual(config.activeProvider, .infura)
+        XCTAssertEqual(
+            UserDefaults.standard.string(forKey: "com.horcrux.rpc.activeProvider"),
+            "infura",
+            "not persisted, so the choice is lost on next launch")
+    }
+
+    func test_activeProvider_nilClearsTheStoredValue() {
+        let config = NetworkConfig.shared
+        let original = config.activeProvider
+        defer { config.activeProvider = original }
+
+        config.activeProvider = .alchemy
+        config.activeProvider = nil
+
+        XCTAssertNil(config.activeProvider)
+        XCTAssertNil(
+            UserDefaults.standard.string(forKey: "com.horcrux.rpc.activeProvider"),
+            "going back to public must remove the key, not leave the old provider on disk")
+    }
+
+    func test_activeProvider_unknownStoredValue_readsAsPublic() {
+        // A provider dropped in a later version must degrade to public
+        // defaults, not crash and not resurrect as some other vendor.
+        XCTAssertNil(NodeProvider(rawValue: "quicknode"))
     }
 ```
 
@@ -998,7 +1029,11 @@ after the `solDevnet` block (currently ends line 71):
     /// itself stays in the Keychain.
     @Published var activeProvider: NodeProvider? {
         didSet {
-            UserDefaults.standard.set(activeProvider?.rawValue, forKey: Keys.activeProvider)
+            if let raw = activeProvider?.rawValue {
+                UserDefaults.standard.set(raw, forKey: Keys.activeProvider)
+            } else {
+                UserDefaults.standard.removeObject(forKey: Keys.activeProvider)
+            }
             invalidateBalances()
         }
     }
@@ -1022,7 +1057,7 @@ used; keep this assignment in the same group as `self.solDevnet`.
 
 - [ ] **Step 4: Run the test to verify it passes**
 
-Expected: `TEST SUCCEEDED`, 11 tests.
+Expected: `TEST SUCCEEDED`, 22 tests.
 
 - [ ] **Step 5: Commit**
 
