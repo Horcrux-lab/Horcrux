@@ -961,118 +961,7 @@ struct BlockchainNodeSettingsView: View {
     @State private var importPreview: RPCConfigSnapshot? = nil
     @State private var importError: String? = nil
     @State private var exportJSON: String = ""
-    @State private var selectedEVMProvider: PaidEVMProvider = .alchemy
     @State private var pendingPreset: NetworkPreset?
-
-    /// Scans the current EVM/Solana RPC URLs against every paid provider's
-    /// template for the current chain/devnet toggle, returning the provider
-    /// whose template matches. Used to keep the picker in sync with the
-    /// actually-configured URL and to surface "Active" status regardless of
-    /// which picker position the user is currently viewing.
-    private func detectActiveEVMProvider() -> PaidEVMProvider? {
-        guard let net = EVMNetwork(rawValue: config.evmChainId) else { return nil }
-        for p in PaidEVMProvider.allCases {
-            if let tmpl = p.template(for: net), config.ethereumRPC == tmpl {
-                return p
-            }
-            if let solTmpl = p.solanaTemplate(mainnet: !config.solDevnet),
-               config.solanaRPC == solTmpl {
-                return p
-            }
-        }
-        return nil
-    }
-
-    /// A collapsible single-field provider picker for the EVM key block.
-    /// Switching the picker swaps which Keychain field the SecureField
-    /// binds to and which template the "Use" button applies — so the
-    /// section only ever shows one SecureField at a time instead of the
-    /// previous 6 stacked fields.
-    enum PaidEVMProvider: String, CaseIterable, Identifiable {
-        case alchemy, infura, ankr, blockpi, drpc, nodeReal, getblock, tenderly, oneRPC
-
-        var id: String { rawValue }
-
-        var label: String {
-            switch self {
-            case .alchemy: return "Alchemy"
-            case .infura: return "Infura"
-            case .ankr: return "Ankr"
-            case .blockpi: return "BlockPI"
-            case .drpc: return "dRPC"
-            case .nodeReal: return "NodeReal"
-            case .getblock: return "GetBlock"
-            case .tenderly: return "Tenderly"
-            case .oneRPC: return "1RPC"
-            }
-        }
-
-        func template(for net: EVMNetwork) -> String? {
-            switch self {
-            case .alchemy: return RPCProviderTemplate.alchemy(evm: net)
-            case .infura: return RPCProviderTemplate.infura(evm: net)
-            case .ankr: return RPCProviderTemplate.ankr(evm: net)
-            case .blockpi: return RPCProviderTemplate.blockpi(evm: net)
-            case .drpc: return RPCProviderTemplate.drpc(evm: net)
-            case .nodeReal: return RPCProviderTemplate.nodeReal(evm: net)
-            case .getblock: return RPCProviderTemplate.getblock(evm: net)
-            case .tenderly: return RPCProviderTemplate.tenderly(evm: net)
-            case .oneRPC: return RPCProviderTemplate.oneRPC(evm: net)
-            }
-        }
-
-        /// Solana endpoint template for providers that share one key across
-        /// EVM + Solana. Returning `nil` means this provider doesn't offer
-        /// Solana under the same account; auto-apply will then leave the
-        /// Solana RPC untouched. `mainnet=false` yields the devnet host.
-        func solanaTemplate(mainnet: Bool) -> String? {
-            switch self {
-            case .alchemy: return RPCProviderTemplate.alchemySolana(mainnet: mainnet)
-            case .infura: return RPCProviderTemplate.infuraSolana(mainnet: mainnet)
-            case .ankr: return mainnet ? "https://rpc.ankr.com/solana/{KEY}" : nil
-            case .getblock: return RPCProviderTemplate.getblockSolana(mainnet: mainnet)
-            case .oneRPC: return RPCProviderTemplate.oneRPCSolana(mainnet: mainnet)
-            case .blockpi, .drpc, .nodeReal, .tenderly: return nil
-            }
-        }
-    }
-
-    private func keyBinding(for provider: PaidEVMProvider) -> Binding<String> {
-        switch provider {
-        case .alchemy: return $config.alchemyAPIKey
-        case .infura: return $config.infuraAPIKey
-        case .ankr: return $config.ankrAPIKey
-        case .blockpi: return $config.blockpiAPIKey
-        case .drpc: return $config.drpcAPIKey
-        case .nodeReal: return $config.nodeRealAPIKey
-        case .getblock: return $config.getblockAPIKey
-        case .tenderly: return $config.tenderlyAPIKey
-        case .oneRPC: return $config.oneRPCAPIKey
-        }
-    }
-
-    /// Auto-apply the current provider's RPC template to `config.ethereumRPC`
-    /// when the user has a key for that provider and a template exists for
-    /// the current chain. Avoids the common UX trap where users paste a key
-    /// but forget to tap "Use <Provider> for <Chain>" — broadcasts would
-    /// silently keep using the old free endpoint.
-    ///
-    /// Also mirrors the setting to `config.solanaRPC` when the provider
-    /// offers a shared-key Solana endpoint (Alchemy, Infura, Ankr-mainnet).
-    /// The Solana side respects the `solDevnet` toggle.
-    private func autoApplyProviderTemplate() {
-        let key = keyBinding(for: selectedEVMProvider).wrappedValue
-        guard !key.isEmpty else { return }
-        if let net = EVMNetwork(rawValue: config.evmChainId),
-           let tmpl = selectedEVMProvider.template(for: net),
-           config.ethereumRPC != tmpl {
-            config.ethereumRPC = tmpl
-        }
-        if let solTmpl = selectedEVMProvider.solanaTemplate(mainnet: !config.solDevnet),
-           config.solanaRPC != solTmpl {
-            config.solanaRPC = solTmpl
-        }
-    }
 
     var body: some View {
         Form {
@@ -1096,55 +985,6 @@ struct BlockchainNodeSettingsView: View {
             }
 
             Section {
-                VStack(alignment: .leading, spacing: 8) {
-                    Picker(L10n.NodeSettings.paidProviderPicker, selection: $selectedEVMProvider) {
-                        ForEach(PaidEVMProvider.allCases) { p in
-                            Text(p.label).tag(p)
-                        }
-                    }
-                    .pickerStyle(.menu)
-
-                    SecureField(L10n.NodeSettings.pasteKeyPlaceholder,
-                                text: keyBinding(for: selectedEVMProvider))
-                        .font(.system(.body, design: .monospaced))
-                        .autocorrectionDisabled()
-                        .textInputAutocapitalization(.never)
-                        .accessibilityIdentifier("nodeSettings_paidKey_\(selectedEVMProvider.rawValue)")
-                        .onChange(of: keyBinding(for: selectedEVMProvider).wrappedValue) { _, _ in
-                            autoApplyProviderTemplate()
-                        }
-
-                    if !keyBinding(for: selectedEVMProvider).wrappedValue.isEmpty,
-                       let net = EVMNetwork(rawValue: config.evmChainId),
-                       let tmpl = selectedEVMProvider.template(for: net) {
-                        if config.ethereumRPC == tmpl {
-                            Label(L10n.NodeSettings.providerActiveFor(selectedEVMProvider.label, net.displayName),
-                                  systemImage: "checkmark.seal.fill")
-                                .font(.caption)
-                                .foregroundStyle(HorcruxTheme.successGreen)
-                        } else {
-                            Button(L10n.NodeSettings.applyProviderFor(selectedEVMProvider.label, net.displayName)) {
-                                config.ethereumRPC = tmpl
-                            }
-                            .font(.caption)
-                        }
-                    } else if let net = EVMNetwork(rawValue: config.evmChainId),
-                              selectedEVMProvider.template(for: net) == nil {
-                        Text(L10n.NodeSettings.providerUnsupportedOnChain(selectedEVMProvider.label, net.displayName))
-                            .font(.caption2)
-                            .foregroundStyle(.secondary)
-                    }
-                }
-                .onChange(of: selectedEVMProvider) { _, _ in
-                    autoApplyProviderTemplate()
-                }
-                .onChange(of: config.evmChainId) { _, _ in
-                    autoApplyProviderTemplate()
-                }
-                .onChange(of: config.solDevnet) { _, _ in
-                    autoApplyProviderTemplate()
-                }
-
                 VStack(alignment: .leading, spacing: 4) {
                     Text(L10n.NodeSettings.etherscanKeyLabel)
                         .font(.caption)
@@ -1169,7 +1009,9 @@ struct BlockchainNodeSettingsView: View {
                         .textInputAutocapitalization(.never)
                     if !config.heliusAPIKey.isEmpty {
                         Button(L10n.NodeSettings.useHelius) {
-                            config.solanaRPC = RPCProviderTemplate.helius(mainnet: !config.solDevnet)
+                            ChainEndpointOverrides.shared.set(
+                                RPCProviderTemplate.helius(mainnet: !config.solDevnet),
+                                for: .solana)
                         }
                         .font(.caption)
                     }
@@ -1180,174 +1022,8 @@ struct BlockchainNodeSettingsView: View {
                 Text(L10n.NodeSettings.apiKeysHint)
             }
 
-            Section(L10n.NodeSettings.ethereumEVM) {
-                Picker(L10n.NodeSettings.networkPicker, selection: $config.evmChainId) {
-                    ForEach(EVMNetwork.allCases) { net in
-                        Text("\(net.displayName) · \(net.rawValue)").tag(net.rawValue)
-                    }
-                }
-                .pickerStyle(.menu)
-                .accessibilityIdentifier("nodeSettings_evmNetworkPicker")
-
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(L10n.NodeSettings.rpcURL)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                    TextField("https://ethereum-rpc.publicnode.com", text: $config.ethereumRPC)
-                        .font(.system(.body, design: .monospaced))
-                        .autocorrectionDisabled()
-                        .textInputAutocapitalization(.never)
-                        .onSubmit { Task { await NodeHealthStore.shared.refresh(chain: .ethereum) } }
-                    RPCStatusStrip(urlString: config.ethereumRPC)
-                }
-
-                DisclosureGroup(L10n.NodeSettings.advancedFields) {
-                    EndpointSwitcher(chain: .ethereum)
-                    ChainFieldActions(chain: .ethereum)
-                    WSSField(url: $config.ethereumWSS, kind: .evm)
-                }
-                .font(.subheadline)
-
-                NodeStatusRow(chain: .ethereum)
-            }
-
-            Section(L10n.NodeSettings.bitcoin) {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(L10n.NodeSettings.restAPIURL)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                    TextField("https://blockstream.info/api", text: $config.bitcoinAPI)
-                        .font(.system(.body, design: .monospaced))
-                        .autocorrectionDisabled()
-                        .textInputAutocapitalization(.never)
-                        .onSubmit { Task { await NodeHealthStore.shared.refresh(chain: .bitcoin) } }
-                    RPCStatusStrip(urlString: config.bitcoinAPI)
-                    EsploraPresetChips(
-                        presets: config.btcTestnet
-                            ? [("Blockstream", "https://blockstream.info/testnet/api"),
-                               ("mempool.space", "https://mempool.space/testnet/api")]
-                            : [("Blockstream", "https://blockstream.info/api"),
-                               ("mempool.space", "https://mempool.space/api")],
-                        binding: $config.bitcoinAPI
-                    )
-                }
-
-                Toggle(L10n.NodeSettings.testnet, isOn: $config.btcTestnet)
-                    .accessibilityHint(L10n.NodeSettings.testnetHint)
-
-                DisclosureGroup(L10n.NodeSettings.advancedFields) {
-                    EndpointSwitcher(chain: .bitcoin)
-                    ChainFieldActions(chain: .bitcoin)
-                }
-                .font(.subheadline)
-
-                NodeStatusRow(chain: .bitcoin)
-            }
-
-            Section {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(L10n.NodeSettings.restAPIURL)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                    TextField("https://litecoinspace.org/api", text: $config.litecoinAPI)
-                        .font(.system(.body, design: .monospaced))
-                        .autocorrectionDisabled()
-                        .textInputAutocapitalization(.never)
-                        .onSubmit { Task { await NodeHealthStore.shared.refresh(chain: .litecoin) } }
-                    RPCStatusStrip(urlString: config.litecoinAPI)
-                    EsploraPresetChips(
-                        presets: [("litecoinspace", "https://litecoinspace.org/api")],
-                        binding: $config.litecoinAPI
-                    )
-                }
-
-                DisclosureGroup(L10n.NodeSettings.advancedFields) {
-                    EndpointSwitcher(chain: .litecoin)
-                    ChainFieldActions(chain: .litecoin)
-                }
-                .font(.subheadline)
-
-                NodeStatusRow(chain: .litecoin)
-            } header: {
-                ReadOnlySectionHeader(title: L10n.NodeSettings.litecoinSection)
-            } footer: {
-                Text(L10n.NodeSettings.readOnlyNote)
-            }
-
-            Section(L10n.NodeSettings.solana) {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(L10n.NodeSettings.rpcURL)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                    TextField("https://api.mainnet-beta.solana.com", text: $config.solanaRPC)
-                        .font(.system(.body, design: .monospaced))
-                        .autocorrectionDisabled()
-                        .textInputAutocapitalization(.never)
-                        .onSubmit { Task { await NodeHealthStore.shared.refresh(chain: .solana) } }
-                    RPCStatusStrip(urlString: config.solanaRPC)
-                    if !keyBinding(for: selectedEVMProvider).wrappedValue.isEmpty,
-                       let solTmpl = selectedEVMProvider.solanaTemplate(mainnet: !config.solDevnet) {
-                        if config.solanaRPC == solTmpl {
-                            Label(L10n.NodeSettings.providerActiveFor(selectedEVMProvider.label, "Solana"),
-                                  systemImage: "checkmark.seal.fill")
-                                .font(.caption)
-                                .foregroundStyle(HorcruxTheme.successGreen)
-                        } else {
-                            Button(L10n.NodeSettings.applyProviderFor(selectedEVMProvider.label, "Solana")) {
-                                config.solanaRPC = solTmpl
-                            }
-                            .font(.caption)
-                        }
-                    }
-                }
-
-                Toggle(L10n.NodeSettings.devnet, isOn: $config.solDevnet)
-                    .accessibilityHint(L10n.NodeSettings.devnetHint)
-
-                DisclosureGroup(L10n.NodeSettings.advancedFields) {
-                    EndpointSwitcher(chain: .solana)
-                    ChainFieldActions(chain: .solana)
-                    WSSField(url: $config.solanaWSS, kind: .solana)
-                }
-                .font(.subheadline)
-
-                NodeStatusRow(chain: .solana)
-            }
-
-            Section {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(L10n.NodeSettings.restAPIURL)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                    TextField("https://api.trongrid.io", text: $config.tronAPI)
-                        .font(.system(.body, design: .monospaced))
-                        .autocorrectionDisabled()
-                        .textInputAutocapitalization(.never)
-                        .onSubmit { Task { await NodeHealthStore.shared.refresh(chain: .tron) } }
-                    RPCStatusStrip(urlString: config.tronAPI)
-                    RPCPresetChips(
-                        presets: [
-                            ("TronGrid", "https://api.trongrid.io"),
-                            ("TronStack", "https://api.tronstack.io"),
-                            ("Shasta", "https://api.shasta.trongrid.io"),
-                            ("Nile", "https://nile.trongrid.io")
-                        ],
-                        binding: $config.tronAPI
-                    )
-                }
-
-                DisclosureGroup(L10n.NodeSettings.advancedFields) {
-                    EndpointSwitcher(chain: .tron)
-                    ChainFieldActions(chain: .tron)
-                }
-                .font(.subheadline)
-
-                NodeStatusRow(chain: .tron)
-            } header: {
-                ReadOnlySectionHeader(title: L10n.NodeSettings.tronSection)
-            } footer: {
-                Text(L10n.NodeSettings.readOnlyNote)
-            }
+            NodeProviderSection()
+            ChainEndpointList()
 
             EndpointCooldownSection()
 
@@ -1403,21 +1079,6 @@ struct BlockchainNodeSettingsView: View {
             // a no-op when another refresh is already in flight.
             await health.refreshAll(config: config)
         }
-        .onAppear {
-            // Sync the picker to whichever paid provider is currently wired
-            // up in the saved RPC URLs, so the "Active" badge shows up in
-            // the correct picker position — instead of always landing on
-            // .alchemy and hiding the active state for other providers.
-            if let active = detectActiveEVMProvider() {
-                selectedEVMProvider = active
-            }
-        }
-        .onChange(of: config.ethereumRPC) { _, _ in
-            if let active = detectActiveEVMProvider() { selectedEVMProvider = active }
-        }
-        .onChange(of: config.solanaRPC) { _, _ in
-            if let active = detectActiveEVMProvider() { selectedEVMProvider = active }
-        }
         .alert(L10n.NodeSettings.presetConfirmTitle, isPresented: Binding(
             get: { pendingPreset != nil },
             set: { if !$0 { pendingPreset = nil } }
@@ -1472,7 +1133,10 @@ struct BlockchainNodeSettingsView: View {
     }
 
     private func presetPreviewMessage(_ p: NetworkPreset) -> String {
-        "ETH · \(p.ethereumRPC)\nBTC · \(p.bitcoinAPI)\nSOL · \(p.solanaRPC)"
+        let ethNet = (EVMNetwork(rawValue: p.evmChainId) ?? .mainnet).displayName
+        let btcNet = p.btcTestnet ? "Testnet" : "Mainnet"
+        let solNet = p.solDevnet ? "Devnet" : "Mainnet"
+        return "ETH · \(ethNet)\nBTC · \(btcNet)\nSOL · \(solNet)"
     }
 }
 
@@ -1663,16 +1327,17 @@ struct NodeStatusRow: View {
 struct EndpointSwitcher: View {
     let chain: Chain
     @ObservedObject private var config = NetworkConfig.shared
+    @ObservedObject private var overrides = ChainEndpointOverrides.shared
 
     var body: some View {
         let current = config.rpcURL(for: chain)
         let candidates = RPCFallbacks.endpoints(for: chain, config: config)
-            .filter { $0 != current && $0 != config.fieldValue(for: chain) }
+            .filter { $0 != current && $0 != overrides.url(for: chain) }
         if !candidates.isEmpty {
             Menu {
                 ForEach(candidates, id: \.self) { url in
                     Button {
-                        config.setFieldValue(url, for: chain)
+                        ChainEndpointOverrides.shared.set(url, for: chain)
                     } label: {
                         VStack(alignment: .leading) {
                             Text(URL(string: url)?.host ?? url)
@@ -1805,13 +1470,19 @@ struct ProviderBadge: View {
 /// Per-chain footer with "Copy URL" and "Reset this chain" actions. Placed
 /// below the RPC URL field so users can quickly fall back to defaults for a
 /// single chain without running the page-level "reset to defaults".
+///
+/// "Copy URL" copies the raw override URL (un-substituted, may contain
+/// {KEY}). Copying rpcURL(for:) would put a substituted API key on the
+/// clipboard — even through SecureClipboard, a resolved key is a secret
+/// leaving the app. The override is exactly what the user typed, which is
+/// safe to copy and paste elsewhere.
 struct ChainFieldActions: View {
     let chain: Chain
-    @ObservedObject private var config = NetworkConfig.shared
+    @ObservedObject private var overrides = ChainEndpointOverrides.shared
 
     var body: some View {
         HStack(spacing: 12) {
-            if let url = config.fieldValue(for: chain), !url.isEmpty {
+            if let url = overrides.url(for: chain), !url.isEmpty {
                 Button {
                     SecureClipboard.copy(url)
                 } label: {
@@ -1823,7 +1494,7 @@ struct ChainFieldActions: View {
             }
             Spacer()
             Button {
-                config.resetField(for: chain)
+                ChainEndpointOverrides.shared.clear(chain)
             } label: {
                 Label(L10n.NodeStatus.resetThisChain, systemImage: "arrow.uturn.backward")
                     .font(.caption2)
@@ -2412,7 +2083,7 @@ private struct LatencySparkline: View {
 /// bill subscriptions differently from HTTP reads — hammering `wss`
 /// on every page open could eat a user's quota. The user explicitly
 /// taps Test when they want verification.
-private struct WSSField: View {
+struct WSSField: View {
     @Binding var url: String
     let kind: WebSocketProbe.Kind
 

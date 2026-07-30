@@ -53,6 +53,22 @@ struct ChainEndpointDetailView: View {
                     .foregroundStyle(.secondary)
             }
 
+            // Ethereum mainnet / Sepolia toggle. Only mainnet and Sepolia are
+            // offered here — Polygon, Base, Arbitrum, etc. are independent
+            // first-class chains now; offering them inside the Ethereum detail
+            // would recreate the "two different Polygons" ambiguity this
+            // provider-first design removes.
+            if chain == .ethereum {
+                Section(L10n.NodeSettings.networkPicker) {
+                    Picker(L10n.NodeSettings.networkPicker, selection: $config.evmChainId) {
+                        Text(L10n.NodeSettings.mainnet).tag(EVMNetwork.mainnet.rawValue)
+                        Text(L10n.NodeSettings.sepolia).tag(EVMNetwork.sepolia.rawValue)
+                    }
+                    .pickerStyle(.segmented)
+                    .accessibilityIdentifier("nodeSettings_ethereumNetworkPicker")
+                }
+            }
+
             Section(L10n.NodeSettings.customURLSection) {
                 TextField(config.publicDefault(for: chain), text: $draft)
                     .font(.system(.body, design: .monospaced))
@@ -66,6 +82,19 @@ struct ChainEndpointDetailView: View {
                     overrides.clear(chain)
                 }
                 .disabled(overrides.url(for: chain) == nil)
+
+                EndpointSwitcher(chain: chain)
+                ChainFieldActions(chain: chain)
+            }
+
+            // WebSocket endpoint for chains that support it (Ethereum, Solana).
+            if chain == .ethereum || chain == .solana {
+                Section {
+                    WSSField(
+                        url: chain == .ethereum ? $config.ethereumWSS : $config.solanaWSS,
+                        kind: chain == .ethereum ? .evm : .solana
+                    )
+                }
             }
 
             Section {
