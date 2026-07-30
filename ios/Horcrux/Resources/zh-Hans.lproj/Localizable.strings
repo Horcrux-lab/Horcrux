@@ -548,6 +548,7 @@
 "nodeSettings.sourceLabel" = "来源：%1$@";
 "nodeSettings.customURLSection" = "自定义 URL";
 "nodeSettings.useDefault" = "使用默认节点";
+"nodeSettings.customBadge" = "自定义";
 
 /* Node Status */
 "nodeStatus.notChecked" = "未检查";

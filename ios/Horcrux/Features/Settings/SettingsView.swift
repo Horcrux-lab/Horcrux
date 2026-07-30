@@ -1088,10 +1088,11 @@ struct BlockchainNodeSettingsView: View {
                 if let p = pendingPreset { config.applyPreset(p) }
                 pendingPreset = nil
             }
-            if !overrides.allChains().isEmpty {
+            if !presetGoverningOverrides.isEmpty {
                 Button(L10n.NodeSettings.presetApplyAndClear) {
+                    let affected = presetGoverningOverrides
+                    affected.forEach { overrides.clear($0) }
                     if let p = pendingPreset { config.applyPreset(p) }
-                    ChainEndpointOverrides.shared.removeAll()
                     pendingPreset = nil
                 }
             }
@@ -1125,14 +1126,23 @@ struct BlockchainNodeSettingsView: View {
 
     private func isCurrentPreset(_ preset: NetworkPreset) -> Bool {
         // Compare only the logical network identity (chainId + flags), not URLs.
-        // Additionally: if any chain override is set, the preset is only partially
-        // in effect (that chain's traffic goes to the custom endpoint, not the
-        // preset's logical network). The button must not render as selected in
-        // that case — doing so would claim a network identity that isn't fully true.
-        guard overrides.allChains().isEmpty else { return false }
+        // Only ethereum, bitcoin and solana are governed by presets — applyPreset
+        // does not touch litecoin, tron, polygon, etc. An override on one of the
+        // preset-governed chains means the preset's network claim isn't fully in
+        // effect; an override on an unrelated chain (e.g. Litecoin) does not
+        // invalidate the preset's domain.
+        guard presetGoverningOverrides.isEmpty else { return false }
         return config.evmChainId == preset.evmChainId &&
                config.btcTestnet == preset.btcTestnet &&
                config.solDevnet == preset.solDevnet
+    }
+
+    /// Chains that are governed by presets AND currently have a custom override.
+    /// Used consistently for badge, warning message, and the "Apply and clear" button
+    /// so all three reflect the same scope.
+    private var presetGoverningOverrides: [Chain] {
+        let governed: Set<Chain> = [.ethereum, .bitcoin, .solana]
+        return overrides.allChains().filter { governed.contains($0) }
     }
 
     private func presetPreviewMessage(_ p: NetworkPreset) -> String {
@@ -1140,10 +1150,10 @@ struct BlockchainNodeSettingsView: View {
         let btcNet = p.btcTestnet ? "Testnet" : "Mainnet"
         let solNet = p.solDevnet ? "Devnet" : "Mainnet"
         var msg = "ETH · \(ethNet)\nBTC · \(btcNet)\nSOL · \(solNet)"
-        let overriddenChains = overrides.allChains()
-        if !overriddenChains.isEmpty {
-            let names = overriddenChains.map(\.displayName).joined(separator: ", ")
-            msg += "\n\n" + L10n.NodeSettings.presetOverrideWarning(count: overriddenChains.count, names: names)
+        let affected = presetGoverningOverrides
+        if !affected.isEmpty {
+            let names = affected.map(\.displayName).joined(separator: ", ")
+            msg += "\n\n" + L10n.NodeSettings.presetOverrideWarning(count: affected.count, names: names)
         }
         return msg
     }
@@ -1334,12 +1344,12 @@ struct NodeStatusRow: View {
 /// `RPCFallbacks.endpoints(for:config:)` and filters out the currently active
 /// URL so the menu shows only *alternatives*.
 struct EndpointSwitcher: View {
-    let chain: Chain
-    @Binding var draft: String
+    @ObservedObject var editor: ChainEndpointEditor
     @ObservedObject private var config = NetworkConfig.shared
     @ObservedObject private var overrides = ChainEndpointOverrides.shared
 
     var body: some View {
+        let chain = editor.chain
         let current = config.rpcURL(for: chain)
         let candidates = RPCFallbacks.endpoints(for: chain, config: config)
             .filter { $0 != current && $0 != overrides.url(for: chain) }
@@ -1347,10 +1357,9 @@ struct EndpointSwitcher: View {
             Menu {
                 ForEach(candidates, id: \.self) { url in
                     Button {
-                        // Update draft and storage atomically so commitDraft()
-                        // on .onDisappear never sees a stale draft.
-                        draft = url
-                        ChainEndpointOverrides.shared.set(url, for: chain)
+                        // editor.select atomically updates both draft and storage,
+                        // so commit() on .onDisappear finds no diff to write.
+                        editor.select(url: url)
                     } label: {
                         VStack(alignment: .leading) {
                             Text(URL(string: url)?.host ?? url)
@@ -1490,11 +1499,11 @@ struct ProviderBadge: View {
 /// leaving the app. The override is exactly what the user typed, which is
 /// safe to copy and paste elsewhere.
 struct ChainFieldActions: View {
-    let chain: Chain
-    @Binding var draft: String
+    @ObservedObject var editor: ChainEndpointEditor
     @ObservedObject private var overrides = ChainEndpointOverrides.shared
 
     var body: some View {
+        let chain = editor.chain
         HStack(spacing: 12) {
             if let url = overrides.url(for: chain), !url.isEmpty {
                 Button {
@@ -1508,11 +1517,11 @@ struct ChainFieldActions: View {
             }
             Spacer()
             Button {
-                // Update draft and storage atomically so commitDraft() on
-                // .onDisappear never sees a stale draft pointing at the
-                // cleared override and writes it straight back.
-                draft = ""
-                ChainEndpointOverrides.shared.clear(chain)
+                // editor.reset atomically clears both draft and storage,
+                // so commit() on .onDisappear finds draft == "" == stored and
+                // does nothing. Without this atomicity the cleared override
+                // would be resurrected on navigate-back.
+                editor.reset()
             } label: {
                 Label(L10n.NodeStatus.resetThisChain, systemImage: "arrow.uturn.backward")
                     .font(.caption2)

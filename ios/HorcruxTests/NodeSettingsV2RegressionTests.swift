@@ -474,55 +474,77 @@ final class NodeSettingsV2RegressionTests: XCTestCase {
             "solanaRPC must not equal the override — it is a stale shadow. Got: \(config.legacySolanaRPC)")
     }
 
-    // MARK: - Critical 1: commitDecision pure function
+    // MARK: - Critical 1: ChainEndpointEditor structural invariant
 
-    /// `commitDecision` is the pure decision function extracted from
-    /// `ChainEndpointDetailView.commitDraft()` so it can be tested without
-    /// SwiftUI lifecycle. These tests verify the decision logic and document
-    /// the stale-draft bug that the `@Binding`-based fix prevents.
-    func test_commitDecision_newURL_returnsTrimmerdURL() {
-        let result = ChainEndpointDetailView.commitDecision(
-            draft: "  https://new-node.example  ", stored: nil)
-        XCTAssertEqual(result, "https://new-node.example",
-                       "commitDecision must trim whitespace and return the URL to persist")
-    }
-
-    func test_commitDecision_noChange_returnsNil() {
-        // draft already matches storage — no write needed
-        XCTAssertNil(
-            ChainEndpointDetailView.commitDecision(
-                draft: "https://same.example", stored: "https://same.example"),
-            "commitDecision must return nil when draft equals stored URL")
-
-        // empty draft with no storage — no write needed
-        XCTAssertNil(
-            ChainEndpointDetailView.commitDecision(draft: "", stored: nil),
-            "commitDecision must return nil when both draft and stored are empty")
-    }
-
-    func test_commitDecision_clearOverride_returnsEmpty() {
-        let result = ChainEndpointDetailView.commitDecision(
-            draft: "", stored: "https://old.example")
-        XCTAssertEqual(result, "",
-                       "commitDecision must return empty string to signal 'clear the override'")
-    }
-
-    /// Documents the stale-draft bug that the @Binding fix prevents.
+    /// `ChainEndpointEditor` owns the draft URL and exposes mutations as
+    /// atomic methods. The invariant is structural: any override mutation goes
+    /// through the editor, so draft and storage are always consistent. This test
+    /// proves the core guarantee: reset() + commit() cannot resurrect a cleared
+    /// override, because reset() leaves draft == "" == stored.
     ///
-    /// If `ChainFieldActions` clears the override WITHOUT updating `draft`,
-    /// and then `commitDraft()` is called on navigate-back, `commitDecision`
-    /// would return the stale draft URL and overwrite the clear.
-    ///
-    /// The @Binding fix ensures this case cannot occur in production
-    /// (draft and storage always move together), but this test pins the
-    /// decision logic: `commitDecision` faithfully reflects what it is given,
-    /// so the binding fix is the only correct guard.
-    func test_commitDecision_staleDraft_wouldOverwriteClear() {
-        // Simulate: override was cleared (stored = nil), but draft is stale.
-        let result = ChainEndpointDetailView.commitDecision(
-            draft: "https://stale-override.example", stored: nil)
-        XCTAssertEqual(result, "https://stale-override.example",
-                       "commitDecision returns the stale URL, proving the binding fix is load-bearing")
+    /// Mutation target: remove `draft = ""` from `reset()` to verify this test
+    /// goes RED (commit() would find draft="old" != stored="" and write it back).
+    func test_editor_resetThenCommit_doesNotResurrectOverride() {
+        let overrides = ChainEndpointOverrides.shared
+        overrides.set("https://old.example", for: .bitcoin)
+        defer { overrides.clear(.bitcoin) }
+
+        let editor = ChainEndpointEditor(chain: .bitcoin)
+        XCTAssertEqual(editor.draft, "https://old.example",
+                       "editor must seed draft from stored override")
+
+        editor.reset()
+        XCTAssertEqual(editor.draft, "",
+                       "reset() must set draft to empty")
+        XCTAssertNil(overrides.url(for: .bitcoin),
+                     "reset() must clear the stored override")
+
+        // Without the atomicity guarantee, commit() would see draft="old.example"
+        // != stored="" and write the stale value straight back. With the editor,
+        // both are "" so commit() is a no-op.
+        editor.commit()
+        XCTAssertNil(overrides.url(for: .bitcoin),
+                     "commit() after reset() must not resurrect the override")
+    }
+
+    func test_editor_select_updatesDraftAndOverrideAtomically() {
+        let overrides = ChainEndpointOverrides.shared
+        defer { overrides.clear(.bitcoin) }
+
+        let editor = ChainEndpointEditor(chain: .bitcoin)
+        editor.select(url: "https://new.example")
+
+        XCTAssertEqual(editor.draft, "https://new.example",
+                       "select() must update draft")
+        XCTAssertEqual(overrides.url(for: .bitcoin), "https://new.example",
+                       "select() must update stored override")
+    }
+
+    func test_editor_commit_trimsAndPersistsDraft() {
+        let overrides = ChainEndpointOverrides.shared
+        defer { overrides.clear(.bitcoin) }
+
+        let editor = ChainEndpointEditor(chain: .bitcoin)
+        editor.draft = "  https://trimmed.example  "
+        editor.commit()
+
+        XCTAssertEqual(overrides.url(for: .bitcoin), "https://trimmed.example",
+                       "commit() must trim and persist changed draft")
+        XCTAssertEqual(editor.draft, "https://trimmed.example",
+                       "commit() must normalise whitespace in the displayed draft")
+    }
+
+    func test_editor_commit_isNoOp_whenDraftMatchesStored() {
+        let overrides = ChainEndpointOverrides.shared
+        overrides.set("https://existing.example", for: .bitcoin)
+        defer { overrides.clear(.bitcoin) }
+
+        let editor = ChainEndpointEditor(chain: .bitcoin)
+        // Draft is seeded from storage — commit() should find no diff.
+        editor.commit()
+
+        XCTAssertEqual(overrides.url(for: .bitcoin), "https://existing.example",
+                       "commit() must not write when draft already matches stored URL")
     }
 
     // MARK: - Critical 2: resetToDefaults clears overrides and provider
@@ -599,68 +621,105 @@ final class NodeSettingsV2RegressionTests: XCTestCase {
                        "resetToDefaults must not modify API keys")
     }
 
-    // MARK: - Critical 3b: testnetBadge reads override URL, not stale flag
+    // MARK: - Critical 3b: testnetBadge matches host only, returns "Custom" for unknown
 
-    /// When an override is set for a chain, `testnetBadge` must derive the
-    /// badge from the resolved URL rather than from the network-selector flag.
-    /// Otherwise the badge can claim one network while traffic goes to another.
-    func test_testnetBadge_bitcoin_overrideDeterminesBadge() {
+    /// `testnetBadge` must:
+    ///   1. Match on the URL host only — path/query segments must not trigger badges.
+    ///   2. Return `L10n.NodeSettings.customBadge` ("Custom") when an override is
+    ///      present but the host carries no recognised network marker. `nil` must
+    ///      be reserved for "positively mainnet".
+    func test_testnetBadge_bitcoin_hostOnly_andCustomForUnrecognised() {
         let config = NetworkConfig.shared
         let savedBtcTestnet = config.btcTestnet
         defer {
             config.btcTestnet = savedBtcTestnet
+            ChainEndpointOverrides.shared.clear(.bitcoin)
         }
 
-        // Override with testnet URL, flag says mainnet → badge must say Testnet.
+        // "testnet" in HOST → badge = "Testnet"
         config.btcTestnet = false
-        ChainEndpointOverrides.shared.set("https://mempool.space/testnet/api", for: .bitcoin)
+        ChainEndpointOverrides.shared.set("https://testnet.bitcoin-node.example/api", for: .bitcoin)
         XCTAssertEqual(config.testnetBadge(for: .bitcoin), "Testnet",
-            "testnetBadge must return 'Testnet' when override URL contains 'testnet'")
+            "badge must be 'Testnet' when override host contains 'testnet'")
 
-        // Override with mainnet URL, flag says testnet → badge must say nil.
+        // "testnet" in PATH only (e.g. mempool.space/testnet) → "Custom" not "Testnet"
+        // This is the canonical false-positive the host-only fix prevents.
+        ChainEndpointOverrides.shared.set("https://mempool.space/testnet/api", for: .bitcoin)
+        XCTAssertEqual(config.testnetBadge(for: .bitcoin), L10n.NodeSettings.customBadge,
+            "badge must be 'Custom' when 'testnet' appears in path only — host check prevents false positive")
+
+        // Opaque hostname, no network marker, flag says testnet → "Custom" not nil.
+        // nil would silently imply mainnet; an opaque custom endpoint could be testnet.
         config.btcTestnet = true
-        ChainEndpointOverrides.shared.set("https://mempool.space/api", for: .bitcoin)
-        XCTAssertNil(config.testnetBadge(for: .bitcoin),
-            "testnetBadge must return nil when override URL contains no network marker (flag is ignored)")
+        ChainEndpointOverrides.shared.set("https://my-bitcoin-proxy.example", for: .bitcoin)
+        XCTAssertEqual(config.testnetBadge(for: .bitcoin), L10n.NodeSettings.customBadge,
+            "badge must be 'Custom' for opaque override host — nil would falsely imply mainnet")
+
+        // No override, flag says testnet → "Testnet" (flag still governs without override)
+        ChainEndpointOverrides.shared.clear(.bitcoin)
+        config.btcTestnet = true
+        XCTAssertEqual(config.testnetBadge(for: .bitcoin), "Testnet",
+            "without override, btcTestnet flag determines badge")
     }
 
-    func test_testnetBadge_ethereum_overrideDeterminesBadge() {
+    func test_testnetBadge_ethereum_hostOnly_andCustomForUnrecognised() {
         let config = NetworkConfig.shared
         let savedEvmChainId = config.evmChainId
         defer {
             config.evmChainId = savedEvmChainId
+            ChainEndpointOverrides.shared.clear(.ethereum)
         }
 
-        // Override with Sepolia URL, flag says mainnet → badge must say Sepolia.
+        // "sepolia" in HOST → badge = "Sepolia"
         config.evmChainId = 1
         ChainEndpointOverrides.shared.set("https://ethereum-sepolia-rpc.publicnode.com", for: .ethereum)
         XCTAssertEqual(config.testnetBadge(for: .ethereum), "Sepolia",
-            "testnetBadge must return 'Sepolia' when override URL contains 'sepolia'")
+            "badge must be 'Sepolia' when override host contains 'sepolia'")
 
-        // Override with unknown URL (no network marker) → nil regardless of flag.
-        config.evmChainId = 11155111  // sepolia chain ID
-        ChainEndpointOverrides.shared.set("https://my-unknown-rpc.example", for: .ethereum)
-        XCTAssertNil(config.testnetBadge(for: .ethereum),
-            "testnetBadge must return nil for unknown override URL — cannot claim mainnet or testnet")
+        // Opaque host, no network marker, flag says Sepolia → "Custom" not "Sepolia".
+        // Also proves the old `u.contains("11155111")` full-URL scan is gone —
+        // the chain ID in the path would no longer trigger a badge.
+        config.evmChainId = 11155111
+        ChainEndpointOverrides.shared.set("https://rpc.example.com/0xaa36a7", for: .ethereum)
+        XCTAssertEqual(config.testnetBadge(for: .ethereum), L10n.NodeSettings.customBadge,
+            "badge must be 'Custom' for opaque override — chain ID in path must not decide network")
+
+        // No override, evmChainId = Sepolia → "Sepolia"
+        ChainEndpointOverrides.shared.clear(.ethereum)
+        config.evmChainId = 11155111
+        XCTAssertEqual(config.testnetBadge(for: .ethereum), "Sepolia",
+            "without override, evmChainId determines badge")
     }
 
-    func test_testnetBadge_solana_overrideDeterminesBadge() {
+    func test_testnetBadge_solana_hostOnly_andCustomForUnrecognised() {
         let config = NetworkConfig.shared
         let savedSolDevnet = config.solDevnet
         defer {
             config.solDevnet = savedSolDevnet
+            ChainEndpointOverrides.shared.clear(.solana)
         }
 
-        // Override with devnet URL, flag says mainnet → badge must say Devnet.
+        // "devnet" in HOST → badge = "Devnet"
         config.solDevnet = false
         ChainEndpointOverrides.shared.set("https://api.devnet.solana.com", for: .solana)
         XCTAssertEqual(config.testnetBadge(for: .solana), "Devnet",
-            "testnetBadge must return 'Devnet' when override URL contains 'devnet'")
+            "badge must be 'Devnet' when override host contains 'devnet'")
 
-        // Override with mainnet URL, flag says devnet → badge must be nil.
+        // "devnet" in PATH only → "Custom" not "Devnet"
+        ChainEndpointOverrides.shared.set("https://rpc.example.com/proxy/devnet-migration", for: .solana)
+        XCTAssertEqual(config.testnetBadge(for: .solana), L10n.NodeSettings.customBadge,
+            "badge must be 'Custom' when 'devnet' appears in path only")
+
+        // Opaque mainnet-like host, flag says devnet → "Custom"
         config.solDevnet = true
-        ChainEndpointOverrides.shared.set("https://api.mainnet-beta.solana.com", for: .solana)
-        XCTAssertNil(config.testnetBadge(for: .solana),
-            "testnetBadge must return nil when override URL contains no 'devnet' marker")
+        ChainEndpointOverrides.shared.set("https://solana-mainnet.example.com", for: .solana)
+        XCTAssertEqual(config.testnetBadge(for: .solana), L10n.NodeSettings.customBadge,
+            "badge must be 'Custom' for opaque override — 'devnet' not in host, nil would be misleading")
+
+        // No override, flag says devnet → "Devnet"
+        ChainEndpointOverrides.shared.clear(.solana)
+        config.solDevnet = true
+        XCTAssertEqual(config.testnetBadge(for: .solana), "Devnet",
+            "without override, solDevnet flag determines badge")
     }
 }
