@@ -114,6 +114,7 @@
 		B683B8FBCDCCE7B24B0B9664 /* DecodedCallView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1E3F716A4D34C9A617D81B3E /* DecodedCallView.swift */; };
 		BE1A1D1E7A5DB0C9442778D4 /* NodeProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = A35A0E4E7C941099FD60D063 /* NodeProvider.swift */; };
 		C155C37C38CDD7B6F4AB0AFE /* SecurityEnvironmentTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 76F29DB893748A79B8E50F7E /* SecurityEnvironmentTests.swift */; };
+		C287BF7467A63911B2E5BE65 /* NodeSettingsMigration.swift in Sources */ = {isa = PBXBuildFile; fileRef = 73AA08C05D62817355866721 /* NodeSettingsMigration.swift */; };
 		C3F663E12F4D2CC213624F7F /* ColdSigningCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = D7473CDCC445DA4468C1E10B /* ColdSigningCoordinator.swift */; };
 		C6E93F671BDFB6D021F2C951 /* CreateShardViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FF408B4D713C13918899FEE /* CreateShardViewModel.swift */; };
 		C718A6F3E0150DD6F3E688D4 /* RefreshShardSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = EB9476C366E0DC0DE88A9E3D /* RefreshShardSheet.swift */; };
@@ -227,6 +228,7 @@
 		71315F3A061FB358898A2C96 /* VaultDisplay.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VaultDisplay.swift; sourceTree = "<group>"; };
 		729455434EC6340461D1B478 /* SecurityEnvironment.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SecurityEnvironment.swift; sourceTree = "<group>"; };
 		73A13E2D2F330EDCDE8CE81D /* AddressFormatter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AddressFormatter.swift; sourceTree = "<group>"; };
+		73AA08C05D62817355866721 /* NodeSettingsMigration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NodeSettingsMigration.swift; sourceTree = "<group>"; };
 		76662EAB34A3B4B438BC0AB1 /* PrimePoolManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PrimePoolManager.swift; sourceTree = "<group>"; };
 		76F29DB893748A79B8E50F7E /* SecurityEnvironmentTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SecurityEnvironmentTests.swift; sourceTree = "<group>"; };
 		7835CD49959AD17C7590793F /* TokenModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TokenModels.swift; sourceTree = "<group>"; };
@@ -613,6 +615,7 @@
 				8F2B46934353AFDC064CECD9 /* NetworkConfig.swift */,
 				F99D9A6FA92C39574299C592 /* NodeErrorMapper.swift */,
 				A35A0E4E7C941099FD60D063 /* NodeProvider.swift */,
+				73AA08C05D62817355866721 /* NodeSettingsMigration.swift */,
 				86FE78C208523754FA44A557 /* NotificationManager.swift */,
 				8FFF986C29A1F3165AFA16CD /* PendingBroadcastQueue.swift */,
 				7D014454477EA3881187A1E7 /* PendingNonceTracker.swift */,
@@ -829,6 +832,7 @@
 				73DCF4DE4120D95F8C6376D7 /* NetworkConfig.swift in Sources */,
 				13C0AC2717BE738448E6F970 /* NodeErrorMapper.swift in Sources */,
 				BE1A1D1E7A5DB0C9442778D4 /* NodeProvider.swift in Sources */,
+				C287BF7467A63911B2E5BE65 /* NodeSettingsMigration.swift in Sources */,
 				90328AA2F2C14EE460FC9866 /* NotificationManager.swift in Sources */,
 				CAA62095ADB8219F055DB007 /* PeerManager.swift in Sources */,
 				35C8A96CF69D926E6C97D5E1 /* PendingBroadcastQueue.swift in Sources */,
