@@ -1148,6 +1148,23 @@ Append to `EndpointResolutionTests`:
         }
     }
 
+    /// Ethereum is the one chain whose EVM network the user can change, so
+    /// the resolver has to thread `evmChainId` through to the provider. If
+    /// it ever hardcodes mainnet, a Sepolia user silently talks to mainnet.
+    func test_resolve_forEthereum_followsTheNetworkToggleThroughTheProvider() {
+        withCleanConfig { config in
+            config.activeProvider = .alchemy
+            config.alchemyAPIKey = "k"
+
+            config.evmChainId = 1
+            XCTAssertEqual(config.resolveRawURL(for: .ethereum),
+                           "https://eth-mainnet.g.alchemy.com/v2/{KEY}")
+            config.evmChainId = 11_155_111
+            XCTAssertEqual(config.resolveRawURL(for: .ethereum),
+                           "https://eth-sepolia.g.alchemy.com/v2/{KEY}")
+        }
+    }
+
     func test_resolve_neverReturnsEmptyForAnyChain() {
         withCleanConfig { config in
             for chain in Chain.allCases {
@@ -1189,7 +1206,7 @@ Insert directly after `publicDefault(for:)` in `NetworkConfig.swift`:
 
 - [ ] **Step 4: Run the test to verify it passes**
 
-Expected: `TEST SUCCEEDED`, 17 tests.
+Expected: `TEST SUCCEEDED`, 29 tests.
 
 - [ ] **Step 5: Commit**
 
