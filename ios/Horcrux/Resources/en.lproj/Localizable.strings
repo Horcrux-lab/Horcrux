@@ -548,6 +548,7 @@
 "nodeSettings.sourceLabel" = "Source: %1$@";
 "nodeSettings.customURLSection" = "Custom URL";
 "nodeSettings.useDefault" = "Use the default";
+"nodeSettings.customBadge" = "Custom";
 
 /* Node Status */
 "nodeStatus.notChecked" = "Not checked";

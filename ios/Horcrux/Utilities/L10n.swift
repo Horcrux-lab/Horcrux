@@ -1206,6 +1206,9 @@ enum L10n {
         }
         static let customURLSection = NSLocalizedString("nodeSettings.customURLSection", comment: "")
         static let useDefault = NSLocalizedString("nodeSettings.useDefault", comment: "")
+        /// Badge shown when an override is present but the host carries no recognised network marker.
+        /// Distinct from `nil` (which means "positively mainnet") — "Custom" means "unknown network".
+        static let customBadge = NSLocalizedString("nodeSettings.customBadge", comment: "")
     }
 
     // MARK: - Node Status

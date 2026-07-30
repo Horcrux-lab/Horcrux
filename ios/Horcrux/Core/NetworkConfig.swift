@@ -464,43 +464,72 @@ final class NetworkConfig: ObservableObject, @unchecked Sendable {
         RPCEndpointHealth.clearAll()
     }
 
-    /// Short testnet badge for a given chain, or nil when the current
-    /// network selection for that chain is mainnet.
+    /// Short testnet/devnet badge for a given chain, or nil when the current
+    /// network selection is positively mainnet.
     ///
-    /// Used by wallet UI (list rows + detail hero) so users can tell at
-    /// a glance whether they're looking at real-value funds. Labels stay
-    /// short so they fit in a capsule next to the chain name.
+    /// **Host-only matching.** When a custom override is present, only the URL's
+    /// host component is tested — never the path or query. A path segment like
+    /// `/proxy/devnet-migration` or an API key in the path must not decide the
+    /// badge; only a hostname like `api.devnet.solana.com` is authoritative.
     ///
-    /// When a per-chain override is present, the badge is derived from
-    /// the override URL rather than from the network-selector flag. This
-    /// keeps the badge consistent with the endpoint the app actually uses.
-    /// If the override URL matches no known network marker, nil is returned
-    /// — we cannot determine which network the custom endpoint targets, and
-    /// claiming "Mainnet" (implied by nil) could be equally false.
+    /// **"Custom" for unrecognised overrides.** When an override is present and
+    /// its host carries no recognised network marker, the function returns
+    /// `L10n.NodeSettings.customBadge` ("Custom") rather than `nil`. `nil` means
+    /// "we positively know this is mainnet", which is only safe when no override
+    /// is in play or the host is a recognised default. Returning `nil` for an
+    /// opaque custom endpoint would silently imply mainnet — exactly the false
+    /// confidence this badge exists to prevent.
+    ///
+    /// **Why no network probe.** Protocol-level detection (eth_chainId, Solana
+    /// genesis hash, Bitcoin network identity) is the correct long-term answer,
+    /// but `testnetBadge(for:)` is a synchronous accessor called from wallet list
+    /// rows. Adding a probe requires async delivery, per-chain caching, failure
+    /// states, and cache invalidation — that is a feature, not a badge fix, and
+    /// is deliberately out of scope here.
     func testnetBadge(for chain: Chain) -> String? {
+        // Helper: extract the lowercased host from a URL string, or "" on failure.
+        func host(of url: String) -> String {
+            URLComponents(string: url)?.host?.lowercased() ?? ""
+        }
+
         switch chain {
         case .ethereum:
-            if let overrideURL = ChainEndpointOverrides.shared.url(for: .ethereum) {
-                let u = overrideURL.lowercased()
-                if u.contains("sepolia") || u.contains("11155111") { return "Sepolia" }
-                return nil  // unknown target; don't claim mainnet
+            if let override = ChainEndpointOverrides.shared.url(for: .ethereum) {
+                let h = host(of: override)
+                if h.contains("sepolia") { return "Sepolia" }
+                return L10n.NodeSettings.customBadge
             }
             return EVMNetwork(rawValue: evmChainId) == .sepolia ? "Sepolia" : nil
         case .bitcoin:
-            if let overrideURL = ChainEndpointOverrides.shared.url(for: .bitcoin) {
-                return overrideURL.lowercased().contains("testnet") ? "Testnet" : nil
+            if let override = ChainEndpointOverrides.shared.url(for: .bitcoin) {
+                let h = host(of: override)
+                if h.contains("testnet") { return "Testnet" }
+                return L10n.NodeSettings.customBadge
             }
             return btcTestnet ? "Testnet" : nil
         case .litecoin:
-            return rpcURL(for: .litecoin).lowercased().contains("testnet") ? "Testnet" : nil
+            if let override = ChainEndpointOverrides.shared.url(for: .litecoin) {
+                let h = host(of: override)
+                if h.contains("testnet") { return "Testnet" }
+                return L10n.NodeSettings.customBadge
+            }
+            // No network flag for litecoin; derive from the public default's host.
+            return host(of: rpcURL(for: .litecoin)).contains("testnet") ? "Testnet" : nil
         case .solana:
-            if let overrideURL = ChainEndpointOverrides.shared.url(for: .solana) {
-                return overrideURL.lowercased().contains("devnet") ? "Devnet" : nil
+            if let override = ChainEndpointOverrides.shared.url(for: .solana) {
+                let h = host(of: override)
+                if h.contains("devnet") { return "Devnet" }
+                return L10n.NodeSettings.customBadge
             }
             return solDevnet ? "Devnet" : nil
         case .tron:
-            let api = rpcURL(for: .tron).lowercased()
-            return (api.contains("shasta") || api.contains("nile")) ? "Shasta" : nil
+            if let override = ChainEndpointOverrides.shared.url(for: .tron) {
+                let h = host(of: override)
+                if h.contains("shasta") || h.contains("nile") { return "Shasta" }
+                return L10n.NodeSettings.customBadge
+            }
+            let h = host(of: rpcURL(for: .tron))
+            return (h.contains("shasta") || h.contains("nile")) ? "Shasta" : nil
         default:
             return nil
         }

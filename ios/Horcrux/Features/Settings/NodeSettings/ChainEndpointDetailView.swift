@@ -1,5 +1,51 @@
 import SwiftUI
 
+/// Owns the draft URL for a single chain, exposing mutations as methods that
+/// update both the in-field draft and `ChainEndpointOverrides` atomically.
+///
+/// The invariant is structural, not conventional: because every override
+/// mutation goes through these methods, and each method updates `draft` and
+/// storage together, `commit()` can never resurrect a URL that `reset()` just
+/// cleared. There is no way to leave the two out of sync.
+final class ChainEndpointEditor: ObservableObject {
+    let chain: Chain
+    /// Current value displayed in the text field. Initialised from storage.
+    /// Direct writes are for the TextField binding only; use the methods below
+    /// for any programmatic mutation.
+    @Published var draft: String
+
+    init(chain: Chain) {
+        self.chain = chain
+        draft = ChainEndpointOverrides.shared.url(for: chain) ?? ""
+    }
+
+    // MARK: - Atomic mutations
+
+    /// Select a known candidate URL. Updates draft and storage together.
+    func select(url: String) {
+        draft = url
+        ChainEndpointOverrides.shared.set(url, for: chain)
+    }
+
+    /// Clear the override and reset draft to empty. Updates draft and storage together.
+    func reset() {
+        draft = ""
+        ChainEndpointOverrides.shared.clear(chain)
+    }
+
+    /// Commit the current draft to storage if it differs from what is stored.
+    /// Trims whitespace; an empty trimmed value clears the override.
+    /// Call on form dismiss (`.onDisappear`) and Return key (`.onSubmit`).
+    func commit() {
+        let trimmed = draft.trimmingCharacters(in: .whitespacesAndNewlines)
+        let stored = ChainEndpointOverrides.shared.url(for: chain) ?? ""
+        guard trimmed != stored else { return }
+        ChainEndpointOverrides.shared.set(trimmed, for: chain)
+        // Normalise the displayed value to its trimmed form.
+        if draft != trimmed { draft = trimmed }
+    }
+}
+
 struct ChainEndpointDetailView: View {
     let chain: Chain
 
@@ -15,31 +61,16 @@ struct ChainEndpointDetailView: View {
     // harmless mid-type (a half-key simply fails auth and falls through);
     // a half-typed URL is a live misconfiguration. So draft state is kept.
     //
-    // Two bugs the original @State draft + .onSubmit + .onAppear pattern
-    // introduces (see the comment in NodeProviderSection.swift):
-    //
-    // 1. Input lost on navigate-back without pressing Return:
-    //    Fixed by committing in .onDisappear as well as .onSubmit.
-    //
-    // 2. Lazy-row re-appear clobbering in-progress input via .onAppear:
-    //    Fixed by seeding via State(initialValue:) in init. SwiftUI only
-    //    honours the initialValue the first time the view is composed at
-    //    its identity position in the tree; subsequent re-appears leave the
-    //    state untouched. ChainEndpointDetailView is a full-screen Form
-    //    pushed by NavigationStack, not a lazy-list row, so the
-    //    "scroll-away and back recreates the row" scenario does not apply —
-    //    but init-based seeding removes the dependency on that assumption.
-    //
-    // Whitespace:
-    // ChainEndpointOverrides.set already trims and treats an
-    // empty/whitespace-only string as a clear. We trim explicitly in
-    // commitDraft so the contract is visible at the call site rather than
-    // being a silent side effect of the store.
-    @State private var draft: String
+    // ChainEndpointEditor owns the draft and exposes mutations as atomic
+    // methods (select/reset/commit). The invariant is structural: any
+    // mutation of the stored override goes through the editor, so commit()
+    // on .onDisappear can never find a stale draft and resurrect a cleared
+    // override.
+    @StateObject private var editor: ChainEndpointEditor
 
     init(chain: Chain) {
         self.chain = chain
-        _draft = State(initialValue: ChainEndpointOverrides.shared.url(for: chain) ?? "")
+        _editor = StateObject(wrappedValue: ChainEndpointEditor(chain: chain))
     }
 
     var body: some View {
@@ -70,21 +101,20 @@ struct ChainEndpointDetailView: View {
             }
 
             Section(L10n.NodeSettings.customURLSection) {
-                TextField(config.publicDefault(for: chain), text: $draft)
+                TextField(config.publicDefault(for: chain), text: $editor.draft)
                     .font(.system(.body, design: .monospaced))
                     .textInputAutocapitalization(.never)
                     .autocorrectionDisabled()
                     .accessibilityIdentifier("nodeSettings_overrideField")
-                    .onSubmit { commitDraft() }
+                    .onSubmit { editor.commit() }
 
                 Button(L10n.NodeSettings.useDefault) {
-                    draft = ""
-                    overrides.clear(chain)
+                    editor.reset()
                 }
                 .disabled(overrides.url(for: chain) == nil)
 
-                EndpointSwitcher(chain: chain, draft: $draft)
-                ChainFieldActions(chain: chain, draft: $draft)
+                EndpointSwitcher(editor: editor)
+                ChainFieldActions(editor: editor)
             }
 
             // WebSocket endpoint for chains that support it (Ethereum, Solana).
@@ -102,34 +132,6 @@ struct ChainEndpointDetailView: View {
             }
         }
         .navigationTitle(chain.displayName)
-        .onDisappear { commitDraft() }
-    }
-
-    // MARK: - Draft commit
-
-    /// Pure decision function for commitDraft — extracted so it can be
-    /// unit-tested without SwiftUI lifecycle dependencies.
-    ///
-    /// - Parameters:
-    ///   - draft:  The current TextField value (may have leading/trailing whitespace).
-    ///   - stored: The current value in ChainEndpointOverrides, or nil if none.
-    /// - Returns: The trimmed URL to persist, or nil when draft already matches
-    ///   storage and no write is needed. An empty return value means "clear".
-    ///
-    /// The `@Binding`-based fix in `EndpointSwitcher` and `ChainFieldActions`
-    /// ensures draft and storage always move together, so this function should
-    /// never receive a stale `draft` that differs from `stored` due to an
-    /// external storage mutation. This pure function remains the authoritative
-    /// guard against unnecessary writes.
-    static func commitDecision(draft: String, stored: String?) -> String? {
-        let trimmed = draft.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard trimmed != (stored ?? "") else { return nil }
-        return trimmed
-    }
-
-    private func commitDraft() {
-        if let value = Self.commitDecision(draft: draft, stored: overrides.url(for: chain)) {
-            overrides.set(value, for: chain)
-        }
+        .onDisappear { editor.commit() }
     }
 }
