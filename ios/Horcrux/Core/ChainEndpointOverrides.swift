@@ -8,14 +8,33 @@ import Foundation
 /// an entry for every chain would freeze each user on whatever the
 /// defaults happened to be the day they migrated — the same failure mode
 /// `NetworkConfig.migrateDeadEndpoints` exists to clean up after.
+///
+/// Reads happen off the main thread. `BlockchainService` is an `actor` and
+/// calls `NetworkConfig.rpcURL(for:)` from its own executor, so once the
+/// resolver consults this store an RPC thread will be reading the
+/// dictionary while a settings screen mutates it on main. A `Dictionary`
+/// reallocates its buffer as it grows, so that race can hand a reader
+/// freed storage. Hence the lock. Marking the type `@MainActor` instead —
+/// as `NodeHealthStore` is — is not available: it would make the
+/// synchronous read from the actor-isolated RPC path impossible.
 final class ChainEndpointOverrides: ObservableObject, @unchecked Sendable {
     static let shared = ChainEndpointOverrides()
 
-    private static let storageKey = "com.horcrux.rpc.chainOverrides"
+    /// Not private: tests assert against the real stored payload, and a
+    /// duplicated string literal there would silently start testing
+    /// nothing the day this key is renamed.
+    static let storageKey = "com.horcrux.rpc.chainOverrides"
 
-    /// Keyed by `Chain.rawValue` rather than `Chain` so the dictionary can
-    /// go straight into `UserDefaults`, which only accepts property-list
-    /// types.
+    private let lock = NSLock()
+
+    /// The authoritative store, guarded by `lock`. Keyed by
+    /// `Chain.rawValue` rather than `Chain` so the dictionary can go
+    /// straight into `UserDefaults`, which only accepts property-list types.
+    private var storage: [String: String] = [:]
+
+    /// Main-thread mirror, for SwiftUI only. Do not read this from the RPC
+    /// path — it is updated asynchronously and may lag `storage`. Use
+    /// `url(for:)` or `snapshot()`, which take the lock.
     @Published private(set) var overrides: [String: String] = [:]
 
     private init() {
@@ -23,8 +42,9 @@ final class ChainEndpointOverrides: ObservableObject, @unchecked Sendable {
     }
 
     func url(for chain: Chain) -> String? {
-        guard let value = overrides[chain.rawValue], !value.isEmpty else { return nil }
-        return value
+        lock.lock()
+        defer { lock.unlock() }
+        return storage[chain.rawValue]
     }
 
     /// Storing an empty string clears the entry rather than persisting "",
@@ -36,33 +56,70 @@ final class ChainEndpointOverrides: ObservableObject, @unchecked Sendable {
             clear(chain)
             return
         }
-        overrides[chain.rawValue] = trimmed
-        persist()
+        mutate { $0[chain.rawValue] = trimmed }
     }
 
     func clear(_ chain: Chain) {
-        overrides.removeValue(forKey: chain.rawValue)
-        persist()
+        mutate { $0.removeValue(forKey: chain.rawValue) }
     }
 
     func removeAll() {
-        overrides = [:]
-        persist()
+        mutate { $0.removeAll() }
     }
 
     /// Chains that currently carry an override, for the settings list.
     /// Unknown keys are dropped: a stored value for a chain this build no
     /// longer has must not crash the list or resurrect a dead case.
     func allChains() -> Set<Chain> {
-        Set(overrides.keys.compactMap(Chain.init(rawValue:)))
+        Set(snapshot().keys.compactMap(Chain.init(rawValue:)))
+    }
+
+    /// A consistent copy for callers that need the whole map, such as
+    /// config export.
+    func snapshot() -> [String: String] {
+        lock.lock()
+        defer { lock.unlock() }
+        return storage
     }
 
     func reloadFromDisk() {
-        let stored = UserDefaults.standard.dictionary(forKey: Self.storageKey) as? [String: String]
-        overrides = stored ?? [:]
+        // Filtered per entry rather than cast wholesale. `as? [String: String]`
+        // on the container is all-or-nothing: one non-String value — from a
+        // newer build's payload after a downgrade, managed app config, or
+        // plain plist corruption — would nil the whole dictionary and drop
+        // every hand-entered self-hosted address the user has. The next
+        // write would then make that loss permanent.
+        let raw = UserDefaults.standard.dictionary(forKey: Self.storageKey) ?? [:]
+        let cleaned = raw.compactMapValues { value -> String? in
+            guard let text = value as? String else { return nil }
+            let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+            return trimmed.isEmpty ? nil : trimmed
+        }
+        lock.lock()
+        storage = cleaned
+        lock.unlock()
+        publishMirror(cleaned)
     }
 
-    private func persist() {
-        UserDefaults.standard.set(overrides, forKey: Self.storageKey)
+    /// Empty values are dropped at the disk boundary above, so `storage`
+    /// never holds one. That keeps `url(for:)`, `allChains()` and
+    /// `snapshot()` agreeing on what "has an override" means — a store
+    /// whose whole semantics rest on "absent means follow the default"
+    /// cannot afford two answers to that question.
+    private func mutate(_ body: (inout [String: String]) -> Void) {
+        lock.lock()
+        body(&storage)
+        let updated = storage
+        lock.unlock()
+        UserDefaults.standard.set(updated, forKey: Self.storageKey)
+        publishMirror(updated)
+    }
+
+    private func publishMirror(_ value: [String: String]) {
+        if Thread.isMainThread {
+            overrides = value
+        } else {
+            DispatchQueue.main.async { [weak self] in self?.overrides = value }
+        }
     }
 }
