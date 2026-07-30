@@ -851,7 +851,7 @@ custom Polygon URL silently applies to Base -- cannot recur."
 ### Task 4: `publicDefault(for:)` for all fourteen chains
 
 **Files:**
-- Modify: `ios/Horcrux/Core/NetworkConfig.swift` (add after `rpcURL(for:)`, around line 279)
+- Modify: `ios/Horcrux/Core/NetworkConfig.swift` (add after `rpcURL(for:)`, which ends at line 278)
 - Test: `ios/HorcruxTests/EndpointResolutionTests.swift`
 
 - [ ] **Step 1: Write the failing test**
@@ -936,7 +936,7 @@ the file, so it is visible from inside the type. Leave it there.
 
 - [ ] **Step 4: Run the test to verify it passes**
 
-Same command. Expected: `TEST SUCCEEDED`, 9 tests.
+Same command. Expected: `TEST SUCCEEDED`, 19 tests.
 
 - [ ] **Step 5: Commit**
 
