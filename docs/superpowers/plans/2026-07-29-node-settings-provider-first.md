@@ -1208,6 +1208,24 @@ Insert directly after `publicDefault(for:)` in `NetworkConfig.swift`:
 
 Expected: `TEST SUCCEEDED`, 29 tests.
 
+**Post-review addendum (already applied in commit `de74061`).** Two
+things the task above got wrong:
+
+1. `solanaMainnet: !solDevnet` was unobservable to the whole suite — the
+   parameter is dead for non-Solana chains, and the only test reaching
+   `.solana` ran with no provider, so it short-circuited first. Two tests
+   were added pinning the Alchemy mainnet/devnet templates and the
+   Ankr-has-no-devnet-host fallthrough. Both were verified to fail when
+   the argument is hardcoded to `true`.
+2. `withCleanConfig` did not restore everything it perturbed.
+   `alchemyAPIKey.didSet` runs `autoSwapPaidPublicDefaultsOnKeyChange`,
+   which rewrites `ethereumRPC`/`solanaRPC` and is **edge-triggered** on
+   empty↔non-empty — clear-then-set crosses two edges, restoring a
+   non-empty key crosses none, so the swap never unwinds. The helper now
+   also saves `solDevnet`, `ankrAPIKey`, `ethereumRPC` and `solanaRPC`,
+   restoring the URLs *after* the key. `setUp` snapshots and restores the
+   override store instead of blanking it.
+
 - [ ] **Step 5: Commit**
 
 ```bash
