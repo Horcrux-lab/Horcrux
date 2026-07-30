@@ -536,6 +536,16 @@
 "nodeSettings.wssTest" = "Test connection";
 "nodeSettings.wssTesting" = "Connecting…";
 "nodeSettings.wssOK" = "WebSocket OK (%dms)";
+"nodeSettings.providerSection" = "Node provider";
+"nodeSettings.providerPicker" = "Provider";
+"nodeSettings.providerPublicDefaults" = "Public defaults";
+"nodeSettings.providerKeyLabel" = "%@ API key";
+"nodeSettings.providerPublicCaption" = "Every chain uses its public endpoint. Add a provider key for a dedicated rate limit.";
+"nodeSettings.coverageNoKey" = "No key set — using public endpoints.";
+"nodeSettings.coverageNoKeyWithOverrides" = "No key set. %1$d chains use your own endpoints; %2$d use public defaults.";
+"nodeSettings.coverageAllCovered" = "%1$@ covers all %2$d chains.";
+"nodeSettings.coverageAllWithOverrides" = "%1$@ covers %2$d chains; %3$d also use your own endpoints.";
+"nodeSettings.coveragePartial" = "%1$@ covers %2$d of %3$d chains. %4$@ stay on public endpoints.";
 
 /* Node Status */
 "nodeStatus.notChecked" = "Not checked";

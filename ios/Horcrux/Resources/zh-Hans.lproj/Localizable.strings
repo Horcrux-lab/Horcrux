@@ -536,6 +536,16 @@
 "nodeSettings.wssTest" = "测试连接";
 "nodeSettings.wssTesting" = "连接中…";
 "nodeSettings.wssOK" = "WebSocket 可用（%dms）";
+"nodeSettings.providerSection" = "节点服务商";
+"nodeSettings.providerPicker" = "服务商";
+"nodeSettings.providerPublicDefaults" = "公共默认节点";
+"nodeSettings.providerKeyLabel" = "%@ API 密钥";
+"nodeSettings.providerPublicCaption" = "所有链均使用公共节点。添加服务商密钥可获得专属请求限额。";
+"nodeSettings.coverageNoKey" = "未设置密钥 — 使用公共节点。";
+"nodeSettings.coverageNoKeyWithOverrides" = "未设置密钥。%1$d 条链使用你的自定义节点，%2$d 条使用公共节点。";
+"nodeSettings.coverageAllCovered" = "%1$@ 覆盖全部 %2$d 条链。";
+"nodeSettings.coverageAllWithOverrides" = "%1$@ 覆盖 %2$d 条链，另有 %3$d 条使用你的自定义节点。";
+"nodeSettings.coveragePartial" = "%1$@ 覆盖 %3$d 条链中的 %2$d 条，%4$@ 仍使用公共节点。";
 
 /* Node Status */
 "nodeStatus.notChecked" = "未检查";
