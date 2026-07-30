@@ -52,20 +52,29 @@ extension NetworkConfig {
     func resolved(for chain: Chain) -> (source: EndpointSource, url: String) {
         let overrideURL = ChainEndpointOverrides.shared.url(for: chain)
         let provider = activeProvider
-        let solanaMainnet = !solDevnet                  // the ONLY place !solDevnet is computed
+        let solanaMainnet = !solDevnet          // the ONLY place !solDevnet is computed
+        let chainId = evmChainId                // captured once; used in classifier and .provider arm
+        // The reads above are deliberately uniform across all three branches so that
+        // precedence is expressed exactly once, in the classifier. The extra reads on
+        // the override path are accepted for that reason: the torn-read exposure is
+        // pre-existing and cannot affect the returned URL because isOverridden
+        // short-circuits classification before the provider or chainId are consulted.
         let source = Self.endpointSource(
             for: chain,
             isOverridden: overrideURL != nil,
             provider: provider,
             hasKey: provider.map { !apiKey(for: $0).isEmpty } ?? false,
-            evmChainId: evmChainId,
+            evmChainId: chainId,
             solanaMainnet: solanaMainnet)
         switch source {
         case .override:
             // ?? arm unreachable by construction; guards against future classifier changes.
             return (source, overrideURL ?? publicDefault(for: chain))
         case .provider(let p):
-            return (source, p.template(for: chain, evmChainId: evmChainId,
+            // Both `chainId` and `solanaMainnet` match the values passed to the
+            // classifier above, so source == .provider(p) guarantees p.template
+            // returns non-nil; the ?? arm is unreachable by construction.
+            return (source, p.template(for: chain, evmChainId: chainId,
                                        solanaMainnet: solanaMainnet) ?? publicDefault(for: chain))
         case .publicDefault:
             return (source, publicDefault(for: chain))
