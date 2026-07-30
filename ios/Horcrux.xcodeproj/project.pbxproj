@@ -75,6 +75,7 @@
 		74C5D59EF02E3610053E318E /* SecurityHealthCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 405A013BA7EFAD11E4F8F4DA /* SecurityHealthCard.swift */; };
 		7796AADB086F4ADF8D3A1DAE /* KeychainManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = E40F5C82E2B2A23A01ACEDF5 /* KeychainManager.swift */; };
 		792D01EFC687A2F2CDE2248F /* DeviceIdentity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9CACEAE7FCDAA0BBD548F673 /* DeviceIdentity.swift */; };
+		7B8B2CA50AA9094D5833102F /* ChainEndpointOverrides.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3B80076D224C8EF78FD4DC23 /* ChainEndpointOverrides.swift */; };
 		7C44D37A130193DFEF2393D7 /* SigningViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E7480F0578841135C2CBB740 /* SigningViewModelTests.swift */; };
 		83D25BF65526FEE56A62181C /* ENSResolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B83751DC183569D78645E15 /* ENSResolver.swift */; };
 		843756AA6FF24EF3B8B05FEB /* AuditExportView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 693AF0EBA3950107FFA1F5EE /* AuditExportView.swift */; };
@@ -141,6 +142,7 @@
 		F67AC91D21B093E3756B84D0 /* SigningPeerBindingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CCEDE02F9A5A9EC8B2DA40B3 /* SigningPeerBindingTests.swift */; };
 		F7DB9C6274A68D42502A94A7 /* CurrencyFormatter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9240EE29F08AE512DCD7BFD9 /* CurrencyFormatter.swift */; };
 		F82AFE8D9DE3FB4AE3A01C53 /* RoomCode.swift in Sources */ = {isa = PBXBuildFile; fileRef = 78945C8D2E02C473BE7380A6 /* RoomCode.swift */; };
+		F8AFD0BB432E20681624EAB8 /* EndpointResolutionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0C0C6BE3464B8B466F380C37 /* EndpointResolutionTests.swift */; };
 		FB1C258295F02371B59E294D /* DecimalMathTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FE9BA63A9EC540A7F513185B /* DecimalMathTests.swift */; };
 		FB1E410B281E9AB9B87E49ED /* CustomTokensView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5521EC6BCED84EF1072F9D45 /* CustomTokensView.swift */; };
 		FB3401D2DF72092E03109173 /* CreateShardFlow.swift in Sources */ = {isa = PBXBuildFile; fileRef = CCAE5E8780140EF078CA194B /* CreateShardFlow.swift */; };
@@ -167,6 +169,7 @@
 		09FDAD0B647208C08CA5D02C /* NodeErrorMapperTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NodeErrorMapperTests.swift; sourceTree = "<group>"; };
 		0A31043E56FEF3233E692391 /* MessagePadding.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MessagePadding.swift; sourceTree = "<group>"; };
 		0A32865736E5E754BD205BA2 /* TransactionHistoryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TransactionHistoryView.swift; sourceTree = "<group>"; };
+		0C0C6BE3464B8B466F380C37 /* EndpointResolutionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EndpointResolutionTests.swift; sourceTree = "<group>"; };
 		0C5FFA18D2FBF177AEAD8BC2 /* AccountBackupMigrationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccountBackupMigrationTests.swift; sourceTree = "<group>"; };
 		0D8CC76DA3FFA51F1581D7CA /* TransactionStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TransactionStoreTests.swift; sourceTree = "<group>"; };
 		0E78608F2CD0ED1CADF94547 /* SecureLog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SecureLog.swift; sourceTree = "<group>"; };
@@ -189,6 +192,7 @@
 		36BF7F56D454A6F78D4A2F37 /* CertificatePinner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CertificatePinner.swift; sourceTree = "<group>"; };
 		3935002B5AD730445E22C6BD /* TransportProtocol.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TransportProtocol.swift; sourceTree = "<group>"; };
 		3B45D5364AB9F1360EFA4E5C /* WalletStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WalletStoreTests.swift; sourceTree = "<group>"; };
+		3B80076D224C8EF78FD4DC23 /* ChainEndpointOverrides.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChainEndpointOverrides.swift; sourceTree = "<group>"; };
 		3B9E2972827975B5F14B0356 /* zh-Hans */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = "zh-Hans"; path = "zh-Hans.lproj/Localizable.strings"; sourceTree = "<group>"; };
 		3FF408B4D713C13918899FEE /* CreateShardViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CreateShardViewModel.swift; sourceTree = "<group>"; };
 		405A013BA7EFAD11E4F8F4DA /* SecurityHealthCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SecurityHealthCard.swift; sourceTree = "<group>"; };
@@ -525,6 +529,7 @@
 				FE9BA63A9EC540A7F513185B /* DecimalMathTests.swift */,
 				0996A676D3CD4B28950E3F90 /* DeepLinkRouterTests.swift */,
 				8BB50EE7E823225B340C4C0C /* DkgPeerBindingTests.swift */,
+				0C0C6BE3464B8B466F380C37 /* EndpointResolutionTests.swift */,
 				A418982CCA628D972E97D905 /* MessagePaddingTests.swift */,
 				B9E84BAFAE73EC309601D40C /* ModelTests.swift */,
 				678F55EA0F92269FF77CA18E /* NetworkConfigTests.swift */,
@@ -592,6 +597,7 @@
 				8A7A080640527E951C3DFB84 /* BlockchainService.swift */,
 				B2D81D2873A804DCFE6F7442 /* BtcSigner.swift */,
 				15830F30B8339C7263832772 /* CeremonyStateManager.swift */,
+				3B80076D224C8EF78FD4DC23 /* ChainEndpointOverrides.swift */,
 				1E88421735CBBD6536F73D1A /* CopyFeedback.swift */,
 				B796C8B8FE702D114557534D /* CustomTokenStore.swift */,
 				A1C880DEC4705948DAECFB5F /* DeepLinkRouter.swift */,
@@ -736,6 +742,7 @@
 				FB1C258295F02371B59E294D /* DecimalMathTests.swift in Sources */,
 				5BC458CA15D9972155012F63 /* DeepLinkRouterTests.swift in Sources */,
 				6C4DADBAE905FE8B19A3BD46 /* DkgPeerBindingTests.swift in Sources */,
+				F8AFD0BB432E20681624EAB8 /* EndpointResolutionTests.swift in Sources */,
 				567E1DBE06932F612270F002 /* MessagePaddingTests.swift in Sources */,
 				514981C1384F66B055401254 /* ModelTests.swift in Sources */,
 				563DA275111031BB4FCE5CF4 /* NetworkConfigTests.swift in Sources */,
@@ -784,6 +791,7 @@
 				40EE00FC37AC4A9BD0D5B5F1 /* BtcSigner.swift in Sources */,
 				8B6DABC2BA6DA13BE06406AA /* CeremonyStateManager.swift in Sources */,
 				52FD2C971898C344961F87A6 /* CertificatePinner.swift in Sources */,
+				7B8B2CA50AA9094D5833102F /* ChainEndpointOverrides.swift in Sources */,
 				C3F663E12F4D2CC213624F7F /* ColdSigningCoordinator.swift in Sources */,
 				2482523E5D2C54B27D4D7C23 /* ColdSigningCoordinatorV2.swift in Sources */,
 				0071D77F99FBE7536B2A122E /* ColdSigningView.swift in Sources */,
