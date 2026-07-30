@@ -106,4 +106,17 @@ extension NetworkConfig {
         case .oneRPC:   return oneRPCAPIKey
         }
     }
+
+    func setAPIKey(_ value: String, for provider: NodeProvider) {
+        switch provider {
+        case .alchemy:  alchemyAPIKey = value
+        case .infura:   infuraAPIKey = value
+        case .ankr:     ankrAPIKey = value
+        case .blockpi:  blockpiAPIKey = value
+        case .drpc:     drpcAPIKey = value
+        case .nodeReal: nodeRealAPIKey = value
+        case .tenderly: tenderlyAPIKey = value
+        case .oneRPC:   oneRPCAPIKey = value
+        }
+    }
 }

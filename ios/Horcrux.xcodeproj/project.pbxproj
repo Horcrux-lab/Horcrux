@@ -35,6 +35,7 @@
 		31F7AA8D7864624009E83AB9 /* AccountStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA75292634745BB38B72881E /* AccountStore.swift */; };
 		358CA5D8F1B3F29B200DD29B /* RefreshTracker.swift in Sources */ = {isa = PBXBuildFile; fileRef = FD6B54BEC97DB28C77D606D2 /* RefreshTracker.swift */; };
 		35C8A96CF69D926E6C97D5E1 /* PendingBroadcastQueue.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8FFF986C29A1F3165AFA16CD /* PendingBroadcastQueue.swift */; };
+		39B4F1C6D79643D7C392D480 /* NodeProviderSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6D5915316EEE567F86FD8ED5 /* NodeProviderSection.swift */; };
 		3A2C65309D796E0746FCA9C9 /* RefreshShardCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = E28FFAFF9BE0949A94CC104D /* RefreshShardCoordinator.swift */; };
 		3FB4D6BC29E078FDD296EC80 /* ShardHealthView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 576275CC33EBC4584CF819DB /* ShardHealthView.swift */; };
 		40C8F060E6D92099AABBE676 /* SecureClipboard.swift in Sources */ = {isa = PBXBuildFile; fileRef = F14FEC5E558EE767A4A6A091 /* SecureClipboard.swift */; };
@@ -224,6 +225,7 @@
 		69A9C998E7A806927B3E2D34 /* CreateShardViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CreateShardViewModelTests.swift; sourceTree = "<group>"; };
 		6A13DA00F146F4337A259CB9 /* ColdSigningCoordinatorV2.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ColdSigningCoordinatorV2.swift; sourceTree = "<group>"; };
 		6B60143CF0CBC4C79AB085D6 /* PeerManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PeerManager.swift; sourceTree = "<group>"; };
+		6D5915316EEE567F86FD8ED5 /* NodeProviderSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NodeProviderSection.swift; sourceTree = "<group>"; };
 		6FFA4225B41BFAAD41678A18 /* PortableBackupCrypto.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PortableBackupCrypto.swift; sourceTree = "<group>"; };
 		71315F3A061FB358898A2C96 /* VaultDisplay.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VaultDisplay.swift; sourceTree = "<group>"; };
 		729455434EC6340461D1B478 /* SecurityEnvironment.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SecurityEnvironment.swift; sourceTree = "<group>"; };
@@ -426,6 +428,7 @@
 		85B75094B1B57036AB04F589 /* Settings */ = {
 			isa = PBXGroup;
 			children = (
+				C854894C074EC297301A87CF /* NodeSettings */,
 				D307B5C167392C9CA551EE9E /* AddressBookView.swift */,
 				693AF0EBA3950107FFA1F5EE /* AuditExportView.swift */,
 				5521EC6BCED84EF1072F9D45 /* CustomTokensView.swift */,
@@ -517,6 +520,14 @@
 				B8D4568CCB9082DA68D2A815 /* Wallet */,
 			);
 			path = Features;
+			sourceTree = "<group>";
+		};
+		C854894C074EC297301A87CF /* NodeSettings */ = {
+			isa = PBXGroup;
+			children = (
+				6D5915316EEE567F86FD8ED5 /* NodeProviderSection.swift */,
+			);
+			path = NodeSettings;
 			sourceTree = "<group>";
 		};
 		D1AB0B481D50F91BDE1AE8DE /* HorcruxTests */ = {
@@ -832,6 +843,7 @@
 				73DCF4DE4120D95F8C6376D7 /* NetworkConfig.swift in Sources */,
 				13C0AC2717BE738448E6F970 /* NodeErrorMapper.swift in Sources */,
 				BE1A1D1E7A5DB0C9442778D4 /* NodeProvider.swift in Sources */,
+				39B4F1C6D79643D7C392D480 /* NodeProviderSection.swift in Sources */,
 				C287BF7467A63911B2E5BE65 /* NodeSettingsMigration.swift in Sources */,
 				90328AA2F2C14EE460FC9866 /* NotificationManager.swift in Sources */,
 				CAA62095ADB8219F055DB007 /* PeerManager.swift in Sources */,
