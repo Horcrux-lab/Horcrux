@@ -541,7 +541,6 @@
 "nodeSettings.providerPicker" = "Provider";
 "nodeSettings.providerPublicDefaults" = "Public defaults";
 "nodeSettings.providerKeyLabel" = "%@ API key";
-"nodeSettings.providerPublicCaption" = "Every chain uses its public endpoint. Add a provider key for a dedicated rate limit.";
 "nodeSettings.coverageNoKey" = "No key set — using public endpoints.";
 "nodeSettings.coverageNoKeyWithOverrides" = "No key set. %1$d chains use your own endpoints; %2$d use public defaults.";
 "nodeSettings.coverageAllCovered" = "%1$@ covers all %2$d chains.";

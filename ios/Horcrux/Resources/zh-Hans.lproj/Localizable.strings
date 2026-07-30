@@ -541,7 +541,6 @@
 "nodeSettings.providerPicker" = "服务商";
 "nodeSettings.providerPublicDefaults" = "公共默认节点";
 "nodeSettings.providerKeyLabel" = "%@ API 密钥";
-"nodeSettings.providerPublicCaption" = "所有链均使用公共节点。添加服务商密钥可获得专属请求限额。";
 "nodeSettings.coverageNoKey" = "未设置密钥 — 使用公共节点。";
 "nodeSettings.coverageNoKeyWithOverrides" = "未设置密钥。%1$d 条链使用你的自定义节点，%2$d 条使用公共节点。";
 "nodeSettings.coverageAllCovered" = "%1$@ 覆盖全部 %2$d 条链。";

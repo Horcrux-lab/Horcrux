@@ -178,19 +178,31 @@ final class ProviderCoverageSummaryTests: XCTestCase {
 
     /// When no provider is selected, any chain with an override must NOT be
     /// reported as a public endpoint — that is the lie the old else-branch
-    /// providerPublicCaption told.
+    /// told via providerPublicCaption.
+    ///
+    /// Uses three overrides (bitcoin, litecoin, tron) so the count "3" cannot
+    /// collide as a substring with the 14-chain total or with publicDefault
+    /// count "11". With a single-override count of "1", the assertion
+    /// `contains("1")` would pass trivially because publicDefault.count is
+    /// "13", which contains "1". Three is the minimum safe discriminator
+    /// for the nil-provider case.
     func test_nilProvider_withOverrides_doesNotClaimEveryChainIsPublic() {
-        let s = summary(nil, hasKey: false, overrides: [.bitcoin])
+        let s = summary(nil, hasKey: false, overrides: [.bitcoin, .litecoin, .tron])
+        XCTAssertEqual(s.overridden.count, 3)
         XCTAssertTrue(s.providerCovered.isEmpty, "nil provider must have no provider-covered chains")
-        XCTAssertTrue(s.overridden.contains(.bitcoin), "bitcoin override must be in overridden")
         XCTAssertFalse(s.publicDefault.contains(.bitcoin),
                        "overridden chain must not be in publicDefault")
-        // The caption must not be the "every chain is public" string.
+        XCTAssertFalse(s.publicDefault.contains(.litecoin),
+                       "overridden chain must not be in publicDefault")
+        XCTAssertFalse(s.publicDefault.contains(.tron),
+                       "overridden chain must not be in publicDefault")
+        // The caption must positively reflect the overridden count.
+        // If %1$d is dropped from coverageNoKeyWithOverrides the "3" disappears
+        // from the caption, making this assertion fail for the right reason.
+        XCTAssertTrue(s.formattedCaption.contains("3"),
+                      "nil provider + 3 overrides: caption must contain the override count '3'")
         XCTAssertNotEqual(s.formattedCaption, L10n.NodeSettings.coverageNoKey,
                           "nil provider + override must not claim every chain is on a public endpoint")
-        // The caption must mention the overridden count so the numbers are honest.
-        XCTAssertTrue(s.formattedCaption.contains(String(s.overridden.count)),
-                      "nil provider + override caption must include the overridden count")
     }
 
     // MARK: - Helpers
