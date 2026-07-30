@@ -448,11 +448,11 @@ final class NetworkConfig: ObservableObject, @unchecked Sendable {
         case .bitcoin:
             return btcTestnet ? "Testnet" : nil
         case .litecoin:
-            return litecoinAPI.lowercased().contains("testnet") ? "Testnet" : nil
+            return rpcURL(for: .litecoin).lowercased().contains("testnet") ? "Testnet" : nil
         case .solana:
             return solDevnet ? "Devnet" : nil
         case .tron:
-            let api = tronAPI.lowercased()
+            let api = rpcURL(for: .tron).lowercased()
             return (api.contains("shasta") || api.contains("nile")) ? "Shasta" : nil
         default:
             return nil
@@ -469,6 +469,12 @@ final class NetworkConfig: ObservableObject, @unchecked Sendable {
     /// Endpoint overrides in `ChainEndpointOverrides` are intentionally left
     /// untouched: overrides represent an explicit user choice that should
     /// survive a preset flip.
+    ///
+    /// Note: the `didSet` helpers still write `ethereumRPC`, `bitcoinAPI`, and
+    /// `solanaRPC`. Those writes are now vestigial on the money path — routing
+    /// goes through `rpcURL(for:)` → `ChainEndpointOverrides`. They are
+    /// retained because `NodeSettingsMigration` reads them at launch to seed
+    /// overrides, and `RPCConfigSnapshot` reads/writes them for export.
     func applyPreset(_ preset: NetworkPreset) {
         evmChainId = preset.evmChainId
         btcTestnet = preset.btcTestnet
@@ -886,7 +892,7 @@ actor NetworkStatus {
             }
             switch chain {
             case .bitcoin:
-                let base = config.bitcoinAPI
+                let base = config.rpcURL(for: .bitcoin)
                 guard let url = URL(string: "\(base)/blocks/tip/height") else { return false }
                 var req = URLRequest(url: url, timeoutInterval: 5)
                 req.httpMethod = "GET"
@@ -894,7 +900,7 @@ actor NetworkStatus {
                 if let http = response as? HTTPURLResponse { return (200...299).contains(http.statusCode) }
                 return false
             case .litecoin:
-                let base = config.litecoinAPI
+                let base = config.rpcURL(for: .litecoin)
                 guard let url = URL(string: "\(base)/blocks/tip/height") else { return false }
                 var req = URLRequest(url: url, timeoutInterval: 5)
                 req.httpMethod = "GET"
@@ -902,11 +908,11 @@ actor NetworkStatus {
                 if let http = response as? HTTPURLResponse { return (200...299).contains(http.statusCode) }
                 return false
             case .solana:
-                _ = try await service.solHealth(rpcURL: config.solanaRPC)
+                _ = try await service.solHealth(rpcURL: config.rpcURL(for: .solana))
                 return true
             case .tron:
                 // TronGrid exposes `/wallet/getnowblock` as a lightweight liveness probe.
-                let base = config.tronAPI
+                let base = config.rpcURL(for: .tron)
                 guard let url = URL(string: "\(base)/wallet/getnowblock") else { return false }
                 var req = URLRequest(url: url, timeoutInterval: 5)
                 req.httpMethod = "POST"

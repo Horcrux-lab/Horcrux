@@ -355,4 +355,122 @@ final class NodeSettingsV2RegressionTests: XCTestCase {
         XCTAssertEqual(source, .publicDefault,
                        "After clearing, source must fall back to publicDefault (no key configured). Got: \(source)")
     }
+
+    // MARK: - Read-side regression: legacy fields are not the money path
+
+    /// Setting an override updates `rpcURL(for:)` for ALL four non-EVM chains
+    /// that had dedicated legacy fields. The second assertion in each case
+    /// documents that the legacy stored property is now a stale shadow:
+    /// any code reading it directly is reading the wrong thing.
+    ///
+    /// This test would have caught the read-side regression that was
+    /// introduced when the write side was fixed (Task 12 follow-up).
+    func test_overrideReflected_inRPCURL_forAllFourLegacyChains() {
+        let config = NetworkConfig.shared
+        let savedBtcAPI = config.bitcoinAPI
+        let savedLtcAPI = config.litecoinAPI
+        let savedSolRPC = config.solanaRPC
+        let savedTronAPI = config.tronAPI
+        let savedProvider = config.activeProvider
+        let savedBtcTestnet = config.btcTestnet
+        let savedSolDevnet = config.solDevnet
+        defer {
+            config.activeProvider = savedProvider
+            config.btcTestnet = savedBtcTestnet
+            config.solDevnet = savedSolDevnet
+            config.bitcoinAPI = savedBtcAPI
+            config.litecoinAPI = savedLtcAPI
+            config.solanaRPC = savedSolRPC
+            config.tronAPI = savedTronAPI
+        }
+
+        config.activeProvider = nil
+        config.btcTestnet = false
+        config.solDevnet = false
+        ChainEndpointOverrides.shared.removeAll()
+
+        let cases: [(Chain, String, KeyPath<NetworkConfig, String>)] = [
+            (.bitcoin,  "https://btc-sentinel.example",  \.bitcoinAPI),
+            (.litecoin, "https://ltc-sentinel.example",  \.litecoinAPI),
+            (.solana,   "https://sol-sentinel.example",  \.solanaRPC),
+            (.tron,     "https://tron-sentinel.example", \.tronAPI),
+        ]
+
+        for (chain, sentinel, legacyKP) in cases {
+            // Write through the correct new path.
+            ChainEndpointOverrides.shared.set(sentinel, for: chain)
+
+            // rpcURL must reflect the override.
+            let resolved = config.rpcURL(for: chain)
+            XCTAssertTrue(resolved.contains(sentinel.replacingOccurrences(of: "https://", with: "")),
+                "[\(chain)] rpcURL must return the override URL. Got: \(resolved)")
+
+            // The legacy stored property must NOT equal the override —
+            // it is a stale shadow. Code that reads it directly is reading
+            // the wrong thing. Do NOT simplify away this assertion.
+            let legacyValue = config[keyPath: legacyKP]
+            XCTAssertNotEqual(legacyValue, sentinel,
+                "[\(chain)] legacy field \(legacyKP) must not equal the override — " +
+                "it is a stale shadow; any caller reading it is on the wrong path. " +
+                "Got: \(legacyValue)")
+
+            ChainEndpointOverrides.shared.clear(chain)
+        }
+    }
+
+    /// Bitcoin and Solana separately: override takes effect where a clear
+    /// returns to the public default. Covers the two chains used in mutation
+    /// verification below.
+    func test_bitcoinOverride_resolves_andLegacyFieldIsStale() {
+        let config = NetworkConfig.shared
+        let savedBtcAPI = config.bitcoinAPI
+        let savedBtcTestnet = config.btcTestnet
+        let savedProvider = config.activeProvider
+        defer {
+            config.activeProvider = savedProvider
+            config.btcTestnet = savedBtcTestnet
+            config.bitcoinAPI = savedBtcAPI
+        }
+
+        config.activeProvider = nil
+        config.btcTestnet = false
+        ChainEndpointOverrides.shared.removeAll()
+
+        let sentinel = "https://btc-override-test.example"
+        ChainEndpointOverrides.shared.set(sentinel, for: .bitcoin)
+
+        // The money path must use the override.
+        XCTAssertTrue(config.rpcURL(for: .bitcoin).contains("btc-override-test.example"),
+            "rpcURL(for: .bitcoin) must return the override. Got: \(config.rpcURL(for: .bitcoin))")
+
+        // The legacy field is a stale shadow — do NOT read it on the money path.
+        XCTAssertNotEqual(config.bitcoinAPI, sentinel,
+            "bitcoinAPI must not equal the override — it is a stale shadow. Got: \(config.bitcoinAPI)")
+    }
+
+    func test_solanaOverride_resolves_andLegacyFieldIsStale() {
+        let config = NetworkConfig.shared
+        let savedSolRPC = config.solanaRPC
+        let savedSolDevnet = config.solDevnet
+        let savedProvider = config.activeProvider
+        defer {
+            config.activeProvider = savedProvider
+            config.solDevnet = savedSolDevnet
+            config.solanaRPC = savedSolRPC
+        }
+
+        config.activeProvider = nil
+        config.solDevnet = false
+        ChainEndpointOverrides.shared.removeAll()
+
+        let sentinel = "https://sol-override-test.example"
+        ChainEndpointOverrides.shared.set(sentinel, for: .solana)
+
+        XCTAssertTrue(config.rpcURL(for: .solana).contains("sol-override-test.example"),
+            "rpcURL(for: .solana) must return the override. Got: \(config.rpcURL(for: .solana))")
+
+        // The legacy field is a stale shadow — do NOT read it on the money path.
+        XCTAssertNotEqual(config.solanaRPC, sentinel,
+            "solanaRPC must not equal the override — it is a stale shadow. Got: \(config.solanaRPC)")
+    }
 }

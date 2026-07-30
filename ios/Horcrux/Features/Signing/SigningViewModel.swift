@@ -598,7 +598,7 @@ final class SigningViewModel: ObservableObject {
                     case .bitcoin:
                         let feeDisplay = try await blockchainService.btcFeeEstimateDisplay(
                             inputCount: 1, outputCount: 2,
-                            apiURL: networkConfig.bitcoinAPI
+                            apiURL: networkConfig.rpcURL(for: .bitcoin)
                         )
                         await MainActor.run {
                             estimatedFee = "≈ \(feeDisplay.estimatedFee)"
@@ -606,7 +606,7 @@ final class SigningViewModel: ObservableObject {
                         }
                     case .solana:
                         let feeDisplay = try await blockchainService.solFeeEstimateDisplay(
-                            rpcURL: networkConfig.solanaRPC
+                            rpcURL: networkConfig.rpcURL(for: .solana)
                         )
                         await MainActor.run {
                             estimatedFee = "≈ \(feeDisplay.estimatedFee)"
@@ -621,7 +621,7 @@ final class SigningViewModel: ObservableObject {
                         // conservative 14 TRX ceiling if the call fails.
                         let feeTRX: String
                         if let token = self.selectedToken {
-                            let api = networkConfig.tronAPI
+                            let api = networkConfig.rpcURL(for: .tron)
                             let rawAmount = Self.amountToRawUnits(amount, decimals: Int(token.decimals))
                             do {
                                 let result = try await blockchainService.tronEstimateTRC20Fee(
@@ -649,7 +649,7 @@ final class SigningViewModel: ObservableObject {
                         do {
                             let feeDisplay = try await blockchainService.btcFeeEstimateDisplay(
                                 inputCount: 1, outputCount: 2,
-                                apiURL: networkConfig.litecoinAPI
+                                apiURL: networkConfig.rpcURL(for: .litecoin)
                             )
                             // Replace BTC units in the display with LTC.
                             let ltcFee = feeDisplay.estimatedFee.replacingOccurrences(of: "BTC", with: "LTC")
@@ -2025,12 +2025,7 @@ final class SigningViewModel: ObservableObject {
         guard let networkConfig, let blockchainService else {
             throw SigningError.notInitialized
         }
-        let apiURL: String
-        switch wallet.chain {
-        case .bitcoin: apiURL = networkConfig.bitcoinAPI
-        case .litecoin: apiURL = networkConfig.litecoinAPI
-        default: throw SigningError.notInitialized
-        }
+        let apiURL = networkConfig.rpcURL(for: wallet.chain)
 
         // 1. Fetch UTXOs (confirmed only to avoid replace-by-fee surprises).
         let utxos = try await blockchainService.btcUtxos(address: wallet.address, apiURL: apiURL)
@@ -2171,7 +2166,7 @@ final class SigningViewModel: ObservableObject {
         }
         let fetchedAtMs = UInt64(Date().timeIntervalSince1970 * 1000)
         let blockhash = try await blockchainService.solRecentBlockhash(
-            rpcURL: networkConfig.solanaRPC)
+            rpcURL: networkConfig.rpcURL(for: .solana))
         let nowMs = UInt64(Date().timeIntervalSince1970 * 1000)
         let params = FfiSolanaTxParams(
             fromAddress: wallet.address,
@@ -2216,7 +2211,7 @@ final class SigningViewModel: ObservableObject {
         guard let blockchainService, let networkConfig else {
             throw SigningError.notInitialized
         }
-        let apiURL = networkConfig.tronAPI
+        let apiURL = networkConfig.rpcURL(for: .tron)
         let built: BlockchainService.TronUnsignedTx
         if let token = selectedToken {
             // TRC-20 transfer — token.id is the base58 contract address.
@@ -2332,7 +2327,7 @@ final class SigningViewModel: ObservableObject {
                     case .bitcoin:
                         let result = try await blockchainService.btcBroadcast(
                             signedTxHex: txHash,
-                            apiURL: networkConfig.bitcoinAPI
+                            apiURL: networkConfig.rpcURL(for: .bitcoin)
                         )
                         await MainActor.run {
                             broadcastStatus = "Broadcast OK: \(result.prefix(20))…"
@@ -2349,7 +2344,7 @@ final class SigningViewModel: ObservableObject {
                     case .litecoin:
                         let result = try await blockchainService.btcBroadcast(
                             signedTxHex: txHash,
-                            apiURL: networkConfig.litecoinAPI
+                            apiURL: networkConfig.rpcURL(for: .litecoin)
                         )
                         await MainActor.run {
                             broadcastStatus = "Broadcast OK: \(result.prefix(20))…"
@@ -2366,7 +2361,7 @@ final class SigningViewModel: ObservableObject {
                     case .solana:
                         let result = try await blockchainService.solSendTransaction(
                             signedTxBase64: txHash,
-                            rpcURL: networkConfig.solanaRPC
+                            rpcURL: networkConfig.rpcURL(for: .solana)
                         )
                         await MainActor.run {
                             broadcastStatus = "Broadcast OK: \(result.prefix(20))…"
@@ -2394,7 +2389,7 @@ final class SigningViewModel: ObservableObject {
                             rawDataHex: tron.rawDataHex,
                             rawDataJSON: tron.rawDataJSON,
                             signatureHex: sig,
-                            apiURL: networkConfig.tronAPI
+                            apiURL: networkConfig.rpcURL(for: .tron)
                         )
                         let finalTxID = result.isEmpty ? tron.txID : result
                         await MainActor.run {

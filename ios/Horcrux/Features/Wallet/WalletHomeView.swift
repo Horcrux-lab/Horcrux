@@ -626,13 +626,13 @@ struct WalletHomeView: View {
                 switch tx.chain {
                 case .bitcoin:
                     result = try await appState.blockchainService.btcBroadcast(
-                        signedTxHex: tx.signedPayload, apiURL: appState.networkConfig.bitcoinAPI)
+                        signedTxHex: tx.signedPayload, apiURL: appState.networkConfig.rpcURL(for: .bitcoin))
                 case .litecoin:
                     result = try await appState.blockchainService.btcBroadcast(
-                        signedTxHex: tx.signedPayload, apiURL: appState.networkConfig.litecoinAPI)
+                        signedTxHex: tx.signedPayload, apiURL: appState.networkConfig.rpcURL(for: .litecoin))
                 case .solana:
                     result = try await appState.blockchainService.solSendTransaction(
-                        signedTxBase64: tx.signedPayload, rpcURL: appState.networkConfig.solanaRPC)
+                        signedTxBase64: tx.signedPayload, rpcURL: appState.networkConfig.rpcURL(for: .solana))
                 case .tron:
                     // TRON broadcast is still pending.
                     throw BlockchainError.invalidURL("Broadcast not supported for \(tx.chain.rawValue)")
