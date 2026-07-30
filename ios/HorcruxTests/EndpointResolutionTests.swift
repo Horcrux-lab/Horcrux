@@ -227,4 +227,93 @@ final class EndpointResolutionTests: XCTestCase {
         // defaults, not crash and not resurrect as some other vendor.
         XCTAssertNil(NodeProvider(rawValue: "quicknode"))
     }
+
+    private func withCleanConfig(_ body: (NetworkConfig) -> Void) {
+        let config = NetworkConfig.shared
+        let provider = config.activeProvider
+        let chainId = config.evmChainId
+        let alchemy = config.alchemyAPIKey
+        defer {
+            config.activeProvider = provider
+            config.evmChainId = chainId
+            config.alchemyAPIKey = alchemy
+            ChainEndpointOverrides.shared.removeAll()
+        }
+        config.activeProvider = nil
+        config.alchemyAPIKey = ""
+        ChainEndpointOverrides.shared.removeAll()
+        body(config)
+    }
+
+    func test_resolve_withNothingConfigured_returnsThePublicDefault() {
+        withCleanConfig { config in
+            XCTAssertEqual(config.resolveRawURL(for: .base), "https://mainnet.base.org")
+        }
+    }
+
+    func test_resolve_prefersTheProviderTemplateOverPublic() {
+        withCleanConfig { config in
+            config.activeProvider = .alchemy
+            config.alchemyAPIKey = "k"
+            XCTAssertEqual(config.resolveRawURL(for: .base),
+                           "https://base-mainnet.g.alchemy.com/v2/{KEY}")
+        }
+    }
+
+    func test_resolve_prefersAnOverrideOverTheProvider() {
+        withCleanConfig { config in
+            config.activeProvider = .alchemy
+            config.alchemyAPIKey = "k"
+            ChainEndpointOverrides.shared.set("https://mine.example", for: .base)
+            XCTAssertEqual(config.resolveRawURL(for: .base), "https://mine.example")
+        }
+    }
+
+    /// A provider that does not serve a chain must not shadow the public
+    /// default for it, and must never return another chain's URL.
+    func test_resolve_fallsBackToPublicForAnUncoveredChain() {
+        withCleanConfig { config in
+            config.activeProvider = .alchemy
+            config.alchemyAPIKey = "k"
+            XCTAssertEqual(config.resolveRawURL(for: .bnb),
+                           "https://bsc-dataseed.bnbchain.org")
+            XCTAssertEqual(config.resolveRawURL(for: .bitcoin),
+                           config.publicDefault(for: .bitcoin))
+        }
+    }
+
+    /// Selecting a provider without pasting its key must not strand the
+    /// user on a template that resolves to a literal "{KEY}" request.
+    func test_resolve_ignoresTheProviderWhenItsKeyIsEmpty() {
+        withCleanConfig { config in
+            config.activeProvider = .alchemy
+            config.alchemyAPIKey = ""
+            XCTAssertEqual(config.resolveRawURL(for: .base), "https://mainnet.base.org")
+        }
+    }
+
+    /// Ethereum is the one chain whose EVM network the user can change, so
+    /// the resolver has to thread `evmChainId` through to the provider. If
+    /// it ever hardcodes mainnet, a Sepolia user silently talks to mainnet.
+    func test_resolve_forEthereum_followsTheNetworkToggleThroughTheProvider() {
+        withCleanConfig { config in
+            config.activeProvider = .alchemy
+            config.alchemyAPIKey = "k"
+
+            config.evmChainId = 1
+            XCTAssertEqual(config.resolveRawURL(for: .ethereum),
+                           "https://eth-mainnet.g.alchemy.com/v2/{KEY}")
+            config.evmChainId = 11_155_111
+            XCTAssertEqual(config.resolveRawURL(for: .ethereum),
+                           "https://eth-sepolia.g.alchemy.com/v2/{KEY}")
+        }
+    }
+
+    func test_resolve_neverReturnsEmptyForAnyChain() {
+        withCleanConfig { config in
+            for chain in Chain.allCases {
+                XCTAssertFalse(config.resolveRawURL(for: chain).isEmpty, "\(chain)")
+            }
+        }
+    }
 }
