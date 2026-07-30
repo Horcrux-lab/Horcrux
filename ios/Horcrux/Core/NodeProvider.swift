@@ -28,10 +28,15 @@ enum NodeProvider: String, CaseIterable, Identifiable, Codable {
     /// The `{KEY}`-bearing URL template this provider serves `chain` on,
     /// or nil when it does not serve that chain at all.
     ///
-    /// `evmChainId` is consulted only for `.ethereum`, whose network is
-    /// user-selectable between mainnet and Sepolia. Every other EVM chain
-    /// maps to exactly one `EVMNetwork`.
-    func template(for chain: Chain, evmChainId: UInt64) -> String? {
+    /// Both network selectors are explicit parameters. Reading either from
+    /// `NetworkConfig.shared` would make this type return different answers
+    /// for identical arguments, which a cached coverage set in the UI has no
+    /// way to notice.
+    ///
+    /// `evmChainId` is consulted only for `.ethereum`, which occupies the
+    /// app's one user-selectable EVM slot. Every other EVM chain maps
+    /// through its fixed `defaultEVMNetwork`.
+    func template(for chain: Chain, evmChainId: UInt64, solanaMainnet: Bool) -> String? {
         if chain.isEVM {
             guard let net = evmNetwork(for: chain, evmChainId: evmChainId) else { return nil }
             switch self {
@@ -49,13 +54,17 @@ enum NodeProvider: String, CaseIterable, Identifiable, Codable {
         guard chain == .solana else { return nil }
         // Bitcoin, Litecoin and Tron are served by no provider in this
         // enum; they fall through to public defaults or a user override.
-        let mainnet = !NetworkConfig.shared.solDevnet
         switch self {
-        case .alchemy:  return RPCProviderTemplate.alchemySolana(mainnet: mainnet)
-        case .infura:   return RPCProviderTemplate.infuraSolana(mainnet: mainnet)
-        case .ankr:     return RPCProviderTemplate.ankrSolana()
-        case .drpc:     return RPCProviderTemplate.drpcSolana()
-        case .oneRPC:   return RPCProviderTemplate.oneRPCSolana(mainnet: mainnet)
+        case .alchemy:  return RPCProviderTemplate.alchemySolana(mainnet: solanaMainnet)
+        case .infura:   return RPCProviderTemplate.infuraSolana(mainnet: solanaMainnet)
+        case .oneRPC:   return RPCProviderTemplate.oneRPCSolana(mainnet: solanaMainnet)
+        // ankrSolana() and drpcSolana() hardcode mainnet hosts and have no
+        // devnet variant. Solana addresses are byte-identical across
+        // clusters, so handing back a mainnet URL while the user believes
+        // they are on devnet would broadcast a "test" transfer against real
+        // funds. A missing endpoint is recoverable; a wrong cluster is not.
+        case .ankr:     return solanaMainnet ? RPCProviderTemplate.ankrSolana() : nil
+        case .drpc:     return solanaMainnet ? RPCProviderTemplate.drpcSolana() : nil
         case .blockpi, .nodeReal, .tenderly: return nil
         }
     }
@@ -67,11 +76,14 @@ enum NodeProvider: String, CaseIterable, Identifiable, Codable {
         return chain.defaultEVMNetwork
     }
 
-    func coveredChains(evmChainId: UInt64) -> Set<Chain> {
-        Set(Chain.allCases.filter { template(for: $0, evmChainId: evmChainId) != nil })
+    func coveredChains(evmChainId: UInt64, solanaMainnet: Bool) -> Set<Chain> {
+        Set(Chain.allCases.filter {
+            template(for: $0, evmChainId: evmChainId, solanaMainnet: solanaMainnet) != nil
+        })
     }
 
-    func uncoveredChains(evmChainId: UInt64) -> Set<Chain> {
-        Set(Chain.allCases).subtracting(coveredChains(evmChainId: evmChainId))
+    func uncoveredChains(evmChainId: UInt64, solanaMainnet: Bool) -> Set<Chain> {
+        Set(Chain.allCases)
+            .subtracting(coveredChains(evmChainId: evmChainId, solanaMainnet: solanaMainnet))
     }
 }
