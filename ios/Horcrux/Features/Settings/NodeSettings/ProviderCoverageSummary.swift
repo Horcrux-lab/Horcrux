@@ -57,7 +57,11 @@ struct ProviderCoverageSummary {
             .sorted { $0.displayName < $1.displayName }
             .map(\.displayName)
             .joined(separator: ", ")
-        return L10n.NodeSettings.coveragePartial(
-            provider.displayName, providerCovered.count, Chain.allCases.count, names)
+        if overridden.isEmpty {
+            return L10n.NodeSettings.coveragePartial(
+                provider.displayName, providerCovered.count, Chain.allCases.count, names)
+        }
+        return L10n.NodeSettings.coveragePartialWithOverrides(
+            provider.displayName, providerCovered.count, Chain.allCases.count, names, overridden.count)
     }
 }

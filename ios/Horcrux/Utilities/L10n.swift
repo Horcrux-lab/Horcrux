@@ -1202,6 +1202,10 @@ enum L10n {
             String(format: NSLocalizedString("nodeSettings.coveragePartial", comment: ""),
                    providerName, coveredCount, totalCount, names)
         }
+        static func coveragePartialWithOverrides(_ providerName: String, _ coveredCount: Int, _ totalCount: Int, _ names: String, _ ownCount: Int) -> String {
+            String(format: NSLocalizedString("nodeSettings.coveragePartialWithOverrides", comment: ""),
+                   providerName, coveredCount, totalCount, names, ownCount)
+        }
     }
 
     // MARK: - Node Status

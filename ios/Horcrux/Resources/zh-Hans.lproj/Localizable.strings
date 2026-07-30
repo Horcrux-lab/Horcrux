@@ -546,6 +546,7 @@
 "nodeSettings.coverageAllCovered" = "%1$@ 覆盖全部 %2$d 条链。";
 "nodeSettings.coverageAllWithOverrides" = "%1$@ 覆盖 %2$d 条链，另有 %3$d 条使用你的自定义节点。";
 "nodeSettings.coveragePartial" = "%1$@ 覆盖 %3$d 条链中的 %2$d 条，%4$@ 仍使用公共节点。";
+"nodeSettings.coveragePartialWithOverrides" = "%1$@ 覆盖 %3$d 条链中的 %2$d 条，%4$@ 仍使用公共节点；另有 %5$d 条使用你的自定义节点。";
 
 /* Node Status */
 "nodeStatus.notChecked" = "未检查";
