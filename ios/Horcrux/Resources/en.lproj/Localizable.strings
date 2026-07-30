@@ -546,6 +546,7 @@
 "nodeSettings.coverageAllCovered" = "%1$@ covers all %2$d chains.";
 "nodeSettings.coverageAllWithOverrides" = "%1$@ covers %2$d chains; %3$d also use your own endpoints.";
 "nodeSettings.coveragePartial" = "%1$@ covers %2$d of %3$d chains. %4$@ stay on public endpoints.";
+"nodeSettings.coveragePartialWithOverrides" = "%1$@ covers %2$d of %3$d chains. %4$@ stay on public endpoints; %5$d also use your own endpoints.";
 
 /* Node Status */
 "nodeStatus.notChecked" = "Not checked";

@@ -132,6 +132,48 @@ final class ProviderCoverageSummaryTests: XCTestCase {
                        "Bitcoin has an override and must not appear in the public-default sentence")
     }
 
+    /// Partial coverage + at least one override: the caption must account for
+    /// the overridden chains by including their count, so the numbers add up.
+    ///
+    /// Two overrides (Bitcoin, Litecoin) are used deliberately. With count=1,
+    /// the string "1" is a substring of "14" (the total chain count), so the
+    /// assertion could pass even if the override count were dropped. With
+    /// count=2, "2" does not appear in "14" or in Alchemy's coverage numbers,
+    /// making the substring check unambiguous.
+    func test_partialCoverageWithOverrides_captionMentionsOverriddenCount() {
+        // Alchemy leaves BNB and Tron on public defaults; Bitcoin and Litecoin
+        // have overrides → publicDefault non-empty, overridden non-empty.
+        let s = summary(.alchemy, hasKey: true, overrides: [.bitcoin, .litecoin])
+        XCTAssertFalse(s.publicDefault.isEmpty, "precondition: Alchemy leaves some chains uncovered")
+        XCTAssertEqual(s.overridden.count, 2, "precondition: exactly two overrides")
+        XCTAssertTrue(s.formattedCaption.contains("2"),
+                      "partial+override caption must include the overridden count (2) so the numbers add up to \(Chain.allCases.count)")
+        XCTAssertFalse(s.formattedCaption.contains(Chain.bitcoin.displayName),
+                       "Bitcoin's name must not appear in the public-default list")
+        XCTAssertFalse(s.formattedCaption.contains(Chain.litecoin.displayName),
+                       "Litecoin's name must not appear in the public-default list")
+    }
+
+    /// General property: whenever `overridden` is non-empty the caption must
+    /// contain the override count as a number. This is assertable at the string
+    /// level because every override-aware format key embeds the count directly.
+    ///
+    /// Scope note: the check uses `String(overridden.count)`, which could
+    /// theoretically collide with other numbers in the caption (e.g. total
+    /// chain count). That edge case does not occur with current providers and
+    /// counts, but the assertion is worth less if `overridden.count` equals
+    /// `Chain.allCases.count` (14) or a common sub-count. We use a distinctive
+    /// override set of 3 chains to keep the signal clean.
+    func test_whenOverriddenIsNonEmpty_captionAlwaysReflectsOverriddenCount() {
+        let overrides: Set<Chain> = [.bitcoin, .litecoin, .tron]  // count = 3, distinct from totals
+        for provider in NodeProvider.allCases {
+            let s = summary(provider, hasKey: true, overrides: overrides)
+            guard !s.overridden.isEmpty else { continue }
+            XCTAssertTrue(s.formattedCaption.contains("3"),
+                          "\(provider): caption must include the overridden count (3) when overridden is non-empty")
+        }
+    }
+
     // MARK: - Helpers
 
     private func summary(_ provider: NodeProvider,
