@@ -1225,18 +1225,34 @@ which would otherwise be sent with a literal {KEY} in the path."
 
 ## Phase 4 — Migration
 
-### Task 7: Migrate the legacy five-field model
+### Task 7a: A cluster-agnostic table of everything we ship
 
 **Files:**
-- Create: `ios/Horcrux/Core/NodeSettingsMigration.swift`
+- Modify: `ios/Horcrux/Core/NetworkConfig.swift` (`enum RPCFallbacks`, line 1363)
 - Test: `ios/HorcruxTests/NodeSettingsMigrationTests.swift`
 
-The rule most likely to be got wrong: **a stored URL equal to the current
-public default must migrate to nothing.** Writing it into an override
-would freeze that user on today's default forever, so the dead-endpoint
-purges would never reach them. `NetworkConfig.migrateDeadEndpoints`
-(line 644) exists because stored URLs do get frozen, and currently lists
-seven dead URLs.
+The migration has to answer one question per field: *did the user
+customise this, or are they sitting on something we shipped?* That
+question must **not** depend on which network the user has selected
+right now.
+
+If it does, a user on Solana devnet whose `solanaRPC` still holds the
+mainnet default gets that mainnet URL frozen into a permanent override.
+`detectMismatch` returns nil for Solana, so no probe catches it, and
+Solana addresses are byte-identical across clusters — the next "test"
+transfer spends real funds. The same hazard exists for Bitcoin testnet
+and for Sepolia.
+
+So the lookup unions **both** network selections. Being over-broad here
+is safe: the worst case is that a user who deliberately typed a URL that
+happens to equal a shipped endpoint for the *other* cluster keeps
+receiving default updates instead of being pinned. Being under-broad is
+not safe.
+
+`RPCFallbacks.endpoints(for:config:)` currently branches on `config`
+inline, so the union is unreachable from outside. Extract the three
+config-dependent lists into per-cluster helpers first — the URLs must
+stay in exactly one place, or the two tables will drift.
 
 - [ ] **Step 1: Write the failing test**
 
@@ -1258,128 +1274,61 @@ final class NodeSettingsMigrationTests: XCTestCase {
         super.tearDown()
     }
 
-    /// A value equal to the shipped default must produce no override, or
-    /// the user is frozen on it and future default fixes never arrive.
-    func test_publicDefaultValue_producesNoOverride() {
-        let result = NodeSettingsMigration.plan(
-            ethereumRPC: "https://ethereum-rpc.publicnode.com",
-            bitcoinAPI: "https://blockstream.info/api",
-            litecoinAPI: "https://litecoinspace.org/api",
-            solanaRPC: "https://solana-rpc.publicnode.com",
-            tronAPI: "https://api.trongrid.io",
-            evmChainId: 1
-        )
-        XCTAssertTrue(result.overrides.isEmpty)
-        XCTAssertNil(result.activeProvider)
-        XCTAssertEqual(result.evmChainId, 1)
+    // MARK: - Shipped-endpoint table
+
+    /// The whole point: the answer must not move when the user flips a
+    /// network toggle. If it does, a devnet user sitting on the mainnet
+    /// default gets that mainnet URL frozen into an override, and nothing
+    /// downstream can detect it.
+    func test_shippedEndpoints_includeBothClusters() {
+        let sol = RPCFallbacks.allShippedEndpoints(for: .solana)
+        XCTAssertTrue(sol.contains(SolanaNetwork.mainnet.publicDefaultRPC))
+        XCTAssertTrue(sol.contains(SolanaNetwork.devnet.publicDefaultRPC))
+
+        let btc = RPCFallbacks.allShippedEndpoints(for: .bitcoin)
+        XCTAssertTrue(btc.contains(BitcoinNetwork.mainnet.defaultAPI))
+        XCTAssertTrue(btc.contains(BitcoinNetwork.testnet.defaultAPI))
+
+        let eth = RPCFallbacks.allShippedEndpoints(for: .ethereum)
+        XCTAssertTrue(eth.contains(EVMNetwork.mainnet.publicDefaultRPC))
+        XCTAssertTrue(eth.contains(EVMNetwork.sepolia.publicDefaultRPC))
     }
 
-    func test_providerTemplate_becomesTheActiveProvider() {
-        let result = NodeSettingsMigration.plan(
-            ethereumRPC: "https://eth-mainnet.g.alchemy.com/v2/{KEY}",
-            bitcoinAPI: "https://blockstream.info/api",
-            litecoinAPI: "https://litecoinspace.org/api",
-            solanaRPC: "https://solana-rpc.publicnode.com",
-            tronAPI: "https://api.trongrid.io",
-            evmChainId: 1
-        )
-        XCTAssertEqual(result.activeProvider, .alchemy)
-        XCTAssertTrue(result.overrides.isEmpty,
-                      "a recognised template is a provider, not an override")
-    }
-
-    func test_customURL_becomesAnOverrideForItsChain() {
-        let result = NodeSettingsMigration.plan(
-            ethereumRPC: "https://my-own-node.example/eth",
-            bitcoinAPI: "https://blockstream.info/api",
-            litecoinAPI: "https://litecoinspace.org/api",
-            solanaRPC: "https://solana-rpc.publicnode.com",
-            tronAPI: "https://api.trongrid.io",
-            evmChainId: 1
-        )
-        XCTAssertNil(result.activeProvider)
-        XCTAssertEqual(result.overrides[.ethereum], "https://my-own-node.example/eth")
-        XCTAssertEqual(result.overrides.count, 1)
-    }
-
-    /// The Ethereum slot was being used as Polygon. The URL belongs to
-    /// the first-class Polygon chain, and the toggle returns to mainnet.
-    func test_evmChainIdPointingAtPolygon_movesTheURLToPolygon() {
-        let result = NodeSettingsMigration.plan(
-            ethereumRPC: "https://my-own-node.example/polygon",
-            bitcoinAPI: "https://blockstream.info/api",
-            litecoinAPI: "https://litecoinspace.org/api",
-            solanaRPC: "https://solana-rpc.publicnode.com",
-            tronAPI: "https://api.trongrid.io",
-            evmChainId: 137
-        )
-        XCTAssertEqual(result.overrides[.polygon], "https://my-own-node.example/polygon")
-        XCTAssertNil(result.overrides[.ethereum])
-        XCTAssertEqual(result.evmChainId, 1)
-    }
-
-    /// Same relocation, but the value was a default, so nothing is stored.
-    func test_evmChainIdPointingAtPolygon_withDefaultURL_storesNothing() {
-        let result = NodeSettingsMigration.plan(
-            ethereumRPC: "https://polygon-bor-rpc.publicnode.com",
-            bitcoinAPI: "https://blockstream.info/api",
-            litecoinAPI: "https://litecoinspace.org/api",
-            solanaRPC: "https://solana-rpc.publicnode.com",
-            tronAPI: "https://api.trongrid.io",
-            evmChainId: 137
-        )
-        XCTAssertTrue(result.overrides.isEmpty)
-        XCTAssertEqual(result.evmChainId, 1)
-    }
-
-    func test_sepoliaToggle_isPreserved() {
-        let result = NodeSettingsMigration.plan(
-            ethereumRPC: "https://ethereum-sepolia-rpc.publicnode.com",
-            bitcoinAPI: "https://blockstream.info/api",
-            litecoinAPI: "https://litecoinspace.org/api",
-            solanaRPC: "https://solana-rpc.publicnode.com",
-            tronAPI: "https://api.trongrid.io",
-            evmChainId: 11_155_111
-        )
-        XCTAssertEqual(result.evmChainId, 11_155_111,
-                       "Sepolia is a valid Ethereum testnet toggle, not a second chain")
-        XCTAssertTrue(result.overrides.isEmpty)
-    }
-
-    func test_customNonEVMURLs_becomeTheirOwnOverrides() {
-        let result = NodeSettingsMigration.plan(
-            ethereumRPC: "https://ethereum-rpc.publicnode.com",
-            bitcoinAPI: "https://my-esplora.example/api",
-            litecoinAPI: "https://litecoinspace.org/api",
-            solanaRPC: "https://my-solana.example",
-            tronAPI: "https://my-tron.example",
-            evmChainId: 1
-        )
-        XCTAssertEqual(result.overrides[.bitcoin], "https://my-esplora.example/api")
-        XCTAssertEqual(result.overrides[.solana], "https://my-solana.example")
-        XCTAssertEqual(result.overrides[.tron], "https://my-tron.example")
-        XCTAssertNil(result.overrides[.litecoin], "litecoin was on its default")
-    }
-
-    func test_apply_isIdempotent() {
+    /// It must not depend on the live singleton at all.
+    func test_shippedEndpoints_areIndependentOfTheLiveToggles() {
         let config = NetworkConfig.shared
-        let originalChainId = config.evmChainId
-        defer {
-            config.evmChainId = originalChainId
-            config.activeProvider = nil
-            ChainEndpointOverrides.shared.removeAll()
+        let devnet = config.solDevnet
+        let testnet = config.btcTestnet
+        defer { config.solDevnet = devnet; config.btcTestnet = testnet }
+
+        config.solDevnet = false
+        config.btcTestnet = false
+        let solOff = RPCFallbacks.allShippedEndpoints(for: .solana)
+        let btcOff = RPCFallbacks.allShippedEndpoints(for: .bitcoin)
+
+        config.solDevnet = true
+        config.btcTestnet = true
+        XCTAssertEqual(RPCFallbacks.allShippedEndpoints(for: .solana), solOff)
+        XCTAssertEqual(RPCFallbacks.allShippedEndpoints(for: .bitcoin), btcOff)
+    }
+
+    /// Every fallback we would actually dial must be in the table, or the
+    /// migration would treat a shipped fallback as a hand-typed URL.
+    func test_shippedEndpoints_supersetOfTheLiveFallbackList() {
+        let config = NetworkConfig.shared
+        for chain in Chain.allCases {
+            let live = Set(RPCFallbacks.endpoints(for: chain, config: config))
+            let all = RPCFallbacks.allShippedEndpoints(for: chain)
+            XCTAssertTrue(live.isSubset(of: all),
+                          "\(chain): \(live.subtracting(all)) missing from the shipped table")
         }
+    }
 
-        let plan = NodeSettingsMigration.Plan(
-            activeProvider: .infura,
-            overrides: [.polygon: "https://mine.example"],
-            evmChainId: 1
-        )
-        NodeSettingsMigration.apply(plan, to: config)
-        NodeSettingsMigration.apply(plan, to: config)
-
-        XCTAssertEqual(config.activeProvider, .infura)
-        XCTAssertEqual(ChainEndpointOverrides.shared.url(for: .polygon), "https://mine.example")
+    func test_shippedEndpoints_doNotLeakAcrossChains() {
+        XCTAssertFalse(RPCFallbacks.allShippedEndpoints(for: .bitcoin)
+            .contains(EVMNetwork.mainnet.publicDefaultRPC))
+        XCTAssertFalse(RPCFallbacks.allShippedEndpoints(for: .tron)
+            .contains(SolanaNetwork.mainnet.publicDefaultRPC))
     }
 }
 ```
@@ -1393,6 +1342,347 @@ cd ios && xcodegen generate && xcodebuild test -project Horcrux.xcodeproj \
   -only-testing:HorcruxTests/NodeSettingsMigrationTests 2>&1 | grep -E "error:|TEST"
 ```
 
+Expected: `error: type 'RPCFallbacks' has no member 'allShippedEndpoints'`.
+
+- [ ] **Step 3: Write the implementation**
+
+In `ios/Horcrux/Core/NetworkConfig.swift`, replace the body of
+`RPCFallbacks.endpoints(for:config:)` so the three config-dependent
+lists move into named helpers, then add the union accessor. The literal
+URLs are unchanged — they are only relocated, so nothing about the
+runtime fallback order moves.
+
+```swift
+    static func endpoints(for chain: Chain, config: NetworkConfig) -> [String] {
+        // New EVM chains each map to a fixed EVMNetwork; re-use the same
+        // mainnet fallback table as Ethereum once the network is resolved.
+        if chain.isEVM, chain != .ethereum, let net = chain.defaultEVMNetwork {
+            return endpoints(forEVMNetwork: net)
+        }
+        switch chain {
+        case .ethereum:
+            guard let net = EVMNetwork(rawValue: config.evmChainId) else { return [] }
+            return endpoints(forEVMNetwork: net)
+        case .bitcoin:
+            return bitcoinEndpoints(testnet: config.btcTestnet)
+        case .litecoin:
+            return litecoinEndpoints
+        case .solana:
+            return solanaEndpoints(devnet: config.solDevnet)
+        case .tron:
+            return tronEndpoints
+        default:
+            return []
+        }
+    }
+
+    private static func bitcoinEndpoints(testnet: Bool) -> [String] {
+        testnet
+            ? ["https://blockstream.info/testnet/api", "https://mempool.space/testnet/api"]
+            : ["https://blockstream.info/api", "https://mempool.space/api"]
+    }
+
+    private static let litecoinEndpoints = [
+        "https://litecoinspace.org/api"
+    ]
+
+    private static func solanaEndpoints(devnet: Bool) -> [String] {
+        devnet
+            ? ["https://api.devnet.solana.com"]
+            : [
+                "https://api.mainnet-beta.solana.com",
+                // Canonical PublicNode hostname — matches
+                // `SolanaNetwork.mainnet.publicDefaultRPC` so it dedupes
+                // away for default installs instead of listing the same
+                // operator twice under an alias and looking like
+                // redundancy it isn't.
+                "https://solana-rpc.publicnode.com"
+            ]
+    }
+
+    private static let tronEndpoints = [
+        "https://api.trongrid.io",
+        "https://api.tronstack.io",
+        "https://api.shasta.trongrid.io",
+        "https://nile.trongrid.io"
+    ]
+
+    /// Every endpoint this app has ever handed out for `chain` as a
+    /// default or a fallback, across **both** network selections.
+    ///
+    /// Deliberately cluster-agnostic, and deliberately not a function of
+    /// `NetworkConfig`. The migration uses this to tell a hand-typed URL
+    /// from one of ours, and that judgement must not change when the user
+    /// flips a network toggle: a devnet user still holding the mainnet
+    /// Solana default would otherwise have it frozen into a permanent
+    /// mainnet override. `detectMismatch` returns nil for Solana, so
+    /// nothing downstream would ever catch it, and Solana addresses are
+    /// byte-identical across clusters.
+    static func allShippedEndpoints(for chain: Chain) -> Set<String> {
+        switch chain {
+        case .ethereum:
+            var set = Set(endpoints(forEVMNetwork: .mainnet))
+            set.formUnion(endpoints(forEVMNetwork: .sepolia))
+            set.formUnion([EVMNetwork.mainnet, .sepolia]
+                .flatMap { [$0.publicDefaultRPC, $0.defaultRPC] })
+            return set
+        case .bitcoin:
+            var set = Set(bitcoinEndpoints(testnet: false))
+            set.formUnion(bitcoinEndpoints(testnet: true))
+            set.formUnion([BitcoinNetwork.mainnet.defaultAPI,
+                           BitcoinNetwork.testnet.defaultAPI])
+            return set
+        case .litecoin:
+            return Set(litecoinEndpoints)
+        case .solana:
+            var set = Set(solanaEndpoints(devnet: false))
+            set.formUnion(solanaEndpoints(devnet: true))
+            set.formUnion([SolanaNetwork.mainnet, .devnet]
+                .flatMap { [$0.publicDefaultRPC, $0.defaultRPC] })
+            return set
+        case .tron:
+            return Set(tronEndpoints)
+        default:
+            guard let net = chain.defaultEVMNetwork else { return [] }
+            var set = Set(endpoints(forEVMNetwork: net))
+            set.formUnion([net.publicDefaultRPC, net.defaultRPC])
+            return set
+        }
+    }
+```
+
+- [ ] **Step 4: Run the test to verify it passes**
+
+Same command. Expected: `TEST SUCCEEDED`, 4 tests.
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add ios/Horcrux/Core/NetworkConfig.swift ios/HorcruxTests/NodeSettingsMigrationTests.swift \
+        ios/Horcrux.xcodeproj/project.pbxproj
+git commit -m "refactor(ios): expose a cluster-agnostic shipped-endpoint table
+
+The migration needs to tell a hand-typed URL from one we shipped, and
+that judgement must not depend on the user's current network toggle.
+A devnet user still holding the mainnet Solana default would otherwise
+have it frozen into a permanent mainnet override — detectMismatch
+returns nil for Solana, so nothing downstream would catch it, and
+Solana addresses are byte-identical across clusters.
+
+Fallback URLs are relocated into per-cluster helpers, not changed, so
+the runtime fallback order is untouched."
+```
+
+---
+
+### Task 7b: Migrate the legacy five-field model
+
+**Files:**
+- Create: `ios/Horcrux/Core/NodeSettingsMigration.swift`
+- Test: `ios/HorcruxTests/NodeSettingsMigrationTests.swift`
+
+The rule most likely to be got wrong: **a stored URL equal to something
+we ship must migrate to nothing.** Writing it into an override would
+freeze that user on today's default forever, so the dead-endpoint purges
+would never reach them. `NetworkConfig.migrateDeadEndpoints` (line 705)
+exists precisely because stored URLs do get frozen, and it currently
+lists seven dead URLs.
+
+`plan` is a **pure function of its arguments**. It must not read
+`NetworkConfig.shared`, not even indirectly — that is what makes every
+rule table-testable, and it is the same defect review caught in Task 1.
+
+- [ ] **Step 1: Write the failing test**
+
+Append to `NodeSettingsMigrationTests`:
+
+```swift
+    // MARK: - plan()
+
+    private func plan(ethereum: String = EVMNetwork.mainnet.publicDefaultRPC,
+                      bitcoin: String = "https://mempool.space/api",
+                      litecoin: String = "https://litecoinspace.org/api",
+                      solana: String = "https://solana-rpc.publicnode.com",
+                      tron: String = "https://api.trongrid.io",
+                      evmChainId: UInt64 = 1) -> NodeSettingsMigration.Plan {
+        NodeSettingsMigration.plan(
+            ethereumRPC: ethereum, bitcoinAPI: bitcoin, litecoinAPI: litecoin,
+            solanaRPC: solana, tronAPI: tron, evmChainId: evmChainId
+        )
+    }
+
+    /// A value equal to something we ship must produce no override, or the
+    /// user is frozen on it and future default fixes never arrive.
+    func test_shippedValues_produceNoOverride() {
+        let result = plan()
+        XCTAssertTrue(result.overrides.isEmpty, "got \(result.overrides)")
+        XCTAssertNil(result.activeProvider)
+        XCTAssertEqual(result.evmChainId, 1)
+    }
+
+    /// The defect this replaces: plan() used to read solDevnet from the
+    /// singleton, so a devnet user holding the mainnet Solana default
+    /// would have had it written into a permanent mainnet override.
+    func test_planIsIndependentOfTheLiveToggles() {
+        let config = NetworkConfig.shared
+        let devnet = config.solDevnet
+        let testnet = config.btcTestnet
+        defer { config.solDevnet = devnet; config.btcTestnet = testnet }
+
+        config.solDevnet = false
+        config.btcTestnet = false
+        let mainnetSide = plan()
+
+        config.solDevnet = true
+        config.btcTestnet = true
+        XCTAssertEqual(plan(), mainnetSide,
+                       "plan() must be a pure function of its arguments")
+    }
+
+    func test_devnetDefault_alsoProducesNoOverride() {
+        let result = plan(solana: SolanaNetwork.devnet.publicDefaultRPC)
+        XCTAssertNil(result.overrides[.solana],
+                     "the devnet default is ours too; freezing it would pin the cluster")
+    }
+
+    func test_providerTemplate_becomesTheActiveProvider() {
+        let result = plan(ethereum: "https://eth-mainnet.g.alchemy.com/v2/{KEY}")
+        XCTAssertEqual(result.activeProvider, .alchemy)
+        XCTAssertTrue(result.overrides.isEmpty,
+                      "a recognised template is a provider, not an override")
+    }
+
+    func test_customURL_becomesAnOverrideForItsChain() {
+        let result = plan(ethereum: "https://my-own-node.example/eth")
+        XCTAssertNil(result.activeProvider)
+        XCTAssertEqual(result.overrides[.ethereum], "https://my-own-node.example/eth")
+        XCTAssertEqual(result.overrides.count, 1)
+    }
+
+    /// The Ethereum slot was being used as Polygon. The URL belongs to
+    /// the first-class Polygon chain, and the toggle returns to mainnet.
+    func test_evmChainIdPointingAtPolygon_movesTheURLToPolygon() {
+        let result = plan(ethereum: "https://my-own-node.example/polygon",
+                          evmChainId: 137)
+        XCTAssertEqual(result.overrides[.polygon], "https://my-own-node.example/polygon")
+        XCTAssertNil(result.overrides[.ethereum])
+        XCTAssertEqual(result.evmChainId, 1)
+    }
+
+    /// Same relocation, but the value was a default, so nothing is stored.
+    func test_evmChainIdPointingAtPolygon_withDefaultURL_storesNothing() {
+        let result = plan(ethereum: EVMNetwork.polygon.publicDefaultRPC, evmChainId: 137)
+        XCTAssertTrue(result.overrides.isEmpty, "got \(result.overrides)")
+        XCTAssertEqual(result.evmChainId, 1)
+    }
+
+    func test_sepoliaToggle_isPreserved() {
+        let result = plan(ethereum: EVMNetwork.sepolia.publicDefaultRPC,
+                          evmChainId: 11_155_111)
+        XCTAssertEqual(result.evmChainId, 11_155_111,
+                       "Sepolia is a valid Ethereum testnet toggle, not a second chain")
+        XCTAssertTrue(result.overrides.isEmpty, "got \(result.overrides)")
+    }
+
+    func test_customNonEVMURLs_becomeTheirOwnOverrides() {
+        let result = plan(bitcoin: "https://my-esplora.example/api",
+                          solana: "https://my-solana.example",
+                          tron: "https://my-tron.example")
+        XCTAssertEqual(result.overrides[.bitcoin], "https://my-esplora.example/api")
+        XCTAssertEqual(result.overrides[.solana], "https://my-solana.example")
+        XCTAssertEqual(result.overrides[.tron], "https://my-tron.example")
+        XCTAssertNil(result.overrides[.litecoin], "litecoin was on its default")
+    }
+
+    /// Two different vendors across the two slots. Only one can become the
+    /// account provider, so the other must survive as an override rather
+    /// than be silently dropped back to a public endpoint. The template
+    /// keeps its `{KEY}`; substituteAPIKey resolves it by hostname.
+    func test_aSecondVendorOnSolana_survivesAsAnOverride() {
+        let result = plan(ethereum: "https://mainnet.infura.io/v3/{KEY}",
+                          solana: "https://solana-mainnet.g.alchemy.com/v2/{KEY}")
+        XCTAssertEqual(result.activeProvider, .infura)
+        XCTAssertEqual(result.overrides[.solana],
+                       "https://solana-mainnet.g.alchemy.com/v2/{KEY}")
+    }
+
+    /// One vendor across both slots is the common case and must not
+    /// produce a redundant override.
+    func test_sameVendorOnBothSlots_producesNoOverride() {
+        let result = plan(ethereum: "https://eth-mainnet.g.alchemy.com/v2/{KEY}",
+                          solana: "https://solana-mainnet.g.alchemy.com/v2/{KEY}")
+        XCTAssertEqual(result.activeProvider, .alchemy)
+        XCTAssertTrue(result.overrides.isEmpty, "got \(result.overrides)")
+    }
+
+    func test_emptyFields_produceNoOverrides() {
+        let result = plan(ethereum: "", bitcoin: "", litecoin: "", solana: "", tron: "")
+        XCTAssertTrue(result.overrides.isEmpty, "got \(result.overrides)")
+        XCTAssertNil(result.activeProvider)
+    }
+
+    // MARK: - runIfNeeded()
+
+    /// The version gate is the whole reason runIfNeeded exists. Without
+    /// it, every launch would re-derive the plan from the legacy fields —
+    /// which are never cleared — and resurrect an override the user has
+    /// since deleted.
+    func test_runIfNeeded_doesNotResurrectAnOverrideTheUserDeleted() {
+        let suite = "com.horcrux.tests.migration"
+        let defaults = UserDefaults(suiteName: suite)!
+        defaults.removePersistentDomain(forName: suite)
+        defer { defaults.removePersistentDomain(forName: suite) }
+
+        let config = NetworkConfig.shared
+        let originalETH = config.ethereumRPC
+        let originalChainId = config.evmChainId
+        let originalProvider = config.activeProvider
+        defer {
+            config.ethereumRPC = originalETH
+            config.evmChainId = originalChainId
+            config.activeProvider = originalProvider
+            ChainEndpointOverrides.shared.removeAll()
+        }
+
+        config.evmChainId = 1
+        config.ethereumRPC = "https://my-own-node.example/eth"
+
+        NodeSettingsMigration.runIfNeeded(config: config, defaults: defaults)
+        XCTAssertEqual(ChainEndpointOverrides.shared.url(for: .ethereum),
+                       "https://my-own-node.example/eth")
+
+        // The user changes their mind and deletes it.
+        ChainEndpointOverrides.shared.clear(.ethereum)
+
+        NodeSettingsMigration.runIfNeeded(config: config, defaults: defaults)
+        XCTAssertNil(ChainEndpointOverrides.shared.url(for: .ethereum),
+                     "the version gate did not hold; migration ran a second time")
+    }
+
+    func test_runIfNeeded_recordsTheVersionEvenWhenThereIsNothingToMigrate() {
+        let suite = "com.horcrux.tests.migration.noop"
+        let defaults = UserDefaults(suiteName: suite)!
+        defaults.removePersistentDomain(forName: suite)
+        defer { defaults.removePersistentDomain(forName: suite) }
+
+        let config = NetworkConfig.shared
+        let originalProvider = config.activeProvider
+        let originalChainId = config.evmChainId
+        defer {
+            config.activeProvider = originalProvider
+            config.evmChainId = originalChainId
+        }
+
+        NodeSettingsMigration.runIfNeeded(config: config, defaults: defaults)
+        XCTAssertGreaterThan(
+            defaults.integer(forKey: "com.horcrux.rpc.settingsMigrationVersion"), 0,
+            "a no-op migration must still record its version or it reruns forever")
+    }
+```
+
+- [ ] **Step 2: Run the test to verify it fails**
+
+Same command as Task 7a.
 Expected: `error: cannot find 'NodeSettingsMigration' in scope`.
 
 - [ ] **Step 3: Write the implementation**
@@ -1405,8 +1695,9 @@ import Foundation
 /// One-time migration from the legacy five-URL-field model to
 /// provider + per-chain overrides.
 ///
-/// `plan` is pure so every rule is table-testable without touching
-/// UserDefaults; `apply` performs the writes.
+/// `plan` is a pure function of its arguments — it reads no singleton and
+/// no UserDefaults — so every rule below is table-testable. `apply` and
+/// `runIfNeeded` do the writes.
 enum NodeSettingsMigration {
 
     struct Plan: Equatable {
@@ -1415,8 +1706,8 @@ enum NodeSettingsMigration {
         var evmChainId: UInt64
     }
 
-    private static let versionKey = "com.horcrux.rpc.settingsMigrationVersion"
-    private static let currentVersion = 1
+    static let versionKey = "com.horcrux.rpc.settingsMigrationVersion"
+    static let currentVersion = 1
 
     static func plan(
         ethereumRPC: String,
@@ -1444,20 +1735,28 @@ enum NodeSettingsMigration {
 
         if let matched = detectProvider(in: ethereumRPC) {
             provider = matched
-        } else if !isDefaultValue(ethereumRPC, for: evmTargetChain, evmNetwork: evmNetwork) {
+        } else if !isShipped(ethereumRPC, for: evmTargetChain) {
             overrides[evmTargetChain] = ethereumRPC
         }
 
-        if detectProvider(in: solanaRPC) != nil {
-            provider = provider ?? detectProvider(in: solanaRPC)
-        } else if !isDefaultValue(solanaRPC, for: .solana, evmNetwork: nil) {
+        if let solProvider = detectProvider(in: solanaRPC) {
+            if provider == nil {
+                provider = solProvider
+            } else if solProvider != provider {
+                // Only one vendor can be the account provider. Dropping the
+                // other would silently downgrade that chain to a public
+                // endpoint, so it survives as an override. The `{KEY}` stays
+                // in it; substituteAPIKey resolves it by hostname.
+                overrides[.solana] = solanaRPC
+            }
+        } else if !isShipped(solanaRPC, for: .solana) {
             overrides[.solana] = solanaRPC
         }
 
         for (value, chain) in [(bitcoinAPI, Chain.bitcoin),
                                (litecoinAPI, Chain.litecoin),
                                (tronAPI, Chain.tron)] {
-            if !isDefaultValue(value, for: chain, evmNetwork: nil) {
+            if !isShipped(value, for: chain) {
                 overrides[chain] = value
             }
         }
@@ -1467,35 +1766,47 @@ enum NodeSettingsMigration {
                     evmChainId: resolvedChainId)
     }
 
-    /// True when `value` is one of the endpoints we ship for `chain`, in
-    /// which case it must NOT become an override — the user stays on the
-    /// default and keeps receiving default changes.
-    private static func isDefaultValue(_ value: String,
-                                       for chain: Chain,
-                                       evmNetwork: EVMNetwork?) -> Bool {
+    /// True when `value` is an endpoint we ship for `chain`, in which case
+    /// it must NOT become an override — the user stays on the default and
+    /// keeps receiving default changes.
+    ///
+    /// The lookup spans both network selections on purpose; see
+    /// `RPCFallbacks.allShippedEndpoints(for:)`.
+    private static func isShipped(_ value: String, for chain: Chain) -> Bool {
         if value.isEmpty { return true }
-        if let net = evmNetwork, value == net.publicDefaultRPC { return true }
-        var shipped = Set(RPCFallbacks.endpoints(for: chain, config: NetworkConfig.shared))
-        shipped.insert(NetworkConfig.shared.publicDefault(for: chain))
-        if chain.isEVM {
-            shipped.formUnion(EVMNetwork.allCases.map(\.publicDefaultRPC))
-        }
-        return shipped.contains(value)
+        return RPCFallbacks.allShippedEndpoints(for: chain).contains(value)
     }
 
     private static func detectProvider(in url: String) -> NodeProvider? {
         guard url.contains("{KEY}") else { return nil }
-        for provider in NodeProvider.allCases {
-            for chain in Chain.allCases {
-                for net in EVMNetwork.allCases {
-                    if provider.template(for: chain, evmChainId: net.rawValue,
-                                         solanaMainnet: !NetworkConfig.shared.solDevnet) == url {
-                        return provider
-                    }
-                }
+        return NodeProvider.allCases.first { templates(of: $0).contains(url) }
+    }
+
+    /// Every `{KEY}` template `provider` can produce, across every chain
+    /// and both Solana clusters. Pure: no singleton reads.
+    private static func templates(of provider: NodeProvider) -> Set<String> {
+        var out: Set<String> = []
+        let mainnetId = EVMNetwork.mainnet.rawValue
+
+        for net in EVMNetwork.allCases {
+            if let t = provider.template(for: .ethereum, evmChainId: net.rawValue,
+                                         solanaMainnet: true) {
+                out.insert(t)
             }
         }
-        return nil
+        for chain in Chain.allCases where chain.isEVM && chain != .ethereum {
+            if let t = provider.template(for: chain, evmChainId: mainnetId,
+                                         solanaMainnet: true) {
+                out.insert(t)
+            }
+        }
+        for solanaMainnet in [true, false] {
+            if let t = provider.template(for: .solana, evmChainId: mainnetId,
+                                         solanaMainnet: solanaMainnet) {
+                out.insert(t)
+            }
+        }
+        return out
     }
 
     static func apply(_ plan: Plan, to config: NetworkConfig) {
@@ -1506,7 +1817,9 @@ enum NodeSettingsMigration {
         }
     }
 
-    /// Entry point called once at launch.
+    /// Entry point called once at launch. The version gate matters: the
+    /// legacy fields are never cleared, so without it every launch would
+    /// re-derive the same plan and resurrect overrides the user deleted.
     static func runIfNeeded(config: NetworkConfig,
                             defaults: UserDefaults = .standard) {
         guard defaults.integer(forKey: versionKey) < currentVersion else { return }
@@ -1524,9 +1837,15 @@ enum NodeSettingsMigration {
 }
 ```
 
+Note `versionKey` / `currentVersion` are internal, not private, so Task 8
+and the tests can reference them. Do **not** try to harmonise
+`currentVersion` here with `RPCConfigSnapshot.currentVersion` in
+`SettingsView.swift` — they version unrelated things and are unrelated
+types.
+
 - [ ] **Step 4: Run the test to verify it passes**
 
-Expected: `TEST SUCCEEDED`, 8 tests.
+Same command. Expected: `TEST SUCCEEDED`, 18 tests.
 
 - [ ] **Step 5: Commit**
 
@@ -1536,9 +1855,11 @@ git add ios/Horcrux/Core/NodeSettingsMigration.swift \
         ios/Horcrux.xcodeproj/project.pbxproj
 git commit -m "feat(ios): migrate legacy node settings to provider + overrides
 
-plan() is pure so every rule is table-testable; apply() does the writes.
+plan() is a pure function of its arguments — no singleton reads — so
+every rule is table-testable and the result cannot shift under the
+user's current network toggle.
 
-The load-bearing rule: a stored URL equal to a shipped default migrates
+The load-bearing rule: a stored URL equal to something we ship migrates
 to nothing. Writing it into an override would freeze that user on
 today's default and no future endpoint fix would reach them.
 migrateDeadEndpoints exists because stored URLs do get frozen and
@@ -1546,7 +1867,11 @@ currently lists seven dead URLs.
 
 A non-Ethereum evmChainId means the Ethereum slot was being used as
 another chain; the URL moves to that first-class chain and the toggle
-returns to mainnet."
+returns to mainnet.
+
+When the two slots name different vendors, only one can be the account
+provider; the other survives as an override rather than being silently
+downgraded to a public endpoint."
 ```
 
 ### Task 8: Call the migration at launch
