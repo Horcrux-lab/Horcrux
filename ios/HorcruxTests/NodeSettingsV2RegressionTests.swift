@@ -4,7 +4,7 @@ import XCTest
 /// Regression tests for the provider-first node settings refactor.
 ///
 /// These tests prove that the settings screen now writes to things that are
-/// actually read, and that the dead legacy path (`config.ethereumRPC` etc.)
+/// actually read, and that the dead legacy path (`config.legacyEthereumRPC` etc.)
 /// has no effect on `config.rpcURL(for:)`.
 ///
 /// Hygiene rules (matching the rest of this suite):
@@ -34,7 +34,7 @@ final class NodeSettingsV2RegressionTests: XCTestCase {
 
     // MARK: - Regression: dead field path
 
-    /// The bug this refactor fixes: writing to `config.ethereumRPC` used to be
+    /// The bug this refactor fixes: writing to `config.legacyEthereumRPC` used to be
     /// the only way the settings screen could change what `rpcURL(for:)` returned.
     /// Now that `resolveRawURL` goes through `ChainEndpointOverrides → provider →
     /// publicDefault`, writing to `ethereumRPC` must have NO effect on routing.
@@ -42,11 +42,11 @@ final class NodeSettingsV2RegressionTests: XCTestCase {
     /// This test would have caught the regression if it had existed before.
     func test_writingToEthereumRPC_doesNotAffectRPCURL() {
         let config = NetworkConfig.shared
-        let savedEthRPC = config.ethereumRPC
+        let savedEthRPC = config.legacyEthereumRPC
         let savedChainId = config.evmChainId
         let savedProvider = config.activeProvider
         defer {
-            config.ethereumRPC = savedEthRPC
+            config.legacyEthereumRPC = savedEthRPC
             config.evmChainId = savedChainId
             config.activeProvider = savedProvider
         }
@@ -56,7 +56,7 @@ final class NodeSettingsV2RegressionTests: XCTestCase {
         ChainEndpointOverrides.shared.removeAll()
 
         // Write a sentinel to the legacy field.
-        config.ethereumRPC = "https://legacy-dead-field.example"
+        config.legacyEthereumRPC = "https://legacy-dead-field.example"
 
         // The routing layer must NOT return the legacy field value.
         let resolved = config.rpcURL(for: .ethereum)
@@ -96,21 +96,21 @@ final class NodeSettingsV2RegressionTests: XCTestCase {
     /// Each must be ignored by the routing layer.
     func test_legacyFields_areIgnoredByRouting_forAllFiveChains() {
         let config = NetworkConfig.shared
-        let savedEthRPC = config.ethereumRPC
-        let savedBtcAPI = config.bitcoinAPI
-        let savedLtcAPI = config.litecoinAPI
-        let savedSolRPC = config.solanaRPC
-        let savedTronAPI = config.tronAPI
+        let savedEthRPC = config.legacyEthereumRPC
+        let savedBtcAPI = config.legacyBitcoinAPI
+        let savedLtcAPI = config.legacyLitecoinAPI
+        let savedSolRPC = config.legacySolanaRPC
+        let savedTronAPI = config.legacyTronAPI
         let savedProvider = config.activeProvider
         let savedChainId = config.evmChainId
         let savedBtcTestnet = config.btcTestnet
         let savedSolDevnet = config.solDevnet
         defer {
-            config.ethereumRPC = savedEthRPC
-            config.bitcoinAPI = savedBtcAPI
-            config.litecoinAPI = savedLtcAPI
-            config.solanaRPC = savedSolRPC
-            config.tronAPI = savedTronAPI
+            config.legacyEthereumRPC = savedEthRPC
+            config.legacyBitcoinAPI = savedBtcAPI
+            config.legacyLitecoinAPI = savedLtcAPI
+            config.legacySolanaRPC = savedSolRPC
+            config.legacyTronAPI = savedTronAPI
             config.activeProvider = savedProvider
             config.evmChainId = savedChainId
             config.btcTestnet = savedBtcTestnet
@@ -124,18 +124,18 @@ final class NodeSettingsV2RegressionTests: XCTestCase {
         ChainEndpointOverrides.shared.removeAll()
 
         let sentinel = "not-used"
-        config.ethereumRPC = "https://\(sentinel).eth"
-        config.bitcoinAPI = "https://\(sentinel).btc"
-        config.litecoinAPI = "https://\(sentinel).ltc"
-        config.solanaRPC = "https://\(sentinel).sol"
-        config.tronAPI = "https://\(sentinel).tron"
+        config.legacyEthereumRPC = "https://\(sentinel).eth"
+        config.legacyBitcoinAPI = "https://\(sentinel).btc"
+        config.legacyLitecoinAPI = "https://\(sentinel).ltc"
+        config.legacySolanaRPC = "https://\(sentinel).sol"
+        config.legacyTronAPI = "https://\(sentinel).tron"
 
         let legacyChains: [(Chain, String)] = [
-            (.ethereum, config.ethereumRPC),
-            (.bitcoin, config.bitcoinAPI),
-            (.litecoin, config.litecoinAPI),
-            (.solana, config.solanaRPC),
-            (.tron, config.tronAPI)
+            (.ethereum, config.legacyEthereumRPC),
+            (.bitcoin, config.legacyBitcoinAPI),
+            (.litecoin, config.legacyLitecoinAPI),
+            (.solana, config.legacySolanaRPC),
+            (.tron, config.legacyTronAPI)
         ]
 
         for (chain, _) in legacyChains {
@@ -150,7 +150,7 @@ final class NodeSettingsV2RegressionTests: XCTestCase {
     // MARK: - Helius override round-trip
 
     /// The "Use Helius" button now writes a Solana override instead of
-    /// `config.solanaRPC`. After the override is set, `rpcURL(for: .solana)`
+    /// `config.legacySolanaRPC`. After the override is set, `rpcURL(for: .solana)`
     /// must contain the Helius host and must NOT contain a literal `{KEY}`.
     ///
     /// This matches the UI path: the button calls
@@ -230,9 +230,9 @@ final class NodeSettingsV2RegressionTests: XCTestCase {
     /// `applyPreset` any more).
     func test_applyPreset_testnet_setsTogglesAndRPCURLsFollowForUnoverriddenChains() {
         let config = NetworkConfig.shared
-        let savedEthRPC = config.ethereumRPC
-        let savedBtcAPI = config.bitcoinAPI
-        let savedSolRPC = config.solanaRPC
+        let savedEthRPC = config.legacyEthereumRPC
+        let savedBtcAPI = config.legacyBitcoinAPI
+        let savedSolRPC = config.legacySolanaRPC
         let savedChainId = config.evmChainId
         let savedBtcTestnet = config.btcTestnet
         let savedSolDevnet = config.solDevnet
@@ -242,9 +242,9 @@ final class NodeSettingsV2RegressionTests: XCTestCase {
             config.evmChainId = savedChainId
             config.btcTestnet = savedBtcTestnet
             config.solDevnet = savedSolDevnet
-            config.ethereumRPC = savedEthRPC
-            config.bitcoinAPI = savedBtcAPI
-            config.solanaRPC = savedSolRPC
+            config.legacyEthereumRPC = savedEthRPC
+            config.legacyBitcoinAPI = savedBtcAPI
+            config.legacySolanaRPC = savedSolRPC
         }
 
         config.activeProvider = nil
@@ -292,17 +292,17 @@ final class NodeSettingsV2RegressionTests: XCTestCase {
         let savedDevnet = config.solDevnet
         let savedBtcTestnet = config.btcTestnet
         let savedProvider = config.activeProvider
-        let savedEthRPC = config.ethereumRPC
-        let savedBtcAPI = config.bitcoinAPI
-        let savedSolRPC = config.solanaRPC
+        let savedEthRPC = config.legacyEthereumRPC
+        let savedBtcAPI = config.legacyBitcoinAPI
+        let savedSolRPC = config.legacySolanaRPC
         defer {
             config.activeProvider = savedProvider
             config.evmChainId = savedChainId
             config.btcTestnet = savedBtcTestnet
             config.solDevnet = savedDevnet
-            config.ethereumRPC = savedEthRPC
-            config.bitcoinAPI = savedBtcAPI
-            config.solanaRPC = savedSolRPC
+            config.legacyEthereumRPC = savedEthRPC
+            config.legacyBitcoinAPI = savedBtcAPI
+            config.legacySolanaRPC = savedSolRPC
         }
 
         config.activeProvider = nil
@@ -367,10 +367,10 @@ final class NodeSettingsV2RegressionTests: XCTestCase {
     /// introduced when the write side was fixed (Task 12 follow-up).
     func test_overrideReflected_inRPCURL_forAllFourLegacyChains() {
         let config = NetworkConfig.shared
-        let savedBtcAPI = config.bitcoinAPI
-        let savedLtcAPI = config.litecoinAPI
-        let savedSolRPC = config.solanaRPC
-        let savedTronAPI = config.tronAPI
+        let savedBtcAPI = config.legacyBitcoinAPI
+        let savedLtcAPI = config.legacyLitecoinAPI
+        let savedSolRPC = config.legacySolanaRPC
+        let savedTronAPI = config.legacyTronAPI
         let savedProvider = config.activeProvider
         let savedBtcTestnet = config.btcTestnet
         let savedSolDevnet = config.solDevnet
@@ -378,10 +378,10 @@ final class NodeSettingsV2RegressionTests: XCTestCase {
             config.activeProvider = savedProvider
             config.btcTestnet = savedBtcTestnet
             config.solDevnet = savedSolDevnet
-            config.bitcoinAPI = savedBtcAPI
-            config.litecoinAPI = savedLtcAPI
-            config.solanaRPC = savedSolRPC
-            config.tronAPI = savedTronAPI
+            config.legacyBitcoinAPI = savedBtcAPI
+            config.legacyLitecoinAPI = savedLtcAPI
+            config.legacySolanaRPC = savedSolRPC
+            config.legacyTronAPI = savedTronAPI
         }
 
         config.activeProvider = nil
@@ -390,10 +390,10 @@ final class NodeSettingsV2RegressionTests: XCTestCase {
         ChainEndpointOverrides.shared.removeAll()
 
         let cases: [(Chain, String, KeyPath<NetworkConfig, String>)] = [
-            (.bitcoin,  "https://btc-sentinel.example",  \.bitcoinAPI),
-            (.litecoin, "https://ltc-sentinel.example",  \.litecoinAPI),
-            (.solana,   "https://sol-sentinel.example",  \.solanaRPC),
-            (.tron,     "https://tron-sentinel.example", \.tronAPI),
+            (.bitcoin,  "https://btc-sentinel.example",  \.legacyBitcoinAPI),
+            (.litecoin, "https://ltc-sentinel.example",  \.legacyLitecoinAPI),
+            (.solana,   "https://sol-sentinel.example",  \.legacySolanaRPC),
+            (.tron,     "https://tron-sentinel.example", \.legacyTronAPI),
         ]
 
         for (chain, sentinel, legacyKP) in cases {
@@ -423,13 +423,13 @@ final class NodeSettingsV2RegressionTests: XCTestCase {
     /// verification below.
     func test_bitcoinOverride_resolves_andLegacyFieldIsStale() {
         let config = NetworkConfig.shared
-        let savedBtcAPI = config.bitcoinAPI
+        let savedBtcAPI = config.legacyBitcoinAPI
         let savedBtcTestnet = config.btcTestnet
         let savedProvider = config.activeProvider
         defer {
             config.activeProvider = savedProvider
             config.btcTestnet = savedBtcTestnet
-            config.bitcoinAPI = savedBtcAPI
+            config.legacyBitcoinAPI = savedBtcAPI
         }
 
         config.activeProvider = nil
@@ -444,19 +444,19 @@ final class NodeSettingsV2RegressionTests: XCTestCase {
             "rpcURL(for: .bitcoin) must return the override. Got: \(config.rpcURL(for: .bitcoin))")
 
         // The legacy field is a stale shadow — do NOT read it on the money path.
-        XCTAssertNotEqual(config.bitcoinAPI, sentinel,
-            "bitcoinAPI must not equal the override — it is a stale shadow. Got: \(config.bitcoinAPI)")
+        XCTAssertNotEqual(config.legacyBitcoinAPI, sentinel,
+            "bitcoinAPI must not equal the override — it is a stale shadow. Got: \(config.legacyBitcoinAPI)")
     }
 
     func test_solanaOverride_resolves_andLegacyFieldIsStale() {
         let config = NetworkConfig.shared
-        let savedSolRPC = config.solanaRPC
+        let savedSolRPC = config.legacySolanaRPC
         let savedSolDevnet = config.solDevnet
         let savedProvider = config.activeProvider
         defer {
             config.activeProvider = savedProvider
             config.solDevnet = savedSolDevnet
-            config.solanaRPC = savedSolRPC
+            config.legacySolanaRPC = savedSolRPC
         }
 
         config.activeProvider = nil
@@ -470,7 +470,197 @@ final class NodeSettingsV2RegressionTests: XCTestCase {
             "rpcURL(for: .solana) must return the override. Got: \(config.rpcURL(for: .solana))")
 
         // The legacy field is a stale shadow — do NOT read it on the money path.
-        XCTAssertNotEqual(config.solanaRPC, sentinel,
-            "solanaRPC must not equal the override — it is a stale shadow. Got: \(config.solanaRPC)")
+        XCTAssertNotEqual(config.legacySolanaRPC, sentinel,
+            "solanaRPC must not equal the override — it is a stale shadow. Got: \(config.legacySolanaRPC)")
+    }
+
+    // MARK: - Critical 1: commitDecision pure function
+
+    /// `commitDecision` is the pure decision function extracted from
+    /// `ChainEndpointDetailView.commitDraft()` so it can be tested without
+    /// SwiftUI lifecycle. These tests verify the decision logic and document
+    /// the stale-draft bug that the `@Binding`-based fix prevents.
+    func test_commitDecision_newURL_returnsTrimmerdURL() {
+        let result = ChainEndpointDetailView.commitDecision(
+            draft: "  https://new-node.example  ", stored: nil)
+        XCTAssertEqual(result, "https://new-node.example",
+                       "commitDecision must trim whitespace and return the URL to persist")
+    }
+
+    func test_commitDecision_noChange_returnsNil() {
+        // draft already matches storage — no write needed
+        XCTAssertNil(
+            ChainEndpointDetailView.commitDecision(
+                draft: "https://same.example", stored: "https://same.example"),
+            "commitDecision must return nil when draft equals stored URL")
+
+        // empty draft with no storage — no write needed
+        XCTAssertNil(
+            ChainEndpointDetailView.commitDecision(draft: "", stored: nil),
+            "commitDecision must return nil when both draft and stored are empty")
+    }
+
+    func test_commitDecision_clearOverride_returnsEmpty() {
+        let result = ChainEndpointDetailView.commitDecision(
+            draft: "", stored: "https://old.example")
+        XCTAssertEqual(result, "",
+                       "commitDecision must return empty string to signal 'clear the override'")
+    }
+
+    /// Documents the stale-draft bug that the @Binding fix prevents.
+    ///
+    /// If `ChainFieldActions` clears the override WITHOUT updating `draft`,
+    /// and then `commitDraft()` is called on navigate-back, `commitDecision`
+    /// would return the stale draft URL and overwrite the clear.
+    ///
+    /// The @Binding fix ensures this case cannot occur in production
+    /// (draft and storage always move together), but this test pins the
+    /// decision logic: `commitDecision` faithfully reflects what it is given,
+    /// so the binding fix is the only correct guard.
+    func test_commitDecision_staleDraft_wouldOverwriteClear() {
+        // Simulate: override was cleared (stored = nil), but draft is stale.
+        let result = ChainEndpointDetailView.commitDecision(
+            draft: "https://stale-override.example", stored: nil)
+        XCTAssertEqual(result, "https://stale-override.example",
+                       "commitDecision returns the stale URL, proving the binding fix is load-bearing")
+    }
+
+    // MARK: - Critical 2: resetToDefaults clears overrides and provider
+
+    /// `resetToDefaults` must clear ALL per-chain overrides and set
+    /// `activeProvider = nil`. Without this, routing still goes through
+    /// overrides/provider after the "Reset to Defaults" confirmation —
+    /// the UI promises "all RPC URLs to default public nodes" but traffic
+    /// continues to flow through the user's custom endpoint or paid provider.
+    ///
+    /// API keys must NOT be cleared — keys are credentials, not routing
+    /// state. The provider is deactivated (routing falls through to public
+    /// default), but the key is preserved for re-activation.
+    func test_resetToDefaults_clearsOverridesAndProvider_preservesKeys() {
+        let config = NetworkConfig.shared
+        let savedProvider = config.activeProvider
+        let savedEthRPC = config.legacyEthereumRPC
+        let savedBtcAPI = config.legacyBitcoinAPI
+        let savedSolRPC = config.legacySolanaRPC
+        let savedEvmChainId = config.evmChainId
+        let savedBtcTestnet = config.btcTestnet
+        let savedSolDevnet = config.solDevnet
+        // Save a key value to verify it survives the reset. We read but
+        // never write "" — that would delete the Keychain item.
+        let savedEtherscanKey = config.etherscanAPIKey
+        defer {
+            config.activeProvider = savedProvider
+            config.evmChainId = savedEvmChainId
+            config.btcTestnet = savedBtcTestnet
+            config.solDevnet = savedSolDevnet
+            config.legacyEthereumRPC = savedEthRPC
+            config.legacyBitcoinAPI = savedBtcAPI
+            config.legacySolanaRPC = savedSolRPC
+            // Restore original key only if it was non-empty (to avoid Keychain
+            // write with "" which deletes the item).
+            if !savedEtherscanKey.isEmpty {
+                config.etherscanAPIKey = savedEtherscanKey
+            }
+        }
+
+        // Arrange: set overrides and a provider.
+        ChainEndpointOverrides.shared.set("https://btc-custom.example", for: .bitcoin)
+        ChainEndpointOverrides.shared.set("https://eth-custom.example", for: .ethereum)
+        ChainEndpointOverrides.shared.set("https://sol-custom.example", for: .solana)
+        config.activeProvider = .drpc
+
+        // Act.
+        config.resetToDefaults()
+
+        // Assert overrides cleared.
+        XCTAssertNil(ChainEndpointOverrides.shared.url(for: .bitcoin),
+                     "resetToDefaults must clear bitcoin override")
+        XCTAssertNil(ChainEndpointOverrides.shared.url(for: .ethereum),
+                     "resetToDefaults must clear ethereum override")
+        XCTAssertNil(ChainEndpointOverrides.shared.url(for: .solana),
+                     "resetToDefaults must clear solana override")
+
+        // Assert provider deactivated.
+        XCTAssertNil(config.activeProvider,
+                     "resetToDefaults must set activeProvider to nil")
+
+        // Assert all chains route to public default.
+        for chain in Chain.allCases {
+            let rpc = config.rpcURL(for: chain)
+            let pub = config.publicDefault(for: chain)
+            XCTAssertEqual(rpc, pub,
+                "[\(chain)] rpcURL must equal publicDefault after resetToDefaults. Got: \(rpc)")
+        }
+
+        // Assert key is preserved (value may be empty if not set in test env —
+        // the important thing is we did not assign "" to it, which would delete
+        // the Keychain item).
+        XCTAssertEqual(config.etherscanAPIKey, savedEtherscanKey,
+                       "resetToDefaults must not modify API keys")
+    }
+
+    // MARK: - Critical 3b: testnetBadge reads override URL, not stale flag
+
+    /// When an override is set for a chain, `testnetBadge` must derive the
+    /// badge from the resolved URL rather than from the network-selector flag.
+    /// Otherwise the badge can claim one network while traffic goes to another.
+    func test_testnetBadge_bitcoin_overrideDeterminesBadge() {
+        let config = NetworkConfig.shared
+        let savedBtcTestnet = config.btcTestnet
+        defer {
+            config.btcTestnet = savedBtcTestnet
+        }
+
+        // Override with testnet URL, flag says mainnet → badge must say Testnet.
+        config.btcTestnet = false
+        ChainEndpointOverrides.shared.set("https://mempool.space/testnet/api", for: .bitcoin)
+        XCTAssertEqual(config.testnetBadge(for: .bitcoin), "Testnet",
+            "testnetBadge must return 'Testnet' when override URL contains 'testnet'")
+
+        // Override with mainnet URL, flag says testnet → badge must say nil.
+        config.btcTestnet = true
+        ChainEndpointOverrides.shared.set("https://mempool.space/api", for: .bitcoin)
+        XCTAssertNil(config.testnetBadge(for: .bitcoin),
+            "testnetBadge must return nil when override URL contains no network marker (flag is ignored)")
+    }
+
+    func test_testnetBadge_ethereum_overrideDeterminesBadge() {
+        let config = NetworkConfig.shared
+        let savedEvmChainId = config.evmChainId
+        defer {
+            config.evmChainId = savedEvmChainId
+        }
+
+        // Override with Sepolia URL, flag says mainnet → badge must say Sepolia.
+        config.evmChainId = 1
+        ChainEndpointOverrides.shared.set("https://ethereum-sepolia-rpc.publicnode.com", for: .ethereum)
+        XCTAssertEqual(config.testnetBadge(for: .ethereum), "Sepolia",
+            "testnetBadge must return 'Sepolia' when override URL contains 'sepolia'")
+
+        // Override with unknown URL (no network marker) → nil regardless of flag.
+        config.evmChainId = 11155111  // sepolia chain ID
+        ChainEndpointOverrides.shared.set("https://my-unknown-rpc.example", for: .ethereum)
+        XCTAssertNil(config.testnetBadge(for: .ethereum),
+            "testnetBadge must return nil for unknown override URL — cannot claim mainnet or testnet")
+    }
+
+    func test_testnetBadge_solana_overrideDeterminesBadge() {
+        let config = NetworkConfig.shared
+        let savedSolDevnet = config.solDevnet
+        defer {
+            config.solDevnet = savedSolDevnet
+        }
+
+        // Override with devnet URL, flag says mainnet → badge must say Devnet.
+        config.solDevnet = false
+        ChainEndpointOverrides.shared.set("https://api.devnet.solana.com", for: .solana)
+        XCTAssertEqual(config.testnetBadge(for: .solana), "Devnet",
+            "testnetBadge must return 'Devnet' when override URL contains 'devnet'")
+
+        // Override with mainnet URL, flag says devnet → badge must be nil.
+        config.solDevnet = true
+        ChainEndpointOverrides.shared.set("https://api.mainnet-beta.solana.com", for: .solana)
+        XCTAssertNil(config.testnetBadge(for: .solana),
+            "testnetBadge must return nil when override URL contains no 'devnet' marker")
     }
 }

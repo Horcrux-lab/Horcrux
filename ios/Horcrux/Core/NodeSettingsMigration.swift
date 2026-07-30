@@ -132,11 +132,11 @@ enum NodeSettingsMigration {
                             defaults: UserDefaults = .standard) {
         guard defaults.integer(forKey: versionKey) < currentVersion else { return }
         let plan = plan(
-            ethereumRPC: config.ethereumRPC,
-            bitcoinAPI: config.bitcoinAPI,
-            litecoinAPI: config.litecoinAPI,
-            solanaRPC: config.solanaRPC,
-            tronAPI: config.tronAPI,
+            ethereumRPC: config.legacyEthereumRPC,
+            bitcoinAPI: config.legacyBitcoinAPI,
+            litecoinAPI: config.legacyLitecoinAPI,
+            solanaRPC: config.legacySolanaRPC,
+            tronAPI: config.legacyTronAPI,
             evmChainId: config.evmChainId
         )
         apply(plan, to: config)

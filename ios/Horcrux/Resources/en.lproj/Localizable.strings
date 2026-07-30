@@ -519,6 +519,8 @@
 "nodeSettings.exportNote" = "Back up and move your custom endpoints between devices — URLs and network selectors only. API keys stay in this device's Keychain.";
 "nodeSettings.presetConfirmTitle" = "Apply this preset?";
 "nodeSettings.presetApply" = "Apply";
+"nodeSettings.presetApplyAndClear" = "Apply and clear overrides";
+"nodeSettings.presetOverrideWarning" = "%1$d chain(s) have custom endpoints (%2$@). These will keep their current URL. Tap \"Apply and clear overrides\" to reset them too.";
 "nodeSettings.wssURLLabel" = "WebSocket endpoint (optional, wss://)";
 "nodeSettings.wssHint" = "For push subscriptions on paid nodes (Alchemy, Helius, etc.). Leave empty to disable.";
 "nodeSettings.wssTest" = "Test connection";

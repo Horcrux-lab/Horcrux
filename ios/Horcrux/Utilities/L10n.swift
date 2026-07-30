@@ -1149,6 +1149,11 @@ enum L10n {
 
         static let presetConfirmTitle = NSLocalizedString("nodeSettings.presetConfirmTitle", comment: "")
         static let presetApply = NSLocalizedString("nodeSettings.presetApply", comment: "")
+        static let presetApplyAndClear = NSLocalizedString("nodeSettings.presetApplyAndClear", comment: "")
+        static func presetOverrideWarning(count: Int, names: String) -> String {
+            String(format: NSLocalizedString("nodeSettings.presetOverrideWarning", comment: ""),
+                   count, names)
+        }
 
         static let apiKeysSection = NSLocalizedString("nodeSettings.apiKeysSection", comment: "")
         static let apiKeysHint = NSLocalizedString("nodeSettings.apiKeysHint", comment: "")

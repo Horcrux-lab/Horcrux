@@ -22,7 +22,7 @@ final class NetworkConfigTests: XCTestCase {
     @MainActor
     func test_rpcURL_forBitcoin_returnsBitcoinAPI() {
         let config = NetworkConfig.shared
-        XCTAssertEqual(config.rpcURL(for: .bitcoin), config.bitcoinAPI)
+        XCTAssertEqual(config.rpcURL(for: .bitcoin), config.legacyBitcoinAPI)
     }
 
     @MainActor
@@ -76,22 +76,22 @@ final class NetworkConfigTests: XCTestCase {
     @MainActor
     func test_applyPreset_testnet_updatesConfig() {
         let config = NetworkConfig.shared
-        _ = config.ethereumRPC
+        _ = config.legacyEthereumRPC
 
         config.applyPreset(.testnet)
         // With no Alchemy key configured (test env runs without Keychain
         // credentials), applyPreset down-converts the paid template to
         // the matching public endpoint so the stored URL stays usable.
-        XCTAssertEqual(config.ethereumRPC, EVMNetwork.sepolia.publicDefaultRPC)
-        XCTAssertEqual(config.bitcoinAPI, NetworkPreset.testnet.bitcoinAPI)
-        XCTAssertEqual(config.solanaRPC, SolanaNetwork.devnet.publicDefaultRPC)
+        XCTAssertEqual(config.legacyEthereumRPC, EVMNetwork.sepolia.publicDefaultRPC)
+        XCTAssertEqual(config.legacyBitcoinAPI, NetworkPreset.testnet.bitcoinAPI)
+        XCTAssertEqual(config.legacySolanaRPC, SolanaNetwork.devnet.publicDefaultRPC)
         XCTAssertEqual(config.evmChainId, 11155111)
         XCTAssertTrue(config.btcTestnet)
         XCTAssertTrue(config.solDevnet)
 
         // Restore mainnet to avoid polluting other tests
         config.applyPreset(.mainnet)
-        XCTAssertEqual(config.ethereumRPC, EVMNetwork.mainnet.publicDefaultRPC)
+        XCTAssertEqual(config.legacyEthereumRPC, EVMNetwork.mainnet.publicDefaultRPC)
     }
 
     // MARK: - resetToDefaults
@@ -103,9 +103,9 @@ final class NetworkConfigTests: XCTestCase {
 
         config.resetToDefaults()
         // Same down-conversion rule as applyPreset: no key → public URL.
-        XCTAssertEqual(config.ethereumRPC, EVMNetwork.mainnet.publicDefaultRPC)
-        XCTAssertEqual(config.bitcoinAPI, "https://mempool.space/api")
-        XCTAssertEqual(config.solanaRPC, SolanaNetwork.mainnet.publicDefaultRPC)
+        XCTAssertEqual(config.legacyEthereumRPC, EVMNetwork.mainnet.publicDefaultRPC)
+        XCTAssertEqual(config.legacyBitcoinAPI, "https://mempool.space/api")
+        XCTAssertEqual(config.legacySolanaRPC, SolanaNetwork.mainnet.publicDefaultRPC)
         XCTAssertEqual(config.evmChainId, 1)
         XCTAssertFalse(config.btcTestnet)
         XCTAssertFalse(config.solDevnet)
@@ -126,7 +126,7 @@ final class NetworkConfigTests: XCTestCase {
         config.applyPreset(.testnet)
 
         // Stored URL after applyPreset with no key = public endpoint.
-        XCTAssertEqual(config.ethereumRPC, EVMNetwork.sepolia.publicDefaultRPC)
+        XCTAssertEqual(config.legacyEthereumRPC, EVMNetwork.sepolia.publicDefaultRPC)
         let ethResolved = config.rpcURL(for: .ethereum)
         XCTAssertTrue(
             ethResolved == EVMNetwork.sepolia.publicDefaultRPC

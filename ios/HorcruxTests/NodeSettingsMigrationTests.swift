@@ -207,18 +207,18 @@ final class NodeSettingsMigrationTests: XCTestCase {
         defer { defaults.removePersistentDomain(forName: suite) }
 
         let config = NetworkConfig.shared
-        let originalETH = config.ethereumRPC
+        let originalETH = config.legacyEthereumRPC
         let originalChainId = config.evmChainId
         let originalProvider = config.activeProvider
         defer {
-            config.ethereumRPC = originalETH
+            config.legacyEthereumRPC = originalETH
             config.evmChainId = originalChainId
             config.activeProvider = originalProvider
             ChainEndpointOverrides.shared.removeAll()
         }
 
         config.evmChainId = 1
-        config.ethereumRPC = "https://my-own-node.example/eth"
+        config.legacyEthereumRPC = "https://my-own-node.example/eth"
 
         NodeSettingsMigration.runIfNeeded(config: config, defaults: defaults)
         XCTAssertEqual(ChainEndpointOverrides.shared.url(for: .ethereum),
@@ -262,10 +262,10 @@ final class NodeSettingsMigrationTests: XCTestCase {
         let config = NetworkConfig.shared
         let originalChainId = config.evmChainId
         let originalProvider = config.activeProvider
-        let originalEthRPC = config.ethereumRPC
+        let originalEthRPC = config.legacyEthereumRPC
         defer {
             config.evmChainId = originalChainId
-            config.ethereumRPC = originalEthRPC
+            config.legacyEthereumRPC = originalEthRPC
             config.activeProvider = originalProvider
             ChainEndpointOverrides.shared.removeAll()
         }
@@ -276,7 +276,7 @@ final class NodeSettingsMigrationTests: XCTestCase {
         // second-run assertion discriminating: a broken version gate would
         // re-derive .alchemy and fail XCTAssertNil below.
         config.evmChainId = 1
-        config.ethereumRPC = "https://eth-mainnet.g.alchemy.com/v2/{KEY}"
+        config.legacyEthereumRPC = "https://eth-mainnet.g.alchemy.com/v2/{KEY}"
         config.activeProvider = nil
 
         NodeSettingsMigration.runIfNeeded(config: config, defaults: defaults)

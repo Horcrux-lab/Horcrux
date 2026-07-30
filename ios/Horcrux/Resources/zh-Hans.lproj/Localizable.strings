@@ -519,6 +519,8 @@
 "nodeSettings.exportNote" = "可作为备份在多台设备之间迁移你的自定义节点配置 —— 导出内容只含 URL 与网络选择，API 密钥始终留在本机 Keychain。";
 "nodeSettings.presetConfirmTitle" = "应用此预设？";
 "nodeSettings.presetApply" = "应用";
+"nodeSettings.presetApplyAndClear" = "应用并清除自定义端点";
+"nodeSettings.presetOverrideWarning" = "%1$d条链有自定义端点（%2$@）。这些链将保留其当前URL。点击「应用并清除自定义端点」也可将它们重置。";
 "nodeSettings.wssURLLabel" = "WebSocket 端点（可选，wss://）";
 "nodeSettings.wssHint" = "用于付费节点的推送订阅（Alchemy、Helius 等）。留空即禁用。";
 "nodeSettings.wssTest" = "测试连接";
