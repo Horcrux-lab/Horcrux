@@ -79,6 +79,11 @@ struct ChainEndpointDetailView: View {
     private func commitDraft() {
         // Trim explicitly so callers see the behaviour rather than relying
         // on ChainEndpointOverrides.set treating whitespace-only as a clear.
-        overrides.set(draft.trimmingCharacters(in: .whitespacesAndNewlines), for: chain)
+        let trimmed = draft.trimmingCharacters(in: .whitespacesAndNewlines)
+        // Skip the write when nothing has changed: set("") routes to clear →
+        // mutate → UserDefaults write + objectWillChange, re-rendering all
+        // fourteen badges even for an untouched row.
+        guard trimmed != (overrides.url(for: chain) ?? "") else { return }
+        overrides.set(trimmed, for: chain)
     }
 }
