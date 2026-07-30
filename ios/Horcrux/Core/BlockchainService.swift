@@ -1185,9 +1185,9 @@ actor BlockchainService {
         }
         switch wallet.chain {
         case .solana:
-            return await splTokenBalances(tokens: tokens, ownerAddress: wallet.address, rpcURL: config.solanaRPC)
+            return await splTokenBalances(tokens: tokens, ownerAddress: wallet.address, rpcURL: config.rpcURL(for: wallet.chain))
         case .tron:
-            return await trc20Balances(tokens: tokens, ownerAddress: wallet.address, apiURL: config.tronAPI)
+            return await trc20Balances(tokens: tokens, ownerAddress: wallet.address, apiURL: config.rpcURL(for: wallet.chain))
         case .bitcoin, .litecoin:
             // UTXO chains have no token standard.
             return []

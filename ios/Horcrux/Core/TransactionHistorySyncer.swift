@@ -35,7 +35,7 @@ final class TransactionHistorySyncer {
             }
             // TRON: also pull TRC-20 token transfers in a second pass.
             if wallet.chain == .tron {
-                let trc20 = (try? await service.tronRecentTrc20Txs(address: wallet.address, apiURL: config.tronAPI)) ?? []
+                let trc20 = (try? await service.tronRecentTrc20Txs(address: wallet.address, apiURL: config.rpcURL(for: .tron))) ?? []
                 for (ext, symbol, decimals, _) in trc20 where !existing.contains(ext.txHash) {
                     let rec = makeTokenRecord(ext, wallet: wallet, symbol: symbol, decimals: decimals)
                     store.add(rec)
@@ -68,13 +68,13 @@ final class TransactionHistorySyncer {
     private func fetchRemote(for wallet: Wallet) async throws -> [BlockchainService.ExternalTx] {
         switch wallet.chain {
         case .bitcoin:
-            return try await service.esploraRecentTxs(address: wallet.address, apiURL: config.bitcoinAPI)
+            return try await service.esploraRecentTxs(address: wallet.address, apiURL: config.rpcURL(for: .bitcoin))
         case .litecoin:
-            return try await service.esploraRecentTxs(address: wallet.address, apiURL: config.litecoinAPI)
+            return try await service.esploraRecentTxs(address: wallet.address, apiURL: config.rpcURL(for: .litecoin))
         case .tron:
-            return try await service.tronRecentTxs(address: wallet.address, apiURL: config.tronAPI)
+            return try await service.tronRecentTxs(address: wallet.address, apiURL: config.rpcURL(for: .tron))
         case .solana:
-            return try await service.solanaRecentTxs(address: wallet.address, rpcURL: config.solanaRPC)
+            return try await service.solanaRecentTxs(address: wallet.address, rpcURL: config.rpcURL(for: .solana))
         default:
             // EVM chains (all variants).
             if wallet.chain.isEVM {

@@ -71,9 +71,9 @@ actor TransactionConfirmationPoller {
             case .litecoin:
                 return try await checkBtcConfirmation(txHash: txHash, chain: .litecoin, config: config)
             case .solana:
-                return try await checkSolConfirmation(txHash: txHash, service: service, rpcURL: config.solanaRPC)
+                return try await checkSolConfirmation(txHash: txHash, service: service, rpcURL: config.rpcURL(for: .solana))
             case .tron:
-                return try await checkTronConfirmation(txID: txHash, apiURL: config.tronAPI)
+                return try await checkTronConfirmation(txID: txHash, apiURL: config.rpcURL(for: .tron))
             default:
                 return false
             }

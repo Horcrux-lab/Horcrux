@@ -66,10 +66,10 @@ final class PendingBroadcastQueue: ObservableObject {
                     switch tx.chain {
                     case .bitcoin:
                         result = try await service.btcBroadcast(
-                            signedTxHex: tx.signedPayload, apiURL: config.bitcoinAPI)
+                            signedTxHex: tx.signedPayload, apiURL: config.rpcURL(for: .bitcoin))
                     case .solana:
                         result = try await service.solSendTransaction(
-                            signedTxBase64: tx.signedPayload, rpcURL: config.solanaRPC)
+                            signedTxBase64: tx.signedPayload, rpcURL: config.rpcURL(for: .solana))
                     case .litecoin, .tron:
                         throw BlockchainError.invalidURL(
                             "Broadcast for \(tx.chain.rawValue) is not implemented yet"
