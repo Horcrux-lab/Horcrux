@@ -2362,74 +2362,120 @@ Ethereum. A uniform list also means a new chain appears automatically
 instead of waiting for someone to hand-write a section."
 ```
 
-### Task 12: Swap the sections into `BlockchainNodeSettingsView`
+### Task 12: Close the dead-field regression in `BlockchainNodeSettingsView`
+
+**Status: DONE** (commit `feat/provider-first-node-settings`)
 
 **Files:**
-- Modify: `ios/Horcrux/Features/Settings/SettingsView.swift:1183-1400`
+- Modified: `ios/Horcrux/Features/Settings/SettingsView.swift`
+- Modified: `ios/Horcrux/Features/Settings/NodeSettings/ChainEndpointDetailView.swift`
+- Modified: `ios/Horcrux/Core/NetworkConfig.swift`
+- Modified: `ios/Horcrux/Utilities/L10n.swift`
+- Modified: `ios/Horcrux/Resources/en.lproj/Localizable.strings`
+- Modified: `ios/Horcrux/Resources/zh-Hans.lproj/Localizable.strings`
+- Created:  `ios/HorcruxTests/NodeSettingsV2RegressionTests.swift`
+- Regenerated: `ios/Horcrux.xcodeproj/project.pbxproj`
 
-- [ ] **Step 1: Replace the three hand-written sections**
+**The regression:** The settings screen was writing to five legacy fields
+(`config.ethereumRPC`, `bitcoinAPI`, `litecoinAPI`, `solanaRPC`, `tronAPI`)
+that `resolveRawURL(for:)` no longer reads. User edits were silently
+ignored. The routing layer now uses
+`ChainEndpointOverrides → provider → publicDefault` exclusively.
 
-In `BlockchainNodeSettingsView.body`, delete the
-`Section(L10n.NodeSettings.ethereumEVM)`, `Section(L10n.NodeSettings.bitcoin)`
-and `Section(L10n.NodeSettings.solana)` blocks and put in their place:
+#### What was done
 
-```swift
-            NodeProviderSection()
-            ChainEndpointList()
-```
+- [x] **Step 1 — Swap sections:** Deleted `Section(ethereumEVM)`,
+  `Section(bitcoin)` (with Litecoin), and `Section(solana)` (with Tron)
+  from `BlockchainNodeSettingsView.body`. Inserted `NodeProviderSection()`
+  and `ChainEndpointList()` in their place. Kept
+  `Section(quickPresets)` and `EndpointCooldownSection()` unchanged.
 
-Keep `Section(L10n.NodeSettings.quickPresets)` and
-`EndpointCooldownSection()` exactly where they are.
+- [x] **Step 2 — Delete legacy `PaidEVMProvider` machinery:** Removed
+  `@State selectedEVMProvider`, `detectActiveEVMProvider()`,
+  `enum PaidEVMProvider`, `keyBinding(for: PaidEVMProvider)`,
+  `autoApplyProviderTemplate()`, the provider picker VStack (including its
+  three inline `.onChange` modifiers), and the body-level `.onAppear` +
+  `.onChange(of: config.ethereumRPC)` + `.onChange(of: config.solanaRPC)`
+  modifiers. `NodeProviderSection` replaces all of it. The
+  `.onChange(of: config.evmChainId)` and `.onChange(of: config.solDevnet)`
+  handlers that only existed to call `autoApplyProviderTemplate()` went
+  away with it. The Etherscan key field was kept (it is a block explorer,
+  not an RPC provider).
 
-Ethereum's mainnet/Sepolia toggle moves into
-`ChainEndpointDetailView` for `.ethereum` only. Add to that view, inside
-the `Form`, before the "Custom URL" section:
+- [x] **Step 3 — Reroute Helius button:** Changed
+  `config.solanaRPC = RPCProviderTemplate.helius(mainnet: ...)` →
+  `ChainEndpointOverrides.shared.set(RPCProviderTemplate.helius(mainnet: !config.solDevnet), for: .solana)`.
+  `substituteAPIKey` correctly recognises the `helius-rpc.com` host and
+  substitutes `heliusAPIKey` at call time.
 
-```swift
-            if chain == .ethereum {
-                Section("Network") {
-                    Picker("Network", selection: $config.evmChainId) {
-                        Text("Mainnet").tag(EVMNetwork.mainnet.rawValue)
-                        Text("Sepolia").tag(EVMNetwork.sepolia.rawValue)
-                    }
-                    .pickerStyle(.segmented)
-                    .accessibilityIdentifier("nodeSettings_ethereumNetworkPicker")
-                }
-            }
-```
+- [x] **Step 4 — Ethereum network picker in `ChainEndpointDetailView`:**
+  Added a segmented `Picker` (mainnet / Sepolia only) inside
+  `if chain == .ethereum { Section(L10n.NodeSettings.networkPicker) { ... } }`
+  before the custom URL section. Uses `$config.evmChainId` via the
+  existing `@ObservedObject private var config`. Only mainnet and Sepolia
+  appear — Polygon, Base etc. are first-class chains now and would
+  recreate the two-different-Polygons ambiguity.
 
-Only mainnet and Sepolia appear. Polygon, Base and the rest are reached
-as their own chains now, so offering them here would recreate the two
-different Polygons the design removes.
+- [x] **Step 5 — Rehome `EndpointSwitcher` and `ChainFieldActions`:**
+  Both structs gained zero call sites after step 1. They were moved into
+  `ChainEndpointDetailView`'s custom-URL section. Routing updated:
+  - `setFieldValue(url, for: chain)` → `ChainEndpointOverrides.shared.set(url, for: chain)`
+  - Filter for "already in use" → `overrides.url(for: chain)`
+  - "Copy URL" → `overrides.url(for: chain)` (raw, un-substituted template).
+    Using `rpcURL(for:)` would copy a substituted API key to clipboard —
+    a secret leaving the app even via `SecureClipboard`. The raw override
+    is safe to copy and still useful for backup/transfer.
+  - "Reset this chain" → `ChainEndpointOverrides.shared.clear(chain)`
+  `WSSField` was made internal (removed `private`) so `ChainEndpointDetailView`
+  can use it across files in the same module.
 
-- [ ] **Step 2: Build and run the affected tests**
+- [x] **Step 6 — Simplify `applyPreset`:** Removed the `hasKey`/Alchemy
+  branch and all explicit URL writes. New version sets only `evmChainId`,
+  `btcTestnet`, `solDevnet`. The `didSet` auto-swap helpers
+  (`autoSwapEthereumRPCIfDefault` etc.) continue to update `ethereumRPC`
+  and siblings when still on a recognised default — existing
+  `NetworkConfigTests` pass unchanged. Deleted `fieldValue(for:)`,
+  `setFieldValue(_:for:)`, and `resetField(for:)` — confirmed zero callers
+  remained anywhere in the codebase.
+  **Override-vs-preset decision:** if the user has a chain override and
+  taps a network preset, the override survives. The badge correctly shows
+  "Custom", which is honest. The user explicitly chose a custom URL; it
+  would be worse to silently clear it. Pinned by
+  `test_applyPreset_leavesExistingOverridesIntact`.
 
-```bash
-cd ios && xcodegen generate && xcodebuild test -project Horcrux.xcodeproj \
-  -scheme Horcrux -destination 'platform=iOS Simulator,name=iPhone 17' \
-  -skipPackagePluginValidation CODE_SIGNING_ALLOWED=NO \
-  -only-testing:HorcruxTests/EndpointResolutionTests \
-  -only-testing:HorcruxTests/NetworkConfigTests \
-  -only-testing:HorcruxTests/RPCRoutingTests \
-  -only-testing:HorcruxTests/NodeProviderTests \
-  -only-testing:HorcruxTests/NodeSettingsMigrationTests 2>&1 | grep -E "error:|Executed|TEST"
-```
+- [x] **Step 7 — Localization cleanup:** Removed 14 dead `L10n.NodeSettings`
+  keys from `L10n.swift` and both `.strings` files:
+  `ethereumEVM`, `rpcURL`, `bitcoin`, `restAPIURL`, `testnet`, `testnetHint`,
+  `solana`, `devnet`, `devnetHint`, `paidProviderPicker`, `applyProviderFor`,
+  `providerActiveFor`, `advancedFields`, `providerUnsupportedOnChain`.
+  Added `mainnet` ("Mainnet" / "主网") and `sepolia` ("Sepolia" / "Sepolia").
+  Kept `networkPicker` — reused as Section header and Picker label in
+  `ChainEndpointDetailView`.
 
-Expected: `BUILD SUCCEEDED` and all tests pass. Fix any reference to a
-deleted symbol (`selectedEVMProvider`, `detectActiveEVMProvider`,
-`PaidEVMProvider`) by deleting it — `NodeProvider` replaces all three.
+- [x] **Step 8 — Regression tests (`NodeSettingsV2RegressionTests`, 7 tests):**
+  - `test_writingToEthereumRPC_doesNotAffectRPCURL` — the primary regression test
+  - `test_overridePathTakesEffect_onRPCURL` — positive case
+  - `test_legacyFields_areIgnoredByRouting_forAllFiveChains` — all five dead fields
+  - `test_heliusOverrideRoundTrip_hostPresentKeySubstituted` — host present, no `{KEY}`
+  - `test_heliusDevnetOverrideRoundTrip` — devnet path
+  - `test_applyPreset_testnet_setsTogglesAndRPCURLsFollowForUnoverriddenChains`
+  - `test_applyPreset_leavesExistingOverridesIntact` — pins the override-wins decision
 
-- [ ] **Step 3: Commit**
+  Mutation verification (each mutation went RED, restore went GREEN):
+  1. `XCTAssertFalse` → `XCTAssertTrue` on dead-field test: RED (`publicnode.com` ≠ `legacy-dead-field.example`)
+  2. `XCTAssertFalse(contains "{KEY}")` → `XCTAssertTrue` on Helius test: RED (key was substituted with `test-helius-sentinel`)
+  3. `customSolURL` → `"https://WRONG-URL.example"` in override-survives test: RED
 
-```bash
-git add ios/Horcrux/Features/Settings/SettingsView.swift ios/Horcrux.xcodeproj/project.pbxproj
-git commit -m "refactor(ios): replace the per-chain node sections with provider + chain list
+**NavigationStack check:** `BlockchainNodeSettingsView` is a
+`NavigationLink` destination inside `SettingsView.body` which opens with
+`NavigationStack { ... }`. `ChainEndpointList`'s `NavigationLink` rows
+push `ChainEndpointDetailView` correctly onto the existing stack.
 
-The EVM network picker narrows to mainnet and Sepolia. Polygon, Base and
-the rest are first-class chains now, so offering them in Ethereum's
-network picker would recreate the two-different-Polygons ambiguity the
-design removes."
-```
+**Test counts observed (all green):**
+`EndpointResolutionTests` 35, `RPCRoutingTests` 11,
+`ProviderCoverageSummaryTests` 13, `NodeProviderTests` 14,
+`NodeSettingsMigrationTests` 19, `NetworkConfigTests` 10,
+`EndpointSourceTests` 12, `NodeSettingsV2RegressionTests` 7 = **121 total**.
 
 ---
 
