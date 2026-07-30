@@ -277,6 +277,14 @@ final class NetworkConfig: ObservableObject, @unchecked Sendable {
         self.activeProvider = storedProvider.flatMap(NodeProvider.init(rawValue:))
         self.ethereumWSS = ud.string(forKey: Keys.ethereumWSS) ?? ""
         self.solanaWSS = ud.string(forKey: Keys.solanaWSS) ?? ""
+        // NOTE: this line is not covered by any automated test. NetworkConfig has
+        // a `private init()` and a singleton, so `init()` cannot be re-run in
+        // tests, and UserDefaults.standard persists across simulator test runs
+        // (confirmed empirically), making a versionKey-presence assertion a
+        // permanent false-green after its first success. Removing this line would
+        // silently skip the migration for all real users — every launch would
+        // re-derive the plan from the never-cleared legacy fields, resurrecting
+        // overrides the user deleted.
         NodeSettingsMigration.runIfNeeded(config: self)
     }
 

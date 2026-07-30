@@ -270,13 +270,22 @@ final class NodeSettingsMigrationTests: XCTestCase {
             ChainEndpointOverrides.shared.removeAll()
         }
 
+        // Seed a legacy Alchemy-template URL. plan() detects the {KEY}
+        // pattern and resolves it to NodeProvider.alchemy, so the first
+        // runIfNeeded produces a non-nil activeProvider. That makes the
+        // second-run assertion discriminating: a broken version gate would
+        // re-derive .alchemy and fail XCTAssertNil below.
+        config.evmChainId = 1
+        config.ethereumRPC = "https://eth-mainnet.g.alchemy.com/v2/{KEY}"
+        config.activeProvider = nil
+
         NodeSettingsMigration.runIfNeeded(config: config, defaults: defaults)
-        let firstRunProvider = config.activeProvider
+        XCTAssertEqual(config.activeProvider, .alchemy,
+                       "the first run must derive the provider from the seeded legacy URL")
 
         config.activeProvider = nil
         NodeSettingsMigration.runIfNeeded(config: config, defaults: defaults)
         XCTAssertNil(config.activeProvider,
                      "a second run must be a no-op, not re-derive state the user has since changed")
-        _ = firstRunProvider
     }
 }
