@@ -3,13 +3,23 @@ import XCTest
 
 final class EndpointResolutionTests: XCTestCase {
 
+    /// `TEST_HOST` is `Horcrux.app`, so this store is the user's real one.
+    /// Snapshot and restore it rather than blanking it, or running the
+    /// tests on a device deletes every endpoint they configured by hand.
+    private var savedOverrides: [String: String] = [:]
+
     override func setUp() {
         super.setUp()
+        savedOverrides = ChainEndpointOverrides.shared.snapshot()
         ChainEndpointOverrides.shared.removeAll()
     }
 
     override func tearDown() {
         ChainEndpointOverrides.shared.removeAll()
+        for (raw, url) in savedOverrides {
+            guard let chain = Chain(rawValue: raw) else { continue }
+            ChainEndpointOverrides.shared.set(url, for: chain)
+        }
         super.tearDown()
     }
 
@@ -228,19 +238,34 @@ final class EndpointResolutionTests: XCTestCase {
         XCTAssertNil(NodeProvider(rawValue: "quicknode"))
     }
 
+    /// `alchemyAPIKey.didSet` runs `autoSwapPaidPublicDefaultsOnKeyChange`,
+    /// which rewrites `ethereumRPC` and `solanaRPC` — and it is *edge*
+    /// triggered on empty↔non-empty. Clearing the key and then setting one
+    /// crosses two edges, but restoring a non-empty key crosses none, so
+    /// the swap is never undone. `TEST_HOST` is `Horcrux.app`, so those two
+    /// URLs are the user's real settings. Restore them explicitly, and
+    /// after the key, since assigning the key is what perturbs them.
     private func withCleanConfig(_ body: (NetworkConfig) -> Void) {
         let config = NetworkConfig.shared
         let provider = config.activeProvider
         let chainId = config.evmChainId
+        let devnet = config.solDevnet
         let alchemy = config.alchemyAPIKey
+        let ankr = config.ankrAPIKey
+        let ethereumRPC = config.ethereumRPC
+        let solanaRPC = config.solanaRPC
         defer {
             config.activeProvider = provider
             config.evmChainId = chainId
+            config.solDevnet = devnet
             config.alchemyAPIKey = alchemy
-            ChainEndpointOverrides.shared.removeAll()
+            config.ankrAPIKey = ankr
+            config.ethereumRPC = ethereumRPC
+            config.solanaRPC = solanaRPC
         }
         config.activeProvider = nil
         config.alchemyAPIKey = ""
+        config.ankrAPIKey = ""
         ChainEndpointOverrides.shared.removeAll()
         body(config)
     }
@@ -306,6 +331,46 @@ final class EndpointResolutionTests: XCTestCase {
             config.evmChainId = 11_155_111
             XCTAssertEqual(config.resolveRawURL(for: .ethereum),
                            "https://eth-sepolia.g.alchemy.com/v2/{KEY}")
+        }
+    }
+
+    /// The single highest-consequence argument in `resolveRawURL`. Nothing
+    /// else in the suite can distinguish `solanaMainnet: !solDevnet` from
+    /// `true`, `false`, or the inverted `solDevnet`: the parameter is dead
+    /// for every non-Solana chain, and the only test that reaches `.solana`
+    /// runs with no provider selected, so it short-circuits before the
+    /// template is ever consulted.
+    ///
+    /// Getting it wrong hands a Devnet user a mainnet endpoint. Solana
+    /// addresses are byte-identical across clusters, so it answers normally
+    /// and a "test" transfer spends real SOL. `detectMismatch` only fires
+    /// on the node-health screen; the send path has no guard at all.
+    /// Commit e76d329 on this branch fixed exactly this bug one layer down.
+    func test_resolve_forSolana_followsTheClusterToggleThroughTheProvider() {
+        withCleanConfig { config in
+            config.activeProvider = .alchemy
+            config.alchemyAPIKey = "k"
+
+            config.solDevnet = false
+            XCTAssertEqual(config.resolveRawURL(for: .solana),
+                           "https://solana-mainnet.g.alchemy.com/v2/{KEY}")
+            config.solDevnet = true
+            XCTAssertEqual(config.resolveRawURL(for: .solana),
+                           "https://solana-devnet.g.alchemy.com/v2/{KEY}")
+        }
+    }
+
+    /// Ankr and dRPC have no devnet Solana host, so on devnet they must
+    /// fall through to the public devnet endpoint rather than serve their
+    /// mainnet one.
+    func test_resolve_forSolanaOnDevnet_skipsAProviderWithNoDevnetHost() {
+        withCleanConfig { config in
+            config.activeProvider = .ankr
+            config.ankrAPIKey = "k"
+
+            config.solDevnet = true
+            XCTAssertEqual(config.resolveRawURL(for: .solana),
+                           SolanaNetwork.devnet.publicDefaultRPC)
         }
     }
 
