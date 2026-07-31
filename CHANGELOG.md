@@ -158,6 +158,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Testing
 
+- **The endpoint sweep reported "dead" for hosts that were merely having
+  a bad minute.** `probe-rpc-endpoints.sh` gave each endpoint exactly one
+  attempt, and the workflow's only defence was a second whole-table pass
+  60s later. That is calibrated for a sub-minute blip, not for a host
+  that flaps over several minutes. blockstream.info did exactly that on
+  2026-07-31: dead on both CI passes at 22:09Z, every endpoint OK at
+  22:21Z on a branch carrying the same table, dead again on a rerun at
+  22:28Z, and answering 2 of 3 requests from a laptop throughout. It
+  failed a PR twice over a table its diff had not touched.
+  Reruns-until-green is the habit this section exists to eliminate, so
+  the script now retries each endpoint (`PROBE_ATTEMPTS`, default 3, with
+  backoff) before calling it dead. This does not soften what the job was
+  written to catch — a decommissioned host such as the LlamaRPC set fails
+  every attempt regardless of how many are made, verified against a
+  fixture — it only removes false positives: for a host failing a
+  fraction p of requests the two passes alone left a p² chance of a
+  spurious red, about 11% at p=1/3, and three attempts per pass takes
+  that to p⁶. Flakiness is still real information and is not swallowed:
+  an endpoint that needed retries is reported as `FLAKY`, named in the
+  run summary, and excluded only from the *failure* verdict.
 - **The iOS CI gate had never gated anything.** `ci.yml`'s "Build iOS
   app" and "Run unit tests" steps both pipe `xcodebuild` into `xcpretty`.
   GitHub Actions' default shell is `bash -e {0}` — `errexit` but *not*
