@@ -1,7 +1,9 @@
 # Node Settings: Provider-First Configuration
 
 **Date:** 2026-07-29
-**Status:** Design approved, not yet implemented.
+**Status:** Implemented in a15aebe..cbc07db (branch
+`feat/provider-first-node-settings`). Tasks 1–15 of
+`../plans/2026-07-29-node-settings-provider-first.md` are complete.
 **Related:** `2026-07-29-node-configuration-design.md` (endpoint reliability;
 Part 1 shipped). That document fixed *which* endpoints we ship. This one
 fixes *how a user configures them*.
