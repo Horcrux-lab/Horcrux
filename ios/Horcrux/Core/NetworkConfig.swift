@@ -579,6 +579,12 @@ final class NetworkConfig: ObservableObject, @unchecked Sendable {
     /// goes through `rpcURL(for:)` → `ChainEndpointOverrides`. They are
     /// retained because `NodeSettingsMigration` reads them at launch to seed
     /// overrides, and `RPCConfigSnapshot` reads/writes them for export.
+    ///
+    /// The set of network flags written here defines which chains a preset
+    /// governs. If you add a flag, add its chain to `NetworkPreset.governedChains`
+    /// or the preset dialog will silently omit that chain from its override
+    /// warning and from "Apply and clear overrides".
+    /// `test_presetGoverningChains_matchApplyPresetDomain` pins the current set.
     func applyPreset(_ preset: NetworkPreset) {
         evmChainId = preset.evmChainId
         btcTestnet = preset.btcTestnet
