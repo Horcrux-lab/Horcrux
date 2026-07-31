@@ -102,11 +102,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   turn *and* mark each perfectly healthy endpoint as failed — and
   `RPCEndpointHealth` is shared, so one bad transaction would have
   degraded routing for balance fetches and confirmation polling too.
-  `classifyBtcBroadcastForFallback` treats a 4xx as a verdict on the
-  transaction rather than the endpoint, leaving 401/403 (credentials)
-  and 408/429 (no verdict formed) to fail over. This is asserted
-  directly: a rejected broadcast must issue exactly one request and must
-  not change any endpoint's health.
+  `classifyBtcBroadcastForFallback` treats a rejection as a verdict on
+  the transaction rather than the endpoint, leaving 401/403
+  (credentials) and 408/429 (no verdict formed) to fail over. This is
+  asserted directly: a rejected broadcast must issue exactly one request
+  and must not change any endpoint's health. Only 400 and 422 carry a
+  verdict, though — 404/405/407 mean "this host does not serve this
+  route", which is an endpoint fault and the one thing failover is for.
+  Per-chain overrides are stored without URL-shape validation, so an
+  override missing its `/api` suffix 404s on `POST /tx` while balances
+  and the UTXO fetch quietly fail over and keep working; classifying
+  that as a verdict would leave the wallet showing balances, building
+  transactions, and silently unable to send.
+- **The fee estimate no longer prices a transaction nobody quoted.** It
+  was the one call in `buildP2WPKHSignHash` left on the single primary
+  URL, with its failure swallowed by `try?` and a 2 sat/vB floor behind
+  it. That was survivable only while the UTXO fetch used the same URL
+  and threw first, aborting the build — so making the UTXO fetch and the
+  broadcast fault-aware would have converted "cannot send" into
+  "silently sends at the floor rate", and the builder writes nSequence
+  `0xFFFF_FFFE`, so the resulting stuck transaction is not even
+  BIP125-replaceable. The estimate now routes through the fallback list
+  and throws when nothing answers. Note that `btcFeeEstimate` redirects
+  blockstream to mempool.space, since `/v1/fees/recommended` is a
+  mempool.space extension rather than part of Esplora, so on the shipped
+  table both attempts still reach one host; the redundancy is real for a
+  user whose primary is their own node, and the fail-closed behaviour is
+  real either way.
 - **Bitcoin fails over on transport errors where EVM deliberately does
   not.** `ethSendRawTransaction(chain:config:)` refuses to switch
   endpoints on a transient failure because a re-submission could bump

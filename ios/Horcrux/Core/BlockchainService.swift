@@ -418,6 +418,20 @@ actor BlockchainService {
         let minimumFee: UInt64
     }
 
+    /// `/v1/fees/recommended` is a mempool.space extension rather than part
+    /// of Esplora. mempool.space and litecoinspace.org both serve it —
+    /// verified live, and litecoinspace.org answers 404 for Esplora's own
+    /// `/fee-estimates`, so this is not interchangeable — while
+    /// blockstream.info does not, hence the redirect.
+    ///
+    /// The redirect means that under the shipped Bitcoin table both
+    /// endpoints resolve to the same host for fees, so
+    /// `btcFeeEstimate(chain:config:)` buys no redundancy for a user on the
+    /// defaults. It buys real redundancy for a user whose primary is their
+    /// own Esplora, and either way the caller no longer silently prices a
+    /// transaction when nothing answers. Making blockstream an independent
+    /// fee source needs its `/fee-estimates` shape implemented and tested
+    /// against the live host, which is a separate change.
     func btcFeeEstimate(apiURL: String) async throws -> BtcFeeEstimate {
         let feeURLString = apiURL.contains("blockstream")
             ? "https://mempool.space/api/v1/fees/recommended"
@@ -426,6 +440,22 @@ actor BlockchainService {
         let (data, response) = try await session.data(from: url)
         try validateHTTP(response)
         return try JSONDecoder().decode(BtcFeeEstimate.self, from: data)
+    }
+
+    /// Fault-aware fee estimate.
+    ///
+    /// The signing path used to call `btcFeeEstimate(apiURL:)` against the
+    /// single configured primary and swallow the error with `try?`, landing
+    /// on a 2 sat/vB floor. That was survivable only while the UTXO fetch
+    /// used the same URL and threw first, aborting the build. Now that the
+    /// UTXO fetch and the broadcast fail over, a dead primary would stop
+    /// blocking the send and start silently pricing it at the floor — and
+    /// the builder writes nSequence 0xFFFF_FFFE, so the resulting stuck
+    /// transaction is not BIP125-replaceable either.
+    func btcFeeEstimate(chain: Chain, config: NetworkConfig) async throws -> BtcFeeEstimate {
+        return try await withFallbackURL(chain: chain, config: config) { url in
+            try await btcFeeEstimate(apiURL: url)
+        }
     }
 
     /// Check if an EVM transaction has been mined. Returns:
@@ -488,9 +518,18 @@ actor BlockchainService {
     /// transaction would degrade routing for the whole app.
     ///
     /// So a 4xx from the node is a verdict on the transaction, not on the
-    /// endpoint, and must surface unchanged. The exceptions are 401/403
-    /// (our credentials, not the transaction), and 408/429 (the node never
-    /// formed a verdict).
+    /// endpoint, and must surface unchanged — but only the codes that
+    /// actually carry a verdict. 404/405/407 say "this endpoint does not
+    /// serve this route", which is an endpoint fault and exactly what
+    /// failover is for: per-chain overrides are stored without URL-shape
+    /// validation, so a Bitcoin override missing its `/api` suffix 404s on
+    /// `POST /tx` while balances and the UTXO fetch quietly fail over and
+    /// keep working. Treating that as a verdict would leave the wallet
+    /// displaying balances, building transactions, and unable to send, with
+    /// the failover machinery declining by design.
+    ///
+    /// The other exceptions are 401/403 (our credentials, not the
+    /// transaction), and 408/429 (the node never formed a verdict).
     static func classifyBtcBroadcastForFallback(_ error: Error) -> FallbackClassification {
         guard case .httpError(let code)? = error as? BlockchainError else {
             // Transport failures — the case that matters here, since an
@@ -498,8 +537,9 @@ actor BlockchainService {
             return .transient
         }
         if code == 401 || code == 403 { return .authFailure }
-        if code == 408 || code == 429 { return .transient }
-        if (400...499).contains(code) { return .businessError }
+        // Esplora rejects an invalid transaction with 400; 422 is the other
+        // code an Esplora-compatible host may use to say the same thing.
+        if code == 400 || code == 422 { return .businessError }
         return .transient
     }
 

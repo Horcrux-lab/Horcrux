@@ -2025,7 +2025,6 @@ final class SigningViewModel: ObservableObject {
         guard let networkConfig, let blockchainService else {
             throw SigningError.notInitialized
         }
-        let apiURL = networkConfig.rpcURL(for: wallet.chain)
 
         // 1. Fetch UTXOs (confirmed only to avoid replace-by-fee surprises).
         let utxos = try await blockchainService.btcUtxos(
@@ -2037,16 +2036,24 @@ final class SigningViewModel: ObservableObject {
         let sendSats = Self.btcAmountToSats(amount)
         guard sendSats > 0 else { throw SigningError.notInitialized }
 
-        // 3. Fee estimate. Fall back to 2 sat/vB if the API hiccups.
-        //    Apply the user's fee tier — .fast uses fastestFee, .slow uses
-        //    economyFee (falls back to halfHour × 0.85), .normal stays on
-        //    halfHourFee. Custom tier isn't exposed for UTXO chains yet
-        //    and falls through as normal.
+        // 3. Fee estimate. Apply the user's fee tier — .fast uses
+        //    fastestFee, .slow uses economyFee (falls back to halfHour ×
+        //    0.85), .normal stays on halfHourFee. Custom tier isn't exposed
+        //    for UTXO chains yet and falls through as normal.
+        //
+        //    Routed through the fallback list, and a total failure throws
+        //    rather than falling back to a floor rate: with the UTXO fetch
+        //    and the broadcast both fault-aware, silently pricing at 2
+        //    sat/vB would turn "cannot reach the network" into a signed,
+        //    broadcast, non-BIP125-replaceable transaction that may never
+        //    confirm.
         let satPerVbyte: UInt64
         if feeTier == .custom, let v = UInt64(customGasPriceGwei.trimmingCharacters(in: .whitespaces)), v >= 1 {
             // User-provided sat/vB.
             satPerVbyte = v
-        } else if let rate = try? await blockchainService.btcFeeEstimate(apiURL: apiURL) {
+        } else {
+            let rate = try await blockchainService.btcFeeEstimate(
+                chain: wallet.chain, config: networkConfig)
             let base = rate.halfHourFee
             let scaled: UInt64 = {
                 switch feeTier {
@@ -2056,8 +2063,6 @@ final class SigningViewModel: ObservableObject {
                 }
             }()
             satPerVbyte = max(scaled, 1)
-        } else {
-            satPerVbyte = 2
         }
 
         // 4. Pick smallest UTXO that covers amount + fee (1 in, 2 out ≈ 141 vB).
