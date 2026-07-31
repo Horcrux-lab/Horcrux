@@ -519,8 +519,9 @@
 "nodeSettings.importApply" = "应用";
 "nodeSettings.importParseFailed" = "JSON 解析失败，请检查格式。";
 "nodeSettings.importVersionTooNew" = "此导出文件由更新版本的应用创建，请升级应用后再导入。";
+"nodeSettings.importUnknownChains" = "以下链在此版本应用中不可识别，相关端点已跳过导入：%@。导入将继续执行。";
 "nodeSettings.importNoChanges" = "与当前配置一致，无需导入。";
-"nodeSettings.exportNote" = "可作为备份在多台设备之间迁移你的自定义节点配置 —— 导出内容只含 URL 与网络选择，API 密钥始终留在本机 Keychain。";
+"nodeSettings.exportNote" = "可在多台设备之间迁移自定义节点配置。网络选择与 Keychain 中的 API 密钥不会导出。但手动填写的 URL 可能嵌入凭据，请妥善保管导出文件。";
 "nodeSettings.presetConfirmTitle" = "应用此预设？";
 "nodeSettings.presetApply" = "应用";
 "nodeSettings.presetApplyAndClear" = "应用并清除自定义端点";
