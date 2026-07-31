@@ -254,8 +254,15 @@ jobs:
                      "$HOME/Library/Logs/CoreSimulator"; do
             while IFS= read -r f; do
               found=1
-              echo "--- $f ---"
-              head -100 "$f"
+              echo "--- $f (fields) ---"
+              # An .ips is a JSON header line plus a JSON body whose thread
+              # dumps dwarf everything else, so `head` misses the fields that
+              # actually name the failure. Split on commas and pull those out.
+              tr ',' '\n' < "$f" \
+                | grep -aE '"(termination|asi|exception|exitReason|reason|indicator|is_corpse|procName)"' \
+                | head -40
+              echo "--- $f (exception backtrace symbols) ---"
+              tr ',' '\n' < "$f" | grep -a '"symbol"' | head -30
             done < <(find "$dir" -name 'Horcrux*' -mmin -60 2>/dev/null)
           done
           [ "$found" -eq 0 ] && echo "(no Horcrux crash report found)"
