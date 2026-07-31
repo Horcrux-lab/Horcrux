@@ -130,8 +130,17 @@ final class ChainEndpointOverrides: ObservableObject, @unchecked Sendable {
         lock.lock()
         body(&storage)
         let updated = storage
-        lock.unlock()
+        // Write to UserDefaults while holding the lock so two concurrent
+        // mutations cannot reorder: without this, the slower writer's
+        // lock.unlock() returns first, both proceed to set(), and the older
+        // snapshot lands last, leaving UserDefaults diverged from storage
+        // until the next reloadFromDisk().
         UserDefaults.standard.set(updated, forKey: Self.storageKey)
+        lock.unlock()
+        // publishMirror deliberately runs outside the lock. On the main
+        // thread it assigns `overrides` synchronously, which can drive
+        // SwiftUI observers that call back into url(for:). The lock is
+        // not recursive, so publishing inside would deadlock.
         publishMirror(updated)
     }
 
