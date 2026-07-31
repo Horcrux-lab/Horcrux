@@ -66,7 +66,7 @@ final class PendingBroadcastQueue: ObservableObject {
                     switch tx.chain {
                     case .bitcoin:
                         result = try await service.btcBroadcast(
-                            signedTxHex: tx.signedPayload, apiURL: config.rpcURL(for: .bitcoin))
+                            signedTxHex: tx.signedPayload, chain: .bitcoin, config: config)
                     case .solana:
                         result = try await service.solSendTransaction(
                             signedTxBase64: tx.signedPayload, rpcURL: config.rpcURL(for: .solana))

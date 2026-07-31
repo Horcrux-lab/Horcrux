@@ -81,6 +81,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### iOS — RPC endpoint reliability
 
+- **Bitcoin sending had no endpoint failover.** `balance(for:config:)`
+  routes through the fault-aware helper and
+  `TransactionConfirmationPoller.checkBtcConfirmation` walks the
+  resolved list, but the two calls that actually move money —
+  `btcUtxos`, which is the first thing
+  `SigningViewModel.buildP2WPKHSignHash` does, and `btcBroadcast` at all
+  five of its call sites — were handed a single URL. EVM had received
+  the fault-aware treatment everywhere; Bitcoin got it only where the
+  code paths happened to be shared, so one unresponsive Esplora host
+  meant balances kept updating while no transaction could be built or
+  sent. Both now route through `withFallbackURL`, with the same cooldown
+  filtering and health reporting as everything else.
+- **Broadcast needed its own failure classification, and reusing the
+  generic one would have been actively harmful.** Esplora rejects an
+  invalid transaction with HTTP 400, `validateHTTP` turns that into
+  `httpError(400)`, and `classifyForFallback` maps every non-401/403
+  HTTP error to `.transient`. Wrapping the broadcast as-is would
+  therefore re-submit a known-invalid transaction to every endpoint in
+  turn *and* mark each perfectly healthy endpoint as failed — and
+  `RPCEndpointHealth` is shared, so one bad transaction would have
+  degraded routing for balance fetches and confirmation polling too.
+  `classifyBtcBroadcastForFallback` treats a 4xx as a verdict on the
+  transaction rather than the endpoint, leaving 401/403 (credentials)
+  and 408/429 (no verdict formed) to fail over. This is asserted
+  directly: a rejected broadcast must issue exactly one request and must
+  not change any endpoint's health.
+- **Bitcoin fails over on transport errors where EVM deliberately does
+  not.** `ethSendRawTransaction(chain:config:)` refuses to switch
+  endpoints on a transient failure because a re-submission could bump
+  the user's nonce. A fully signed Bitcoin transaction has a fixed
+  txid, so submitting it to a second Esplora host cannot create a second
+  transaction — at worst the host answers that it already knows it. The
+  policies differ because the chains do.
+
 - **Purged seven dead RPC endpoints** from the shipped fallback
   tables. Five were LlamaRPC (`eth`/`polygon`/`arbitrum`/`base`/
   `optimism`, all HTTP 521 or refusing connections), and it sat

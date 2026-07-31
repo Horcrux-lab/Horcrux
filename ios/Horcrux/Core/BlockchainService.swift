@@ -303,6 +303,7 @@ actor BlockchainService {
     private func withFallbackURL<T>(
         chain: Chain,
         config: NetworkConfig,
+        classify: (Error) -> FallbackClassification = BlockchainService.classifyForFallback,
         op: (_ url: String) async throws -> T
     ) async throws -> T {
         let attempts = RPCFallbacks.resolvedAttempts(for: chain, config: config)
@@ -319,7 +320,7 @@ actor BlockchainService {
                 return result
             } catch {
                 lastError = error
-                switch Self.classifyForFallback(error) {
+                switch classify(error) {
                 case .authFailure:
                     RPCEndpointHealth.markAuthFailed(url)
                     SecureLog.warning("RPC auth-failed on \(URL(string: url)?.host ?? "?"); cooling 30min")
@@ -394,6 +395,21 @@ actor BlockchainService {
         return try JSONDecoder().decode([BtcUtxo].self, from: data)
     }
 
+    /// Fault-aware UTXO fetch. Walks the resolved endpoint list with the
+    /// same cooldown filtering and health reporting as every other routed
+    /// call.
+    ///
+    /// This is the first call in `SigningViewModel.buildP2WPKHSignHash`, so
+    /// without it a single unreachable Esplora host makes it impossible to
+    /// build any transaction — which is exactly what happened when
+    /// `blockstream.info`, the primary, went dark on 2026-07-31 while
+    /// `mempool.space` sat healthy behind it.
+    func btcUtxos(address: String, chain: Chain, config: NetworkConfig) async throws -> [BtcUtxo] {
+        return try await withFallbackURL(chain: chain, config: config) { url in
+            try await btcUtxos(address: address, apiURL: url)
+        }
+    }
+
     /// Fetch recommended fee rates (sat/vB).
     struct BtcFeeEstimate: Decodable {
         let fastestFee: UInt64
@@ -457,6 +473,54 @@ actor BlockchainService {
         let (data, response) = try await session.data(for: request)
         try validateHTTP(response)
         return String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+    }
+
+    /// How a failed Esplora broadcast should be treated, which is not how
+    /// `classifyForFallback` would treat it.
+    ///
+    /// Esplora rejects an invalid transaction with HTTP 400 and a reason
+    /// such as `bad-txns-inputs-missingorspent`. The generic classifier maps
+    /// every non-401/403 HTTP error to `.transient`, which for a broadcast
+    /// would be doubly wrong: the transaction would be re-submitted to every
+    /// endpoint in turn, each rejecting it identically, *and* each of those
+    /// perfectly healthy endpoints would be marked failed. `RPCEndpointHealth`
+    /// is shared with balance fetches and confirmation polling, so one bad
+    /// transaction would degrade routing for the whole app.
+    ///
+    /// So a 4xx from the node is a verdict on the transaction, not on the
+    /// endpoint, and must surface unchanged. The exceptions are 401/403
+    /// (our credentials, not the transaction), and 408/429 (the node never
+    /// formed a verdict).
+    static func classifyBtcBroadcastForFallback(_ error: Error) -> FallbackClassification {
+        guard case .httpError(let code)? = error as? BlockchainError else {
+            // Transport failures — the case that matters here, since an
+            // unreachable host never saw the transaction at all.
+            return .transient
+        }
+        if code == 401 || code == 403 { return .authFailure }
+        if code == 408 || code == 429 { return .transient }
+        if (400...499).contains(code) { return .businessError }
+        return .transient
+    }
+
+    /// Fault-aware broadcast. Returns the txid.
+    ///
+    /// Unlike `ethSendRawTransaction(signedTxHex:chain:config:)`, this does
+    /// fail over on transport errors. That policy exists on the EVM side
+    /// because a re-submission could bump the user's nonce; a fully signed
+    /// Bitcoin transaction has a fixed txid, so submitting it to a second
+    /// Esplora host cannot create a second transaction — at worst the second
+    /// host answers that it already knows it. Refusing to fail over would
+    /// mean an unreachable primary blocks sending entirely, which is the
+    /// failure this exists to prevent.
+    func btcBroadcast(signedTxHex: String, chain: Chain, config: NetworkConfig) async throws -> String {
+        return try await withFallbackURL(
+            chain: chain,
+            config: config,
+            classify: Self.classifyBtcBroadcastForFallback
+        ) { url in
+            try await btcBroadcast(signedTxHex: signedTxHex, apiURL: url)
+        }
     }
 
     // MARK: - Solana (JSON-RPC)

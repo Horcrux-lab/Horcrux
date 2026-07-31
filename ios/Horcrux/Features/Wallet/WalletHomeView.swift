@@ -626,10 +626,10 @@ struct WalletHomeView: View {
                 switch tx.chain {
                 case .bitcoin:
                     result = try await appState.blockchainService.btcBroadcast(
-                        signedTxHex: tx.signedPayload, apiURL: appState.networkConfig.rpcURL(for: .bitcoin))
+                        signedTxHex: tx.signedPayload, chain: .bitcoin, config: appState.networkConfig)
                 case .litecoin:
                     result = try await appState.blockchainService.btcBroadcast(
-                        signedTxHex: tx.signedPayload, apiURL: appState.networkConfig.rpcURL(for: .litecoin))
+                        signedTxHex: tx.signedPayload, chain: .litecoin, config: appState.networkConfig)
                 case .solana:
                     result = try await appState.blockchainService.solSendTransaction(
                         signedTxBase64: tx.signedPayload, rpcURL: appState.networkConfig.rpcURL(for: .solana))

@@ -2028,7 +2028,8 @@ final class SigningViewModel: ObservableObject {
         let apiURL = networkConfig.rpcURL(for: wallet.chain)
 
         // 1. Fetch UTXOs (confirmed only to avoid replace-by-fee surprises).
-        let utxos = try await blockchainService.btcUtxos(address: wallet.address, apiURL: apiURL)
+        let utxos = try await blockchainService.btcUtxos(
+            address: wallet.address, chain: wallet.chain, config: networkConfig)
         let confirmed = utxos.filter { $0.status.confirmed }.sorted { $0.value > $1.value }
         guard !confirmed.isEmpty else { throw SigningError.notInitialized }
 
@@ -2327,7 +2328,8 @@ final class SigningViewModel: ObservableObject {
                     case .bitcoin:
                         let result = try await blockchainService.btcBroadcast(
                             signedTxHex: txHash,
-                            apiURL: networkConfig.rpcURL(for: .bitcoin)
+                            chain: .bitcoin,
+                            config: networkConfig
                         )
                         await MainActor.run {
                             broadcastStatus = "Broadcast OK: \(result.prefix(20))…"
@@ -2344,7 +2346,8 @@ final class SigningViewModel: ObservableObject {
                     case .litecoin:
                         let result = try await blockchainService.btcBroadcast(
                             signedTxHex: txHash,
-                            apiURL: networkConfig.rpcURL(for: .litecoin)
+                            chain: .litecoin,
+                            config: networkConfig
                         )
                         await MainActor.run {
                             broadcastStatus = "Broadcast OK: \(result.prefix(20))…"
