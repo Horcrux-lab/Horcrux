@@ -554,6 +554,8 @@
 "nodeSettings.sourceLabel" = "来源：%1$@";
 "nodeSettings.customURLSection" = "自定义 URL";
 "nodeSettings.useDefault" = "使用默认节点";
+"nodeSettings.overrideKeyField" = "%@ API 密钥";
+"nodeSettings.overrideKeyNote" = "URL 中的 {KEY} 将替换为此密钥。密钥保存在本机钥匙串中，不会包含在导出文件里。";
 "nodeSettings.customBadge" = "自定义";
 
 /* Node Status */

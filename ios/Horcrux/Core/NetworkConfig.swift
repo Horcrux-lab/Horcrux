@@ -399,6 +399,61 @@ final class NetworkConfig: ObservableObject, @unchecked Sendable {
         return resolved
     }
 
+    /// Which stored key a `{KEY}` template draws from, and what to call it
+    /// in the UI. `substituteAPIKey` and the per-chain override editor both
+    /// route through this so a field can never write a slot the resolver
+    /// does not read.
+    struct APIKeySlot {
+        let keyPath: ReferenceWritableKeyPath<NetworkConfig, String>
+        let displayName: String
+    }
+
+    /// The key slot a `{KEY}` template on `host` draws from, or nil when the
+    /// chain has no keyed provider at all — in which case the override editor
+    /// must not offer a key field that goes nowhere.
+    ///
+    /// Host matching is substring-based, matching the templates we ship.
+    func apiKeySlot(forHost host: String, chain: Chain) -> APIKeySlot? {
+        let h = host.lowercased()
+        if chain.isEVM {
+            if h.contains("infura.io") {
+                return APIKeySlot(keyPath: \.infuraAPIKey, displayName: "Infura")
+            } else if h.contains("ankr.com") {
+                return APIKeySlot(keyPath: \.ankrAPIKey, displayName: "Ankr")
+            } else if h.contains("blockpi.network") {
+                return APIKeySlot(keyPath: \.blockpiAPIKey, displayName: "BlockPI")
+            } else if h.contains("drpc.org") {
+                return APIKeySlot(keyPath: \.drpcAPIKey, displayName: "dRPC")
+            } else if h.contains("nodereal.io") {
+                return APIKeySlot(keyPath: \.nodeRealAPIKey, displayName: "NodeReal")
+            } else if h.contains("getblock.io") {
+                return APIKeySlot(keyPath: \.getblockAPIKey, displayName: "GetBlock")
+            } else if h.contains("tenderly.co") {
+                return APIKeySlot(keyPath: \.tenderlyAPIKey, displayName: "Tenderly")
+            } else if h.contains("1rpc.io") {
+                return APIKeySlot(keyPath: \.oneRPCAPIKey, displayName: "1RPC")
+            }
+            // Alchemy is the default EVM slot; it also catches bare template
+            // URLs the user has not pointed at a specific provider yet.
+            return APIKeySlot(keyPath: \.alchemyAPIKey, displayName: "Alchemy")
+        }
+        guard chain == .solana else { return nil }
+        if h.contains("infura.io") {
+            return APIKeySlot(keyPath: \.infuraAPIKey, displayName: "Infura")
+        } else if h.contains("alchemy.com") {
+            return APIKeySlot(keyPath: \.alchemyAPIKey, displayName: "Alchemy")
+        } else if h.contains("ankr.com") {
+            return APIKeySlot(keyPath: \.ankrAPIKey, displayName: "Ankr")
+        } else if h.contains("drpc.org") {
+            return APIKeySlot(keyPath: \.drpcAPIKey, displayName: "dRPC")
+        } else if h.contains("getblock.io") {
+            return APIKeySlot(keyPath: \.getblockAPIKey, displayName: "GetBlock")
+        } else if h.contains("1rpc.io") {
+            return APIKeySlot(keyPath: \.oneRPCAPIKey, displayName: "1RPC")
+        }
+        return APIKeySlot(keyPath: \.heliusAPIKey, displayName: "Helius")
+    }
+
     /// Replace `{KEY}` placeholder in a URL template with the appropriate
     /// per-provider Keychain-stored API key. The provider is picked by URL
     /// host so a user who stores both Alchemy and Infura keys can freely
@@ -414,43 +469,9 @@ final class NetworkConfig: ObservableObject, @unchecked Sendable {
     func substituteAPIKey(in url: String, chain: Chain) -> String {
         guard url.contains("{KEY}") else { return url }
         let host = URL(string: url)?.host?.lowercased() ?? ""
-        let key: String
-        if chain.isEVM {
-            if host.contains("infura.io") {
-                key = infuraAPIKey
-            } else if host.contains("ankr.com") {
-                key = ankrAPIKey
-            } else if host.contains("blockpi.network") {
-                key = blockpiAPIKey
-            } else if host.contains("drpc.org") {
-                key = drpcAPIKey
-            } else if host.contains("nodereal.io") {
-                key = nodeRealAPIKey
-            } else if host.contains("getblock.io") {
-                key = getblockAPIKey
-            } else if host.contains("tenderly.co") {
-                key = tenderlyAPIKey
-            } else if host.contains("1rpc.io") {
-                key = oneRPCAPIKey
-            } else {
-                // Alchemy is the default EVM key slot; also covers bare
-                // template URLs that users haven't pointed at a specific
-                // provider yet.
-                key = alchemyAPIKey
-            }
-        } else {
-            switch chain {
-            case .solana:
-                if host.contains("infura.io") { key = infuraAPIKey }
-                else if host.contains("alchemy.com") { key = alchemyAPIKey }
-                else if host.contains("ankr.com") { key = ankrAPIKey }
-                else if host.contains("drpc.org") { key = drpcAPIKey }
-                else if host.contains("getblock.io") { key = getblockAPIKey }
-                else if host.contains("1rpc.io") { key = oneRPCAPIKey }
-                else { key = heliusAPIKey }
-            default: key = ""
-            }
-        }
+        // Routed through apiKeySlot so the override editor's key field and
+        // this substitution can never disagree about which slot a host uses.
+        let key = apiKeySlot(forHost: host, chain: chain).map { self[keyPath: $0.keyPath] } ?? ""
         if key.isEmpty {
             return publicFallbackURL(for: chain) ?? url
         }
