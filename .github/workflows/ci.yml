@@ -207,12 +207,17 @@ jobs:
           # build reports success. Verified: this job logged "** TEST FAILED **"
           # while GitHub showed a green check.
           set -euo pipefail
+          # No CODE_SIGNING_ALLOWED=NO. Suppressing signing also suppresses the
+          # simulated entitlements Xcode injects for a simulator build, and
+          # without `application-identifier` every Keychain call returns
+          # errSecMissingEntitlement (-34018) — ten tests' worth. Simulator
+          # builds ad-hoc sign with no team or profile, so allowing it costs
+          # nothing here.
           xcodebuild build-for-testing \
             -project Horcrux.xcodeproj \
             -scheme Horcrux \
             -destination 'platform=iOS Simulator,name=iPhone 16,OS=latest' \
             -skipPackagePluginValidation \
-            CODE_SIGNING_ALLOWED=NO \
             | xcpretty
 
       - name: Run unit tests
@@ -225,7 +230,6 @@ jobs:
             -scheme Horcrux \
             -destination 'platform=iOS Simulator,name=iPhone 16,OS=latest' \
             -skipPackagePluginValidation \
-            CODE_SIGNING_ALLOWED=NO \
             | xcpretty
 
       # xcpretty swallows everything but the summary line, so a launch-time
