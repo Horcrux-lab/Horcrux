@@ -52,6 +52,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   editor whenever the URL contains `{KEY}`. Resolver and editor share one
   host-to-key-slot accessor, so the field cannot write a slot the
   resolver does not read.
+- **An unrecognised host now resolves to no key slot at all.** The
+  accessor used to default to Alchemy on EVM and Helius on Solana so the
+  editor and the resolver could not disagree — but they agreed on an
+  answer that leaks. An override of `https://base.mynode.example/{KEY}`
+  had the user's paid Alchemy key spliced into the URL and sent to a host
+  with no relationship to Alchemy, and the editor captioned its entry box
+  "Alchemy API key" while binding it to the real slot, so a self-hosted
+  node's token typed there overwrote the Alchemy key for every other
+  chain still on the Alchemy template. Unmatched hosts return nil, which
+  keeps editor and resolver consistent without either failure.
+- **Tron testnet selections survive the migration.** Shasta and Nile were
+  listed alongside mainnet in one endpoint table. Every other chain
+  carries its network in a flag the migration preserves; Tron has none,
+  so the URL *is* the selection — and treating a testnet URL as a shipped
+  default discarded it, landing the wallet on mainnet with no badge,
+  because Tron uses the same address on both networks. The same table
+  also fed the fallback router, so a cooling testnet endpoint could have
+  failed over to mainnet. Tron testnets are now reachable only as an
+  explicit override, which is also what restores the badge.
+- **Importing a pre-v2 settings file actually routes again.** `apply`
+  wrote the five URLs into the legacy fields, which this model no longer
+  reads — so the sheet showed a diff, reported success, and left traffic
+  on the public defaults, silently leaking the addresses the private
+  endpoint existed to hide. Legacy imports now run through the migration
+  planner, which also re-targets an `evmChainId` the current picker
+  cannot represent instead of importing it verbatim as Ethereum's.
 
 ### iOS — RPC endpoint reliability
 

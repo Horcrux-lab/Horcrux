@@ -409,15 +409,30 @@ final class NetworkConfig: ObservableObject, @unchecked Sendable {
     }
 
     /// The key slot a `{KEY}` template on `host` draws from, or nil when the
-    /// chain has no keyed provider at all — in which case the override editor
-    /// must not offer a key field that goes nowhere.
+    /// host matches no provider we ship — in which case the override editor
+    /// must not offer a key field, and `substituteAPIKey` must not splice.
     ///
     /// Host matching is substring-based, matching the templates we ship.
+    ///
+    /// **There is deliberately no catch-all.** An earlier version defaulted
+    /// to Alchemy on EVM and Helius on Solana so the key field and the
+    /// resolver could not disagree about which slot a host uses. They agreed,
+    /// but on an answer that leaks: `substituteAPIKey` would put the user's
+    /// real Alchemy key into `https://anything.example/{KEY}` and send it to
+    /// that host, and `ChainEndpointDetailView` would caption the entry box
+    /// "Alchemy API key" and bind it to `alchemyAPIKey`, so a self-hosted
+    /// node's token typed there would overwrite the real key for every chain
+    /// still on the Alchemy template. nil keeps the two consistent without
+    /// either failure; an unmatched keyed URL then takes `substituteAPIKey`'s
+    /// existing empty-key path to the public fallback, which the
+    /// `overrideKeyMissing` warning already explains on screen.
     func apiKeySlot(forHost host: String, chain: Chain) -> APIKeySlot? {
         let h = host.lowercased()
         if chain.isEVM {
             if h.contains("infura.io") {
                 return APIKeySlot(keyPath: \.infuraAPIKey, displayName: "Infura")
+            } else if h.contains("alchemy.com") {
+                return APIKeySlot(keyPath: \.alchemyAPIKey, displayName: "Alchemy")
             } else if h.contains("ankr.com") {
                 return APIKeySlot(keyPath: \.ankrAPIKey, displayName: "Ankr")
             } else if h.contains("blockpi.network") {
@@ -433,9 +448,7 @@ final class NetworkConfig: ObservableObject, @unchecked Sendable {
             } else if h.contains("1rpc.io") {
                 return APIKeySlot(keyPath: \.oneRPCAPIKey, displayName: "1RPC")
             }
-            // Alchemy is the default EVM slot; it also catches bare template
-            // URLs the user has not pointed at a specific provider yet.
-            return APIKeySlot(keyPath: \.alchemyAPIKey, displayName: "Alchemy")
+            return nil
         }
         guard chain == .solana else { return nil }
         if h.contains("infura.io") {
@@ -450,8 +463,10 @@ final class NetworkConfig: ObservableObject, @unchecked Sendable {
             return APIKeySlot(keyPath: \.getblockAPIKey, displayName: "GetBlock")
         } else if h.contains("1rpc.io") {
             return APIKeySlot(keyPath: \.oneRPCAPIKey, displayName: "1RPC")
+        } else if h.contains("helius-rpc.com") || h.contains("helius.xyz") {
+            return APIKeySlot(keyPath: \.heliusAPIKey, displayName: "Helius")
         }
-        return APIKeySlot(keyPath: \.heliusAPIKey, displayName: "Helius")
+        return nil
     }
 
     /// Replace `{KEY}` placeholder in a URL template with the appropriate
@@ -1467,11 +1482,33 @@ enum RPCFallbacks {
             ]
     }
 
+    /// Tron mainnet only, deliberately.
+    ///
+    /// Every other chain here carries its network in a flag —
+    /// `btcTestnet`, `solDevnet`, `evmChainId` — so its endpoint list can
+    /// be a function of that flag and never mixes clusters. Tron has no
+    /// such flag: the URL *is* the network selection. Listing Shasta and
+    /// Nile here would therefore be wrong twice over. As fallbacks they
+    /// let a cooling testnet primary fail over to mainnet and broadcast a
+    /// "test" transaction for real; as shipped defaults they make
+    /// `NodeSettingsMigration` treat a stored testnet URL as a default
+    /// worth discarding, which silently moves the wallet to mainnet with
+    /// no badge, because Tron uses the same address on both networks.
+    ///
+    /// Tron testnets remain reachable as an explicit per-chain override,
+    /// which is also what `testnetBadge(for:)` reads to show "Shasta" /
+    /// "Nile".
+    ///
+    /// Note that an override does *not* protect itself: `orderedAttempts`
+    /// appends this list behind whatever the user configured, so if Tron
+    /// is ever wired into `withFallbackURL` — today every `tron*` call in
+    /// `BlockchainService` takes a single `apiURL:` and never fails over —
+    /// a cooling Shasta override would fall through to mainnet. Keeping
+    /// the two networks out of one list is what makes that safe in
+    /// advance, so do not re-add them here.
     private static let tronEndpoints = [
         "https://api.trongrid.io",
-        "https://api.tronstack.io",
-        "https://api.shasta.trongrid.io",
-        "https://nile.trongrid.io"
+        "https://api.tronstack.io"
     ]
 
     /// Every endpoint this app has ever handed out for `chain` as a
