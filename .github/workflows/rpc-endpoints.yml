@@ -55,9 +55,12 @@ jobs:
         id: probe
         run: |
           set +e
-          # Public endpoints rate-limit and have bad seconds. Requiring two
-          # consecutive failures keeps a single blip from filing an issue,
-          # while a genuinely dead host still fails both passes.
+          # Two layers guard against a bad minute being reported as a dead
+          # table. The script retries each endpoint individually (see
+          # PROBE_ATTEMPTS), which handles a single host having a wobble;
+          # the second whole-table pass below handles the runner itself
+          # having one. A decommissioned host — the thing this job is for —
+          # fails every attempt of both passes.
           ./scripts/probe-rpc-endpoints.sh > probe-report.txt 2>&1
           STATUS=$?
           if [ "$STATUS" -ne 0 ]; then
