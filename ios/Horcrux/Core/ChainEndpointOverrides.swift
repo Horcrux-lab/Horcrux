@@ -67,6 +67,26 @@ final class ChainEndpointOverrides: ObservableObject, @unchecked Sendable {
         mutate { $0.removeAll() }
     }
 
+    /// Atomically replaces the entire override store with the contents of
+    /// `raw`, applying the same per-entry normalisation that `reloadFromDisk`
+    /// applies: each value is trimmed of whitespace; entries that trim to
+    /// empty are dropped. One lock acquisition, one `UserDefaults` write, one
+    /// mirror publish — no intermediate observable states.
+    ///
+    /// Takes a raw `[String: String]` rather than `[Chain: String]` so that
+    /// keys belonging to chains this build does not recognise are preserved
+    /// verbatim. A newer build's overrides must survive a downgrade, round-trip
+    /// through export/import, and come back to life after an upgrade.  This is
+    /// a deliberate counterpart to the per-entry filtering in `reloadFromDisk`;
+    /// both keep the invariant that `storage` never holds an empty-string value.
+    func replaceAll(with raw: [String: String]) {
+        let cleaned = raw.compactMapValues { value -> String? in
+            let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+            return trimmed.isEmpty ? nil : trimmed
+        }
+        mutate { $0 = cleaned }
+    }
+
     /// Chains that currently carry an override, for the settings list.
     /// Unknown keys are dropped: a stored value for a chain this build no
     /// longer has must not crash the list or resurrect a dead case.

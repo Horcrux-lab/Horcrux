@@ -3,13 +3,19 @@ import XCTest
 
 final class NodeSettingsMigrationTests: XCTestCase {
 
+    /// Captured before each test so tearDown can restore it. Tests that call
+    /// removeAll() or replaceAll() during their body don't need to clean up
+    /// ChainEndpointOverrides themselves — tearDown handles it atomically.
+    private var savedOverrides: [String: String] = [:]
+
     override func setUp() {
         super.setUp()
+        savedOverrides = ChainEndpointOverrides.shared.snapshot()
         ChainEndpointOverrides.shared.removeAll()
     }
 
     override func tearDown() {
-        ChainEndpointOverrides.shared.removeAll()
+        ChainEndpointOverrides.shared.replaceAll(with: savedOverrides)
         super.tearDown()
     }
 
@@ -214,7 +220,6 @@ final class NodeSettingsMigrationTests: XCTestCase {
             config.legacyEthereumRPC = originalETH
             config.evmChainId = originalChainId
             config.activeProvider = originalProvider
-            ChainEndpointOverrides.shared.removeAll()
         }
 
         config.evmChainId = 1
@@ -267,7 +272,6 @@ final class NodeSettingsMigrationTests: XCTestCase {
             config.evmChainId = originalChainId
             config.legacyEthereumRPC = originalEthRPC
             config.activeProvider = originalProvider
-            ChainEndpointOverrides.shared.removeAll()
         }
 
         // Seed a legacy Alchemy-template URL. plan() detects the {KEY}
@@ -300,11 +304,10 @@ final class NodeSettingsMigrationTests: XCTestCase {
             config.activeProvider = origProvider
             config.ethereumWSS = origEthWSS
             config.solanaWSS = origSolWSS
-            ChainEndpointOverrides.shared.removeAll()
         }
 
         // Snapshot contains only one override so apply can be shown to wipe stale entries.
-        ChainEndpointOverrides.shared.removeAll()
+        // (setUp already cleared overrides; we start from an empty store.)
         config.activeProvider = .drpc
         ChainEndpointOverrides.shared.set("https://mine.example", for: .scroll)
 
@@ -325,9 +328,9 @@ final class NodeSettingsMigrationTests: XCTestCase {
         XCTAssertEqual(ChainEndpointOverrides.shared.url(for: .scroll), "https://mine.example",
                        "imported override must be present after apply")
         XCTAssertNil(ChainEndpointOverrides.shared.url(for: .ethereum),
-                     "stale ethereum override must be wiped by removeAll in apply")
+                     "stale ethereum override must be wiped by replaceAll in apply")
         XCTAssertNil(ChainEndpointOverrides.shared.url(for: .bitcoin),
-                     "stale bitcoin override must be wiped by removeAll in apply")
+                     "stale bitcoin override must be wiped by replaceAll in apply")
         XCTAssertEqual(config.activeProvider, .drpc,
                        "provider must be applied")
     }
@@ -437,12 +440,9 @@ final class NodeSettingsMigrationTests: XCTestCase {
     func test_diffRows_includesOverrideRows() {
         let config = NetworkConfig.shared
         let origProvider = config.activeProvider
-        defer {
-            config.activeProvider = origProvider
-            ChainEndpointOverrides.shared.removeAll()
-        }
+        defer { config.activeProvider = origProvider }
 
-        ChainEndpointOverrides.shared.removeAll()
+        // setUp already cleared overrides; no live overrides needed.
         config.activeProvider = .drpc
 
         var snap = RPCConfigSnapshot(from: config)
@@ -451,5 +451,91 @@ final class NodeSettingsMigrationTests: XCTestCase {
         let rows = snap.diffRows(against: config)
         XCTAssertTrue(rows.contains(where: { $0.0 == "Scroll" }),
                       "diffRows must include a row for each differing chain override")
+    }
+
+    /// An unrecognised chain key must survive a full export → apply → export
+    /// cycle. Fails if replaceAll(with:) drops keys it cannot map to Chain.
+    func test_snapshot_unrecognisedKeyPreservedThroughRoundTrip() {
+        let config = NetworkConfig.shared
+        let origProvider = config.activeProvider
+        let origEthWSS = config.ethereumWSS
+        let origSolWSS = config.solanaWSS
+        defer {
+            config.activeProvider = origProvider
+            config.ethereumWSS = origEthWSS
+            config.solanaWSS = origSolWSS
+        }
+
+        // Inject a raw unknown key directly into storage via replaceAll.
+        ChainEndpointOverrides.shared.replaceAll(with: ["FutureChain": "https://future.example"])
+        config.activeProvider = nil
+
+        // First export.
+        guard let json1 = RPCConfigSnapshot(from: config).jsonString(),
+              let snap1 = RPCConfigSnapshot.decode(json1) else {
+            return XCTFail("first export failed to round-trip")
+        }
+        XCTAssertEqual(snap1.chainOverrides?["FutureChain"], "https://future.example",
+                       "unknown key must appear in the exported chainOverrides")
+
+        // Apply into a clean store.
+        ChainEndpointOverrides.shared.removeAll()
+        snap1.apply(to: config)
+
+        XCTAssertEqual(ChainEndpointOverrides.shared.snapshot()["FutureChain"],
+                       "https://future.example",
+                       "unknown key must survive apply — replaceAll must not drop it")
+
+        // Second export: key must still be present.
+        guard let json2 = RPCConfigSnapshot(from: config).jsonString(),
+              let snap2 = RPCConfigSnapshot.decode(json2) else {
+            return XCTFail("second export failed to round-trip")
+        }
+        XCTAssertEqual(snap2.chainOverrides?["FutureChain"], "https://future.example",
+                       "unknown key must appear in the second export")
+    }
+
+    /// An import whose only changes are on unrecognised chains must still
+    /// produce non-empty diffRows. Fails if unknown-key rows are filtered
+    /// out of diffRows (mutation 3).
+    func test_snapshot_unrecognisedOnlyImport_hasNonEmptyDiffRows() {
+        let config = NetworkConfig.shared
+        let origProvider = config.activeProvider
+        defer { config.activeProvider = origProvider }
+
+        // No live overrides (setUp cleared them); no active provider.
+        config.activeProvider = nil
+
+        // Snapshot matches live config except for one unrecognised chain.
+        var snap = RPCConfigSnapshot(from: config)
+        snap.chainOverrides = ["FutureChain": "https://future.example"]
+
+        let rows = snap.diffRows(against: config)
+        XCTAssertFalse(rows.isEmpty,
+                       "an import with only unrecognised chains must not produce an empty diff")
+        XCTAssertTrue(rows.contains(where: { $0.0 == "FutureChain" }),
+                      "diffRows must include a row for the unrecognised chain key")
+    }
+
+    /// replaceAll(with:) must trim whitespace from values. Fails if trimming
+    /// is removed (mutation 2 for replaceAll).
+    func test_snapshot_applyTrimsOverrideURLWhitespace() {
+        let config = NetworkConfig.shared
+        let origProvider = config.activeProvider
+        let origEthWSS = config.ethereumWSS
+        let origSolWSS = config.solanaWSS
+        defer {
+            config.activeProvider = origProvider
+            config.ethereumWSS = origEthWSS
+            config.solanaWSS = origSolWSS
+        }
+
+        var snap = RPCConfigSnapshot(from: config)
+        snap.chainOverrides = ["Scroll": "  https://trimmed.example  "]
+
+        snap.apply(to: config)
+
+        XCTAssertEqual(ChainEndpointOverrides.shared.url(for: .scroll), "https://trimmed.example",
+                       "replaceAll must trim whitespace from URL values")
     }
 }

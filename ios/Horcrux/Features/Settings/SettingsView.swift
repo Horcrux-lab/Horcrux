@@ -1907,26 +1907,18 @@ struct RPCConfigSnapshot: Codable, Equatable {
         if version != nil {
             config.activeProvider = activeProvider
             if let overrides = chainOverrides {
-                // Validate the entire map before mutating shared state so a
-                // half-applied configuration is impossible.  Unknown keys
-                // are intentionally skipped and surfaced via unknownChainKeys.
-                let mapped: [(Chain, String)] = overrides.compactMap { rawChain, url in
-                    Chain(rawValue: rawChain).map { ($0, url) }
-                }
-                ChainEndpointOverrides.shared.removeAll()
-                for (chain, url) in mapped {
-                    ChainEndpointOverrides.shared.set(url, for: chain)
-                }
+                // Atomic replacement: one lock, one UserDefaults write, one
+                // publish. Unknown keys are passed through verbatim so a
+                // newer build's overrides survive a downgrade and round-trip.
+                ChainEndpointOverrides.shared.replaceAll(with: overrides)
             }
         }
     }
 
-    /// Chain keys in `chainOverrides` this build does not recognise. They are
-    /// skipped during import and shown as a warning — the version field guards
-    /// breaking schema changes, but adding chains is non-breaking and does not
-    /// bump the version, so a same-version export from a newer build can carry
-    /// chains this build has never heard of.
-    var unknownChainKeys: [String] {
+    /// Chain keys in `chainOverrides` that this build cannot show or use because
+    /// it does not recognise them as `Chain` cases. They are preserved in storage
+    /// by `replaceAll(with:)` and will work again after an app update.
+    var unrecognisedChainKeys: [String] {
         guard let overrides = chainOverrides else { return [] }
         return overrides.keys.filter { Chain(rawValue: $0) == nil }.sorted()
     }
@@ -1958,13 +1950,17 @@ struct RPCConfigSnapshot: Codable, Equatable {
             if let incomingOverrides = chainOverrides {
                 let liveOverrides = ChainEndpointOverrides.shared.snapshot()
                 let noOverride = L10n.NodeSettings.useDefault
-                // Union of both sides so removals (before=URL, after=default) are shown.
+                // Union of both sides so removals appear too. All keys included —
+                // unknown ones get a row so Apply is never greyed out for a real change.
                 let allRawChains = Set(liveOverrides.keys).union(incomingOverrides.keys)
                 for rawChain in allRawChains.sorted() {
-                    guard Chain(rawValue: rawChain) != nil else { continue }
-                    add(rawChain,
-                        liveOverrides[rawChain] ?? noOverride,
-                        incomingOverrides[rawChain] ?? noOverride)
+                    // Normalise the incoming value the same way set(_:for:) does so
+                    // a whitespace-only value does not produce a phantom diff row.
+                    let incomingTrimmed = (incomingOverrides[rawChain] ?? "")
+                        .trimmingCharacters(in: .whitespacesAndNewlines)
+                    let after = incomingTrimmed.isEmpty ? noOverride : incomingTrimmed
+                    let before = liveOverrides[rawChain] ?? noOverride
+                    add(rawChain, before, after)
                 }
             }
         }
@@ -2091,7 +2087,7 @@ private struct RPCConfigImportSheet: View {
 
                 if let snap = preview {
                     let rows = snap.diffRows(against: config)
-                    let unknownChains = snap.unknownChainKeys
+                    let unrecognisedChains = snap.unrecognisedChainKeys
                     Section(L10n.NodeSettings.importPreviewTitle) {
                         if rows.isEmpty {
                             Text(L10n.NodeSettings.importNoChanges)
@@ -2118,9 +2114,9 @@ private struct RPCConfigImportSheet: View {
                             }
                         }
                     }
-                    if !unknownChains.isEmpty {
+                    if !unrecognisedChains.isEmpty {
                         Section {
-                            Label(L10n.NodeSettings.importUnknownChains(unknownChains.joined(separator: ", ")),
+                            Label(L10n.NodeSettings.importUnrecognisedChains(unrecognisedChains.joined(separator: ", ")),
                                   systemImage: "exclamationmark.triangle")
                                 .font(.footnote)
                                 .foregroundStyle(HorcruxTheme.warningAmber)
