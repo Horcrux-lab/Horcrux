@@ -11,6 +11,7 @@ final class DeepLinkRouterTests: XCTestCase {
         super.setUp()
         router = DeepLinkRouter.shared
         router.pendingLink = nil
+        router.pendingConfirmation = nil
     }
 
     // MARK: - parseURL: sign / join
@@ -108,11 +109,59 @@ final class DeepLinkRouterTests: XCTestCase {
 
     // MARK: - handle / consumePendingLink
 
+    /// A `joinSession` link must not auto-activate: `handle` parks it in
+    /// `pendingConfirmation` for the alert in `HorcruxApp`, and `pendingLink`
+    /// — the property the app actually navigates off — stays nil until the
+    /// user agrees. This is audit finding M7's user-presence gate against a
+    /// page opening `horcrux://join?...` to pull the wallet into an
+    /// attacker's ceremony.
+    ///
+    /// Until now this test asserted `pendingLink == link`, the behaviour from
+    /// before the gate existed, and so failed on every single run. It was
+    /// never noticed because the iOS CI job could not report a failure (see
+    /// 441811f) and no test covered the gate at all.
     @MainActor
-    func test_handle_setsPendingLink() {
+    func test_handle_joinSession_parksForConfirmationAndDoesNotActivate() {
         let link = DeepLink.joinSession(sessionId: "s1")
         router.handle(link)
+        XCTAssertEqual(router.pendingConfirmation, link)
+        XCTAssertNil(router.pendingLink)
+    }
+
+    /// Read-only destinations bypass the gate. Without this the assertion
+    /// above would also hold for an implementation that confirmed *every*
+    /// link, which would be a different bug — a confirmation prompt on every
+    /// `horcrux://tx` tap — that the joinSession test alone cannot see.
+    @MainActor
+    func test_handle_readOnlyLinks_activateWithoutConfirmation() {
+        router.handle(.transactionDetail(txHash: "0xabc"))
+        XCTAssertEqual(router.pendingLink, .transactionDetail(txHash: "0xabc"))
+        XCTAssertNil(router.pendingConfirmation)
+
+        router.pendingLink = nil
+        router.handle(.receive(address: "0xdead", chain: "ETH"))
+        XCTAssertEqual(router.pendingLink, .receive(address: "0xdead", chain: "ETH"))
+        XCTAssertNil(router.pendingConfirmation)
+    }
+
+    @MainActor
+    func test_confirmPending_activatesTheLinkAndClearsTheConfirmation() {
+        let link = DeepLink.joinSession(sessionId: "s1")
+        router.handle(link)
+        router.confirmPending()
         XCTAssertEqual(router.pendingLink, link)
+        XCTAssertNil(router.pendingConfirmation)
+    }
+
+    /// Declining must discard the link outright. If `cancelPending` cleared
+    /// only the prompt and left `pendingLink` set, saying "no" would still
+    /// join the ceremony — the exact outcome the gate exists to prevent.
+    @MainActor
+    func test_cancelPending_discardsWithoutActivating() {
+        router.handle(.joinSession(sessionId: "s1"))
+        router.cancelPending()
+        XCTAssertNil(router.pendingConfirmation)
+        XCTAssertNil(router.pendingLink)
     }
 
     @MainActor
