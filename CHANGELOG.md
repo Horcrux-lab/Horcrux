@@ -108,6 +108,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   to the migration set, yet was never removed from the Sepolia
   table it still led. The new script caught it on its first run.
 
+### Testing
+
+- **The iOS CI gate had never gated anything.** `ci.yml`'s "Build iOS
+  app" and "Run unit tests" steps both pipe `xcodebuild` into `xcpretty`.
+  GitHub Actions' default shell is `bash -e {0}` — `errexit` but *not*
+  `pipefail` — so each step's exit status was xcpretty's, which is
+  always 0. Any build or test failure reported a green check. This was
+  not theoretical: the job log contained `** TEST FAILED **` while
+  GitHub showed the job as successful, and the 1m24s runtime for a step
+  that nominally builds a Rust static library, generates an Xcode
+  project, compiles the app and runs ~500 tests was the tell that
+  prompted the audit. Both steps now `set -euo pipefail`, matching
+  `relay-smoke.yml`.
+- **What the blind gate was hiding: the iOS build was broken.** Bumping
+  uniffi 0.28 -> 0.31 (`85a4970`) made the generator emit its own
+  `extension FfiMpcMessage: Sendable {}`, which collided with the
+  retroactive `@unchecked Sendable` added by `ddac274` — two
+  conformances of one type to one protocol. The Swift 6.3 toolchain
+  used locally tolerates the duplicate, so it never appeared on a
+  developer machine; the Swift 6.0 toolchain on the `macos-15` runner
+  rejects it as "Redundant conformance", failing compilation so that
+  the test bundle never built and *no iOS test ran on CI at all*. The
+  hand-written conformance is removed; the generator covers every
+  `Ffi*` type.
+
 ## [0.5.0] - 2026-07-29
 
 First stable release of the 0.5 line, promoting `v0.5.0-rc.2` after
