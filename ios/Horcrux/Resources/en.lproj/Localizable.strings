@@ -490,6 +490,9 @@
 "nodeSettings.switchTo" = "Switch to %@";
 "nodeSettings.networkPicker" = "Network";
 "nodeSettings.mainnet" = "Mainnet";
+"nodeSettings.testnet" = "Testnet";
+"nodeSettings.devnet" = "Devnet";
+"nodeSettings.overrideKeyMissing" = "API key not set — routing uses public fallback";
 "nodeSettings.sepolia" = "Sepolia";
 "nodeSettings.resetToDefaults" = "Reset to Defaults";
 "nodeSettings.resetHint" = "Reset all RPC endpoints to default public nodes";

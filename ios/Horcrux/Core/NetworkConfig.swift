@@ -311,6 +311,31 @@ final class NetworkConfig: ObservableObject, @unchecked Sendable {
         return substituteAPIKey(in: resolveRawURL(for: chain), chain: chain)
     }
 
+    /// The URL to display in the "Effective endpoint" row, and a flag indicating
+    /// whether the user's override is a key-template whose key slot is empty.
+    ///
+    /// The returned `url` never contains a real API key:
+    /// - If the resolved URL has no `{KEY}`, the raw template is returned as-is.
+    /// - If it has `{KEY}` and the key slot is non-empty, the raw template (showing
+    ///   `{KEY}` as a placeholder) is returned — the correct host, no real key.
+    /// - If it has `{KEY}` and the key slot is **empty**, routing falls through to
+    ///   the public fallback. The fallback URL is returned and `isKeyFallback = true`,
+    ///   so the caller can show a "key not set" warning. In this case, showing the
+    ///   template URL would name a different host than where traffic actually goes.
+    func effectiveDisplayURL(for chain: Chain) -> (url: String, isKeyFallback: Bool) {
+        let raw = resolveRawURL(for: chain)
+        guard raw.contains("{KEY}") else {
+            return (raw, false)
+        }
+        // A key template is in play — check whether the key slot is empty.
+        if let fallback = publicFallbackURL(for: chain), rpcURL(for: chain) == fallback {
+            return (fallback, true)   // key empty; routing uses the public fallback
+        }
+        // Key is non-empty. Return the template so `{KEY}` appears on screen
+        // instead of the real key value.
+        return (raw, false)
+    }
+
     /// The keyless public endpoint for `chain`, honouring the Ethereum,
     /// Bitcoin and Solana network toggles. Never returns a `{KEY}`
     /// template and never returns an empty string.
@@ -525,11 +550,14 @@ final class NetworkConfig: ObservableObject, @unchecked Sendable {
         case .tron:
             if let override = ChainEndpointOverrides.shared.url(for: .tron) {
                 let h = host(of: override)
-                if h.contains("shasta") || h.contains("nile") { return "Shasta" }
+                if h.contains("shasta") { return "Shasta" }
+                if h.contains("nile") { return "Nile" }   // distinct from Shasta
                 return L10n.NodeSettings.customBadge
             }
             let h = host(of: rpcURL(for: .tron))
-            return (h.contains("shasta") || h.contains("nile")) ? "Shasta" : nil
+            if h.contains("shasta") { return "Shasta" }
+            if h.contains("nile") { return "Nile" }
+            return nil
         default:
             return nil
         }
@@ -943,6 +971,21 @@ struct NetworkPreset: Identifiable {
     )
 
     static let all: [NetworkPreset] = [.mainnet, .testnet]
+
+    /// Chains whose routing `applyPreset` can change.
+    ///
+    /// Derived from the three properties that `applyPreset` writes:
+    ///   - `evmChainId`  → `.ethereum`
+    ///   - `btcTestnet`  → `.bitcoin`
+    ///   - `solDevnet`   → `.solana`
+    ///
+    /// Every other chain (litecoin, tron, polygon, …) is untouched by any
+    /// preset flip. Use this set to determine which overrides invalidate the
+    /// preset selection badge and appear in the "Apply and clear overrides"
+    /// confirmation, so neither can drift from the `applyPreset` implementation.
+    ///
+    /// If `applyPreset` ever gains a new network flag, add the governed chain here.
+    static let governedChains: Set<Chain> = [.ethereum, .bitcoin, .solana]
 }
 
 // MARK: - Network Reachability

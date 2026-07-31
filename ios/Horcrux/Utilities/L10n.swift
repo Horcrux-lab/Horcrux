@@ -1109,6 +1109,12 @@ enum L10n {
         static let quickPresets = NSLocalizedString("nodeSettings.quickPresets", comment: "")
         static let networkPicker = NSLocalizedString("nodeSettings.networkPicker", comment: "")
         static let mainnet = NSLocalizedString("nodeSettings.mainnet", comment: "")
+        static let testnet = NSLocalizedString("nodeSettings.testnet", comment: "")
+        static let devnet  = NSLocalizedString("nodeSettings.devnet", comment: "")
+        /// Warning shown in ChainEndpointDetailView when the override URL has
+        /// a {KEY} placeholder but the key slot is empty. Routing falls through
+        /// to the public fallback; this label makes that explicit.
+        static let overrideKeyMissing = NSLocalizedString("nodeSettings.overrideKeyMissing", comment: "")
         static let sepolia = NSLocalizedString("nodeSettings.sepolia", comment: "")
         static let resetToDefaults = NSLocalizedString("nodeSettings.resetToDefaults", comment: "")
         static let resetHint = NSLocalizedString("nodeSettings.resetHint", comment: "")

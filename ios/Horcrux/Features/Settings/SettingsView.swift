@@ -1141,14 +1141,13 @@ struct BlockchainNodeSettingsView: View {
     /// Used consistently for badge, warning message, and the "Apply and clear" button
     /// so all three reflect the same scope.
     private var presetGoverningOverrides: [Chain] {
-        let governed: Set<Chain> = [.ethereum, .bitcoin, .solana]
-        return overrides.allChains().filter { governed.contains($0) }
+        return overrides.allChains().filter { NetworkPreset.governedChains.contains($0) }
     }
 
     private func presetPreviewMessage(_ p: NetworkPreset) -> String {
         let ethNet = (EVMNetwork(rawValue: p.evmChainId) ?? .mainnet).displayName
-        let btcNet = p.btcTestnet ? "Testnet" : "Mainnet"
-        let solNet = p.solDevnet ? "Devnet" : "Mainnet"
+        let btcNet = p.btcTestnet ? L10n.NodeSettings.testnet : L10n.NodeSettings.mainnet
+        let solNet = p.solDevnet ? L10n.NodeSettings.devnet  : L10n.NodeSettings.mainnet
         var msg = "ETH · \(ethNet)\nBTC · \(btcNet)\nSOL · \(solNet)"
         let affected = presetGoverningOverrides
         if !affected.isEmpty {
@@ -1507,6 +1506,11 @@ struct ChainFieldActions: View {
         HStack(spacing: 12) {
             if let url = overrides.url(for: chain), !url.isEmpty {
                 Button {
+                    // Intentionally copies the raw override template, not
+                    // rpcURL(for:). rpcURL substitutes the real API key into
+                    // the URL; copying it would send a resolved secret to the
+                    // clipboard. The raw template is exactly what the user
+                    // typed and is safe to copy for backup or re-entry.
                     SecureClipboard.copy(url)
                 } label: {
                     Label(L10n.NodeStatus.copyURL, systemImage: "doc.on.doc")
