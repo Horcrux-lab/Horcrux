@@ -315,24 +315,66 @@ final class RPCRoutingTests: XCTestCase {
         XCTAssertEqual(slot?.displayName, "GetBlock")
     }
 
-    /// Unknown EVM hosts must land on the same slot `substituteAPIKey` uses,
-    /// or the field would write a key the resolver never reads.
-    func test_apiKeySlot_fallsBackToAlchemyForUnknownEVMHost() {
+    /// An unrecognised host must resolve to *no* slot.
+    ///
+    /// This used to fall back to Alchemy on EVM and Helius on Solana, for a
+    /// real reason — the field and the resolver have to agree, or the key
+    /// entry box writes a slot nothing reads. But agreeing on a wrong answer
+    /// is worse than agreeing on nothing, and once the per-chain override
+    /// editor shipped, "wrong" became two concrete failures:
+    ///
+    /// 1. `substituteAPIKey` splices the value in by host, so an override of
+    ///    `https://base.mynode.example/{KEY}` sends the user's paid Alchemy
+    ///    key, in the URL, to a host with no relationship to Alchemy.
+    /// 2. `ChainEndpointDetailView` binds a `SecureField` to that slot and
+    ///    labels it with `slot.displayName`, so pasting a self-hosted node's
+    ///    token into a box captioned "Alchemy API key" overwrites the real
+    ///    Alchemy key in the Keychain — and that token then goes to Alchemy
+    ///    for every other chain still on the Alchemy template.
+    ///
+    /// nil keeps field and resolver consistent, suppresses both, and leaves
+    /// `substituteAPIKey`'s existing empty-key path to route to the public
+    /// fallback with the `overrideKeyMissing` warning already on screen.
+    func test_apiKeySlot_isNilForAnUnknownHost() {
         let config = NetworkConfig.shared
-        let slot = config.apiKeySlot(forHost: "rpc.example.invalid", chain: .base)
-        XCTAssertEqual(slot?.keyPath, \NetworkConfig.alchemyAPIKey,
-                       "Unknown EVM hosts must resolve to the same slot "
-                       + "substituteAPIKey uses, or the field would write a "
-                       + "key the resolver never reads.")
+        XCTAssertNil(config.apiKeySlot(forHost: "rpc.example.invalid", chain: .base),
+                     "An unknown EVM host must not borrow the Alchemy slot.")
+        XCTAssertNil(config.apiKeySlot(forHost: "rpc.example.invalid", chain: .ethereum))
+        XCTAssertNil(config.apiKeySlot(forHost: "rpc.example.invalid", chain: .solana),
+                     "An unknown Solana host must not borrow the Helius slot.")
+        XCTAssertNil(config.apiKeySlot(forHost: "", chain: .base),
+                     "An unparseable URL yields an empty host; it must not "
+                     + "fall through to a real provider's key either.")
     }
 
-    /// Solana's catch-all is Helius, not Alchemy — the non-EVM branch has its
-    /// own default and swapping the two would silently misroute the key.
-    func test_apiKeySlot_fallsBackToHeliusForUnknownSolanaHost() {
+    /// The leak the nil above prevents, asserted on the resolver itself.
+    func test_substituteAPIKey_neverSendsAKeyToAnUnrecognisedHost() {
         let config = NetworkConfig.shared
-        let slot = config.apiKeySlot(forHost: "rpc.example.invalid", chain: .solana)
-        XCTAssertEqual(slot?.keyPath, \NetworkConfig.heliusAPIKey)
-        XCTAssertEqual(slot?.displayName, "Helius")
+        let saved = config.alchemyAPIKey
+        let savedHelius = config.heliusAPIKey
+        defer { config.alchemyAPIKey = saved; config.heliusAPIKey = savedHelius }
+        config.alchemyAPIKey = "alchemy-secret"
+        config.heliusAPIKey = "helius-secret"
+
+        let evm = config.substituteAPIKey(in: "https://base.mynode.example/{KEY}", chain: .base)
+        XCTAssertFalse(evm.contains("alchemy-secret"),
+                       "The Alchemy key was spliced into a third-party host.")
+        let sol = config.substituteAPIKey(in: "https://sol.mynode.example/{KEY}", chain: .solana)
+        XCTAssertFalse(sol.contains("helius-secret"),
+                       "The Helius key was spliced into a third-party host.")
+    }
+
+    /// …while a host we do recognise still resolves, so the change costs no
+    /// legitimate substitution.
+    func test_substituteAPIKey_stillResolvesRecognisedHosts() {
+        let config = NetworkConfig.shared
+        let saved = config.alchemyAPIKey
+        defer { config.alchemyAPIKey = saved }
+        config.alchemyAPIKey = "alchemy-secret"
+
+        let url = config.substituteAPIKey(
+            in: "https://base-mainnet.g.alchemy.com/v2/{KEY}", chain: .base)
+        XCTAssertEqual(url, "https://base-mainnet.g.alchemy.com/v2/alchemy-secret")
     }
 
     /// Chains with no `{KEY}` provider must return nil so the detail view does
@@ -370,14 +412,21 @@ final class RPCRoutingTests: XCTestCase {
     /// this does catch is `substituteAPIKey` growing a second copy of the host
     /// switch that disagrees with the accessor, which is the failure that
     /// would make the editor write a key the resolver never reads.
+    ///
+    /// The list is every host we ship a keyed template for. It deliberately
+    /// contains no unrecognised host: those now resolve to nil, which
+    /// `test_apiKeySlot_isNilForAnUnknownHost` covers and which is what stops
+    /// the Alchemy key being posted to a stranger.
     func test_everyEVMSlot_isReadBackBySubstituteAPIKey() {
         let config = NetworkConfig.shared
-        let hosts = ["mainnet.infura.io", "rpc.ankr.com", "base.blockpi.network",
+        let hosts = ["mainnet.infura.io", "eth-mainnet.g.alchemy.com",
+                     "rpc.ankr.com", "base.blockpi.network",
                      "lb.drpc.org", "eth-mainnet.nodereal.io", "go.getblock.io",
-                     "mainnet.gateway.tenderly.co", "1rpc.io", "rpc.example.invalid"]
+                     "mainnet.gateway.tenderly.co", "1rpc.io"]
         for host in hosts {
             guard let slot = config.apiKeySlot(forHost: host, chain: .ethereum) else {
-                return XCTFail("EVM hosts always have a slot: \(host)")
+                return XCTFail("A host we ship a keyed template for must have "
+                               + "a slot: \(host)")
             }
             let previous = config[keyPath: slot.keyPath]
             defer { config[keyPath: slot.keyPath] = previous }

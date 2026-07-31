@@ -19,6 +19,40 @@ final class NodeSettingsMigrationTests: XCTestCase {
         super.tearDown()
     }
 
+    /// `apply(to:)` writes the five `legacy*` fields, `evmChainId` and
+    /// `activeProvider` straight into the `NetworkConfig` singleton, which
+    /// is UserDefaults-backed — so a test that calls it and does not put
+    /// them back leaves the *simulator* dirty, and the damage outlives the
+    /// process. `NetworkConfigTests` asserts on exactly these fields and
+    /// fails in isolation once they have been polluted, which is a
+    /// confusing way to learn about it.
+    private func saveLegacyFields(_ config: NetworkConfig) -> () -> Void {
+        let eth = config.legacyEthereumRPC
+        let btc = config.legacyBitcoinAPI
+        let ltc = config.legacyLitecoinAPI
+        let sol = config.legacySolanaRPC
+        let tron = config.legacyTronAPI
+        let chainId = config.evmChainId
+        let provider = config.activeProvider
+        let btcTestnet = config.btcTestnet
+        let solDevnet = config.solDevnet
+        let ethWSS = config.ethereumWSS
+        let solWSS = config.solanaWSS
+        return {
+            config.legacyEthereumRPC = eth
+            config.legacyBitcoinAPI = btc
+            config.legacyLitecoinAPI = ltc
+            config.legacySolanaRPC = sol
+            config.legacyTronAPI = tron
+            config.evmChainId = chainId
+            config.activeProvider = provider
+            config.btcTestnet = btcTestnet
+            config.solDevnet = solDevnet
+            config.ethereumWSS = ethWSS
+            config.solanaWSS = solWSS
+        }
+    }
+
     // MARK: - Shipped-endpoint table
 
     /// The whole point: the answer must not move when the user flips a
@@ -74,6 +108,51 @@ final class NodeSettingsMigrationTests: XCTestCase {
             .contains(EVMNetwork.mainnet.publicDefaultRPC))
         XCTAssertFalse(RPCFallbacks.allShippedEndpoints(for: .tron)
             .contains(SolanaNetwork.mainnet.publicDefaultRPC))
+    }
+
+    /// Bitcoin and Solana carry their network in a flag (`btcTestnet`,
+    /// `solDevnet`) that the migration preserves, so listing both clusters
+    /// as "shipped" is lossless. Tron has no such flag — the URL is the
+    /// only record of the choice. Treating a testnet URL as shipped
+    /// therefore does not relocate the selection, it destroys it: no
+    /// override is written, `publicDefault(for:.tron)` answers mainnet,
+    /// and because Tron uses the same address on both networks the wallet
+    /// looks normal while a "test" send spends real TRX.
+    func test_shippedTronEndpoints_areMainnetOnly() {
+        for url in RPCFallbacks.allShippedEndpoints(for: .tron) {
+            let host = URL(string: url)?.host?.lowercased() ?? ""
+            XCTAssertFalse(host.contains("shasta") || host.contains("nile"),
+                           "\(url) is a Tron testnet host. Tron has no network "
+                           + "flag, so anything the shipped table claims is a "
+                           + "default silently becomes mainnet on migration.")
+        }
+    }
+
+    /// The other half of the same defect. `endpoints(for:)` feeds the
+    /// fallback router, so a mixed list means a cooling Shasta primary
+    /// fails over to mainnet and broadcasts a testnet transaction for
+    /// real. Bitcoin and Solana avoid this by deriving the list from the
+    /// network flag; Tron must avoid it by shipping only one network.
+    func test_tronFallbacks_neverCrossNetworks() {
+        for url in RPCFallbacks.endpoints(for: .tron, config: NetworkConfig.shared) {
+            let host = URL(string: url)?.host?.lowercased() ?? ""
+            XCTAssertFalse(host.contains("shasta") || host.contains("nile"),
+                           "\(url) would be dialled as a fallback for a Tron "
+                           + "mainnet wallet.")
+        }
+    }
+
+    /// End-to-end: the value the old build's "Shasta" preset chip stored
+    /// must survive as an override, which is also what restores the
+    /// "Shasta" badge (`testnetBadge(for:)` reads the override).
+    func test_tronTestnetSelection_survivesAsAnOverride() {
+        for (url, label) in [("https://api.shasta.trongrid.io", "Shasta"),
+                             ("https://nile.trongrid.io", "Nile")] {
+            let result = plan(tron: url)
+            XCTAssertEqual(result.overrides[.tron], url,
+                           "\(label) was dropped, so the wallet silently "
+                           + "moves to Tron mainnet.")
+        }
     }
 
     // MARK: - plan()
@@ -414,6 +493,73 @@ final class NodeSettingsMigrationTests: XCTestCase {
         snap.apply(to: config)
         XCTAssertEqual(config.activeProvider, .alchemy,
                        "a legacy import must not wipe the active provider")
+    }
+
+    /// The write must actually route.
+    ///
+    /// `apply` writes the five URLs into `config.legacy*`, which this model
+    /// no longer reads: routing goes override → provider template → public
+    /// default, and the only consumer of the legacy fields is
+    /// `NodeSettingsMigration.runIfNeeded`, which is version-gated and has
+    /// already run on any build that can perform an import. So a legacy
+    /// snapshot used to land in dead storage while the sheet showed a diff
+    /// and reported success — the user believes their self-hosted endpoints
+    /// were restored and traffic keeps going to the public defaults, which
+    /// is exactly the address-leak the private endpoint existed to avoid.
+    func test_snapshot_applyLegacy_actuallyRoutesTheImportedURLs() {
+        let config = NetworkConfig.shared
+        let restore = saveLegacyFields(config)
+        defer { restore() }
+        ChainEndpointOverrides.shared.removeAll()
+
+        let legacy = """
+        {"bitcoinAPI":"https://my-esplora.example/api","btcTestnet":false,\
+        "ethereumRPC":"https://my-eth.example","evmChainId":1,\
+        "litecoinAPI":"https://litecoinspace.org/api","solDevnet":false,\
+        "solanaRPC":"https://my-solana.example","tronAPI":"https://api.trongrid.io"}
+        """
+        guard let snap = RPCConfigSnapshot.decode(legacy) else {
+            return XCTFail("legacy export must decode")
+        }
+        snap.apply(to: config)
+
+        XCTAssertEqual(config.rpcURL(for: .bitcoin), "https://my-esplora.example/api")
+        XCTAssertEqual(config.rpcURL(for: .ethereum), "https://my-eth.example")
+        XCTAssertEqual(config.rpcURL(for: .solana), "https://my-solana.example")
+        XCTAssertNil(ChainEndpointOverrides.shared.url(for: .litecoin),
+                     "litecoin was on its shipped default; freezing it as an "
+                     + "override would stop future default fixes arriving")
+    }
+
+    /// A legacy export taken while the old EVM picker was on Polygon carries
+    /// `evmChainId: 137`, a value the new picker cannot represent. Importing
+    /// it verbatim would make `.ethereum` resolve to a Polygon RPC and
+    /// `SigningViewModel` sign with chainId 137 under an "Ethereum" label,
+    /// with `detectMismatch` seeing expected == actual and staying silent.
+    /// The migration planner already knows how to re-target that: the URL
+    /// becomes a Polygon override and the chain id normalises to 1.
+    func test_snapshot_applyLegacy_reTargetsANonEthereumChainId() {
+        let config = NetworkConfig.shared
+        let restore = saveLegacyFields(config)
+        defer { restore() }
+        ChainEndpointOverrides.shared.removeAll()
+
+        let legacy = """
+        {"bitcoinAPI":"https://mempool.space/api","btcTestnet":false,\
+        "ethereumRPC":"https://my-polygon.example","evmChainId":137,\
+        "litecoinAPI":"https://litecoinspace.org/api","solDevnet":false,\
+        "solanaRPC":"https://solana-rpc.publicnode.com","tronAPI":"https://api.trongrid.io"}
+        """
+        guard let snap = RPCConfigSnapshot.decode(legacy) else {
+            return XCTFail("legacy export must decode")
+        }
+        snap.apply(to: config)
+
+        XCTAssertEqual(config.evmChainId, 1,
+                       "137 is not offered by the picker and must not survive "
+                       + "as Ethereum's chain id")
+        XCTAssertEqual(config.rpcURL(for: .polygon), "https://my-polygon.example",
+                       "the URL belongs to the chain it actually pointed at")
     }
 
     /// diffRows must include a provider row when the snapshot has a version

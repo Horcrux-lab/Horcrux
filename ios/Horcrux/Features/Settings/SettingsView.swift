@@ -1927,7 +1927,6 @@ struct RPCConfigSnapshot: Codable, Equatable {
         if config.legacyLitecoinAPI != litecoinAPI { config.legacyLitecoinAPI = litecoinAPI }
         if config.legacySolanaRPC != solanaRPC { config.legacySolanaRPC = solanaRPC }
         if config.legacyTronAPI != tronAPI { config.legacyTronAPI = tronAPI }
-        if config.evmChainId != evmChainId { config.evmChainId = evmChainId }
         if config.btcTestnet != btcTestnet { config.btcTestnet = btcTestnet }
         if config.solDevnet != solDevnet { config.solDevnet = solDevnet }
         let incomingEthWSS = ethereumWSS ?? ""
@@ -1940,13 +1939,54 @@ struct RPCConfigSnapshot: Codable, Equatable {
         // configured rather than silently clearing it.
         if version != nil {
             config.activeProvider = activeProvider
+            if config.evmChainId != evmChainId { config.evmChainId = evmChainId }
             if let overrides = chainOverrides {
                 // Atomic replacement: one lock, one UserDefaults write, one
                 // publish. Unknown keys are passed through verbatim so a
                 // newer build's overrides survive a downgrade and round-trip.
                 ChainEndpointOverrides.shared.replaceAll(with: overrides)
             }
+        } else {
+            applyLegacyRouting(to: config)
         }
+    }
+
+    /// Translate a pre-v2 snapshot's five URL fields into the model that
+    /// actually routes.
+    ///
+    /// The `legacy*` writes above are storage-compatibility only — nothing
+    /// reads them any more except `NodeSettingsMigration.runIfNeeded`, which
+    /// is version-gated and has necessarily already run on any build that can
+    /// reach this code. Without this step an import of a legacy file writes
+    /// only dead fields, while `diffRows` shows the user their endpoints
+    /// changing and the sheet reports success: traffic silently stays on the
+    /// public defaults.
+    ///
+    /// Reusing the migration's planner rather than writing overrides directly
+    /// buys the rules it already encodes and tests: a value equal to
+    /// something we ship stays on the default so future default fixes still
+    /// arrive, a recognised provider template becomes the account provider
+    /// instead of an override, and an `evmChainId` the current picker cannot
+    /// represent re-targets the URL to the chain it actually pointed at and
+    /// normalises the id.
+    private func applyLegacyRouting(to config: NetworkConfig) {
+        let plan = NodeSettingsMigration.plan(
+            ethereumRPC: ethereumRPC,
+            bitcoinAPI: bitcoinAPI,
+            litecoinAPI: litecoinAPI,
+            solanaRPC: solanaRPC,
+            tronAPI: tronAPI,
+            evmChainId: evmChainId
+        )
+        if config.evmChainId != plan.evmChainId { config.evmChainId = plan.evmChainId }
+        // A legacy file carries no provider field, so `plan` inferring none
+        // means "this export had no provider template in it", not "the user
+        // wants no provider". Clearing here would reintroduce the wipe that
+        // `test_snapshot_applyLegacy_doesNotClearExistingProvider` guards.
+        if let provider = plan.activeProvider { config.activeProvider = provider }
+        ChainEndpointOverrides.shared.replaceAll(
+            with: Dictionary(uniqueKeysWithValues:
+                plan.overrides.map { ($0.key.rawValue, $0.value) }))
     }
 
     /// Chain keys in `chainOverrides` that this build cannot show or use because
@@ -1970,7 +2010,18 @@ struct RPCConfigSnapshot: Codable, Equatable {
         add("Litecoin API", config.legacyLitecoinAPI, litecoinAPI)
         add("Solana RPC", config.legacySolanaRPC, solanaRPC)
         add("Tron API", config.legacyTronAPI, tronAPI)
-        add("EVM Chain ID", String(config.evmChainId), String(evmChainId))
+        // Show the chain id `apply(to:)` will actually write. A legacy
+        // snapshot's id is run through the migration planner, which
+        // normalises a value the current picker cannot represent (137 →
+        // 1, with the URL re-targeted at Polygon), so echoing the raw
+        // field here would promise a state the import never produces.
+        let effectiveChainId = version != nil
+            ? evmChainId
+            : NodeSettingsMigration.plan(
+                ethereumRPC: ethereumRPC, bitcoinAPI: bitcoinAPI,
+                litecoinAPI: litecoinAPI, solanaRPC: solanaRPC,
+                tronAPI: tronAPI, evmChainId: evmChainId).evmChainId
+        add("EVM Chain ID", String(config.evmChainId), String(effectiveChainId))
         add("BTC Testnet", config.btcTestnet ? "on" : "off", btcTestnet ? "on" : "off")
         add("SOL Devnet", config.solDevnet ? "on" : "off", solDevnet ? "on" : "off")
         add("Ethereum WSS", config.ethereumWSS, ethereumWSS ?? "")
