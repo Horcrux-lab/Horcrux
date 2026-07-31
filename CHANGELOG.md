@@ -108,6 +108,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   to the migration set, yet was never removed from the Sepolia
   table it still led. The new script caught it on its first run.
 
+### iOS — startup crash
+
+- **The app aborted on launch whenever the device name was empty or
+  longer than 63 bytes.** `WiFiDirectTransport.init` passed
+  `ProcessInfo.processInfo.hostName` straight to
+  `MCPeerID(displayName:)`, which raises an Objective-C
+  `NSInvalidArgumentException` — not a Swift error, so `try?` cannot
+  contain it — for a name outside 1–63 UTF-8 *bytes*. The call sits on
+  the `AppState.shared` -> `AppState.init` -> `PeerManager.init` chain
+  driving a `@StateObject` in `HorcruxApp`, so it runs before the first
+  frame with no code path able to catch it: the process takes SIGABRT.
+  Both bounds are reachable. The lower one is how this was found — with
+  the CI gate finally able to fail, the host app died in
+  `-[MCPeerID initWithDisplayName:]` before a single test could attach,
+  because a simulator with no configured hostname returns `""`. The
+  upper one is a user-facing footgun: 63 bytes is not 63 characters, so
+  16 emoji or 21 CJK characters in a device name are enough, and people
+  name their phones that way. Names are now trimmed, fall back to
+  "Horcrux" when empty, and truncate on grapheme-cluster boundaries so
+  a cut never splits a scalar into a string `MCPeerID` would also
+  reject.
+
 ### Testing
 
 - **The iOS CI gate had never gated anything.** `ci.yml`'s "Build iOS
@@ -162,8 +184,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   opening `horcrux://join?session=...` from silently pulling the wallet
   into an attacker's ceremony — are now covered, including that
   declining discards the link rather than activating it.
-- **Net effect: the iOS suite runs on CI for the first time**, 500
-  tests, and a failure in any of them now stops the job.
+- **Net effect: the iOS suite runs on CI for the first time**, 510
+  tests, and a failure in any of them now stops the job. Each fix in
+  this list was only visible once the one above it was made: the blind
+  gate hid the compile error, fixing that exposed the toolchain
+  mismatch, fixing that exposed the entitlement failures, and fixing
+  that exposed a real crash that had been shipping.
 
 ## [0.5.0] - 2026-07-29
 

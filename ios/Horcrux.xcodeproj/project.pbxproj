@@ -88,6 +88,7 @@
 		84D95BDDAF6E254C4D577C31 /* AddressValidatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8316163DB1BF3FFBF6245C17 /* AddressValidatorTests.swift */; };
 		88380DABC0637076A7B84583 /* SigningView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 49A262F731DB964A68E24B04 /* SigningView.swift */; };
 		88912049DA2191C3B7F5A172 /* ProviderCoverageSummary.swift in Sources */ = {isa = PBXBuildFile; fileRef = 348DBC6D87E304C4653BD1A0 /* ProviderCoverageSummary.swift */; };
+		8950AE1AFA21E9582C720EED /* WiFiDirectPeerNameTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 74B77DFC7DCDDCA21A69B986 /* WiFiDirectPeerNameTests.swift */; };
 		89F8EDBDD2C513909099CF0D /* CreateShardViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 69A9C998E7A806927B3E2D34 /* CreateShardViewModelTests.swift */; };
 		8B0BAADE9F87B21FC65B8E04 /* SecureClipboardTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B66CCA676948C54B9CDFAC20 /* SecureClipboardTests.swift */; };
 		8B6DABC2BA6DA13BE06406AA /* CeremonyStateManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 15830F30B8339C7263832772 /* CeremonyStateManager.swift */; };
@@ -241,6 +242,7 @@
 		729455434EC6340461D1B478 /* SecurityEnvironment.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SecurityEnvironment.swift; sourceTree = "<group>"; };
 		73A13E2D2F330EDCDE8CE81D /* AddressFormatter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AddressFormatter.swift; sourceTree = "<group>"; };
 		73AA08C05D62817355866721 /* NodeSettingsMigration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NodeSettingsMigration.swift; sourceTree = "<group>"; };
+		74B77DFC7DCDDCA21A69B986 /* WiFiDirectPeerNameTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WiFiDirectPeerNameTests.swift; sourceTree = "<group>"; };
 		76662EAB34A3B4B438BC0AB1 /* PrimePoolManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PrimePoolManager.swift; sourceTree = "<group>"; };
 		76F29DB893748A79B8E50F7E /* SecurityEnvironmentTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SecurityEnvironmentTests.swift; sourceTree = "<group>"; };
 		7835CD49959AD17C7590793F /* TokenModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TokenModels.swift; sourceTree = "<group>"; };
@@ -588,6 +590,7 @@
 				DD030979CCAA127E220D7660 /* TokenModelsTests.swift */,
 				0D8CC76DA3FFA51F1581D7CA /* TransactionStoreTests.swift */,
 				3B45D5364AB9F1360EFA4E5C /* WalletStoreTests.swift */,
+				74B77DFC7DCDDCA21A69B986 /* WiFiDirectPeerNameTests.swift */,
 			);
 			path = HorcruxTests;
 			sourceTree = "<group>";
@@ -806,6 +809,7 @@
 				27ABF8D1668FCF1FDB9C8F91 /* TokenModelsTests.swift in Sources */,
 				988A2125ECE7D174623434E2 /* TransactionStoreTests.swift in Sources */,
 				62CB42B53B196669DF6313A7 /* WalletStoreTests.swift in Sources */,
+				8950AE1AFA21E9582C720EED /* WiFiDirectPeerNameTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
