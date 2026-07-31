@@ -127,11 +127,43 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   retroactive `@unchecked Sendable` added by `ddac274` — two
   conformances of one type to one protocol. The Swift 6.3 toolchain
   used locally tolerates the duplicate, so it never appeared on a
-  developer machine; the Swift 6.0 toolchain on the `macos-15` runner
+  developer machine; the Swift 6.1.2 toolchain on the `macos-15` runner
   rejects it as "Redundant conformance", failing compilation so that
   the test bundle never built and *no iOS test ran on CI at all*. The
   hand-written conformance is removed; the generator covers every
   `Ffi*` type.
+- **CI was pairing Xcode 16.4's XCTest with an iOS 26.2 simulator.**
+  With the build fixed, the host app aborted before a single test ran:
+  "Test crashed with signal abrt before starting test execution".
+  `macos-15` defaults to Xcode 16.4 but also ships iOS 26.x runtimes,
+  and the destination asked for `OS=latest`, so `libXCTestBundleInject.
+  dylib` from Xcode 16.4 was injected into a runtime four major versions
+  ahead of it. The job now selects the newest installed Xcode 26, which
+  also closes the Swift-version gap that produced the conformance break
+  above — CI had been compiling with an older Swift than any developer.
+- **`CODE_SIGNING_ALLOWED=NO` was failing ten Keychain tests.** On a
+  simulator destination it suppresses not just the signature but the
+  simulated entitlements, and without `application-identifier` every
+  Keychain call returns errSecMissingEntitlement (-34018). Measured on
+  one commit, changing nothing else: 11 failures (9 unexpected) with
+  the flag, 1 (0 unexpected) without. The nine are all of
+  `SecureKeyVaultTests`' Keychain coverage — the only tests asserting
+  that shard material round-trips — plus two `RelayConfigTests`.
+  Simulator builds ad-hoc sign with no team or profile, so the flag
+  bought nothing.
+- **The deep-link confirmation gate had no test, and the one test that
+  touched it asserted the vulnerable behaviour.**
+  `test_handle_setsPendingLink` expected `handle(.joinSession(...))` to
+  set `pendingLink`, which is what happened *before* audit finding M7's
+  user-presence gate was added; since then the link parks in
+  `pendingConfirmation` until the user agrees. The test had been failing
+  on every run, unseen behind the blind gate. `pendingConfirmation`,
+  `confirmPending` and `cancelPending` — the control that stops a page
+  opening `horcrux://join?session=...` from silently pulling the wallet
+  into an attacker's ceremony — are now covered, including that
+  declining discards the link rather than activating it.
+- **Net effect: the iOS suite runs on CI for the first time**, 500
+  tests, and a failure in any of them now stops the job.
 
 ## [0.5.0] - 2026-07-29
 
