@@ -204,3 +204,37 @@ jobs:
             -skipPackagePluginValidation \
             CODE_SIGNING_ALLOWED=NO \
             | xcpretty
+
+      # xcpretty swallows everything but the summary line, so a launch-time
+      # abort reaches the log as a bare "Test crashed with signal abrt before
+      # starting test execution" with no reason attached. Dump the toolchain,
+      # the crash report and the simulator's own log for the host app so the
+      # next failure is diagnosable from the run page alone.
+      - name: Diagnose iOS test failure
+        if: failure()
+        run: |
+          set +e
+          echo "=== toolchain ==="
+          xcodebuild -version
+          swift --version
+
+          echo "=== simulator runtimes ==="
+          xcrun simctl list devices available | head -40
+
+          echo "=== crash reports ==="
+          found=0
+          for dir in "$HOME/Library/Logs/DiagnosticReports" \
+                     "$HOME/Library/Logs/CoreSimulator"; do
+            while IFS= read -r f; do
+              found=1
+              echo "--- $f ---"
+              head -100 "$f"
+            done < <(find "$dir" -name 'Horcrux*' -mmin -60 2>/dev/null)
+          done
+          [ "$found" -eq 0 ] && echo "(no Horcrux crash report found)"
+
+          echo "=== host app log from the booted simulator ==="
+          xcrun simctl spawn booted log show --style compact --last 20m \
+            --predicate 'process == "Horcrux"' 2>/dev/null | tail -120 \
+            || echo "(no booted simulator)"
+          exit 0
