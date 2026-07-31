@@ -186,9 +186,12 @@ final class HorcruxBridge: ObservableObject {
 
 // MARK: - Generated FFI type Sendable conformance
 //
-// `horcrux_core.swift` is produced by uniffi-bindgen and cannot carry
-// concurrency annotations directly. `FfiMpcMessage` is POD (UInt16,
-// UInt32, String, Data) — all fields are Sendable — so this retroactive
-// conformance is safe and silences Swift 6 warnings when the Rust
-// bridge's response values cross actor boundaries.
-extension FfiMpcMessage: @unchecked Sendable {}
+// Nothing to declare here. uniffi-bindgen has emitted `extension
+// FfiMpcMessage: Sendable {}` itself since the 0.28 -> 0.31 bump
+// (85a4970), so the retroactive `@unchecked Sendable` that used to live
+// here became a second conformance for the same type. Swift 6.3 tolerates
+// the duplicate; the Swift 6.0 toolchain on CI's macos-15 runner rejects
+// it with "Redundant conformance of 'FfiMpcMessage' to protocol
+// 'Sendable'", which broke the iOS build. Re-adding a hand-written
+// conformance for any `Ffi*` type will break it again — check
+// `Core/Generated/horcrux_core.swift` first, the generator covers them all.
