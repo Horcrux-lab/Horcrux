@@ -1907,21 +1907,33 @@ struct RPCConfigSnapshot: Codable, Equatable {
         if version != nil {
             config.activeProvider = activeProvider
             if let overrides = chainOverrides {
+                // Validate the entire map before mutating shared state so a
+                // half-applied configuration is impossible.  Unknown keys
+                // are intentionally skipped and surfaced via unknownChainKeys.
+                let mapped: [(Chain, String)] = overrides.compactMap { rawChain, url in
+                    Chain(rawValue: rawChain).map { ($0, url) }
+                }
                 ChainEndpointOverrides.shared.removeAll()
-                for (rawChain, url) in overrides {
-                    // Unknown chain keys are silently skipped. This is the
-                    // downgrade path: a same-version export from a build that
-                    // has more chains than ours loses those extra entries,
-                    // which we cannot represent anyway. The version field
-                    // guards breaking schema changes; new chains are additive.
-                    guard let chain = Chain(rawValue: rawChain) else { continue }
+                for (chain, url) in mapped {
                     ChainEndpointOverrides.shared.set(url, for: chain)
                 }
             }
         }
     }
 
+    /// Chain keys in `chainOverrides` this build does not recognise. They are
+    /// skipped during import and shown as a warning — the version field guards
+    /// breaking schema changes, but adding chains is non-breaking and does not
+    /// bump the version, so a same-version export from a newer build can carry
+    /// chains this build has never heard of.
+    var unknownChainKeys: [String] {
+        guard let overrides = chainOverrides else { return [] }
+        return overrides.keys.filter { Chain(rawValue: $0) == nil }.sorted()
+    }
+
     /// Human-readable per-field diff against the live config. Empty = no changes.
+    /// Rows are present only for fields that `apply(to:)` will actually write:
+    /// provider and override rows are omitted for legacy imports (version == nil).
     func diffRows(against config: NetworkConfig) -> [(String, String, String)] {
         var rows: [(String, String, String)] = []
         func add(_ label: String, _ before: String, _ after: String) {
@@ -1937,6 +1949,25 @@ struct RPCConfigSnapshot: Codable, Equatable {
         add("SOL Devnet", config.solDevnet ? "on" : "off", solDevnet ? "on" : "off")
         add("Ethereum WSS", config.ethereumWSS, ethereumWSS ?? "")
         add("Solana WSS", config.solanaWSS, solanaWSS ?? "")
+        // Version-2 fields: only emit when apply(to:) will actually write them.
+        if version != nil {
+            let noProvider = L10n.NodeSettings.providerPublicDefaults
+            add(L10n.NodeSettings.providerPicker,
+                config.activeProvider?.displayName ?? noProvider,
+                activeProvider?.displayName ?? noProvider)
+            if let incomingOverrides = chainOverrides {
+                let liveOverrides = ChainEndpointOverrides.shared.snapshot()
+                let noOverride = L10n.NodeSettings.useDefault
+                // Union of both sides so removals (before=URL, after=default) are shown.
+                let allRawChains = Set(liveOverrides.keys).union(incomingOverrides.keys)
+                for rawChain in allRawChains.sorted() {
+                    guard Chain(rawValue: rawChain) != nil else { continue }
+                    add(rawChain,
+                        liveOverrides[rawChain] ?? noOverride,
+                        incomingOverrides[rawChain] ?? noOverride)
+                }
+            }
+        }
         return rows
     }
 }
@@ -2060,6 +2091,7 @@ private struct RPCConfigImportSheet: View {
 
                 if let snap = preview {
                     let rows = snap.diffRows(against: config)
+                    let unknownChains = snap.unknownChainKeys
                     Section(L10n.NodeSettings.importPreviewTitle) {
                         if rows.isEmpty {
                             Text(L10n.NodeSettings.importNoChanges)
@@ -2084,6 +2116,14 @@ private struct RPCConfigImportSheet: View {
                                 }
                                 .padding(.vertical, 2)
                             }
+                        }
+                    }
+                    if !unknownChains.isEmpty {
+                        Section {
+                            Label(L10n.NodeSettings.importUnknownChains(unknownChains.joined(separator: ", ")),
+                                  systemImage: "exclamationmark.triangle")
+                                .font(.footnote)
+                                .foregroundStyle(HorcruxTheme.warningAmber)
                         }
                     }
                 }

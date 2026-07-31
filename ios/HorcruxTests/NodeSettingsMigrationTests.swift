@@ -293,10 +293,18 @@ final class NodeSettingsMigrationTests: XCTestCase {
 
     func test_snapshot_roundTripsOverridesAndProvider() {
         let config = NetworkConfig.shared
+        let origProvider = config.activeProvider
+        let origEthWSS = config.ethereumWSS
+        let origSolWSS = config.solanaWSS
         defer {
-            config.activeProvider = nil
+            config.activeProvider = origProvider
+            config.ethereumWSS = origEthWSS
+            config.solanaWSS = origSolWSS
             ChainEndpointOverrides.shared.removeAll()
         }
+
+        // Snapshot contains only one override so apply can be shown to wipe stale entries.
+        ChainEndpointOverrides.shared.removeAll()
         config.activeProvider = .drpc
         ChainEndpointOverrides.shared.set("https://mine.example", for: .scroll)
 
@@ -307,6 +315,21 @@ final class NodeSettingsMigrationTests: XCTestCase {
         }
         XCTAssertEqual(decoded.activeProvider, .drpc)
         XCTAssertEqual(decoded.chainOverrides?["Scroll"], "https://mine.example")
+
+        // Seed stale overrides that the snapshot does not contain; apply must wipe them.
+        ChainEndpointOverrides.shared.set("https://stale.eth.example", for: .ethereum)
+        ChainEndpointOverrides.shared.set("https://stale.btc.example", for: .bitcoin)
+
+        decoded.apply(to: config)
+
+        XCTAssertEqual(ChainEndpointOverrides.shared.url(for: .scroll), "https://mine.example",
+                       "imported override must be present after apply")
+        XCTAssertNil(ChainEndpointOverrides.shared.url(for: .ethereum),
+                     "stale ethereum override must be wiped by removeAll in apply")
+        XCTAssertNil(ChainEndpointOverrides.shared.url(for: .bitcoin),
+                     "stale bitcoin override must be wiped by removeAll in apply")
+        XCTAssertEqual(config.activeProvider, .drpc,
+                       "provider must be applied")
     }
 
     /// An older export has no version field and must still import.
@@ -358,6 +381,8 @@ final class NodeSettingsMigrationTests: XCTestCase {
         let origChainId = config.evmChainId
         let origBtcTestnet = config.btcTestnet
         let origSolDevnet = config.solDevnet
+        let origEthWSS = config.ethereumWSS
+        let origSolWSS = config.solanaWSS
         defer {
             config.activeProvider = origProvider
             config.legacyEthereumRPC = origEth
@@ -368,6 +393,8 @@ final class NodeSettingsMigrationTests: XCTestCase {
             config.evmChainId = origChainId
             config.btcTestnet = origBtcTestnet
             config.solDevnet = origSolDevnet
+            config.ethereumWSS = origEthWSS
+            config.solanaWSS = origSolWSS
         }
 
         config.activeProvider = .alchemy
@@ -384,5 +411,45 @@ final class NodeSettingsMigrationTests: XCTestCase {
         snap.apply(to: config)
         XCTAssertEqual(config.activeProvider, .alchemy,
                        "a legacy import must not wipe the active provider")
+    }
+
+    /// diffRows must include a provider row when the snapshot has a version
+    /// field and the provider differs. Deleting the provider row from diffRows
+    /// makes this test go RED (mutation 1).
+    func test_diffRows_includesProviderRow() {
+        let config = NetworkConfig.shared
+        let origProvider = config.activeProvider
+        defer { config.activeProvider = origProvider }
+
+        config.activeProvider = nil
+
+        var snap = RPCConfigSnapshot(from: config)
+        snap.activeProvider = .infura
+
+        let rows = snap.diffRows(against: config)
+        XCTAssertTrue(rows.contains(where: { $0.2 == NodeProvider.infura.displayName }),
+                      "diffRows must include a provider row when the provider changes")
+    }
+
+    /// diffRows must include per-chain override rows when the snapshot has a
+    /// version field and the overrides differ. Deleting the override rows from
+    /// diffRows makes this test go RED (mutation 2).
+    func test_diffRows_includesOverrideRows() {
+        let config = NetworkConfig.shared
+        let origProvider = config.activeProvider
+        defer {
+            config.activeProvider = origProvider
+            ChainEndpointOverrides.shared.removeAll()
+        }
+
+        ChainEndpointOverrides.shared.removeAll()
+        config.activeProvider = .drpc
+
+        var snap = RPCConfigSnapshot(from: config)
+        snap.chainOverrides = ["Scroll": "https://my-scroll.example"]
+
+        let rows = snap.diffRows(against: config)
+        XCTAssertTrue(rows.contains(where: { $0.0 == "Scroll" }),
+                      "diffRows must include a row for each differing chain override")
     }
 }
