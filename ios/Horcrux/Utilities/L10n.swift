@@ -1143,6 +1143,7 @@ enum L10n {
         static let importPreviewTitle = NSLocalizedString("nodeSettings.importPreviewTitle", comment: "")
         static let importApply = NSLocalizedString("nodeSettings.importApply", comment: "")
         static let importParseFailed = NSLocalizedString("nodeSettings.importParseFailed", comment: "")
+        static let importVersionTooNew = NSLocalizedString("nodeSettings.importVersionTooNew", comment: "")
         static let importNoChanges = NSLocalizedString("nodeSettings.importNoChanges", comment: "")
         static let exportNote = NSLocalizedString("nodeSettings.exportNote", comment: "")
         static let wssURLLabel = NSLocalizedString("nodeSettings.wssURLLabel", comment: "")

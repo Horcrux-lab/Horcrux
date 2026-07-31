@@ -288,4 +288,101 @@ final class NodeSettingsMigrationTests: XCTestCase {
         XCTAssertNil(config.activeProvider,
                      "a second run must be a no-op, not re-derive state the user has since changed")
     }
+
+    // MARK: - RPCConfigSnapshot versioning
+
+    func test_snapshot_roundTripsOverridesAndProvider() {
+        let config = NetworkConfig.shared
+        defer {
+            config.activeProvider = nil
+            ChainEndpointOverrides.shared.removeAll()
+        }
+        config.activeProvider = .drpc
+        ChainEndpointOverrides.shared.set("https://mine.example", for: .scroll)
+
+        let snapshot = RPCConfigSnapshot(from: config)
+        guard let json = snapshot.jsonString(),
+              let decoded = RPCConfigSnapshot.decode(json) else {
+            return XCTFail("snapshot did not round-trip")
+        }
+        XCTAssertEqual(decoded.activeProvider, .drpc)
+        XCTAssertEqual(decoded.chainOverrides?["Scroll"], "https://mine.example")
+    }
+
+    /// An older export has no version field and must still import.
+    func test_snapshot_decodesALegacyExportWithNoVersion() {
+        let legacy = """
+        {"bitcoinAPI":"https://blockstream.info/api",\
+        "btcTestnet":false,\
+        "ethereumRPC":"https://ethereum-rpc.publicnode.com",\
+        "evmChainId":1,\
+        "litecoinAPI":"https://litecoinspace.org/api",\
+        "solDevnet":false,\
+        "solanaRPC":"https://solana-rpc.publicnode.com",\
+        "tronAPI":"https://api.trongrid.io"}
+        """
+        let decoded = RPCConfigSnapshot.decode(legacy)
+        XCTAssertNotNil(decoded)
+        XCTAssertNil(decoded?.activeProvider)
+    }
+
+    /// A newer export must be refused rather than silently losing fields.
+    func test_snapshot_refusesAFutureVersion() {
+        let future = """
+        {"version":99,\
+        "bitcoinAPI":"https://blockstream.info/api",\
+        "btcTestnet":false,\
+        "ethereumRPC":"https://ethereum-rpc.publicnode.com",\
+        "evmChainId":1,\
+        "litecoinAPI":"https://litecoinspace.org/api",\
+        "solDevnet":false,\
+        "solanaRPC":"https://solana-rpc.publicnode.com",\
+        "tronAPI":"https://api.trongrid.io"}
+        """
+        XCTAssertNil(RPCConfigSnapshot.decode(future),
+                     "importing a newer format must fail loudly, not drop fields")
+    }
+
+    /// A legacy import (no version field) must not wipe a provider the user
+    /// has already configured. We cannot distinguish nil-from-absence from
+    /// nil-by-value in Codable optionals, so the safe rule is: if no version
+    /// field is present, leave activeProvider untouched.
+    func test_snapshot_applyLegacy_doesNotClearExistingProvider() {
+        let config = NetworkConfig.shared
+        let origProvider = config.activeProvider
+        let origEth = config.legacyEthereumRPC
+        let origBtc = config.legacyBitcoinAPI
+        let origLtc = config.legacyLitecoinAPI
+        let origSol = config.legacySolanaRPC
+        let origTron = config.legacyTronAPI
+        let origChainId = config.evmChainId
+        let origBtcTestnet = config.btcTestnet
+        let origSolDevnet = config.solDevnet
+        defer {
+            config.activeProvider = origProvider
+            config.legacyEthereumRPC = origEth
+            config.legacyBitcoinAPI = origBtc
+            config.legacyLitecoinAPI = origLtc
+            config.legacySolanaRPC = origSol
+            config.legacyTronAPI = origTron
+            config.evmChainId = origChainId
+            config.btcTestnet = origBtcTestnet
+            config.solDevnet = origSolDevnet
+        }
+
+        config.activeProvider = .alchemy
+
+        let legacy = """
+        {"bitcoinAPI":"https://blockstream.info/api","btcTestnet":false,\
+        "ethereumRPC":"https://ethereum-rpc.publicnode.com","evmChainId":1,\
+        "litecoinAPI":"https://litecoinspace.org/api","solDevnet":false,\
+        "solanaRPC":"https://solana-rpc.publicnode.com","tronAPI":"https://api.trongrid.io"}
+        """
+        guard let snap = RPCConfigSnapshot.decode(legacy) else {
+            return XCTFail("legacy export must decode")
+        }
+        snap.apply(to: config)
+        XCTAssertEqual(config.activeProvider, .alchemy,
+                       "a legacy import must not wipe the active provider")
+    }
 }

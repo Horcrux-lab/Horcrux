@@ -1828,6 +1828,23 @@ struct RPCConfigSnapshot: Codable, Equatable {
     var solDevnet: Bool
     var ethereumWSS: String?
     var solanaWSS: String?
+    // Version 2 fields — all optional so pre-versioning exports still decode.
+    var version: Int?
+    var activeProvider: NodeProvider?
+    // Raw URL strings; may contain {KEY} placeholders or literal API keys.
+    // Do not strip them: stripping breaks round-tripping. Treat exports as
+    // sensitive and advise users not to share them publicly.
+    var chainOverrides: [String: String]?
+
+    /// The wire-format version of the export schema. Increment whenever a
+    /// field is added or removed that Codable would silently drop on an older
+    /// build. This is NOT the migration version (NodeSettingsMigration).
+    static let currentVersion = 2
+
+    enum ImportFailure: Error {
+        case malformed
+        case versionTooNew
+    }
 
     init(from config: NetworkConfig) {
         self.ethereumRPC = config.legacyEthereumRPC
@@ -1840,6 +1857,9 @@ struct RPCConfigSnapshot: Codable, Equatable {
         self.solDevnet = config.solDevnet
         self.ethereumWSS = config.ethereumWSS
         self.solanaWSS = config.solanaWSS
+        self.version = RPCConfigSnapshot.currentVersion
+        self.activeProvider = config.activeProvider
+        self.chainOverrides = ChainEndpointOverrides.shared.snapshot()
     }
 
     func jsonString() -> String? {
@@ -1849,9 +1869,22 @@ struct RPCConfigSnapshot: Codable, Equatable {
         return String(data: data, encoding: .utf8)
     }
 
+    /// Decodes and validates the snapshot, distinguishing a well-formed but
+    /// too-new format from malformed JSON so callers can show an honest error.
+    static func decodeWithReason(_ text: String) -> Result<RPCConfigSnapshot, ImportFailure> {
+        guard let data = text.data(using: .utf8),
+              let snapshot = try? JSONDecoder().decode(RPCConfigSnapshot.self, from: data)
+        else { return .failure(.malformed) }
+        // A missing version is a pre-versioning export and is fine. A higher
+        // one means fields this build cannot represent — Codable would drop
+        // them without a word.
+        if let v = snapshot.version, v > currentVersion { return .failure(.versionTooNew) }
+        return .success(snapshot)
+    }
+
     static func decode(_ text: String) -> RPCConfigSnapshot? {
-        guard let data = text.data(using: .utf8) else { return nil }
-        return try? JSONDecoder().decode(RPCConfigSnapshot.self, from: data)
+        if case .success(let snap) = decodeWithReason(text) { return snap }
+        return nil
     }
 
     func apply(to config: NetworkConfig) {
@@ -1867,6 +1900,25 @@ struct RPCConfigSnapshot: Codable, Equatable {
         if config.ethereumWSS != incomingEthWSS { config.ethereumWSS = incomingEthWSS }
         let incomingSolWSS = solanaWSS ?? ""
         if config.solanaWSS != incomingSolWSS { config.solanaWSS = incomingSolWSS }
+        // Only apply provider and overrides from versioned exports. A legacy
+        // import (version == nil) cannot distinguish "activeProvider not set"
+        // from "field not present in JSON", so we leave what the user has
+        // configured rather than silently clearing it.
+        if version != nil {
+            config.activeProvider = activeProvider
+            if let overrides = chainOverrides {
+                ChainEndpointOverrides.shared.removeAll()
+                for (rawChain, url) in overrides {
+                    // Unknown chain keys are silently skipped. This is the
+                    // downgrade path: a same-version export from a build that
+                    // has more chains than ours loses those extra entries,
+                    // which we cannot represent anyway. The version field
+                    // guards breaking schema changes; new chains are additive.
+                    guard let chain = Chain(rawValue: rawChain) else { continue }
+                    ChainEndpointOverrides.shared.set(url, for: chain)
+                }
+            }
+        }
     }
 
     /// Human-readable per-field diff against the live config. Empty = no changes.
@@ -2057,10 +2109,14 @@ private struct RPCConfigImportSheet: View {
         guard !trimmed.isEmpty else {
             preview = nil; error = nil; return
         }
-        if let snap = RPCConfigSnapshot.decode(trimmed) {
+        switch RPCConfigSnapshot.decodeWithReason(trimmed) {
+        case .success(let snap):
             preview = snap
             error = nil
-        } else {
+        case .failure(.versionTooNew):
+            preview = nil
+            error = L10n.NodeSettings.importVersionTooNew
+        case .failure(.malformed):
             preview = nil
             error = L10n.NodeSettings.importParseFailed
         }
