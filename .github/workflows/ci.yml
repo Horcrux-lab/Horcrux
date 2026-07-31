@@ -93,13 +93,69 @@ jobs:
         run: cargo install cargo-tarpaulin --quiet
 
       - name: Generate coverage
-        run: cargo tarpaulin --workspace --timeout 900 --out xml
+        # `| tee` makes the step's status tee's without pipefail — the exact
+        # masking that made the iOS gate green while tests failed. Set it.
+        run: |
+          set -euo pipefail
+          cargo tarpaulin --workspace --timeout 900 --out xml | tee tarpaulin.log
 
+      # The number has to land somewhere the repository can see without a
+      # third-party account. Every Codecov upload from this repo has failed
+      # with "Token required because branch is protected" while the step
+      # itself stayed green (fail_ci_if_error: false), so from the outside
+      # this job looked like a working coverage gate for its entire life
+      # while publishing nothing at all. Writing the summary here means the
+      # figure survives regardless of what Codecov does.
+      - name: Summarise coverage
+        if: always()
+        run: |
+          {
+            echo '## Rust coverage'
+            echo
+            echo '```'
+            grep -E '% coverage, [0-9]+/[0-9]+ lines covered' tarpaulin.log \
+              || tail -20 tarpaulin.log 2>/dev/null \
+              || echo '(coverage step produced no output)'
+            echo '```'
+            echo
+            echo 'Note: `#[ignore]`d tests do not run here, so the CGGMP21'
+            echo 'ceremony paths they cover (notably `mpc/refresh.rs`) are'
+            echo 'reported as uncovered. Those run in `mpc-e2e.yml` on'
+            echo 'release tags.'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      # `secrets` is not available in a step-level `if`, so the presence
+      # check has to go through an output.
+      - name: Check for a Codecov token
+        id: codecov_token
+        env:
+          TOKEN: ${{ secrets.CODECOV_TOKEN }}
+        run: |
+          if [ -n "$TOKEN" ]; then
+            echo "present=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "present=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      # Gated on the token existing. Without it the action makes three API
+      # calls that all fail, prints three errors, and returns success —
+      # noise that reads like a working upload. Skipping says so plainly,
+      # and when a token is present a failed upload is now a real failure.
       - name: Upload to Codecov
+        if: steps.codecov_token.outputs.present == 'true'
         uses: codecov/codecov-action@b9fd7d16f6d7d1b5d2bec1a2887e65ceed900238 # v4
         with:
+          token: ${{ secrets.CODECOV_TOKEN }}
           files: ./cobertura.xml
-          fail_ci_if_error: false
+          fail_ci_if_error: true
+
+      - name: Note the missing Codecov token
+        if: steps.codecov_token.outputs.present != 'true'
+        run: |
+          echo "::notice::CODECOV_TOKEN is not set, so coverage was not uploaded." \
+               "The codecov.yml project/patch gates cannot run without it;" \
+               "the figure in the job summary is the only coverage signal" \
+               "this job produces."
 
   ios-build:
     name: iOS Build & Test
@@ -225,12 +281,46 @@ jobs:
         run: |
           # See the build step above: without pipefail this gate cannot fail.
           set -euo pipefail
+          rm -rf TestResults.xcresult
           xcodebuild test \
             -project Horcrux.xcodeproj \
             -scheme Horcrux \
             -destination 'platform=iOS Simulator,name=iPhone 16,OS=latest' \
             -skipPackagePluginValidation \
+            -enableCodeCoverage YES \
+            -resultBundlePath TestResults.xcresult \
             | xcpretty
+
+      # Swift coverage was never measured anywhere. codecov.yml sets a 70%
+      # patch target and justifies it by reasoning about "the large
+      # proportion of pure SwiftUI view code", but the only report ever
+      # generated was `cargo tarpaulin`, which sees no Swift at all — so the
+      # bar was written for a language the pipeline never looked at. The app
+      # target measured 10.6% line coverage the first time anyone ran this.
+      #
+      # Reporting the two targets separately matters: HorcruxTests.xctest
+      # scores ~94% because tests execute themselves, and averaging that
+      # against the app flatters the number by a wide margin. Horcrux.app is
+      # the figure that means anything.
+      - name: Summarise iOS coverage
+        if: always()
+        working-directory: ios
+        run: |
+          set +e
+          if [ ! -d TestResults.xcresult ]; then
+            echo "::notice::no result bundle; coverage not measured"
+            exit 0
+          fi
+          {
+            echo '## iOS coverage'
+            echo
+            echo '```'
+            xcrun xccov view --report --only-targets TestResults.xcresult
+            echo '```'
+            echo
+            echo 'Only `Horcrux.app` is meaningful — `HorcruxTests.xctest`'
+            echo 'measures the tests executing themselves.'
+          } >> "$GITHUB_STEP_SUMMARY"
 
       # xcpretty swallows everything but the summary line, so a launch-time
       # abort reaches the log as a bare "Test crashed with signal abrt before

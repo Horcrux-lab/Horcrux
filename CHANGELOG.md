@@ -214,6 +214,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Testing
 
+- **The coverage gate has never once reported a number.** `codecov.yml`
+  declares `project` and `patch` statuses with `informational: false`,
+  which is to say blocking, and sets a 70% patch target justified in a
+  comment about "the large proportion of pure SwiftUI view code". No
+  such status has ever appeared on a pull request. Every upload fails:
+  the run for #31 logged `Commit creating failed`, `Report creating
+  failed` and `Upload queued for processing failed`, all three
+  `{"message":"Token required because branch is protected"}`, and
+  `fail_ci_if_error: false` turned that into a green 18-minute job. The
+  upload is now conditional on `CODECOV_TOKEN` being present — checked
+  through a step output, since `secrets` is not available in a
+  step-level `if` — fails loudly when a token exists and the upload
+  breaks, and emits an explicit notice when it does not.
+- **Coverage figures now reach the run summary, with or without
+  Codecov.** Both jobs write to `$GITHUB_STEP_SUMMARY`, so the number
+  survives the absence of a third-party account. The tarpaulin pipe
+  carries `set -euo pipefail`; piping into `tee` without it reproduces
+  exactly the masking that let the iOS gate stay green through failing
+  tests.
+- **Swift coverage was never measured at all.** The only report the
+  pipeline produced was `cargo tarpaulin`, which sees no Swift — so the
+  patch target written to describe SwiftUI applied to a language nothing
+  looked at. `xcodebuild test` now runs with `-enableCodeCoverage YES`
+  and the report is summarised per target. First measurement:
+  `Horcrux.app` at **10.61%** (6053/57051 lines), against
+  `HorcruxTests.xctest` at 94.16% — the test bundle executing itself,
+  which is why the two are reported separately rather than averaged.
+  Splitting the app by kind puts SwiftUI views at 1.4% and the
+  logic layer at 27.5%, with `BlockchainService.swift` at 17.1% and
+  `SigningViewModel.swift` at 19.2%.
+
 - **The endpoint sweep reported "dead" for hosts that were merely having
   a bad minute.** `probe-rpc-endpoints.sh` gave each endpoint exactly one
   attempt, and the workflow's only defence was a second whole-table pass
