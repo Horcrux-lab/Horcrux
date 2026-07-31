@@ -7,6 +7,52 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### iOS — node settings
+
+- **Nine chains became configurable for the first time.** `Chain.allCases`
+  has fourteen entries, but only five — Ethereum, Bitcoin, Litecoin,
+  Solana, Tron — had an endpoint the user could set. BNB Chain, Polygon,
+  Arbitrum, Base, Avalanche, Optimism, zkSync Era, Linea and Scroll fell
+  through to hardcoded defaults. These were never dormant: `balance`
+  serves every EVM chain, so a user could hold assets on Base, watch its
+  endpoint fail, and have no control available — while the settings
+  screen reported "*n* of 14 chains healthy", naming nine problems it
+  offered no way to act on.
+- **Configuration is now provider-first.** One key for Alchemy, Infura,
+  Ankr, BlockPI, dRPC, NodeReal, Tenderly or 1RPC applies across every
+  chain that provider serves, instead of being re-entered per chain. The
+  section states its own coverage and names the chains the selected
+  provider does *not* serve, so partial coverage is visible rather than
+  discovered when a balance fails to load.
+- **Per-chain overrides replace the single shared EVM URL field.** The
+  old EVM section bound one stored string behind a picker over eleven
+  networks, so a user who entered their own Polygon node and then
+  switched the picker to Base was pointing a Polygon URL at Base. Each
+  chain now holds its own override, and `evmChainId` is narrowed to its
+  one remaining job — which testnet Ethereum is on — ending the "two
+  different Polygons" ambiguity.
+- **Endpoint precedence is decided in one place.** Override beats
+  provider beats public default, expressed once in a pure classifier that
+  both the resolved URL and the source badge project out of, so the badge
+  cannot disagree with where traffic actually goes.
+- **Exported RPC settings are versioned.** An export from a newer build
+  is refused with an explanatory message instead of being silently
+  decoded with unrepresentable fields dropped. Overrides for chains this
+  build does not recognise are preserved through an import/export cycle
+  rather than discarded. Imported override maps are bounded (entry count,
+  key and value length) so a socially-engineered paste cannot inflate
+  UserDefaults. API keys stay in the Keychain and are never exported.
+- **Keys cannot be spliced into user-typed endpoints.** A stored API key
+  is only ever substituted into a `{KEY}` template, so a hand-entered
+  self-hosted URL never starts spending a provider's quota or binds that
+  traffic to a billing identity the user did not choose for it.
+- **Key entry stays reachable for single-chain providers.** GetBlock
+  binds its token to one chain, so it cannot be an account-wide provider
+  and is absent from the picker; its key is now entered on the override
+  editor whenever the URL contains `{KEY}`. Resolver and editor share one
+  host-to-key-slot accessor, so the field cannot write a slot the
+  resolver does not read.
+
 ### iOS — RPC endpoint reliability
 
 - **Purged seven dead RPC endpoints** from the shipped fallback

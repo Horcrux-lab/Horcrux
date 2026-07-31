@@ -2966,6 +2966,36 @@ resolver does not read."
 git push
 ```
 
+**Implementation addendum (as shipped, commit `cbc07db`):**
+
+- **Strings are localized, not hard-coded.** Step 6 sketched literal
+  English for the field label and note. Every other string in
+  NodeSettings goes through `L10n` plus both `.lproj` files, so this
+  follows that: `nodeSettings.overrideKeyField` (a `%@` format taking
+  the slot's display name) and `nodeSettings.overrideKeyNote`. The note
+  also states the key is Keychain-stored and excluded from exports,
+  which the export note already promises.
+- **The field keys off `editor.draft`, not a committed override,** so it
+  appears as soon as `{KEY}` is typed rather than after the draft is
+  committed.
+- **Test naming follows the file, not the plan.** `RPCRoutingTests` uses
+  `test_subject_behaviour`; the four sketched tests were renamed to
+  match and two were added — a Solana catch-all test (the non-EVM branch
+  has its own default, Helius, and swapping it for Alchemy would
+  misroute silently) and an all-EVM-hosts round-trip.
+- **RED was established by mutation, not by the compile error.** A
+  missing-symbol compile failure only shows the API is new. Each test
+  was instead verified against a targeted mutant: deleting the
+  `getblock.io` branch, flipping the Solana catch-all to Alchemy, making
+  the non-EVM guard return a slot instead of nil, and giving
+  `substituteAPIKey` its own routing again. All four were killed by the
+  intended tests and reverted.
+- **One test was documented down in scope.** `everyEVMSlot_isReadBack`
+  survived the `getblock.io` mutation because it derives its expectation
+  from `apiKeySlot` itself. It is a drift guard between resolver and
+  accessor, not a routing-correctness guard, and its doc comment now
+  says so.
+
 ---
 
 ## Out of scope
