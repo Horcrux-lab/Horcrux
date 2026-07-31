@@ -185,7 +185,7 @@ final class BitcoinFailoverTests: XCTestCase {
         XCTAssertEqual(txid, "txid-from-fallback")
     }
 
-    /// A 4xx is the node telling us the transaction itself is bad. Every
+    /// A 400 is the node telling us the transaction itself is bad. Every
     /// other node will say the same, so failing over just re-submits a
     /// known-invalid transaction around the table.
     func test_btcBroadcast_doesNotFailOverWhenTheNodeRejectsTheTransaction() async {
@@ -232,6 +232,35 @@ final class BitcoinFailoverTests: XCTestCase {
                        "the endpoint answered correctly — the transaction was the problem")
         XCTAssertNotEqual(RPCEndpointHealth.tier(primary), 2,
                           "a rejected transaction must not count against the endpoint's health")
+    }
+
+    /// The limit of the rule above. 404 does not mean "your transaction is
+    /// invalid", it means "this host does not serve `POST /tx`" — an
+    /// endpoint fault, and the one failover exists for.
+    ///
+    /// Reachable because a per-chain override is stored with no URL-shape
+    /// validation: an override that omits the `/api` suffix 404s here while
+    /// balances and the UTXO fetch route through the generic classifier,
+    /// which calls 404 transient, fail over, and keep working. Classifying
+    /// it as a verdict leaves the wallet showing balances, building
+    /// transactions, and silently unable to send.
+    func test_btcBroadcast_failsOverWhenTheEndpointDoesNotServeTheRoute() async throws {
+        let deadHost = host(primary)
+        MockURLProtocol.handler = { [weak self] request in
+            guard let self, let url = request.url else { throw URLError(.badURL) }
+            if url.host == deadHost {
+                return (self.response(url, 404), Data("endpoint does not exist".utf8))
+            }
+            return (self.response(url, 200), Data("txid-from-fallback".utf8))
+        }
+
+        let txid = try await service.btcBroadcast(
+            signedTxHex: "0200000001aa",
+            chain: .bitcoin,
+            config: config
+        )
+
+        XCTAssertEqual(txid, "txid-from-fallback")
     }
 
     /// 401/403 is about our credentials, not the transaction, so the next
@@ -287,5 +316,73 @@ final class BitcoinFailoverTests: XCTestCase {
         )
 
         XCTAssertEqual(utxos.count, 1)
+        // The mock answers 200 for every host, so counting UTXOs alone would
+        // pass even if the Litecoin call had routed to Bitcoin's endpoints.
+        let ltcHosts = Set(RPCFallbacks.resolvedAttempts(for: .litecoin, config: config)
+            .map { host($0) })
+        for url in MockURLProtocol.requested {
+            XCTAssertTrue(ltcHosts.contains(host(url)),
+                          "\(url) is not a Litecoin endpoint")
+        }
+        XCTAssertFalse(MockURLProtocol.requested.isEmpty)
+    }
+
+    // MARK: - Fee estimate
+
+    /// The fee estimate is the third call the signing path makes, after the
+    /// UTXO fetch and before the broadcast, and it was the one left on the
+    /// single primary URL.
+    ///
+    /// That was survivable while `btcUtxos` also used the primary: the UTXO
+    /// fetch threw first and the whole build aborted. Once the UTXO fetch
+    /// and the broadcast fail over and the fee estimate does not, a dead
+    /// primary stops blocking the send and starts silently pricing it at the
+    /// 2 sat/vB floor instead — the transaction is built, signed and
+    /// broadcast, and the builder writes nSequence 0xFFFF_FFFE, so it is not
+    /// even BIP125-replaceable.
+    ///
+    /// The primary here is a self-hosted Esplora rather than the shipped
+    /// default, because that is the configuration where failing over
+    /// actually buys redundancy: `btcFeeEstimate(apiURL:)` redirects
+    /// blockstream to mempool.space for fees, so on the shipped table both
+    /// attempts reach the same host. A user on their own node is exactly
+    /// who a dead primary strands.
+    func test_btcFeeEstimate_failsOverToTheNextEndpointWhenThePrimaryIsUnreachable() async throws {
+        let ownNode = "https://my-esplora.example/api"
+        ChainEndpointOverrides.shared.set(ownNode, for: .bitcoin)
+        defer { ChainEndpointOverrides.shared.clear(.bitcoin) }
+
+        MockURLProtocol.handler = { [weak self] request in
+            guard let self, let url = request.url else { throw URLError(.badURL) }
+            if url.host == "my-esplora.example" { throw URLError(.cannotConnectToHost) }
+            return (self.response(url, 200),
+                    Data(#"{"fastestFee":40,"halfHourFee":25,"hourFee":12,"minimumFee":2}"#.utf8))
+        }
+
+        let rates = try await service.btcFeeEstimate(chain: .bitcoin, config: config)
+
+        XCTAssertEqual(rates.halfHourFee, 25)
+        XCTAssertEqual(rates.fastestFee, 40)
+        XCTAssertTrue(
+            MockURLProtocol.requested.contains { self.host($0) == "my-esplora.example" },
+            "the configured primary must be tried first"
+        )
+        XCTAssertTrue(
+            MockURLProtocol.requested.contains { self.host($0) != "my-esplora.example" },
+            "no fallback endpoint was ever asked for a fee rate"
+        )
+    }
+
+    /// And when nothing answers it must throw, not quietly return a floor
+    /// rate that no endpoint actually quoted.
+    func test_btcFeeEstimate_throwsWhenNoEndpointAnswers() async {
+        MockURLProtocol.handler = { _ in throw URLError(.cannotConnectToHost) }
+
+        do {
+            let rates = try await service.btcFeeEstimate(chain: .bitcoin, config: config)
+            XCTFail("expected a throw, got \(rates)")
+        } catch {
+            // Expected.
+        }
     }
 }
