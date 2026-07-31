@@ -76,9 +76,21 @@ struct ChainEndpointDetailView: View {
     var body: some View {
         Form {
             Section(L10n.NodeSettings.effectiveEndpointSection) {
-                Text(config.resolveRawURL(for: chain))
+                let display = config.effectiveDisplayURL(for: chain)
+                Text(display.url)
                     .font(.system(.footnote, design: .monospaced))
                     .textSelection(.enabled)
+                if display.isKeyFallback {
+                    // The override URL uses a {KEY} template but the API key
+                    // slot is empty, so routing falls through to the public
+                    // fallback. Without this label the user would see the
+                    // paid-provider host above and believe their traffic was
+                    // being routed through that provider when it is not.
+                    Label(L10n.NodeSettings.overrideKeyMissing,
+                          systemImage: "exclamationmark.triangle.fill")
+                        .font(.caption)
+                        .foregroundStyle(HorcruxTheme.warningAmber)
+                }
                 Text(L10n.NodeSettings.sourceLabel(config.endpointSource(for: chain).label))
                     .font(.caption)
                     .foregroundStyle(.secondary)

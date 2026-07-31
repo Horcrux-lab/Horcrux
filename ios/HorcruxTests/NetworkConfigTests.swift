@@ -20,9 +20,14 @@ final class NetworkConfigTests: XCTestCase {
     }
 
     @MainActor
-    func test_rpcURL_forBitcoin_returnsBitcoinAPI() {
+    func test_rpcURL_forBitcoin_returnsPublicDefault_withoutOverride() {
         let config = NetworkConfig.shared
-        XCTAssertEqual(config.rpcURL(for: .bitcoin), config.legacyBitcoinAPI)
+        // Without an override, rpcURL must return the public default.
+        // Asserting rpcURL == legacyBitcoinAPI would imply they track each
+        // other — exactly the regression this branch exists to prevent.
+        // The legacy field is a stale shadow; routing goes through
+        // ChainEndpointOverrides → publicDefault.
+        XCTAssertEqual(config.rpcURL(for: .bitcoin), config.publicDefault(for: .bitcoin))
     }
 
     @MainActor

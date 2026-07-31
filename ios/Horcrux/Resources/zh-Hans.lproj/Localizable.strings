@@ -490,6 +490,9 @@
 "nodeSettings.switchTo" = "切换到 %@";
 "nodeSettings.networkPicker" = "网络";
 "nodeSettings.mainnet" = "主网";
+"nodeSettings.testnet" = "测试网";
+"nodeSettings.devnet" = "开发网";
+"nodeSettings.overrideKeyMissing" = "API密钥未设置 — 正在使用公共节点";
 "nodeSettings.sepolia" = "Sepolia";
 "nodeSettings.resetToDefaults" = "恢复默认";
 "nodeSettings.resetHint" = "将所有 RPC 端点重置为默认公共节点";

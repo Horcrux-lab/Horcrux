@@ -722,4 +722,137 @@ final class NodeSettingsV2RegressionTests: XCTestCase {
         XCTAssertEqual(config.testnetBadge(for: .solana), "Devnet",
             "without override, solDevnet flag determines badge")
     }
+
+    // MARK: - Important 3: litecoin and tron badge coverage
+
+    func test_testnetBadge_litecoin_overrideAndNoOverride() {
+        let overrides = ChainEndpointOverrides.shared
+        defer { overrides.clear(.litecoin) }
+
+        // "testnet" in HOST → "Testnet"
+        overrides.set("https://testnet.litecoinspace.org/api", for: .litecoin)
+        XCTAssertEqual(NetworkConfig.shared.testnetBadge(for: .litecoin), "Testnet",
+            "badge must be 'Testnet' when litecoin override host contains 'testnet'")
+
+        // "testnet" in PATH only → "Custom" (host-only rule)
+        overrides.set("https://litecoinspace.org/testnet/api", for: .litecoin)
+        XCTAssertEqual(NetworkConfig.shared.testnetBadge(for: .litecoin), L10n.NodeSettings.customBadge,
+            "badge must be 'Custom' when 'testnet' is in path only")
+
+        // Opaque host → "Custom"
+        overrides.set("https://my-litecoin-node.example", for: .litecoin)
+        XCTAssertEqual(NetworkConfig.shared.testnetBadge(for: .litecoin), L10n.NodeSettings.customBadge,
+            "badge must be 'Custom' for opaque litecoin override host")
+
+        // No override, public default has no 'testnet' in host → nil
+        overrides.clear(.litecoin)
+        XCTAssertNil(NetworkConfig.shared.testnetBadge(for: .litecoin),
+            "without override, litecoin public default has no testnet marker → nil")
+    }
+
+    /// Mutation target: break tron host matching so it can never return "Shasta"
+    /// or "Nile" → both assertions below must go RED.
+    func test_testnetBadge_tron_overrideAndNoOverride() {
+        let overrides = ChainEndpointOverrides.shared
+        defer { overrides.clear(.tron) }
+
+        // "shasta" in HOST → "Shasta"
+        overrides.set("https://api.shasta.trongrid.io", for: .tron)
+        XCTAssertEqual(NetworkConfig.shared.testnetBadge(for: .tron), "Shasta",
+            "badge must be 'Shasta' when override host contains 'shasta'")
+
+        // "nile" in HOST → "Nile" (distinct from Shasta — different testnet)
+        overrides.set("https://nile.trongrid.io", for: .tron)
+        XCTAssertEqual(NetworkConfig.shared.testnetBadge(for: .tron), "Nile",
+            "badge must be 'Nile' when override host contains 'nile' — Nile and Shasta are distinct testnets")
+
+        // Opaque host → "Custom"
+        overrides.set("https://my-tron-node.example", for: .tron)
+        XCTAssertEqual(NetworkConfig.shared.testnetBadge(for: .tron), L10n.NodeSettings.customBadge,
+            "badge must be 'Custom' for opaque tron override host")
+
+        // No override, public default trongrid has no testnet marker → nil
+        overrides.clear(.tron)
+        XCTAssertNil(NetworkConfig.shared.testnetBadge(for: .tron),
+            "without override, tron public default has no testnet marker → nil")
+    }
+
+    // MARK: - Important 2: NetworkPreset.governedChains matches applyPreset domain
+
+    /// `governedChains` must include exactly the chains that `applyPreset` writes.
+    /// Mutation target: reduce `governedChains` to `[.ethereum]` → bitcoin and
+    /// solana assertions go RED, proving the governance set is load-bearing.
+    func test_presetGoverningChains_matchApplyPresetDomain() {
+        // applyPreset writes evmChainId → ethereum
+        XCTAssertTrue(NetworkPreset.governedChains.contains(.ethereum),
+            "ethereum must be governed — applyPreset writes evmChainId")
+        // applyPreset writes btcTestnet → bitcoin
+        XCTAssertTrue(NetworkPreset.governedChains.contains(.bitcoin),
+            "bitcoin must be governed — applyPreset writes btcTestnet")
+        // applyPreset writes solDevnet → solana
+        XCTAssertTrue(NetworkPreset.governedChains.contains(.solana),
+            "solana must be governed — applyPreset writes solDevnet")
+        // Exactly three chains — if applyPreset gains a new flag, update governedChains too
+        XCTAssertEqual(NetworkPreset.governedChains.count, 3,
+            "governedChains must have exactly 3 members (eth/btc/sol)")
+        // Other chains are untouched by presets
+        XCTAssertFalse(NetworkPreset.governedChains.contains(.litecoin))
+        XCTAssertFalse(NetworkPreset.governedChains.contains(.tron))
+    }
+
+    // MARK: - Important 1: effectiveDisplayURL — no key leak, fallback disclosed
+
+    func test_effectiveDisplayURL_plainOverride_showsOverrideURLAndNoFallback() {
+        let overrides = ChainEndpointOverrides.shared
+        overrides.set("https://my-custom-solana.example/rpc", for: .solana)
+        defer { overrides.clear(.solana) }
+
+        let (url, isKeyFallback) = NetworkConfig.shared.effectiveDisplayURL(for: .solana)
+        XCTAssertEqual(url, "https://my-custom-solana.example/rpc",
+            "plain override (no {KEY}) must be returned as-is")
+        XCTAssertFalse(isKeyFallback,
+            "isKeyFallback must be false when override has no {KEY}")
+    }
+
+    func test_effectiveDisplayURL_keyTemplate_noKeySet_showsFallbackAndSetsFlag() {
+        // Proves that when a {KEY} template is set but the Alchemy key is empty,
+        // the display shows the public fallback host, not the template host.
+        // In a clean simulator environment (CODE_SIGNING_ALLOWED=NO) API keys
+        // are always empty.
+        let config = NetworkConfig.shared
+        let overrides = ChainEndpointOverrides.shared
+        // Alchemy is the default EVM key slot — empty in a clean test environment.
+        overrides.set("https://eth-mainnet.g.alchemy.com/v2/{KEY}", for: .ethereum)
+        defer { overrides.clear(.ethereum) }
+
+        guard config.alchemyAPIKey.isEmpty else { return }  // skip if key is set
+
+        let (url, isKeyFallback) = config.effectiveDisplayURL(for: .ethereum)
+        XCTAssertTrue(isKeyFallback,
+            "isKeyFallback must be true when {KEY} template has no key set")
+        XCTAssertFalse(url.contains("alchemy"),
+            "display must show the fallback host, not the Alchemy template host")
+        XCTAssertFalse(url.contains("{KEY}"),
+            "fallback URL must not contain the {KEY} placeholder")
+    }
+
+    func test_effectiveDisplayURL_keyTemplate_keyPresent_showsTemplateSafelyNotKey() {
+        // Proves that when a key IS present, {KEY} is shown on screen rather
+        // than the real key value. Only runs when a key is actually set.
+        let config = NetworkConfig.shared
+        let savedKey = config.alchemyAPIKey
+        guard !savedKey.isEmpty else { return }  // only testable when key is present
+
+        let overrides = ChainEndpointOverrides.shared
+        overrides.set("https://eth-mainnet.g.alchemy.com/v2/{KEY}", for: .ethereum)
+        defer { overrides.clear(.ethereum) }
+
+        let (url, isKeyFallback) = config.effectiveDisplayURL(for: .ethereum)
+        XCTAssertFalse(isKeyFallback,
+            "isKeyFallback must be false when key is set")
+        XCTAssertFalse(url.contains(savedKey),
+            "display URL must never contain the real API key")
+        XCTAssertTrue(url.contains("{KEY}"),
+            "display URL must show the {KEY} placeholder, not the substituted value")
+    }
 }
