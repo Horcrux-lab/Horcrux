@@ -518,6 +518,7 @@
 "nodeSettings.importPreviewTitle" = "确认覆盖以下字段？";
 "nodeSettings.importApply" = "应用";
 "nodeSettings.importParseFailed" = "JSON 解析失败，请检查格式。";
+"nodeSettings.importVersionTooNew" = "此导出文件由更新版本的应用创建，请升级应用后再导入。";
 "nodeSettings.importNoChanges" = "与当前配置一致，无需导入。";
 "nodeSettings.exportNote" = "可作为备份在多台设备之间迁移你的自定义节点配置 —— 导出内容只含 URL 与网络选择，API 密钥始终留在本机 Keychain。";
 "nodeSettings.presetConfirmTitle" = "应用此预设？";

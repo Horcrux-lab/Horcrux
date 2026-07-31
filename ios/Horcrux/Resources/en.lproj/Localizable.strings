@@ -518,6 +518,7 @@
 "nodeSettings.importPreviewTitle" = "Overwrite the following fields?";
 "nodeSettings.importApply" = "Apply";
 "nodeSettings.importParseFailed" = "Could not parse JSON. Check the format.";
+"nodeSettings.importVersionTooNew" = "This export was created by a newer version of the app. Please update to import it.";
 "nodeSettings.importNoChanges" = "Already matches current settings. Nothing to import.";
 "nodeSettings.exportNote" = "Back up and move your custom endpoints between devices — URLs and network selectors only. API keys stay in this device's Keychain.";
 "nodeSettings.presetConfirmTitle" = "Apply this preset?";
