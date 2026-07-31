@@ -125,6 +125,29 @@ struct ChainEndpointDetailView: View {
                 }
                 .disabled(overrides.url(for: chain) == nil)
 
+                // A pasted template such as https://go.getblock.io/{KEY}/ is
+                // unusable until its key is stored, and the provider picker
+                // only covers account-wide providers — GetBlock binds a token
+                // to one chain, so it is not in the picker and this is the
+                // only place its key can be entered. Keyed off the live draft
+                // so the field appears as soon as {KEY} is typed.
+                if editor.draft.contains("{KEY}"),
+                   let slot = config.apiKeySlot(
+                        forHost: URL(string: editor.draft)?.host ?? "",
+                        chain: chain) {
+                    SecureField(
+                        L10n.NodeSettings.overrideKeyField(slot.displayName),
+                        text: Binding(get: { config[keyPath: slot.keyPath] },
+                                      set: { config[keyPath: slot.keyPath] = $0 }))
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                        .accessibilityIdentifier("nodeSettings_overrideKeyField")
+
+                    Text(L10n.NodeSettings.overrideKeyNote)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+
                 EndpointSwitcher(editor: editor)
                 ChainFieldActions(editor: editor)
             }

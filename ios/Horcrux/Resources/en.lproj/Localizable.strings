@@ -554,6 +554,8 @@
 "nodeSettings.sourceLabel" = "Source: %1$@";
 "nodeSettings.customURLSection" = "Custom URL";
 "nodeSettings.useDefault" = "Use the default";
+"nodeSettings.overrideKeyField" = "%@ API key";
+"nodeSettings.overrideKeyNote" = "{KEY} in the URL is replaced with this key. It is stored in the Keychain on this device and is not included in exports.";
 "nodeSettings.customBadge" = "Custom";
 
 /* Node Status */

@@ -298,4 +298,93 @@ final class RPCRoutingTests: XCTestCase {
             XCTAssertFalse(url.contains("test-tenderly-key"), "\(chain)")
         }
     }
+
+    // MARK: - API key slot routing
+
+    /// GetBlock issues a token bound to a single chain in its dashboard, so it
+    /// cannot be an account-wide `NodeProvider` and is absent from the picker.
+    /// The picker used to be the only UI that wrote `getblockAPIKey`; the
+    /// override editor's key field is now the only one, and it must write the
+    /// same slot the resolver reads.
+    func test_apiKeySlot_routesGetBlockToItsOwnField() {
+        let config = NetworkConfig.shared
+        let slot = config.apiKeySlot(forHost: "go.getblock.io", chain: .polygon)
+        XCTAssertEqual(slot?.keyPath, \NetworkConfig.getblockAPIKey,
+                       "A GetBlock override must write the GetBlock key slot, "
+                       + "not the Alchemy catch-all.")
+        XCTAssertEqual(slot?.displayName, "GetBlock")
+    }
+
+    /// Unknown EVM hosts must land on the same slot `substituteAPIKey` uses,
+    /// or the field would write a key the resolver never reads.
+    func test_apiKeySlot_fallsBackToAlchemyForUnknownEVMHost() {
+        let config = NetworkConfig.shared
+        let slot = config.apiKeySlot(forHost: "rpc.example.invalid", chain: .base)
+        XCTAssertEqual(slot?.keyPath, \NetworkConfig.alchemyAPIKey,
+                       "Unknown EVM hosts must resolve to the same slot "
+                       + "substituteAPIKey uses, or the field would write a "
+                       + "key the resolver never reads.")
+    }
+
+    /// Solana's catch-all is Helius, not Alchemy — the non-EVM branch has its
+    /// own default and swapping the two would silently misroute the key.
+    func test_apiKeySlot_fallsBackToHeliusForUnknownSolanaHost() {
+        let config = NetworkConfig.shared
+        let slot = config.apiKeySlot(forHost: "rpc.example.invalid", chain: .solana)
+        XCTAssertEqual(slot?.keyPath, \NetworkConfig.heliusAPIKey)
+        XCTAssertEqual(slot?.displayName, "Helius")
+    }
+
+    /// Chains with no `{KEY}` provider must return nil so the detail view does
+    /// not offer a key field that goes nowhere.
+    func test_apiKeySlot_isNilForChainsWithNoKeyedProvider() {
+        let config = NetworkConfig.shared
+        for chain in Chain.allCases where !chain.isEVM && chain != .solana {
+            XCTAssertNil(config.apiKeySlot(forHost: "example.invalid", chain: chain),
+                         "\(chain) has no {KEY} provider; the detail view must "
+                         + "not offer a key field that goes nowhere.")
+        }
+    }
+
+    /// The resolver and the UI must not keep two copies of the host switch:
+    /// a drift between them means the field writes a key the resolver never
+    /// reads. This pins substituteAPIKey to the slot accessor's routing.
+    func test_substituteAPIKey_usesTheSlotRouting() {
+        let config = NetworkConfig.shared
+        let previous = config.getblockAPIKey
+        defer { config.getblockAPIKey = previous }
+        config.getblockAPIKey = "gb-test"
+        let out = config.substituteAPIKey(in: "https://go.getblock.io/{KEY}/",
+                                          chain: .polygon)
+        XCTAssertEqual(out, "https://go.getblock.io/gb-test/")
+    }
+
+    /// Every keyed slot must round-trip through substituteAPIKey, so a slot
+    /// the editor can write is always one the resolver reads back.
+    ///
+    /// Scope: this is a *drift* guard, not a routing-correctness guard. It
+    /// derives the expected slot from `apiKeySlot` itself, so it stays green
+    /// if a host is routed to the wrong-but-consistent slot — verified by
+    /// mutation: deleting the getblock.io branch left this test passing, and
+    /// `test_apiKeySlot_routesGetBlockToItsOwnField` is what caught it. What
+    /// this does catch is `substituteAPIKey` growing a second copy of the host
+    /// switch that disagrees with the accessor, which is the failure that
+    /// would make the editor write a key the resolver never reads.
+    func test_everyEVMSlot_isReadBackBySubstituteAPIKey() {
+        let config = NetworkConfig.shared
+        let hosts = ["mainnet.infura.io", "rpc.ankr.com", "base.blockpi.network",
+                     "lb.drpc.org", "eth-mainnet.nodereal.io", "go.getblock.io",
+                     "mainnet.gateway.tenderly.co", "1rpc.io", "rpc.example.invalid"]
+        for host in hosts {
+            guard let slot = config.apiKeySlot(forHost: host, chain: .ethereum) else {
+                return XCTFail("EVM hosts always have a slot: \(host)")
+            }
+            let previous = config[keyPath: slot.keyPath]
+            defer { config[keyPath: slot.keyPath] = previous }
+            config[keyPath: slot.keyPath] = "slot-probe-\(slot.displayName)"
+            let out = config.substituteAPIKey(in: "https://\(host)/{KEY}", chain: .ethereum)
+            XCTAssertEqual(out, "https://\(host)/slot-probe-\(slot.displayName)",
+                           "\(host) resolved to a different slot than the editor writes")
+        }
+    }
 }
