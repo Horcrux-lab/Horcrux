@@ -107,6 +107,29 @@ jobs:
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
+      # macos-15 defaults to Xcode 16.4, but it also ships iOS 26.x simulator
+      # runtimes, and `OS=latest` in the destination below selects the newest
+      # of those. Xcode 16.4's XCTest cannot inject into an iOS 26.2 runtime:
+      # the host app aborted on an uncaught NSException before a single test
+      # ran ("Test crashed with signal abrt before starting test execution").
+      # Selecting the newest installed Xcode makes the pair self-consistent
+      # and closes the gap with local development, which is on Xcode 26.x —
+      # Swift 6.1.2 here already rejected code that compiles locally.
+      # Picked by sort rather than pinned so an image refresh cannot strand us
+      # on a version that has been removed.
+      - name: Select Xcode
+        run: |
+          set -euo pipefail
+          latest="$(ls -d /Applications/Xcode_26*.app 2>/dev/null | sort -V | tail -1)"
+          if [ -z "$latest" ]; then
+            echo "No Xcode 26.x found; leaving the default selected." >&2
+            ls -d /Applications/Xcode*.app >&2
+          else
+            sudo xcode-select -s "$latest"
+          fi
+          xcodebuild -version
+          swift --version
+
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@29eef336d9b2848a0b548edc03f92a220660cdb8 # stable
         with:
