@@ -19,11 +19,50 @@ final class WiFiDirectTransport: NSObject, TransportChannel, ObservableObject {
     private var messageContinuation: AsyncStream<TransportMessage>.Continuation?
     let incomingMessages: AsyncStream<TransportMessage>
 
+    /// Last-resort display name. `MCPeerID` will not accept an empty string,
+    /// so there has to be something to fall back to.
+    static let fallbackPeerName = "Horcrux"
+
+    /// Maximum `MCPeerID` display name length, in UTF-8 bytes, per its
+    /// documented contract.
+    static let maxPeerNameBytes = 63
+
+    /// `MCPeerID(displayName:)` raises an Objective-C exception — not a Swift
+    /// error, so `try?` cannot contain it — for any name that is empty or
+    /// longer than 63 UTF-8 bytes. It is constructed from
+    /// `ProcessInfo.processInfo.hostName` inside `PeerManager.init`, which
+    /// runs inside `AppState.init`, which is a `@StateObject` initialiser in
+    /// `HorcruxApp` — so a bad name aborts the process before the first
+    /// frame, with no code path able to catch it.
+    ///
+    /// Both bounds are reachable in practice. `hostName` is empty on a
+    /// simulator with no configured hostname (this is how CI found it: the
+    /// app aborted in `-[MCPeerID initWithDisplayName:]` before a single test
+    /// could attach). At the other end, 63 *bytes* is not 63 characters — 16
+    /// emoji or 21 CJK characters exceed it, and users name their phones that.
+    static func sanitizedPeerName(_ raw: String) -> String {
+        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return fallbackPeerName }
+        guard trimmed.utf8.count > maxPeerNameBytes else { return trimmed }
+
+        // Truncate on grapheme boundaries: cutting at byte 63 could split a
+        // multi-byte scalar and produce a string MCPeerID also rejects.
+        var truncated = ""
+        for character in trimmed {
+            if truncated.utf8.count + String(character).utf8.count > maxPeerNameBytes {
+                break
+            }
+            truncated.append(character)
+        }
+        // A single grapheme cluster can be longer than the whole budget.
+        return truncated.isEmpty ? fallbackPeerName : truncated
+    }
+
     init(peerName: String = ProcessInfo.processInfo.hostName) {
         let (stream, continuation) = AsyncStream<TransportMessage>.makeStream()
         self.incomingMessages = stream
         self.messageContinuation = continuation
-        self.myPeerId = MCPeerID(displayName: peerName)
+        self.myPeerId = MCPeerID(displayName: Self.sanitizedPeerName(peerName))
         super.init()
         setupSession()
     }
