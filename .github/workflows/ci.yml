@@ -179,6 +179,11 @@ jobs:
       - name: Build iOS app
         working-directory: ios
         run: |
+          # `bash -e` (the Actions default) does not set pipefail, so without
+          # this the step's exit status is xcpretty's — always 0 — and a failed
+          # build reports success. Verified: this job logged "** TEST FAILED **"
+          # while GitHub showed a green check.
+          set -euo pipefail
           xcodebuild build-for-testing \
             -project Horcrux.xcodeproj \
             -scheme Horcrux \
@@ -190,6 +195,8 @@ jobs:
       - name: Run unit tests
         working-directory: ios
         run: |
+          # See the build step above: without pipefail this gate cannot fail.
+          set -euo pipefail
           xcodebuild test \
             -project Horcrux.xcodeproj \
             -scheme Horcrux \
