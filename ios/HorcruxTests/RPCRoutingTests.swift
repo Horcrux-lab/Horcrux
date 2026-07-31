@@ -267,4 +267,35 @@ final class RPCRoutingTests: XCTestCase {
 
         XCTAssertGreaterThan(checked, 0, "the sweep should have inspected some endpoints")
     }
+
+    /// The same guard, one layer out: a *user-typed override* carries no
+    /// `{KEY}`, so no stored key may be spliced into it even when its host
+    /// matches a provider the user holds a key for.
+    ///
+    /// This is a distinct path from the fallback sweep above. That one calls
+    /// `substituteAPIKey` directly; this one goes through the whole resolver
+    /// (`rpcURL` → `resolveRawURL` → `ChainEndpointOverrides`), so it also
+    /// pins the property against a future change that rewrites URLs somewhere
+    /// between the override store and the substitution step.
+    ///
+    /// Were it to fail, a hand-entered self-hosted endpoint would start
+    /// spending that key's quota and bind the traffic to a billing identity
+    /// the user never chose for it.
+    func test_overrideURLs_areNeverRewrittenWithAConfiguredKey() {
+        let config = NetworkConfig.shared
+        let previousKey = config.tenderlyAPIKey
+        let previousOverrides = ChainEndpointOverrides.shared.snapshot()
+        config.tenderlyAPIKey = "test-tenderly-key"
+        defer {
+            config.tenderlyAPIKey = previousKey
+            ChainEndpointOverrides.shared.replaceAll(with: previousOverrides)
+        }
+
+        for chain in Chain.allCases {
+            ChainEndpointOverrides.shared.set("https://mainnet.gateway.tenderly.co", for: chain)
+            let url = config.rpcURL(for: chain)
+            XCTAssertEqual(url, "https://mainnet.gateway.tenderly.co", "\(chain)")
+            XCTAssertFalse(url.contains("test-tenderly-key"), "\(chain)")
+        }
+    }
 }
