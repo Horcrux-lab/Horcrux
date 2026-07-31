@@ -1815,6 +1815,13 @@ private struct ReadOnlySectionHeader: View {
 
 // MARK: - RPC config import/export
 
+/// One row in the import-preview diff table.
+struct DiffRow {
+    let label: String
+    let before: String
+    let after: String
+}
+
 /// A JSON-serializable snapshot of the user-editable RPC settings.
 /// Intentionally omits API keys so exports are safe to share for debugging.
 struct RPCConfigSnapshot: Codable, Equatable {
@@ -1841,9 +1848,24 @@ struct RPCConfigSnapshot: Codable, Equatable {
     /// build. This is NOT the migration version (NodeSettingsMigration).
     static let currentVersion = 2
 
-    enum ImportFailure: Error {
+    /// Hard ceiling on `chainOverrides` entries. A single socially-engineered
+    /// paste could otherwise inflate UserDefaults and be silently re-loaded on
+    /// every launch.
+    static let maxChainOverrides = 256
+    /// Per-key character limit for `chainOverrides`. Chain.rawValue strings are
+    /// display names ≤ ~20 chars; this leaves ample room for future chains.
+    static let maxOverrideKeyLength = 128
+    /// Per-value character limit for `chainOverrides`. A bare HTTPS URL is well
+    /// under 2 KB; this still permits lengthy query strings.
+    static let maxOverrideValueLength = 2048
+
+    enum ImportFailure: Error, Equatable {
         case malformed
         case versionTooNew
+        /// The `chainOverrides` map exceeds the entry count, key-length, or
+        /// value-length ceiling. Separate from `malformed` so the user gets
+        /// "too many endpoint settings" rather than "check the format".
+        case oversized
     }
 
     init(from config: NetworkConfig) {
@@ -1879,9 +1901,21 @@ struct RPCConfigSnapshot: Codable, Equatable {
         // one means fields this build cannot represent — Codable would drop
         // them without a word.
         if let v = snapshot.version, v > currentVersion { return .failure(.versionTooNew) }
+        // Reject rather than truncate: silently dropping entries is the
+        // failure mode this whole versioning scheme exists to prevent.
+        if let overrides = snapshot.chainOverrides {
+            guard overrides.count <= maxChainOverrides,
+                  overrides.keys.allSatisfy({ $0.count <= maxOverrideKeyLength }),
+                  overrides.values.allSatisfy({ $0.count <= maxOverrideValueLength })
+            else { return .failure(.oversized) }
+        }
         return .success(snapshot)
     }
 
+    /// Convenience wrapper for tests and callers that only need success/failure.
+    /// `decodeWithReason` is the production entry point: ImportSheet uses it to
+    /// show distinct error messages for malformed JSON, oversized maps, and
+    /// exports from a newer app version. Do not route ImportSheet back to this.
     static func decode(_ text: String) -> RPCConfigSnapshot? {
         if case .success(let snap) = decodeWithReason(text) { return snap }
         return nil
@@ -1926,10 +1960,10 @@ struct RPCConfigSnapshot: Codable, Equatable {
     /// Human-readable per-field diff against the live config. Empty = no changes.
     /// Rows are present only for fields that `apply(to:)` will actually write:
     /// provider and override rows are omitted for legacy imports (version == nil).
-    func diffRows(against config: NetworkConfig) -> [(String, String, String)] {
-        var rows: [(String, String, String)] = []
+    func diffRows(against config: NetworkConfig) -> [DiffRow] {
+        var rows: [DiffRow] = []
         func add(_ label: String, _ before: String, _ after: String) {
-            if before != after { rows.append((label, before, after)) }
+            if before != after { rows.append(DiffRow(label: label, before: before, after: after)) }
         }
         add("Ethereum RPC", config.legacyEthereumRPC, ethereumRPC)
         add("Bitcoin API", config.legacyBitcoinAPI, bitcoinAPI)
@@ -2096,16 +2130,16 @@ private struct RPCConfigImportSheet: View {
                         } else {
                             ForEach(Array(rows.enumerated()), id: \.offset) { _, row in
                                 VStack(alignment: .leading, spacing: 2) {
-                                    Text(row.0).font(.caption.weight(.semibold))
+                                    Text(row.label).font(.caption.weight(.semibold))
                                     HStack(alignment: .top, spacing: 6) {
-                                        Text(row.1)
+                                        Text(row.before)
                                             .font(.system(.caption, design: .monospaced))
                                             .strikethrough()
                                             .foregroundStyle(.secondary)
                                         Image(systemName: "arrow.right")
                                             .font(.caption2)
                                             .foregroundStyle(.secondary)
-                                        Text(row.2)
+                                        Text(row.after)
                                             .font(.system(.caption, design: .monospaced))
                                             .foregroundStyle(HorcruxTheme.successGreen)
                                     }
@@ -2152,6 +2186,9 @@ private struct RPCConfigImportSheet: View {
         case .failure(.versionTooNew):
             preview = nil
             error = L10n.NodeSettings.importVersionTooNew
+        case .failure(.oversized):
+            preview = nil
+            error = L10n.NodeSettings.importOversized
         case .failure(.malformed):
             preview = nil
             error = L10n.NodeSettings.importParseFailed

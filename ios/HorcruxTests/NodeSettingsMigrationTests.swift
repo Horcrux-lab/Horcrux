@@ -430,7 +430,7 @@ final class NodeSettingsMigrationTests: XCTestCase {
         snap.activeProvider = .infura
 
         let rows = snap.diffRows(against: config)
-        XCTAssertTrue(rows.contains(where: { $0.2 == NodeProvider.infura.displayName }),
+        XCTAssertTrue(rows.contains(where: { $0.after == NodeProvider.infura.displayName }),
                       "diffRows must include a provider row when the provider changes")
     }
 
@@ -449,7 +449,7 @@ final class NodeSettingsMigrationTests: XCTestCase {
         snap.chainOverrides = ["Scroll": "https://my-scroll.example"]
 
         let rows = snap.diffRows(against: config)
-        XCTAssertTrue(rows.contains(where: { $0.0 == "Scroll" }),
+        XCTAssertTrue(rows.contains(where: { $0.label == "Scroll" }),
                       "diffRows must include a row for each differing chain override")
     }
 
@@ -513,7 +513,7 @@ final class NodeSettingsMigrationTests: XCTestCase {
         let rows = snap.diffRows(against: config)
         XCTAssertFalse(rows.isEmpty,
                        "an import with only unrecognised chains must not produce an empty diff")
-        XCTAssertTrue(rows.contains(where: { $0.0 == "FutureChain" }),
+        XCTAssertTrue(rows.contains(where: { $0.label == "FutureChain" }),
                       "diffRows must include a row for the unrecognised chain key")
     }
 
@@ -537,5 +537,244 @@ final class NodeSettingsMigrationTests: XCTestCase {
 
         XCTAssertEqual(ChainEndpointOverrides.shared.url(for: .scroll), "https://trimmed.example",
                        "replaceAll must trim whitespace from URL values")
+    }
+
+    // MARK: - decodeWithReason failure classification (Items 1 & 3)
+
+    /// A future-version payload must yield .versionTooNew, not .malformed.
+    /// Changing .versionTooNew to .malformed in decodeWithReason makes this RED.
+    func test_decodeWithReason_futureVersionGivesVersionTooNew() {
+        let future = """
+        {"version":99,\
+        "bitcoinAPI":"https://blockstream.info/api","btcTestnet":false,\
+        "ethereumRPC":"https://ethereum-rpc.publicnode.com","evmChainId":1,\
+        "litecoinAPI":"https://litecoinspace.org/api","solDevnet":false,\
+        "solanaRPC":"https://solana-rpc.publicnode.com","tronAPI":"https://api.trongrid.io"}
+        """
+        guard case .failure(let reason) = RPCConfigSnapshot.decodeWithReason(future) else {
+            return XCTFail("expected failure for future-version payload")
+        }
+        XCTAssertEqual(reason, .versionTooNew,
+                       "a future-version payload must yield .versionTooNew, not .malformed")
+    }
+
+    /// Malformed JSON must yield .malformed, not .versionTooNew.
+    func test_decodeWithReason_malformedJSONGivesMalformed() {
+        guard case .failure(let reason) = RPCConfigSnapshot.decodeWithReason("not json {{") else {
+            return XCTFail("expected failure for malformed JSON")
+        }
+        XCTAssertEqual(reason, .malformed,
+                       "malformed JSON must yield .malformed")
+    }
+
+    // MARK: - chainOverrides size limits
+
+    /// A payload at exactly the entry-count ceiling must be accepted.
+    func test_decodeWithReason_atEntryLimitIsAccepted() {
+        let overrides = (0..<RPCConfigSnapshot.maxChainOverrides)
+            .map { "\"Key\($0)\":\"https://example.com/\($0)\"" }
+            .joined(separator: ",")
+        let json = minimalV2JSON(extraFields: "\"chainOverrides\":{\(overrides)}")
+        XCTAssertNotNil(RPCConfigSnapshot.decode(json),
+                        "a payload at the entry-count ceiling must be accepted")
+    }
+
+    /// One entry over the ceiling must be rejected with .oversized.
+    func test_decodeWithReason_overEntryLimitIsRejected() {
+        let overrides = (0...RPCConfigSnapshot.maxChainOverrides) // count = limit + 1
+            .map { "\"Key\($0)\":\"https://example.com/\($0)\"" }
+            .joined(separator: ",")
+        let json = minimalV2JSON(extraFields: "\"chainOverrides\":{\(overrides)}")
+        guard case .failure(let reason) = RPCConfigSnapshot.decodeWithReason(json) else {
+            return XCTFail("expected failure for over-limit entry count")
+        }
+        XCTAssertEqual(reason, .oversized)
+    }
+
+    /// A value at exactly the value-length ceiling must be accepted.
+    func test_decodeWithReason_atValueLengthLimitIsAccepted() {
+        let longURL = "https://example.com/" + String(repeating: "a", count: RPCConfigSnapshot.maxOverrideValueLength - 20)
+        let json = minimalV2JSON(extraFields: "\"chainOverrides\":{\"Scroll\":\"\(longURL)\"}")
+        XCTAssertNotNil(RPCConfigSnapshot.decode(json),
+                        "a value at the length ceiling must be accepted")
+    }
+
+    /// One character over the value-length ceiling must be rejected with .oversized.
+    func test_decodeWithReason_overValueLengthLimitIsRejected() {
+        let tooLong = "https://example.com/" + String(repeating: "a", count: RPCConfigSnapshot.maxOverrideValueLength)
+        let json = minimalV2JSON(extraFields: "\"chainOverrides\":{\"Scroll\":\"\(tooLong)\"}")
+        guard case .failure(let reason) = RPCConfigSnapshot.decodeWithReason(json) else {
+            return XCTFail("expected failure for over-limit value length")
+        }
+        XCTAssertEqual(reason, .oversized)
+    }
+
+    /// A key at exactly the key-length ceiling must be accepted.
+    func test_decodeWithReason_atKeyLengthLimitIsAccepted() {
+        let longKey = String(repeating: "K", count: RPCConfigSnapshot.maxOverrideKeyLength)
+        let json = minimalV2JSON(extraFields: "\"chainOverrides\":{\"\(longKey)\":\"https://example.com\"}")
+        XCTAssertNotNil(RPCConfigSnapshot.decode(json),
+                        "a key at the length ceiling must be accepted")
+    }
+
+    /// One character over the key-length ceiling must be rejected with .oversized.
+    func test_decodeWithReason_overKeyLengthLimitIsRejected() {
+        let tooLong = String(repeating: "K", count: RPCConfigSnapshot.maxOverrideKeyLength + 1)
+        let json = minimalV2JSON(extraFields: "\"chainOverrides\":{\"\(tooLong)\":\"https://example.com\"}")
+        guard case .failure(let reason) = RPCConfigSnapshot.decodeWithReason(json) else {
+            return XCTFail("expected failure for over-limit key length")
+        }
+        XCTAssertEqual(reason, .oversized)
+    }
+
+    // MARK: - unrecognisedChainKeys
+
+    /// A snapshot with mixed known/unknown keys returns only the unknown ones, sorted.
+    /// Hard-coding unrecognisedChainKeys to [] makes this RED (reviewer's mutation 2).
+    func test_unrecognisedChainKeys_returnsOnlyUnknownKeysSorted() {
+        var snap = RPCConfigSnapshot(from: NetworkConfig.shared)
+        snap.chainOverrides = [
+            "Ethereum": "https://eth.example",   // known
+            "ZFuture":  "https://future.example", // unknown
+            "AAFuture":  "https://a.example",     // unknown — sorts before ZFuture
+        ]
+        let keys = snap.unrecognisedChainKeys
+        XCTAssertEqual(keys, ["AAFuture", "ZFuture"],
+                       "only unrecognised keys, sorted ascending")
+    }
+
+    /// A snapshot with only known chain keys returns empty.
+    func test_unrecognisedChainKeys_emptyWhenAllKnown() {
+        var snap = RPCConfigSnapshot(from: NetworkConfig.shared)
+        snap.chainOverrides = ["Ethereum": "https://eth.example", "Scroll": "https://scroll.example"]
+        XCTAssertTrue(snap.unrecognisedChainKeys.isEmpty,
+                      "no unrecognised keys when all chains are known")
+    }
+
+    /// A snapshot with nil overrides returns empty.
+    func test_unrecognisedChainKeys_emptyWhenNilOverrides() {
+        var snap = RPCConfigSnapshot(from: NetworkConfig.shared)
+        snap.chainOverrides = nil
+        XCTAssertTrue(snap.unrecognisedChainKeys.isEmpty,
+                      "no unrecognised keys when overrides is nil")
+    }
+
+    // MARK: - apply / diffRows lockstep (Item 4)
+    //
+    // (a) No false promises: apply all changes, then diffRows must be empty.
+    //     Catches rows diffRows displays that apply does NOT write —
+    //     such a row would still appear after the apply.
+    //
+    // (b) No invisible changes (two sub-cases, one field each):
+    //     For a given field that apply writes, diffRows must include a row.
+    //     Catches fields apply writes that diffRows omits.
+    //     Direction (a) cannot detect this: if diffRows omits the field, the
+    //     result is empty before AND after apply, so (a) passes vacuously.
+
+    /// (a) After apply, diffRows must be empty — no false promises.
+    func test_applyAndDiffRows_noFalsePromises() {
+        let config = NetworkConfig.shared
+        let origProvider = config.activeProvider
+        let origEth = config.legacyEthereumRPC
+        let origBtc = config.legacyBitcoinAPI
+        let origLtc = config.legacyLitecoinAPI
+        let origSol = config.legacySolanaRPC
+        let origTron = config.legacyTronAPI
+        let origChainId = config.evmChainId
+        let origBtcTestnet = config.btcTestnet
+        let origSolDevnet = config.solDevnet
+        let origEthWSS = config.ethereumWSS
+        let origSolWSS = config.solanaWSS
+        defer {
+            config.activeProvider = origProvider
+            config.legacyEthereumRPC = origEth
+            config.legacyBitcoinAPI = origBtc
+            config.legacyLitecoinAPI = origLtc
+            config.legacySolanaRPC = origSol
+            config.legacyTronAPI = origTron
+            config.evmChainId = origChainId
+            config.btcTestnet = origBtcTestnet
+            config.solDevnet = origSolDevnet
+            config.ethereumWSS = origEthWSS
+            config.solanaWSS = origSolWSS
+        }
+
+        // Build a snapshot that differs from live in every field.
+        var snap = RPCConfigSnapshot(from: config)
+        snap.version = RPCConfigSnapshot.currentVersion
+        snap.ethereumRPC = "https://eth2.example"
+        snap.bitcoinAPI  = "https://btc2.example"
+        snap.litecoinAPI = "https://ltc2.example"
+        snap.solanaRPC   = "https://sol2.example"
+        snap.tronAPI     = "https://tron2.example"
+        snap.evmChainId  = (config.evmChainId == 1) ? 137 : 1
+        snap.btcTestnet  = !config.btcTestnet
+        snap.solDevnet   = !config.solDevnet
+        snap.ethereumWSS = "wss://eth-ws.example"
+        snap.solanaWSS   = "wss://sol-ws.example"
+        snap.activeProvider = (config.activeProvider == .alchemy) ? .infura : .alchemy
+        snap.chainOverrides = ["Scroll": "https://scroll.example"]
+
+        snap.apply(to: config)
+
+        let remaining = snap.diffRows(against: config)
+        XCTAssertTrue(remaining.isEmpty,
+                      "diffRows must be empty after applying: \(remaining.map(\.label))")
+    }
+
+    /// (b) No invisible changes — activeProvider alone triggers a diff row.
+    /// Deleting the provider row from diffRows makes this RED (mutation 4).
+    func test_applyAndDiffRows_providerFieldIsVisible() {
+        let config = NetworkConfig.shared
+        let origProvider = config.activeProvider
+        defer { config.activeProvider = origProvider }
+
+        config.activeProvider = nil
+        var snap = RPCConfigSnapshot(from: config)
+        snap.activeProvider = (origProvider == .alchemy) ? .infura : .alchemy
+
+        let rows = snap.diffRows(against: config)
+        XCTAssertFalse(rows.isEmpty,
+                       "a differing activeProvider must produce at least one diff row")
+        XCTAssertTrue(rows.contains(where: { $0.label == L10n.NodeSettings.providerPicker }),
+                      "the diff row must be labelled with the provider picker label")
+    }
+
+    /// (b) No invisible changes — a chain override alone triggers a diff row.
+    func test_applyAndDiffRows_chainOverrideFieldIsVisible() {
+        let config = NetworkConfig.shared
+        let origProvider = config.activeProvider
+        let origEthWSS = config.ethereumWSS
+        let origSolWSS = config.solanaWSS
+        defer {
+            config.activeProvider = origProvider
+            config.ethereumWSS = origEthWSS
+            config.solanaWSS = origSolWSS
+        }
+
+        // Start from a clean state (setUp cleared overrides).
+        config.activeProvider = nil
+        var snap = RPCConfigSnapshot(from: config)
+        snap.chainOverrides = ["Scroll": "https://scroll-only.example"]
+
+        let rows = snap.diffRows(against: config)
+        XCTAssertFalse(rows.isEmpty,
+                       "a differing chain override must produce at least one diff row")
+        XCTAssertTrue(rows.contains(where: { $0.label == "Scroll" }),
+                      "the diff row must be labelled with the chain key")
+    }
+
+    // MARK: - Helpers
+
+    /// Builds a minimal version-2 JSON string with extra fields injected.
+    private func minimalV2JSON(extraFields: String) -> String {
+        """
+        {"version":2,\
+        "bitcoinAPI":"https://blockstream.info/api","btcTestnet":false,\
+        "ethereumRPC":"https://ethereum-rpc.publicnode.com","evmChainId":1,\
+        "litecoinAPI":"https://litecoinspace.org/api","solDevnet":false,\
+        "solanaRPC":"https://solana-rpc.publicnode.com","tronAPI":"https://api.trongrid.io",\
+        \(extraFields)}
+        """
     }
 }

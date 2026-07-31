@@ -1144,6 +1144,7 @@ enum L10n {
         static let importApply = NSLocalizedString("nodeSettings.importApply", comment: "")
         static let importParseFailed = NSLocalizedString("nodeSettings.importParseFailed", comment: "")
         static let importVersionTooNew = NSLocalizedString("nodeSettings.importVersionTooNew", comment: "")
+        static let importOversized = NSLocalizedString("nodeSettings.importOversized", comment: "")
         static func importUnrecognisedChains(_ names: String) -> String {
             String(format: NSLocalizedString("nodeSettings.importUnrecognisedChains", comment: ""), names)
         }

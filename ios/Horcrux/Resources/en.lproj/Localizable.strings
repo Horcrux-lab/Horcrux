@@ -519,6 +519,7 @@
 "nodeSettings.importApply" = "Apply";
 "nodeSettings.importParseFailed" = "Could not parse JSON. Check the format.";
 "nodeSettings.importVersionTooNew" = "This export was created by a newer version of the app. Please update to import it.";
+"nodeSettings.importOversized" = "This export contains more endpoint settings than the app accepts. Make sure you are pasting your own export file.";
 "nodeSettings.importUnrecognisedChains" = "Overrides for %@ are preserved but not active here — this build does not recognise those chains. They will work again after updating the app.";
 "nodeSettings.importNoChanges" = "Already matches current settings. Nothing to import.";
 "nodeSettings.exportNote" = "Backs up custom endpoints and network selectors across devices. API keys stored in the Keychain are not included. URLs you entered manually may contain embedded credentials — treat this export as sensitive.";
