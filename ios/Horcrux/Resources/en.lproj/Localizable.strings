@@ -519,9 +519,9 @@
 "nodeSettings.importApply" = "Apply";
 "nodeSettings.importParseFailed" = "Could not parse JSON. Check the format.";
 "nodeSettings.importVersionTooNew" = "This export was created by a newer version of the app. Please update to import it.";
-"nodeSettings.importUnknownChains" = "Some chain endpoints were skipped — this version of the app does not recognise: %@. The import will proceed without them.";
+"nodeSettings.importUnrecognisedChains" = "Overrides for %@ are preserved but not active here — this build does not recognise those chains. They will work again after updating the app.";
 "nodeSettings.importNoChanges" = "Already matches current settings. Nothing to import.";
-"nodeSettings.exportNote" = "Back up and move your custom endpoints between devices. Network selectors and API keys stored in the Keychain are not exported. URLs you entered manually may contain embedded credentials — treat this export as sensitive.";
+"nodeSettings.exportNote" = "Backs up custom endpoints and network selectors across devices. API keys stored in the Keychain are not included. URLs you entered manually may contain embedded credentials — treat this export as sensitive.";
 "nodeSettings.presetConfirmTitle" = "Apply this preset?";
 "nodeSettings.presetApply" = "Apply";
 "nodeSettings.presetApplyAndClear" = "Apply and clear overrides";
