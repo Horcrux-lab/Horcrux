@@ -84,6 +84,7 @@
 		792D01EFC687A2F2CDE2248F /* DeviceIdentity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9CACEAE7FCDAA0BBD548F673 /* DeviceIdentity.swift */; };
 		7B8B2CA50AA9094D5833102F /* ChainEndpointOverrides.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3B80076D224C8EF78FD4DC23 /* ChainEndpointOverrides.swift */; };
 		7C44D37A130193DFEF2393D7 /* SigningViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E7480F0578841135C2CBB740 /* SigningViewModelTests.swift */; };
+		8294A33426D0C4AE056A3D07 /* PortableBackupCryptoTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EB855CD2B4F1BDCEC331E1CB /* PortableBackupCryptoTests.swift */; };
 		83D25BF65526FEE56A62181C /* ENSResolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B83751DC183569D78645E15 /* ENSResolver.swift */; };
 		843756AA6FF24EF3B8B05FEB /* AuditExportView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 693AF0EBA3950107FFA1F5EE /* AuditExportView.swift */; };
 		84D95BDDAF6E254C4D577C31 /* AddressValidatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8316163DB1BF3FFBF6245C17 /* AddressValidatorTests.swift */; };
@@ -317,6 +318,7 @@
 		E434A9E52D5F6026A576A1FD /* SignRequestDTO.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SignRequestDTO.swift; sourceTree = "<group>"; };
 		E747831814969072B21C949B /* PortfolioMetrics.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PortfolioMetrics.swift; sourceTree = "<group>"; };
 		E7480F0578841135C2CBB740 /* SigningViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SigningViewModelTests.swift; sourceTree = "<group>"; };
+		EB855CD2B4F1BDCEC331E1CB /* PortableBackupCryptoTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PortableBackupCryptoTests.swift; sourceTree = "<group>"; };
 		EB9476C366E0DC0DE88A9E3D /* RefreshShardSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RefreshShardSheet.swift; sourceTree = "<group>"; };
 		EBE439C22E1CABB66A71A4AF /* PinHashTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PinHashTests.swift; sourceTree = "<group>"; };
 		EC37A890669AF1C1B40C4352 /* ApprovalsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ApprovalsView.swift; sourceTree = "<group>"; };
@@ -578,6 +580,7 @@
 				C75BB0B8F020796CEA28D12A /* NodeSettingsV2RegressionTests.swift */,
 				C5777E46F80335B4C7DE9E2E /* PendingBroadcastQueueTests.swift */,
 				EBE439C22E1CABB66A71A4AF /* PinHashTests.swift */,
+				EB855CD2B4F1BDCEC331E1CB /* PortableBackupCryptoTests.swift */,
 				8622DE820B92BAE12389D7BC /* PortfolioMetricsTests.swift */,
 				E1427E0D4CE4032F2665694B /* ProviderCoverageSummaryTests.swift */,
 				FCDDD69488277606AB6B8BEC /* RecentCoSignersStoreTests.swift */,
@@ -798,6 +801,7 @@
 				68FDA36C87045EEE56A523D4 /* NodeSettingsV2RegressionTests.swift in Sources */,
 				08CC5D1741B466360A4A2DF3 /* PendingBroadcastQueueTests.swift in Sources */,
 				272EF60E67B5AF4EA28D33EC /* PinHashTests.swift in Sources */,
+				8294A33426D0C4AE056A3D07 /* PortableBackupCryptoTests.swift in Sources */,
 				0F938C5911BEDC1E7C3390EB /* PortfolioMetricsTests.swift in Sources */,
 				BC583E60BB3FBF3E0D7E8580 /* ProviderCoverageSummaryTests.swift in Sources */,
 				B112A84A551C22C784F9E235 /* RPCRoutingTests.swift in Sources */,

@@ -35,6 +35,23 @@ enum PortableBackupCrypto {
     private static let saltSize = 16
     private static let keySize = 32
 
+    /// Bounds on the `iter` field, which is read out of a file the user
+    /// picked and is therefore attacker-controlled.
+    ///
+    /// Without the lower bound `UInt32(env.iter ?? …)` traps on a negative
+    /// value, and a trap is not a Swift `Error` — the `do/catch` around the
+    /// import in `ShardsViewModel` cannot see it, so a one-field edit to a
+    /// backup JSON terminates the app. Without the upper bound a value like
+    /// two billion is a perfectly legal `UInt32` that simply runs PBKDF2 two
+    /// billion times and wedges the wallet instead of killing it.
+    ///
+    /// The ceiling is well above the 600 000 every shipped envelope carries,
+    /// so raising the cost later needs no format change; the floor rejects
+    /// zero, which buys an attacker nothing but is not a number this code
+    /// ever wrote.
+    private static let minIterations = 1
+    private static let maxIterations = 10_000_000
+
     enum Error: LocalizedError {
         case unsupportedVersion(Int)
         case malformed(String)
@@ -135,7 +152,11 @@ enum PortableBackupCrypto {
         guard nonceData.count == 12, salt.count == saltSize else {
             throw Error.malformed("field sizes invalid")
         }
-        let iter = UInt32(env.iter ?? Int(iterations))
+        let rawIter = env.iter ?? Int(iterations)
+        guard rawIter >= minIterations, rawIter <= maxIterations else {
+            throw Error.malformed("iteration count out of range")
+        }
+        let iter = UInt32(rawIter)
         let key = try deriveKey(password: password, salt: salt, iterations: iter)
         return try open(nonce: nonceData, ciphertext: ct, using: key)
     }

@@ -212,6 +212,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   a cut never splits a scalar into a string `MCPeerID` would also
   reject.
 
+### Security
+
+- **Importing a backup file with a negative `iter` field killed the
+  app.** `PortableBackupCrypto.decrypt(envelope:password:)` read the
+  PBKDF2 iteration count straight out of the envelope and passed it
+  through `UInt32(env.iter ?? …)`. Every field in that JSON arrives
+  from a file the user picked — `ShardsViewModel.importBackup(from:)`
+  hands the bytes over unvalidated — and converting a negative `Int` to
+  `UInt32` traps. A trap is not a Swift error, so the `do/catch` around
+  the import cannot contain it: the process takes a fatal error and the
+  wallet disappears mid-restore. Editing one character of a legitimate
+  backup is the whole exploit. The upper end was the same hole with a
+  quieter ending: two billion is a perfectly legal `UInt32`, and
+  deriving a key two billion times wedges the app for roughly five
+  minutes rather than killing it outright — extrapolated from the
+  measured 0.09 s that the shipped 600 000 iterations cost. `iter` is
+  now required to fall within 1…10 000 000, which leaves ample room
+  above the shipped figure for the cost to be raised later without a
+  format change, and rejects anything else as `.malformed`.
+
+  Found by writing the first tests this file has ever had. It sat at
+  0% coverage while being the only thing standing between an exported
+  shard and the funds behind it; the crash showed up in the first
+  malformed-input case, as a test runner abort rather than a failure.
+  The 19 new cases also pin down the round trips, wrong-key handling
+  for both the PIN and recovery-key paths, truncated and bit-flipped
+  ciphertext, short salts and nonces, version confusion between the v1
+  and v2 envelopes, and — deliberately — that the shipped 600 000
+  still decrypts, since a bounds check that broke every existing
+  backup would be far worse than the bug it fixed.
+
 ### Testing
 
 - **The coverage gate has never once reported a number.** `codecov.yml`
