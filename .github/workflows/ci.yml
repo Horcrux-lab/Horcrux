@@ -106,23 +106,30 @@ jobs:
       # this job looked like a working coverage gate for its entire life
       # while publishing nothing at all. Writing the summary here means the
       # figure survives regardless of what Codecov does.
+      #
+      # `tee` rather than a plain redirect so the figure lands in the job log
+      # too: the log is readable through the API and from a terminal, the step
+      # summary is only ever visible in the web UI.
       - name: Summarise coverage
         if: always()
         run: |
+          line="$(grep -E '% coverage, [0-9]+/[0-9]+ lines covered' tarpaulin.log || true)"
+          if [ -z "$line" ]; then
+            echo "::warning::no coverage line in tarpaulin.log; reporting the tail instead"
+            line="$(tail -20 tarpaulin.log 2>/dev/null || echo '(coverage step produced no output)')"
+          fi
           {
             echo '## Rust coverage'
             echo
             echo '```'
-            grep -E '% coverage, [0-9]+/[0-9]+ lines covered' tarpaulin.log \
-              || tail -20 tarpaulin.log 2>/dev/null \
-              || echo '(coverage step produced no output)'
+            echo "$line"
             echo '```'
             echo
             echo 'Note: `#[ignore]`d tests do not run here, so the CGGMP21'
             echo 'ceremony paths they cover (notably `mpc/refresh.rs`) are'
             echo 'reported as uncovered. Those run in `mpc-e2e.yml` on'
             echo 'release tags.'
-          } >> "$GITHUB_STEP_SUMMARY"
+          } | tee -a "$GITHUB_STEP_SUMMARY"
 
       # `secrets` is not available in a step-level `if`, so the presence
       # check has to go through an output.
@@ -311,16 +318,21 @@ jobs:
             echo "::notice::no result bundle; coverage not measured"
             exit 0
           fi
+          report="$(xcrun xccov view --report --only-targets TestResults.xcresult 2>&1)"
+          if [ $? -ne 0 ] || [ -z "$report" ]; then
+            echo "::warning::xccov could not read TestResults.xcresult; see the job summary"
+            report="${report:-(xccov produced no output)}"
+          fi
           {
             echo '## iOS coverage'
             echo
             echo '```'
-            xcrun xccov view --report --only-targets TestResults.xcresult
+            echo "$report"
             echo '```'
             echo
             echo 'Only `Horcrux.app` is meaningful — `HorcruxTests.xctest`'
             echo 'measures the tests executing themselves.'
-          } >> "$GITHUB_STEP_SUMMARY"
+          } | tee -a "$GITHUB_STEP_SUMMARY"
 
       # xcpretty swallows everything but the summary line, so a launch-time
       # abort reaches the log as a bare "Test crashed with signal abrt before
