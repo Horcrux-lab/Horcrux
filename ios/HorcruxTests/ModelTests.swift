@@ -80,8 +80,8 @@ final class ModelTests: XCTestCase {
     // MARK: - QR URI Stripping
 
     func testStripEthereumPrefix() {
-        let result = QRScannerViewController.stripURIPrefix("ethereum:0x742d35Cc6634C0532925a3b844Bc9e7595f2bD18")
-        XCTAssertEqual(result, "0x742d35Cc6634C0532925a3b844Bc9e7595f2bD18")
+        let result = QRScannerViewController.stripURIPrefix("ethereum:0x742D35CC6634C0532925a3B844Bc9E7595F2bD18")
+        XCTAssertEqual(result, "0x742D35CC6634C0532925a3B844Bc9E7595F2bD18")
     }
 
     func testStripBitcoinPrefix() {
@@ -105,8 +105,8 @@ final class ModelTests: XCTestCase {
     }
 
     func testNoPrefix() {
-        let result = QRScannerViewController.stripURIPrefix("0x742d35Cc6634C0532925a3b844Bc9e7595f2bD18")
-        XCTAssertEqual(result, "0x742d35Cc6634C0532925a3b844Bc9e7595f2bD18")
+        let result = QRScannerViewController.stripURIPrefix("0x742D35CC6634C0532925a3B844Bc9E7595F2bD18")
+        XCTAssertEqual(result, "0x742D35CC6634C0532925a3B844Bc9E7595F2bD18")
     }
 
     func testEmptyString() {

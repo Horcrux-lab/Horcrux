@@ -7,6 +7,53 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Ethereum and EVM chains — address checksums
+
+- **A mistyped Ethereum address was accepted and paid.**
+  `AddressValidator.validateEthereum`, which every EVM chain routes
+  through, checked that the address began with `0x`, was 42 characters
+  long, and held nothing but hex — and left a note where the rest
+  should have been: "Optional: EIP-55 checksum validation could be added
+  here." A typo satisfies all three checks and names a different
+  account, one nobody holds a key for.
+
+  EIP-55 hides a checksum in the *case* of an address's letters: hash
+  the lowercase address with keccak-256, and letter *i* is uppercase
+  exactly when nibble *i* of that hash is 8 or greater. Every block
+  explorer, wallet and token list hands out addresses in that form, so
+  the information to refuse a typo was already sitting in what the user
+  pasted; nothing read it. `0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed`
+  entered with its last character changed still passes prefix, length
+  and alphabet, and now fails the checksum.
+
+  Addresses written entirely in one case carry no checksum, which the
+  standard permits and which addresses predating it look exactly like,
+  so those are still accepted. Only a mixed-case address is making a
+  claim, and now that claim is checked.
+
+  This completes the same fix already made for Bitcoin and TRON below.
+
+- **Hex is now required to be ASCII.** `Character.isHexDigit` is also
+  true for full-width forms such as `Ａ`, which nothing downstream reads
+  as hex.
+
+  Covered by 6 new cases against EIP-55's published vectors, including
+  every EVM chain in the app. Fourteen mutations were introduced and
+  thirteen failed a test: skipping the checksum entirely, demanding one
+  from single-case addresses, treating all-uppercase or all-lowercase as
+  checksummed, shifting the nibble threshold either way, swapping the
+  high and low nibbles, hashing the address with its `0x` prefix,
+  hashing raw bytes instead of ASCII text, hashing the address as given
+  rather than lowercased, indexing one hash byte per character,
+  accepting non-ASCII hex digits, and dropping the length check. The
+  fourteenth — uppercasing digits as well as letters — is equivalent:
+  digits have no case.
+
+  The example address used throughout the test suite,
+  `0x742d35Cc…f2bD18`, turned out to carry an invalid checksum itself —
+  it is a widely-copied illustration rather than a real address — and
+  has been replaced with its correctly checksummed form.
+
 ### TRON — address checksums
 
 - **A mistyped TRON address was accepted and paid.** TRON addresses are
