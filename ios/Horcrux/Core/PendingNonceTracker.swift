@@ -24,8 +24,13 @@ final class PendingNonceTracker {
 
     private var entries: [String: Entry] = [:]
     private let ttl: TimeInterval = 600 // 10 minutes
+    private let now: () -> Date
 
-    private init() {}
+    /// `now` exists so the ten-minute expiry is reachable in a test
+    /// without waiting ten minutes.
+    init(now: @escaping () -> Date = Date.init) {
+        self.now = now
+    }
 
     private func key(chainId: UInt64, address: String) -> String {
         "\(chainId):\(address.lowercased())"
@@ -36,7 +41,7 @@ final class PendingNonceTracker {
     func nextNonce(chainId: UInt64, address: String, rpcNonce: UInt64) -> UInt64 {
         let k = key(chainId: chainId, address: address)
         if let entry = entries[k],
-           Date().timeIntervalSince(entry.timestamp) < ttl {
+           now().timeIntervalSince(entry.timestamp) < ttl {
             return max(rpcNonce, entry.nonce + 1)
         }
         // Expired or never used — trust the RPC.
@@ -50,9 +55,9 @@ final class PendingNonceTracker {
         let k = key(chainId: chainId, address: address)
         // Only bump; don't regress if called with a stale value.
         if let existing = entries[k], existing.nonce >= nonce {
-            entries[k] = Entry(nonce: existing.nonce, timestamp: Date())
+            entries[k] = Entry(nonce: existing.nonce, timestamp: now())
         } else {
-            entries[k] = Entry(nonce: nonce, timestamp: Date())
+            entries[k] = Entry(nonce: nonce, timestamp: now())
         }
     }
 
