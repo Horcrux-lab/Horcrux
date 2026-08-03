@@ -52,6 +52,17 @@ final class SigningViewModel: ObservableObject {
     /// the original record so history UI can show a "被 RBF 替换" marker.
     var rbfReplacing: String?
 
+    /// True only once the skeleton has been built from the original's own
+    /// outpoints, which is what makes the two transactions mutually
+    /// exclusive.
+    ///
+    /// Issue #32: the original used to be marked superseded on any
+    /// successful broadcast while `rbfReplacing` was set. Because the
+    /// rebuild re-ran coin selection it usually spent a *different* UTXO,
+    /// so both transactions could confirm — and the history claimed the
+    /// still-live original had failed.
+    private(set) var rbfConflictsWithOriginal = false
+
     enum FeeTier: String, CaseIterable, Identifiable {
         case slow, normal, fast, custom
         var id: String { rawValue }
@@ -1976,6 +1987,15 @@ final class SigningViewModel: ObservableObject {
             // share the Esplora API shape and BIP-143 sighash path). Fetch
             // UTXOs, coin-select, build unsigned skeleton via Rust, stash
             // raw_data so the post-signing step can splice the witness.
+            if rbfReplacing?.isEmpty == false {
+                // No placeholder fallback for a replace-by-fee rebuild.
+                // Swallowing the error here would run a full MPC ceremony
+                // over a digest that signs nothing, and — worse, before
+                // issue #32 was fixed — could produce a second independent
+                // payment to the same recipient. Let the refusal reach the
+                // user instead.
+                return try await buildP2WPKHSignHash()
+            }
             if let hash = try? await buildP2WPKHSignHash() {
                 return hash
             }
@@ -2026,27 +2046,111 @@ final class SigningViewModel: ObservableObject {
             throw SigningError.notInitialized
         }
 
-        // 1. Fetch UTXOs (confirmed only to avoid replace-by-fee surprises).
-        let utxos = try await blockchainService.btcUtxos(
-            address: wallet.address, chain: wallet.chain, config: networkConfig)
-        let confirmed = utxos.filter { $0.status.confirmed }.sorted { $0.value > $1.value }
-        guard !confirmed.isEmpty else { throw SigningError.notInitialized }
-
-        // 2. Parse send amount (BTC → sats).
+        // 1. Parse send amount (BTC → sats).
         let sendSats = Self.btcAmountToSats(amount)
         guard sendSats > 0 else { throw SigningError.notInitialized }
 
-        // 3. Fee estimate. Apply the user's fee tier — .fast uses
-        //    fastestFee, .slow uses economyFee (falls back to halfHour ×
-        //    0.85), .normal stays on halfHourFee. Custom tier isn't exposed
-        //    for UTXO chains yet and falls through as normal.
-        //
-        //    Routed through the fallback list, and a total failure throws
-        //    rather than falling back to a floor rate: with the UTXO fetch
-        //    and the broadcast both fault-aware, silently pricing at 2
-        //    sat/vB would turn "cannot reach the network" into a signed,
-        //    broadcast, non-BIP125-replaceable transaction that may never
-        //    confirm.
+        // 2. Resolve our own pubkey_hash (== 20-byte witness program of
+        //    wallet.address) and the recipient's scriptPubKey.
+        guard let ownBech = Bech32.decodeP2WPKH(wallet.address) else {
+            throw SigningError.notInitialized
+        }
+        let pubkeyHash = ownBech.program
+        guard let recipientSPK = Bech32.p2wpkhScriptPubkey(for: recipientAddress) else {
+            throw SigningError.notInitialized
+        }
+
+        // 3. Fee estimate for the selected tier.
+        let satPerVbyte = try await resolveBtcFeeRate(
+            blockchainService: blockchainService, networkConfig: networkConfig)
+
+        // 1 in, 2 out ≈ 141 vB.
+        let estVbytes: UInt64 = 141
+
+        // 4. Choose what to spend. A replace-by-fee rebuild must spend the
+        //    original's own outpoints or it is not a replacement at all —
+        //    see BtcReplacementPlanner and issue #32.
+        let params: FfiBtcTxParams
+        if let originalTxid = rbfReplacing, !originalTxid.isEmpty {
+            let original: BlockchainService.BtcTx
+            do {
+                original = try await blockchainService.btcTx(
+                    txid: originalTxid, chain: wallet.chain, config: networkConfig)
+            } catch {
+                // Distinguish "we could not look it up" from any of the
+                // planner's substantive refusals, so the user is not told
+                // their transaction is unreplaceable when the network is
+                // simply unreachable.
+                SecureLog.error("RBF: could not fetch original tx: \(error.localizedDescription)")
+                throw BtcReplacementFetchError.originalUnavailable
+            }
+            let plan = try BtcReplacementPlanner.plan(
+                replacing: original,
+                ownScriptPubkeyHex: (Data([0x00, 0x14]) + pubkeyHash)
+                    .map { String(format: "%02x", $0) }.joined(),
+                sendSats: sendSats,
+                feeRateSatPerVbyte: satPerVbyte,
+                estimatedVbytes: estVbytes
+            )
+            params = BtcTxSkeleton.params(
+                inputs: plan.inputs,
+                ownPubkeyHash: Data(pubkeyHash),
+                ownAddress: wallet.address,
+                recipientAddress: recipientAddress,
+                recipientScriptPubkey: recipientSPK,
+                sendSats: sendSats,
+                changeSats: plan.changeSats
+            )
+            // Only now is the original genuinely superseded: the new
+            // transaction spends outpoints it also spends, so at most one
+            // of the two can ever confirm.
+            rbfConflictsWithOriginal = true
+        } else {
+            // Fetch UTXOs (confirmed only — an unconfirmed input would make
+            // the send a child of a transaction that may still be replaced).
+            let utxos = try await blockchainService.btcUtxos(
+                address: wallet.address, chain: wallet.chain, config: networkConfig)
+            let confirmed = utxos.filter { $0.status.confirmed }.sorted { $0.value > $1.value }
+            guard !confirmed.isEmpty else { throw SigningError.notInitialized }
+
+            // Pick smallest UTXO that covers amount + fee.
+            let feeSats = estVbytes * satPerVbyte
+            let ascending = confirmed.sorted { $0.value < $1.value }
+            guard let chosen = ascending.first(where: { $0.value >= sendSats + feeSats }) else {
+                throw SigningError.notInitialized
+            }
+            let change = chosen.value - sendSats - feeSats
+            params = BtcTxSkeleton.params(
+                inputs: [BtcSpendInput(txid: chosen.txid, vout: chosen.vout, value: chosen.value)],
+                ownPubkeyHash: Data(pubkeyHash),
+                ownAddress: wallet.address,
+                recipientAddress: recipientAddress,
+                recipientScriptPubkey: recipientSPK,
+                sendSats: sendSats,
+                changeSats: change >= BtcReplacementPlanner.dustSats ? change : 0
+            )
+        }
+
+        // 5. Rust returns (raw_data, sighash) — stash raw_data for later.
+        let built = try horcruxBuildBtcTransaction(params: params, inputIndex: 0)
+        self.pendingBtcRawData = built.rawData
+        self.pendingBtcInputCount = params.inputs.count
+        return built.signHash
+    }
+
+    /// Resolve the sat/vB rate for the selected fee tier. `.fast` uses
+    /// `fastestFee`, `.slow` uses `economyFee` (falling back to halfHour ×
+    /// 0.85), `.normal` stays on `halfHourFee`; the custom tier is not
+    /// exposed for UTXO chains yet and falls through as normal.
+    ///
+    /// Routed through the endpoint fallback list, and a total failure
+    /// throws rather than settling on a floor rate: with the UTXO fetch and
+    /// the broadcast both fault-aware, silently pricing at 2 sat/vB would
+    /// turn "cannot reach the network" into a signed, broadcast transaction
+    /// that may sit unconfirmed for a very long time.
+    private func resolveBtcFeeRate(
+        blockchainService: BlockchainService, networkConfig: NetworkConfig
+    ) async throws -> UInt64 {
         let satPerVbyte: UInt64
         if feeTier == .custom, let v = UInt64(customGasPriceGwei.trimmingCharacters(in: .whitespaces)), v >= 1 {
             // User-provided sat/vB.
@@ -2064,55 +2168,7 @@ final class SigningViewModel: ObservableObject {
             }()
             satPerVbyte = max(scaled, 1)
         }
-
-        // 4. Pick smallest UTXO that covers amount + fee (1 in, 2 out ≈ 141 vB).
-        let estVbytes: UInt64 = 141
-        let feeSats = estVbytes * satPerVbyte
-        let ascending = confirmed.sorted { $0.value < $1.value }
-        guard let chosen = ascending.first(where: { $0.value >= sendSats + feeSats }) else {
-            throw SigningError.notInitialized
-        }
-
-        // 5. Resolve our own pubkey_hash (== 20-byte witness program of wallet.address).
-        guard let ownBech = Bech32.decodeP2WPKH(wallet.address) else {
-            throw SigningError.notInitialized
-        }
-        let pubkeyHash = ownBech.program
-
-        // 6. Build outputs: recipient + (optional) change back to self.
-        guard let recipientSPK = Bech32.p2wpkhScriptPubkey(for: recipientAddress) else {
-            throw SigningError.notInitialized
-        }
-        var outputs: [FfiBtcOutput] = [
-            FfiBtcOutput(address: recipientAddress, value: sendSats, scriptPubkey: recipientSPK)
-        ]
-        let change = Int64(chosen.value) - Int64(sendSats) - Int64(feeSats)
-        let dust: Int64 = 546
-        if change >= dust {
-            let selfSPK = Data([0x00, 0x14]) + Data(pubkeyHash)
-            outputs.append(
-                FfiBtcOutput(address: wallet.address, value: UInt64(change), scriptPubkey: selfSPK)
-            )
-        }
-
-        // 7. Build FfiBtcTxParams with one input from the chosen UTXO.
-        let params = FfiBtcTxParams(
-            inputs: [FfiBtcInput(
-                txid: chosen.txid,
-                vout: chosen.vout,
-                value: chosen.value,
-                pubkeyHash: Data(pubkeyHash),
-                prevTxRaw: nil
-            )],
-            outputs: outputs,
-            testnet: false
-        )
-
-        // 8. Rust returns (raw_data, sighash) — stash raw_data for later.
-        let built = try horcruxBuildBtcTransaction(params: params, inputIndex: 0)
-        self.pendingBtcRawData = built.rawData
-        self.pendingBtcInputCount = params.inputs.count
-        return built.signHash
+        return satPerVbyte
     }
 
     /// Convert a user-typed BTC string like "0.001" into satoshis.
@@ -2343,7 +2399,7 @@ final class SigningViewModel: ObservableObject {
                             if let id = currentRecordId {
                                 transactionStore?.updateStatus(id: id, status: .broadcast, txHash: result)
                             }
-                            if let replaced = rbfReplacing {
+                            if let replaced = rbfReplacing, rbfConflictsWithOriginal {
                                 transactionStore?.markReplaced(txHash: replaced)
                             }
                         }
@@ -2361,7 +2417,7 @@ final class SigningViewModel: ObservableObject {
                             if let id = currentRecordId {
                                 transactionStore?.updateStatus(id: id, status: .broadcast, txHash: result)
                             }
-                            if let replaced = rbfReplacing {
+                            if let replaced = rbfReplacing, rbfConflictsWithOriginal {
                                 transactionStore?.markReplaced(txHash: replaced)
                             }
                         }

@@ -1268,3 +1268,12 @@
 "approvals.detailResumeUnavailable" = "MPC 会话无法离线恢复。如需继续签名，请让发起方重新发起请求。";
 "approvals.actionResume" = "继续签名";
 "approvals.resumeHint" = "前提是发起方仍在同一个 relay 房间在线。如果对方已离线，会回到等待状态。";
+
+/* 加速（Replace-by-fee）拒绝原因 — issue #32 */
+"signing.rbfAlreadyConfirmed" = "该交易已确认，无法再被替换。";
+"signing.rbfNotReplaceable" = "该交易创建时未启用 replace-by-fee，网络不会接受替换交易。请等待其确认。";
+"signing.rbfForeignInput" = "该交易花费的是本钱包无法签名的币，因此无法在此加速。";
+"signing.rbfUnsupportedInputCount" = "暂不支持为包含多个输入的交易加速。";
+"signing.rbfMissingPrevout" = "网络未返回该交易所花费的输出，无法构建替换交易。";
+"signing.rbfInsufficientValue" = "该交易中的币不足以支付替换交易所需的更高手续费。";
+"signing.rbfOriginalUnavailable" = "无法加载原交易，因此不能构建替换交易。请检查网络后重试。";

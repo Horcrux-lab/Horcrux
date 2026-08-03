@@ -118,6 +118,20 @@ pub struct BtcTransactionBuilder;
 const SIGHASH_ALL: u32 = 1;
 /// Transaction version 2 (supports BIP-68 relative lock-time).
 const TX_VERSION: u32 = 2;
+/// nSequence written on every input.
+///
+/// BIP-125 opt-in signalling requires a sequence **strictly less than**
+/// `0xffffffff - 1`. The obvious-looking `0xfffffffe` fails that test by
+/// one: it waives nLockTime finality and nothing else, so a transaction
+/// stuck at a low fee cannot be replaced. `0xfffffffd` is the largest
+/// value that both opts in and leaves BIP-68 relative locktime disabled
+/// (bit 31 set).
+///
+/// This value is committed to by the signature in three places — the
+/// hashSequence digest, the sighash preimage's per-input field, and the
+/// broadcast serialisation. They must not drift apart; see
+/// `test_sighash_commits_to_the_broadcast_sequence`.
+const SEQUENCE_RBF: u32 = 0xFFFF_FFFD;
 
 impl TransactionBuilder for BtcTransactionBuilder {
     type Params = BtcTxParams;
@@ -345,7 +359,7 @@ pub fn bip143_sighash(params: &BtcTxParams, index: usize) -> Result<[u8; 32], Ch
     preimage.extend_from_slice(&outpoint);
     push_var_bytes(&mut preimage, &script_code);
     preimage.extend_from_slice(&input.value.to_le_bytes());
-    preimage.extend_from_slice(&0xFFFF_FFFEu32.to_le_bytes()); // sequence (rbf-enabled)
+    preimage.extend_from_slice(&SEQUENCE_RBF.to_le_bytes());
     preimage.extend_from_slice(&hash_outputs);
     preimage.extend_from_slice(&0u32.to_le_bytes()); // locktime
     preimage.extend_from_slice(&SIGHASH_ALL.to_le_bytes());
@@ -418,7 +432,7 @@ fn serialize_prevouts(inputs: &[BtcInput]) -> Vec<u8> {
 fn serialize_sequences(inputs: &[BtcInput]) -> Vec<u8> {
     let mut data = Vec::with_capacity(inputs.len() * 4);
     for _ in inputs {
-        data.extend_from_slice(&0xFFFF_FFFEu32.to_le_bytes());
+        data.extend_from_slice(&SEQUENCE_RBF.to_le_bytes());
     }
     data
 }
@@ -451,7 +465,7 @@ fn serialize_witness_tx(params: &BtcTxParams) -> Result<Vec<u8>, ChainError> {
         // empty scriptSig for segwit
         buf.push(0x00);
         // sequence
-        buf.extend_from_slice(&0xFFFF_FFFEu32.to_le_bytes());
+        buf.extend_from_slice(&SEQUENCE_RBF.to_le_bytes());
     }
     // output count
     push_varint(&mut buf, params.outputs.len() as u64);
@@ -728,8 +742,99 @@ mod tests {
         assert_eq!(&raw[raw.len() - 4..], &[0, 0, 0, 0]);
     }
 
-    // --- H9: UTXO provenance ---
+    // --- BIP125 replaceability ---
 
+    /// Read each input's nSequence out of a serialised segwit transaction.
+    ///
+    /// Deliberately parses the broadcast bytes rather than reading the
+    /// constant back, so these tests observe what a node would observe.
+    fn sequences_in_serialized_tx(raw: &[u8], input_count: usize) -> Vec<u32> {
+        let mut p = 4; // version
+        assert_eq!(&raw[p..p + 2], &[0x00, 0x01], "expected segwit marker+flag");
+        p += 2;
+        let (n, sz) = read_varint(&raw[p..]).expect("input count");
+        assert_eq!(n as usize, input_count);
+        p += sz;
+        let mut out = Vec::with_capacity(input_count);
+        for _ in 0..input_count {
+            p += 36; // outpoint
+            let (script_len, sz) = read_varint(&raw[p..]).expect("scriptSig len");
+            p += sz + script_len as usize;
+            out.push(u32::from_le_bytes([
+                raw[p],
+                raw[p + 1],
+                raw[p + 2],
+                raw[p + 3],
+            ]));
+            p += 4;
+        }
+        out
+    }
+
+    /// BIP125 opt-in requires an nSequence *strictly less than*
+    /// `0xffffffff - 1`. `0xfffffffe` is not less than `0xfffffffe`; it
+    /// only waives nLockTime finality. Without this, a transaction stuck
+    /// at a low fee cannot be replaced at all — full-RBF-only nodes
+    /// reject the replacement and default-policy nodes keep the original.
+    #[test]
+    fn test_serialized_tx_signals_bip125_optin() {
+        let params = dummy_params();
+        let raw = serialize_witness_tx(&params).unwrap();
+        let seqs = sequences_in_serialized_tx(&raw, params.inputs.len());
+        assert!(
+            seqs.iter().any(|&s| s < 0xffff_ffff - 1),
+            "no input opts into BIP125; sequences were {seqs:02x?}"
+        );
+    }
+
+    /// nSequence is committed to by the signature in three separate
+    /// places — the hashSequence digest, the preimage's own per-input
+    /// field, and the broadcast serialisation. If any one drifts, the
+    /// signature covers bytes that are not the bytes presented and the
+    /// transaction is unspendable: the coins are stuck, not merely
+    /// delayed.
+    ///
+    /// Rebuilds the BIP-143 preimage from the sequence read back out of
+    /// the *serialised transaction*, so the assertion is anchored to
+    /// what a node would see rather than to the constant itself.
+    #[test]
+    fn test_sighash_commits_to_the_broadcast_sequence() {
+        let mut params = dummy_params();
+        // Two inputs so hashSequence depends on the count, not just the
+        // value — a one-input case would pass even if the loop were wrong.
+        let mut second = params.inputs[0].clone();
+        second.txid = "b".repeat(64);
+        second.vout = 1;
+        params.inputs.push(second);
+
+        let raw = serialize_witness_tx(&params).unwrap();
+        let seqs = sequences_in_serialized_tx(&raw, params.inputs.len());
+
+        let input = &params.inputs[0];
+        let mut preimage = Vec::new();
+        preimage.extend_from_slice(&TX_VERSION.to_le_bytes());
+        preimage.extend_from_slice(&double_sha256(&serialize_prevouts(&params.inputs)));
+        let seq_bytes: Vec<u8> = seqs.iter().flat_map(|s| s.to_le_bytes()).collect();
+        preimage.extend_from_slice(&double_sha256(&seq_bytes));
+        preimage.extend_from_slice(&serialize_outpoint(input).unwrap());
+        push_var_bytes(
+            &mut preimage,
+            &p2wpkh_script_code(input.pubkey_hash.as_deref().unwrap()),
+        );
+        preimage.extend_from_slice(&input.value.to_le_bytes());
+        preimage.extend_from_slice(&seqs[0].to_le_bytes());
+        preimage.extend_from_slice(&double_sha256(&serialize_outputs(&params.outputs).unwrap()));
+        preimage.extend_from_slice(&0u32.to_le_bytes()); // locktime
+        preimage.extend_from_slice(&SIGHASH_ALL.to_le_bytes());
+
+        assert_eq!(
+            double_sha256(&preimage),
+            bip143_sighash(&params, 0).unwrap(),
+            "the signed digest does not commit to the sequence in the broadcast bytes"
+        );
+    }
+
+    // --- H9: UTXO provenance ---
     /// Build a minimal valid non-witness prev tx with one input and
     /// one output of `output_value` satoshis to scriptPubKey of 1 byte.
     fn minimal_prev_tx(output_value: u64) -> Vec<u8> {

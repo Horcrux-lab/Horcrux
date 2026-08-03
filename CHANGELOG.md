@@ -7,6 +7,77 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Bitcoin — replace-by-fee
+
+- **"Speed up" could pay the recipient twice.** A fee bump is only a fee
+  bump because the two transactions conflict: the replacement must spend
+  an outpoint the original also spends, so a node can only ever confirm
+  one of them. `SigningViewModel` did not do that. It re-ran ordinary
+  coin selection over `blockchainService.btcUtxos(...)` filtered to
+  `status.confirmed`, and the original's own inputs are not in that set
+  by construction — Esplora drops outputs spent by a mempool transaction
+  from `/address/:addr/utxo` entirely, and the original's change output
+  is unconfirmed by definition. So the rebuild could not select the
+  original's input even by accident. It funded a *second* payment to the
+  same recipient from an unrelated confirmed UTXO, broadcast it
+  alongside the first, and both were free to confirm. The user pressed a
+  button labelled "speed up" and sent the money again. `markReplaced`
+  then relabelled the original in the history as superseded, so the
+  ledger showed one payment where two had left the wallet.
+
+- **Nothing broadcast before this change was replaceable anyway.** The
+  transaction builder set every input's nSequence to `0xfffffffe`,
+  commented `(rbf-enabled)`. That value is one too high: BIP-125 signals
+  opt-in with a sequence *strictly below* `0xffffffff - 1`, so
+  `0xfffffffe` is the largest value that opts **out**. It disables
+  nLockTime finality and nothing else. A node asked to replace such a
+  transaction rejects the replacement outright. The constant is now
+  `0xfffffffd` — still bit-31-set, so BIP-68 relative locktime stays
+  disabled, and the largest value that does signal. Coins already in
+  flight cannot be rescued by this; the planner now says so in as many
+  words instead of building something the network will refuse.
+
+- **The sequence is committed to in three places and they must agree.**
+  A P2WPKH signature commits to nSequence twice — once through the
+  `hashSequence` midstate, once through the signed input's own field —
+  and the broadcast serialisation carries it a third time. Had the fix
+  landed in the serialiser alone, every signature would have covered
+  bytes other than the ones going out, and the funds would have been
+  unspendable rather than merely unbumpable. All three now read one
+  `SEQUENCE_RBF` constant, and a test rebuilds the BIP-143 preimage from
+  the sequence parsed back out of the serialised transaction and asserts
+  it reproduces the sighash, so the three cannot drift apart silently.
+
+- **The rebuild is now a pure function with the network kept outside
+  it.** `BtcReplacementPlanner` takes the fetched original and returns
+  the inputs, fee and change, or refuses with a reason: already
+  confirmed, not signalling BIP-125, an input that is not ours, more
+  inputs than the single-signature finaliser can re-sign, a prevout the
+  endpoint withheld, or value that cannot cover the bumped fee. The fee
+  is `max(tier, original.fee + 1 sat/vB × vbytes)`, which is BIP-125
+  rules 3 and 4; sub-dust change is folded into the fee rather than
+  emitted as an output no node relays. Refusing a multi-input original
+  is deliberate — reaching for a different input is precisely the bug
+  above. Both the ordinary send and the replacement now build their
+  outputs through one shared `BtcTxSkeleton`, so the two paths cannot
+  disagree about what a P2WPKH transaction looks like.
+
+- **`markReplaced` is now gated on the replacement actually
+  conflicting.** The history entry is only rewritten when the built
+  transaction really does spend the original's outpoint, so a bump that
+  fell back to some other path can no longer erase a payment that is
+  still live.
+
+  Covered by 26 new cases. Seven mutations — accepting a
+  non-signalling sequence, dropping the BIP-125 floor, discarding
+  sub-dust change, admitting a multi-input original, comparing
+  scriptPubKeys case-sensitively, an off-by-one on the dust limit, and
+  spending an arbitrary outpoint instead of the original's — were each
+  introduced and each failed a test. One case drives plan, skeleton and
+  the Rust builder end to end and asserts on the bytes that would go on
+  the wire: that the outpoint is the original's, and that the sequence
+  opts in.
+
 ### iOS — node settings
 
 - **Nine chains became configurable for the first time.** `Chain.allCases`

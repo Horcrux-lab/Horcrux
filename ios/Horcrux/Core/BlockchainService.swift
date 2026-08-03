@@ -73,6 +73,18 @@ actor BlockchainService {
         return address
     }
 
+    /// A Bitcoin txid is exactly 32 bytes of hex. Enforcing that before
+    /// interpolating it into a request path stops a value carrying `/`,
+    /// `?` or `..` from addressing a different resource, and catches a
+    /// truncated hash before it becomes a confusing 404.
+    private static func sanitizedTxid(_ txid: String) throws -> String {
+        guard txid.count == 64,
+              txid.unicodeScalars.allSatisfy({ $0.properties.isASCIIHexDigit }) else {
+            throw BlockchainError.invalidAddress
+        }
+        return txid
+    }
+
     // MARK: - Ethereum (JSON-RPC)
 
     struct EvmGasEstimate {
@@ -407,6 +419,55 @@ actor BlockchainService {
     func btcUtxos(address: String, chain: Chain, config: NetworkConfig) async throws -> [BtcUtxo] {
         return try await withFallbackURL(chain: chain, config: config) { url in
             try await btcUtxos(address: address, apiURL: url)
+        }
+    }
+
+    /// A previously-broadcast transaction, as Esplora reports it.
+    ///
+    /// Only the fields a replacement needs are decoded: which outpoints it
+    /// spends (so the replacement can spend the same ones and therefore
+    /// actually conflict), what it paid (BIP-125 rule 4), whether each
+    /// input signalled replaceability, and whether it is still in the
+    /// mempool at all.
+    struct BtcTx: Decodable, Sendable, Equatable {
+        struct Prevout: Decodable, Sendable, Equatable {
+            let scriptpubkey: String
+            let value: UInt64
+        }
+        struct Vin: Decodable, Sendable, Equatable {
+            let txid: String
+            let vout: UInt32
+            /// Absent on coinbase inputs, and on deployments that do not
+            /// serve prevouts. Without it there is no value to spend.
+            let prevout: Prevout?
+            /// Optional so a deployment that omits it is treated as
+            /// "cannot prove opt-in" rather than failing to decode the
+            /// whole response.
+            let sequence: UInt32?
+        }
+        struct Status: Decodable, Sendable, Equatable {
+            let confirmed: Bool
+        }
+        let txid: String
+        let vin: [Vin]
+        let fee: UInt64
+        let status: Status
+    }
+
+    /// Fetch a transaction by txid.
+    func btcTx(txid: String, apiURL: String) async throws -> BtcTx {
+        let safe = try Self.sanitizedTxid(txid)
+        let url = try Self.validatedURL("\(apiURL)/tx/\(safe)")
+        let (data, response) = try await session.data(from: url)
+        try validateHTTP(response)
+        return try JSONDecoder().decode(BtcTx.self, from: data)
+    }
+
+    /// Fault-aware transaction fetch, on the same fallback list as the
+    /// UTXO, fee and broadcast calls.
+    func btcTx(txid: String, chain: Chain, config: NetworkConfig) async throws -> BtcTx {
+        return try await withFallbackURL(chain: chain, config: config) { url in
+            try await btcTx(txid: txid, apiURL: url)
         }
     }
 

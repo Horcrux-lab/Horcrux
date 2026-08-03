@@ -737,6 +737,15 @@ enum L10n {
         static let cancelledByUser = NSLocalizedString("signing.cancelledByUser", comment: "")
         static let compromisedDevice = NSLocalizedString("signing.compromisedDevice", comment: "")
 
+        // Replace-by-fee ("Speed up") refusals — issue #32.
+        static let rbfAlreadyConfirmed = NSLocalizedString("signing.rbfAlreadyConfirmed", comment: "")
+        static let rbfNotReplaceable = NSLocalizedString("signing.rbfNotReplaceable", comment: "")
+        static let rbfForeignInput = NSLocalizedString("signing.rbfForeignInput", comment: "")
+        static let rbfUnsupportedInputCount = NSLocalizedString("signing.rbfUnsupportedInputCount", comment: "")
+        static let rbfMissingPrevout = NSLocalizedString("signing.rbfMissingPrevout", comment: "")
+        static let rbfInsufficientValue = NSLocalizedString("signing.rbfInsufficientValue", comment: "")
+        static let rbfOriginalUnavailable = NSLocalizedString("signing.rbfOriginalUnavailable", comment: "")
+
         // Status messages
         static let initializingProtocol = NSLocalizedString("signing.initializingProtocol", comment: "")
         static let waitingForInitiator = NSLocalizedString("signing.waitingForInitiator", comment: "")
