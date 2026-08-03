@@ -63,6 +63,7 @@
 		563DA275111031BB4FCE5CF4 /* NetworkConfigTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 678F55EA0F92269FF77CA18E /* NetworkConfigTests.swift */; };
 		567E1DBE06932F612270F002 /* MessagePaddingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A418982CCA628D972E97D905 /* MessagePaddingTests.swift */; };
 		5A0FE1F122DD50F0C3D7D2ED /* AntiDebug.swift in Sources */ = {isa = PBXBuildFile; fileRef = 49290534F8CBC9A619F040F0 /* AntiDebug.swift */; };
+		5B134E44F96369468F4B25EC /* RecoveryKeyManagerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 00FA8B5A5C08A687F9EB2CCF /* RecoveryKeyManagerTests.swift */; };
 		5B7CE02B98E896822B156CA0 /* SecureKeyVault.swift in Sources */ = {isa = PBXBuildFile; fileRef = E34CE834584D33E59E57F62B /* SecureKeyVault.swift */; };
 		5BC458CA15D9972155012F63 /* DeepLinkRouterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0996A676D3CD4B28950E3F90 /* DeepLinkRouterTests.swift */; };
 		5F748A733435459EB3C345DB /* SecurityDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7EA36985E457A9DB8EE3B332 /* SecurityDetailView.swift */; };
@@ -181,6 +182,7 @@
 
 /* Begin PBXFileReference section */
 		009B2C4850952397C883ED7F /* RefreshPeerBindingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RefreshPeerBindingTests.swift; sourceTree = "<group>"; };
+		00FA8B5A5C08A687F9EB2CCF /* RecoveryKeyManagerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecoveryKeyManagerTests.swift; sourceTree = "<group>"; };
 		02982BCC1C69D63971302724 /* DkgEstimate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DkgEstimate.swift; sourceTree = "<group>"; };
 		03BCB86ADC990211CDD81BEF /* HorcruxTheme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HorcruxTheme.swift; sourceTree = "<group>"; };
 		044287395A456FA0A19534CD /* L10n.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = L10n.swift; sourceTree = "<group>"; };
@@ -603,6 +605,7 @@
 				8622DE820B92BAE12389D7BC /* PortfolioMetricsTests.swift */,
 				E1427E0D4CE4032F2665694B /* ProviderCoverageSummaryTests.swift */,
 				FCDDD69488277606AB6B8BEC /* RecentCoSignersStoreTests.swift */,
+				00FA8B5A5C08A687F9EB2CCF /* RecoveryKeyManagerTests.swift */,
 				009B2C4850952397C883ED7F /* RefreshPeerBindingTests.swift */,
 				2C2DFEADD4C7F811A28CE435 /* RelayConfigTests.swift */,
 				59656A475A44B175A3E01899 /* RPCRoutingTests.swift */,
@@ -832,6 +835,7 @@
 				BC583E60BB3FBF3E0D7E8580 /* ProviderCoverageSummaryTests.swift in Sources */,
 				B112A84A551C22C784F9E235 /* RPCRoutingTests.swift in Sources */,
 				704B7197A71DAE00F8EAB79C /* RecentCoSignersStoreTests.swift in Sources */,
+				5B134E44F96369468F4B25EC /* RecoveryKeyManagerTests.swift in Sources */,
 				1570F7B396E189396D124E40 /* RefreshPeerBindingTests.swift in Sources */,
 				9E2D32680EC22207F40539A1 /* RelayConfigTests.swift in Sources */,
 				8B0BAADE9F87B21FC65B8E04 /* SecureClipboardTests.swift in Sources */,
