@@ -115,6 +115,7 @@
 		A4A201AC92EB06E94030380A /* BlockchainServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5DC97913C4CE8685D3D981E /* BlockchainServiceTests.swift */; };
 		AC051838DAA0623239DA3532 /* EndpointSourceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2C649DA6FE4894AAB6C94D4E /* EndpointSourceTests.swift */; };
 		AD348005CA4C2DFFACF04FA8 /* SecureLog.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0E78608F2CD0ED1CADF94547 /* SecureLog.swift */; };
+		AD874221889658ED3F64C0CE /* Bech32Tests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 626DA0981B940D6956011EB8 /* Bech32Tests.swift */; };
 		AE38F5EE8CB8B850EA1CBBDD /* AddressBook.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2F16FEAB7A7D83404E721639 /* AddressBook.swift */; };
 		AF36FB7F85B0E8E9F35D2AA1 /* SecureKeyVaultTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F00104BD55BFFC248C99EE8E /* SecureKeyVaultTests.swift */; };
 		B09B759BCA36CB1D85881A8B /* TransactionHistorySyncer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 982A6DAFE2C3A7D0597486B8 /* TransactionHistorySyncer.swift */; };
@@ -236,6 +237,7 @@
 		5AAA4CE2B20BD8B486004E08 /* AuditExport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuditExport.swift; sourceTree = "<group>"; };
 		60602609EBFD9982939E260C /* SecureEnclaveManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SecureEnclaveManager.swift; sourceTree = "<group>"; };
 		60FEA7C771F39F2C20D8EAC2 /* VaultEditSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VaultEditSheet.swift; sourceTree = "<group>"; };
+		626DA0981B940D6956011EB8 /* Bech32Tests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Bech32Tests.swift; sourceTree = "<group>"; };
 		678F55EA0F92269FF77CA18E /* NetworkConfigTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkConfigTests.swift; sourceTree = "<group>"; };
 		693AF0EBA3950107FFA1F5EE /* AuditExportView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuditExportView.swift; sourceTree = "<group>"; };
 		69A9C998E7A806927B3E2D34 /* CreateShardViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CreateShardViewModelTests.swift; sourceTree = "<group>"; };
@@ -565,6 +567,7 @@
 				937C4AF2341FA2B8BD1A9B6C /* AddressFormatterTests.swift */,
 				8316163DB1BF3FFBF6245C17 /* AddressValidatorTests.swift */,
 				4D6DF2DF65312D23533540F7 /* AuditExportTests.swift */,
+				626DA0981B940D6956011EB8 /* Bech32Tests.swift */,
 				249957543A7E7602C072F6E6 /* BitcoinFailoverTests.swift */,
 				A5DC97913C4CE8685D3D981E /* BlockchainServiceTests.swift */,
 				BAB41D987DF424E46A36A1EF /* BtcReplacementPlannerTests.swift */,
@@ -788,6 +791,7 @@
 				6004725264CD51E42182540D /* AddressFormatterTests.swift in Sources */,
 				84D95BDDAF6E254C4D577C31 /* AddressValidatorTests.swift in Sources */,
 				412776403F6D4CB19CF35E3F /* AuditExportTests.swift in Sources */,
+				AD874221889658ED3F64C0CE /* Bech32Tests.swift in Sources */,
 				40B98DB408AB47D22B58F1B8 /* BitcoinFailoverTests.swift in Sources */,
 				A4A201AC92EB06E94030380A /* BlockchainServiceTests.swift in Sources */,
 				94863A3BBA5C678BE877359A /* BtcReplacementPlannerTests.swift in Sources */,

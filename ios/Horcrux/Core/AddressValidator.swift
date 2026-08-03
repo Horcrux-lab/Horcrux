@@ -62,14 +62,16 @@ enum AddressValidator {
     // MARK: - Bitcoin
 
     private static let base58Chars = CharacterSet(charactersIn: "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz")
-    private static let bech32Chars = CharacterSet(charactersIn: "qpzry9x8gf2tvdw0s3jn54khce6mua7l")
 
     private static func validateBitcoin(_ address: String) throws {
-        // Bech32/Bech32m (bc1... or tb1...)
+        // Bech32 (v0) / Bech32m (v1+) — bc1… or tb1…
         if address.lowercased().hasPrefix("bc1") || address.lowercased().hasPrefix("tb1") {
-            let payload = String(address.lowercased().dropFirst(3))
-            guard payload.count >= 11 && payload.count <= 71,
-                  payload.unicodeScalars.allSatisfy({ bech32Chars.contains($0) }) else {
+            // The checksum, not the length and alphabet, is what catches a
+            // mistyped address. Those two are satisfied by any typo that
+            // keeps the shape, and such an address decodes cleanly to a
+            // *different* witness program — a destination nobody holds the
+            // key to. Verifying it here is what stops it being paid.
+            guard Bech32.decodeSegwit(address) != nil else {
                 throw ValidationError.invalidBtcAddress
             }
             return
@@ -77,8 +79,10 @@ enum AddressValidator {
 
         // Legacy P2PKH (1...) or P2SH (3...)
         if address.hasPrefix("1") || address.hasPrefix("3") || address.hasPrefix("m") || address.hasPrefix("n") || address.hasPrefix("2") {
-            guard (25...34).contains(address.count),
-                  address.unicodeScalars.allSatisfy({ base58Chars.contains($0) }) else {
+            // Base58Check's truncated double-SHA256 serves the same purpose
+            // and has always been implemented; it was simply never called.
+            guard let payload = Base58Check.decode(address),
+                  payload.count == 21 else {
                 throw ValidationError.invalidBtcAddress
             }
             return
@@ -103,17 +107,15 @@ enum AddressValidator {
         let lower = address.lowercased()
         // SegWit bech32 (ltc1... mainnet, tltc1... testnet)
         if lower.hasPrefix("ltc1") || lower.hasPrefix("tltc1") {
-            let payload = lower.hasPrefix("ltc1") ? String(lower.dropFirst(4)) : String(lower.dropFirst(5))
-            guard payload.count >= 11 && payload.count <= 71,
-                  payload.unicodeScalars.allSatisfy({ bech32Chars.contains($0) }) else {
+            guard Bech32.decodeSegwit(address) != nil else {
                 throw ValidationError.invalidLtcAddress
             }
             return
         }
         // Legacy P2PKH (L...) / P2SH (M... or 3...)
         if address.hasPrefix("L") || address.hasPrefix("M") || address.hasPrefix("3") {
-            guard (25...34).contains(address.count),
-                  address.unicodeScalars.allSatisfy({ base58Chars.contains($0) }) else {
+            guard let payload = Base58Check.decode(address),
+                  payload.count == 21 else {
                 throw ValidationError.invalidLtcAddress
             }
             return

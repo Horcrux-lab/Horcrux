@@ -159,4 +159,71 @@ final class AddressValidatorTests: XCTestCase {
         XCTAssertNotNil(AddressValidator.errorMessage(for: "", chain: .solana),
                         "Empty string should fail SOL validation")
     }
+
+    // MARK: - Checksums
+
+    /// The validator used to check the prefix, the length and the
+    /// alphabet, and stop. All three are satisfied by a mistyped address,
+    /// which is why bech32 carries a checksum — and why `Bech32.decode`,
+    /// which deferred to this function, could hand the signer a witness
+    /// program for an address nobody holds the key to.
+    func testRejectsABtcBech32AddressWithASingleCharacterTypo() {
+        XCTAssertNotNil(AddressValidator.errorMessage(
+            for: "bc1qq508d6qejxtdg4y5r3zarvary0c5xw7kv8f3t4", chain: .bitcoin))
+    }
+
+    /// BIP-173's own invalid-checksum vector: identical to the valid one
+    /// but for the final character.
+    func testRejectsTheBIP173InvalidChecksumVector() {
+        XCTAssertNotNil(AddressValidator.errorMessage(
+            for: "bc1qw508d6qejxtdg4y5r3zarvary0c5xw7kv8f3t5", chain: .bitcoin))
+    }
+
+    /// BIP-350 pairs the constant with the witness version. A v0 program
+    /// carrying a bech32m checksum is an address no other wallet will
+    /// agree with us about.
+    func testRejectsAVersion0BtcAddressEncodedWithBech32m() {
+        XCTAssertNotNil(AddressValidator.errorMessage(
+            for: "bc1qw508d6qejxtdg4y5r3zarvary0c5xw7kemeawh", chain: .bitcoin))
+    }
+
+    func testAcceptsAValidLitecoinBech32Address() {
+        XCTAssertNil(AddressValidator.errorMessage(
+            for: "ltc1qw508d6qejxtdg4y5r3zarvary0c5xw7kgmn4n9", chain: .litecoin))
+    }
+
+    func testRejectsALitecoinBech32AddressWithASingleCharacterTypo() {
+        XCTAssertNotNil(AddressValidator.errorMessage(
+            for: "ltc1qq508d6qejxtdg4y5r3zarvary0c5xw7kgmn4n9", chain: .litecoin))
+    }
+
+    func testAcceptsAValidLitecoinTestnetBech32Address() {
+        XCTAssertNil(AddressValidator.errorMessage(
+            for: "tltc1qw508d6qejxtdg4y5r3zarvary0c5xw7klfsuq0", chain: .litecoin))
+    }
+
+    /// Legacy addresses carry a truncated double-SHA256 for the same
+    /// reason, and `Base58Check.decode` has always verified it — the
+    /// validator simply never called it.
+    func testRejectsALegacyBtcAddressWithASingleCharacterTypo() {
+        XCTAssertNotNil(AddressValidator.errorMessage(
+            for: "1BvBMSEYstWetqTFn5Au4m4GFg7xJaNVN3", chain: .bitcoin))
+    }
+
+    func testRejectsAP2SHBtcAddressWithASingleCharacterTypo() {
+        XCTAssertNotNil(AddressValidator.errorMessage(
+            for: "3J98t1WpEZ73CNmQviecrnyiWrnqRhWNLx", chain: .bitcoin))
+    }
+
+    func testAcceptsValidLegacyLitecoinAddresses() {
+        XCTAssertNil(AddressValidator.errorMessage(
+            for: "LM2WMpR1Rp6j3Sa59cMXMs1SPzj9eXpGc1", chain: .litecoin))
+        XCTAssertNil(AddressValidator.errorMessage(
+            for: "MQMcJhpWHYVeQArcZR3sBgyPZxxRtnH441", chain: .litecoin))
+    }
+
+    func testRejectsALegacyLitecoinAddressWithASingleCharacterTypo() {
+        XCTAssertNotNil(AddressValidator.errorMessage(
+            for: "LM2WMpR1Rp6j3Sa59cMXMs1SPzj9eXpGc2", chain: .litecoin))
+    }
 }
