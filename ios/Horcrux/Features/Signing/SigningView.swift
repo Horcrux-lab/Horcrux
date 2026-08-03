@@ -13,10 +13,17 @@ struct SigningView: View {
         _viewModel = StateObject(wrappedValue: SigningViewModel(wallet: wallet))
     }
 
-    /// RBF variant: pre-fills recipient + amount from a pending BTC/LTC tx and
-    /// bumps the fee tier to fast. The wallet will naturally re-select the
-    /// same still-unconfirmed UTXOs, producing a Bitcoin-policy-compliant
-    /// RBF replacement.
+    /// RBF variant: pre-fills recipient + amount from a pending BTC/LTC tx
+    /// and bumps the fee tier to fast.
+    ///
+    /// The rebuild spends the original transaction's *own* outpoints,
+    /// fetched by txid — see `BtcReplacementPlanner`. It used to re-run
+    /// ordinary coin selection over confirmed UTXOs on the assumption that
+    /// the wallet would "naturally re-select the same" ones, which it
+    /// cannot: Esplora drops outputs spent by mempool transactions from
+    /// the UTXO set entirely, and the original's change output is
+    /// unconfirmed by definition. The result was a second independent
+    /// payment rather than a replacement (issue #32).
     init(wallet: Wallet, rbfFrom record: TransactionRecord) {
         let vm = SigningViewModel(wallet: wallet)
         vm.recipientAddress = record.toAddress

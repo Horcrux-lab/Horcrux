@@ -385,4 +385,86 @@ final class BitcoinFailoverTests: XCTestCase {
             // Expected.
         }
     }
+
+    // MARK: - Transaction fetch (issue #32)
+
+    /// Trimmed to the shape Esplora actually serves, including the
+    /// `prevout` block that carries the value being spent.
+    private func txJSON() -> Data {
+        Data("""
+        {"txid":"5cacc97a0b8be80536b1cfc42ab244566c5d96c7d15eb81f5ebfad80cb074a35",
+         "version":2,"locktime":0,
+         "vin":[{"txid":"4b26c85b0000000000000000000000000000000000000000000000000000cafe",
+                 "vout":1,
+                 "prevout":{"scriptpubkey":"0014751e76e819916d454941c45d1b3a323f1433bd6e",
+                            "scriptpubkey_address":"bc1qw508d6qejxtdg4y5r3zarvary0c5xw7kv8f3t4",
+                            "value":8687044},
+                 "scriptsig":"","is_coinbase":false,"sequence":4294967293}],
+         "vout":[{"scriptpubkey":"0014ab","value":8000000}],
+         "size":222,"weight":561,"fee":1410,
+         "status":{"confirmed":false}}
+        """.utf8)
+    }
+
+    /// Rebuilding an RBF replacement needs the original's own outpoints;
+    /// #32 was that the app never asked for them at all.
+    func test_btcTx_decodesTheOutpointsValueAndFee() async throws {
+        MockURLProtocol.handler = { [weak self] request in
+            guard let self, let url = request.url else { throw URLError(.badURL) }
+            return (self.response(url, 200), self.txJSON())
+        }
+
+        let tx = try await service.btcTx(
+            txid: "5cacc97a0b8be80536b1cfc42ab244566c5d96c7d15eb81f5ebfad80cb074a35",
+            chain: .bitcoin, config: config)
+
+        XCTAssertEqual(tx.vin.count, 1)
+        XCTAssertEqual(tx.vin[0].vout, 1)
+        XCTAssertEqual(tx.vin[0].prevout?.value, 8_687_044)
+        XCTAssertEqual(tx.vin[0].prevout?.scriptpubkey,
+                       "0014751e76e819916d454941c45d1b3a323f1433bd6e")
+        XCTAssertEqual(tx.vin[0].sequence, 4_294_967_293)
+        XCTAssertEqual(tx.fee, 1_410)
+        XCTAssertFalse(tx.status.confirmed)
+    }
+
+    /// The fetch sits on the signing path, so a dead primary must not be
+    /// able to stop a stuck transaction from being replaced.
+    func test_btcTx_failsOverToTheNextEndpointWhenThePrimaryIsUnreachable() async throws {
+        primaryUnreachable(fallbackBody: txJSON)
+
+        let tx = try await service.btcTx(
+            txid: "5cacc97a0b8be80536b1cfc42ab244566c5d96c7d15eb81f5ebfad80cb074a35",
+            chain: .bitcoin, config: config)
+
+        XCTAssertEqual(tx.fee, 1_410)
+        XCTAssertTrue(
+            MockURLProtocol.requested.contains { self.host($0) == self.host(self.fallback) },
+            "the fallback endpoint was never contacted"
+        )
+    }
+
+    /// The txid is interpolated straight into the request path. A value
+    /// carrying `/` or `?` would address a different resource entirely.
+    func test_btcTx_rejectsATxidThatIsNotPlainHex() async {
+        MockURLProtocol.handler = { [weak self] request in
+            guard let self, let url = request.url else { throw URLError(.badURL) }
+            return (self.response(url, 200), self.txJSON())
+        }
+
+        for bad in ["../address/bc1qxxx/utxo", "abc?x=1", "zz".repeated(32), "aa", ""] {
+            do {
+                _ = try await service.btcTx(txid: bad, chain: .bitcoin, config: config)
+                XCTFail("txid \(bad.debugDescription) should have been rejected")
+            } catch {
+                // Expected.
+            }
+        }
+        XCTAssertTrue(MockURLProtocol.requested.isEmpty,
+                      "a malformed txid must never reach the network")
+    }
+}
+
+private extension String {
+    func repeated(_ n: Int) -> String { String(repeating: self, count: n) }
 }

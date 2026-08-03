@@ -45,8 +45,21 @@ final class SigningViewModelTests: XCTestCase {
         XCTAssertNil(vm.broadcastStatus, "broadcastStatus should be nil initially")
     }
 
-    // MARK: - testStartSigningSetsIsRunning
+    // MARK: - Replace-by-fee gating (issue #32)
 
+    /// `rbfConflictsWithOriginal` is what authorises marking the original
+    /// as superseded. Setting `rbfReplacing` alone must not be enough: the
+    /// original is only really replaced once the rebuild has been made to
+    /// spend its outpoints, and before #32 a broadcast that spent an
+    /// entirely different UTXO still flipped the still-live original to
+    /// `.failed`.
+    func testSettingRbfReplacingAloneDoesNotAuthoriseMarkingTheOriginalReplaced() {
+        let vm = SigningViewModel(wallet: makeWallet(chain: .bitcoin))
+        vm.rbfReplacing = String(repeating: "aa", count: 32)
+        XCTAssertFalse(vm.rbfConflictsWithOriginal)
+    }
+
+    // MARK: - testStartSigningSetsIsRunning
     func testStartSigningSetsIsRunning() {
         let vm = SigningViewModel(wallet: makeWallet())
 

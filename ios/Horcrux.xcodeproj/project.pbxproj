@@ -28,6 +28,7 @@
 		2482523E5D2C54B27D4D7C23 /* ColdSigningCoordinatorV2.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6A13DA00F146F4337A259CB9 /* ColdSigningCoordinatorV2.swift */; };
 		251E9FC806BDFA46298ACAE8 /* TransactionStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = F90B2E00ADD4EFE856353A61 /* TransactionStore.swift */; };
 		272EF60E67B5AF4EA28D33EC /* PinHashTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EBE439C22E1CABB66A71A4AF /* PinHashTests.swift */; };
+		274BCD84CB6A72686136E817 /* BtcReplacementPlanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = 796962846FB118D7A5858BB9 /* BtcReplacementPlanner.swift */; };
 		27ABF8D1668FCF1FDB9C8F91 /* TokenModelsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD030979CCAA127E220D7660 /* TokenModelsTests.swift */; };
 		2A0E7EB1A7E9AD6E8BC1EA20 /* DkgEstimate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02982BCC1C69D63971302724 /* DkgEstimate.swift */; };
 		2A8F87FAFC1B268D5D8DB417 /* BlockchainService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8A7A080640527E951C3DFB84 /* BlockchainService.swift */; };
@@ -98,6 +99,7 @@
 		90328AA2F2C14EE460FC9866 /* NotificationManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 86FE78C208523754FA44A557 /* NotificationManager.swift */; };
 		9327D6514E1E6B6A5978A738 /* BiometricAuth.swift in Sources */ = {isa = PBXBuildFile; fileRef = 94A99C1E7A26CD9EDDD95F25 /* BiometricAuth.swift */; };
 		937518DEA378A54E124ED3A8 /* WalletAvatarStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4CB5FCCE3D5CA1AFAF3CC572 /* WalletAvatarStore.swift */; };
+		94863A3BBA5C678BE877359A /* BtcReplacementPlannerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BAB41D987DF424E46A36A1EF /* BtcReplacementPlannerTests.swift */; };
 		96D2462CDCD7A72BBDC80283 /* ColdSigningViewV2.swift in Sources */ = {isa = PBXBuildFile; fileRef = 44CC7FC6007AA9598B0D3F86 /* ColdSigningViewV2.swift */; };
 		986879DE15E0C587D7B0525A /* HorcruxAppIntents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9E7BB4D79AEFC130723E9626 /* HorcruxAppIntents.swift */; };
 		988A2125ECE7D174623434E2 /* TransactionStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0D8CC76DA3FFA51F1581D7CA /* TransactionStoreTests.swift */; };
@@ -251,6 +253,7 @@
 		7835CD49959AD17C7590793F /* TokenModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TokenModels.swift; sourceTree = "<group>"; };
 		78945C8D2E02C473BE7380A6 /* RoomCode.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RoomCode.swift; sourceTree = "<group>"; };
 		78B55C6F5BC31FCC6755DC9F /* InfoHint.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InfoHint.swift; sourceTree = "<group>"; };
+		796962846FB118D7A5858BB9 /* BtcReplacementPlanner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BtcReplacementPlanner.swift; sourceTree = "<group>"; };
 		7A849C84C85BCB4D83640A5B /* QRTransport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QRTransport.swift; sourceTree = "<group>"; };
 		7D014454477EA3881187A1E7 /* PendingNonceTracker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PendingNonceTracker.swift; sourceTree = "<group>"; };
 		7EA36985E457A9DB8EE3B332 /* SecurityDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SecurityDetailView.swift; sourceTree = "<group>"; };
@@ -292,6 +295,7 @@
 		B796C8B8FE702D114557534D /* CustomTokenStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CustomTokenStore.swift; sourceTree = "<group>"; };
 		B9E84BAFAE73EC309601D40C /* ModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelTests.swift; sourceTree = "<group>"; };
 		BA64A6444AFEACE5BEAF5C37 /* RecentCoSignersStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecentCoSignersStore.swift; sourceTree = "<group>"; };
+		BAB41D987DF424E46A36A1EF /* BtcReplacementPlannerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BtcReplacementPlannerTests.swift; sourceTree = "<group>"; };
 		BD8CC5A0AC3FBD7B276F77BE /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		BE6DF0A887F8A0C59358C3CA /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		C45263885A64041FCD023E9D /* ChainEndpointDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChainEndpointDetailView.swift; sourceTree = "<group>"; };
@@ -563,6 +567,7 @@
 				4D6DF2DF65312D23533540F7 /* AuditExportTests.swift */,
 				249957543A7E7602C072F6E6 /* BitcoinFailoverTests.swift */,
 				A5DC97913C4CE8685D3D981E /* BlockchainServiceTests.swift */,
+				BAB41D987DF424E46A36A1EF /* BtcReplacementPlannerTests.swift */,
 				155DE82F894BE96B63645AED /* CeremonyStateManagerTests.swift */,
 				A6B362D566641A53BD4DD16E /* CertificatePinnerTests.swift */,
 				69A9C998E7A806927B3E2D34 /* CreateShardViewModelTests.swift */,
@@ -641,6 +646,7 @@
 				E2099762FB1979A4D8A64EA4 /* BalanceCache.swift */,
 				262F8D757D7E32834A03160B /* Bech32.swift */,
 				8A7A080640527E951C3DFB84 /* BlockchainService.swift */,
+				796962846FB118D7A5858BB9 /* BtcReplacementPlanner.swift */,
 				B2D81D2873A804DCFE6F7442 /* BtcSigner.swift */,
 				15830F30B8339C7263832772 /* CeremonyStateManager.swift */,
 				3B80076D224C8EF78FD4DC23 /* ChainEndpointOverrides.swift */,
@@ -784,6 +790,7 @@
 				412776403F6D4CB19CF35E3F /* AuditExportTests.swift in Sources */,
 				40B98DB408AB47D22B58F1B8 /* BitcoinFailoverTests.swift in Sources */,
 				A4A201AC92EB06E94030380A /* BlockchainServiceTests.swift in Sources */,
+				94863A3BBA5C678BE877359A /* BtcReplacementPlannerTests.swift in Sources */,
 				9FA5DAB74CA6BBF52A714168 /* CeremonyStateManagerTests.swift in Sources */,
 				C7193E4A04CA16FE66E2457B /* CertificatePinnerTests.swift in Sources */,
 				89F8EDBDD2C513909099CF0D /* CreateShardViewModelTests.swift in Sources */,
@@ -842,6 +849,7 @@
 				6D4C7740FFB5BD6C29F039FC /* Bech32.swift in Sources */,
 				9327D6514E1E6B6A5978A738 /* BiometricAuth.swift in Sources */,
 				2A8F87FAFC1B268D5D8DB417 /* BlockchainService.swift in Sources */,
+				274BCD84CB6A72686136E817 /* BtcReplacementPlanner.swift in Sources */,
 				40EE00FC37AC4A9BD0D5B5F1 /* BtcSigner.swift in Sources */,
 				8B6DABC2BA6DA13BE06406AA /* CeremonyStateManager.swift in Sources */,
 				52FD2C971898C344961F87A6 /* CertificatePinner.swift in Sources */,

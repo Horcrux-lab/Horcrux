@@ -1267,3 +1267,12 @@
 "approvals.detailResumeUnavailable" = "MPC sessions can't be resumed offline. Ask the initiator to re-scan and start a fresh request.";
 "approvals.actionResume" = "Resume signing";
 "approvals.resumeHint" = "Works only if the initiator is still live on the same relay room. If they're offline, the screen will sit in 'waiting'.";
+
+/* Replace-by-fee ("Speed up") refusals — issue #32 */
+"signing.rbfAlreadyConfirmed" = "This transaction has already confirmed and can no longer be replaced.";
+"signing.rbfNotReplaceable" = "This transaction was not created with replace-by-fee enabled, so the network will not accept a replacement. Wait for it to confirm.";
+"signing.rbfForeignInput" = "This transaction spends coins this wallet cannot sign for, so it cannot be replaced here.";
+"signing.rbfUnsupportedInputCount" = "Speeding up a transaction with more than one input is not supported yet.";
+"signing.rbfMissingPrevout" = "The network did not report what this transaction spends, so a replacement cannot be built.";
+"signing.rbfInsufficientValue" = "The coins in this transaction cannot cover the higher fee a replacement needs.";
+"signing.rbfOriginalUnavailable" = "Could not load the original transaction, so a replacement cannot be built. Check your connection and try again.";
