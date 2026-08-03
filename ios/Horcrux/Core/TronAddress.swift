@@ -32,14 +32,22 @@ enum TronAddress {
         return base58Check(addrBytes)
     }
 
-    /// Lightweight syntactic validation for a user-entered TRON address.
-    /// - Starts with `T`
-    /// - 34 characters long
-    /// - Only contains Base58 characters
-    /// Full checksum validation could be added later by round-tripping Base58Check.
+    /// Validation for a user-entered TRON address.
+    ///
+    /// - 34 characters, starting with `T`
+    /// - a valid Base58Check checksum
+    /// - a 21-byte payload behind the 0x41 mainnet prefix
+    ///
+    /// The checksum is the only one of those that catches a typo. Length,
+    /// prefix and alphabet are all satisfied by any mistyped address that
+    /// keeps the shape, and such an address decodes to a *different*
+    /// 20-byte account — one nobody holds a key for. This used to check
+    /// only the shape, even though `base58CheckDecode` below has always
+    /// verified the checksum correctly.
     static func looksValid(_ address: String) -> Bool {
         guard address.count == 34, address.hasPrefix("T") else { return false }
-        return address.unicodeScalars.allSatisfy { base58Alphabet.contains(Character($0)) }
+        guard let payload = base58CheckDecode(address) else { return false }
+        return payload.count == 21 && payload[0] == 0x41
     }
 
     // MARK: - Base58Check helpers
@@ -158,7 +166,10 @@ enum Base58Check {
 /// nil on invalid input.
 func decimalStringToABIUint256Hex(_ s: String) -> String? {
     let trimmed = s.trimmingCharacters(in: .whitespaces)
-    guard !trimmed.isEmpty, trimmed.allSatisfy({ $0.isNumber }) else { return nil }
+    // `Character.isNumber` is true for fractions and Roman numerals too,
+    // and `wholeNumberValue` is nil for "½" but 7 for "Ⅶ" — so accepting
+    // "isNumber" would silently encode "1½" as 1 and "Ⅶ" as 7.
+    guard !trimmed.isEmpty, trimmed.allSatisfy({ $0.isASCII && $0.isNumber }) else { return nil }
     // Convert decimal → big-endian byte array via long division.
     var digits = trimmed.compactMap { $0.wholeNumberValue }
     var bytes: [UInt8] = []

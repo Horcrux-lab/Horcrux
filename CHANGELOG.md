@@ -7,6 +7,53 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### TRON — address checksums
+
+- **A mistyped TRON address was accepted and paid.** TRON addresses are
+  Base58Check: the last four bytes are a truncated double-SHA256 over
+  everything before them, and they exist precisely so a typo is refused
+  rather than paid. `TronAddress.looksValid` — the only function the
+  send screen consults — checked that the address was 34 characters,
+  started with `T`, and used Base58 characters, and said so itself:
+  "Full checksum validation could be added later by round-tripping
+  Base58Check." Every one of those checks is satisfied by a mistyped
+  address that keeps its shape.
+
+  `TMVQGm1qAQYVdetCeGRRkTWYYrLXuHK2HC` entered as
+  `TMVQGn1qAQYVdetCeGRRkTWYYrLXuHK2HC` is 34 characters, starts with
+  `T`, is entirely Base58 — and is a different account, one nobody
+  holds a key for. `base58CheckDecode` in the same file has always
+  verified the checksum correctly; it was simply never called.
+  `looksValid` now round-trips through it and additionally requires the
+  21-byte payload behind TRON's 0x41 mainnet prefix.
+
+  This is the same defect as the Bitcoin one below, in the one chain it
+  had not yet been fixed for.
+
+- **TRC-20 amounts now reject non-digit numerals.**
+  `decimalStringToABIUint256Hex` gated its input on
+  `Character.isNumber`, which is true for fractions and Roman numerals,
+  and then built the value with `compactMap { $0.wholeNumberValue }`,
+  which drops what it cannot read. "1½" therefore encoded as 1, and "½"
+  as 0. The gate is now ASCII digits only.
+
+  Covered by 24 new cases, including derivation from the secp256k1
+  generator, the live USDT contract address, Base58Check round-trips
+  with leading zero bytes, and the uint256 boundary. Sixteen mutations
+  were introduced and fifteen failed a test: reverting `looksValid` to
+  its shape checks, dropping the mainnet prefix rule, accepting any
+  checksum, comparing only one checksum byte, single-hashing the
+  checksum on either side, hashing the tagged public key, taking the
+  high 20 bytes of the keccak hash, changing the network byte,
+  accepting a compressed key, dropping leading zeros in either
+  direction, accepting any Unicode numeric, dropping the uint256
+  overflow check, and padding the ABI word on the wrong side. The
+  sixteenth — dropping the 21-byte payload rule — is equivalent: a
+  34-character Base58 string with no leading `1` has a value in
+  [26·58³³, 27·58³³), which lies inside [2¹⁹², 2²⁰⁰), so it always
+  decodes to 25 bytes and therefore a 21-byte payload. The rule is kept
+  as the precondition that makes indexing the payload safe.
+
 ### Bitcoin — address checksums
 
 - **Nothing in the app ever verified a Bitcoin address checksum.**
