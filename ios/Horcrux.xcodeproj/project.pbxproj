@@ -84,6 +84,7 @@
 		73DCF4DE4120D95F8C6376D7 /* NetworkConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8F2B46934353AFDC064CECD9 /* NetworkConfig.swift */; };
 		74C5D59EF02E3610053E318E /* SecurityHealthCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 405A013BA7EFAD11E4F8F4DA /* SecurityHealthCard.swift */; };
 		7796AADB086F4ADF8D3A1DAE /* KeychainManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = E40F5C82E2B2A23A01ACEDF5 /* KeychainManager.swift */; };
+		77B34F29F29FC11F317A31A6 /* HorcruxBridgeAddressTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 983E7AAD22CAB270432D856C /* HorcruxBridgeAddressTests.swift */; };
 		792D01EFC687A2F2CDE2248F /* DeviceIdentity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9CACEAE7FCDAA0BBD548F673 /* DeviceIdentity.swift */; };
 		7B8B2CA50AA9094D5833102F /* ChainEndpointOverrides.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3B80076D224C8EF78FD4DC23 /* ChainEndpointOverrides.swift */; };
 		7C44D37A130193DFEF2393D7 /* SigningViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E7480F0578841135C2CBB740 /* SigningViewModelTests.swift */; };
@@ -288,6 +289,7 @@
 		94A99C1E7A26CD9EDDD95F25 /* BiometricAuth.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BiometricAuth.swift; sourceTree = "<group>"; };
 		98062316CA738168EF54F467 /* WalletAvatarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WalletAvatarView.swift; sourceTree = "<group>"; };
 		982A6DAFE2C3A7D0597486B8 /* TransactionHistorySyncer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TransactionHistorySyncer.swift; sourceTree = "<group>"; };
+		983E7AAD22CAB270432D856C /* HorcruxBridgeAddressTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HorcruxBridgeAddressTests.swift; sourceTree = "<group>"; };
 		9B83751DC183569D78645E15 /* ENSResolver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ENSResolver.swift; sourceTree = "<group>"; };
 		9BC6D798ADA312303C951B6D /* DKGTestView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DKGTestView.swift; sourceTree = "<group>"; };
 		9CACEAE7FCDAA0BBD548F673 /* DeviceIdentity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeviceIdentity.swift; sourceTree = "<group>"; };
@@ -594,6 +596,7 @@
 				0C0C6BE3464B8B466F380C37 /* EndpointResolutionTests.swift */,
 				2C649DA6FE4894AAB6C94D4E /* EndpointSourceTests.swift */,
 				3A2E57F358FB8E44EB309D53 /* EvmSignerTests.swift */,
+				983E7AAD22CAB270432D856C /* HorcruxBridgeAddressTests.swift */,
 				A418982CCA628D972E97D905 /* MessagePaddingTests.swift */,
 				B9E84BAFAE73EC309601D40C /* ModelTests.swift */,
 				678F55EA0F92269FF77CA18E /* NetworkConfigTests.swift */,
@@ -824,6 +827,7 @@
 				F8AFD0BB432E20681624EAB8 /* EndpointResolutionTests.swift in Sources */,
 				AC051838DAA0623239DA3532 /* EndpointSourceTests.swift in Sources */,
 				1F084A5C659B254D811F524A /* EvmSignerTests.swift in Sources */,
+				77B34F29F29FC11F317A31A6 /* HorcruxBridgeAddressTests.swift in Sources */,
 				567E1DBE06932F612270F002 /* MessagePaddingTests.swift in Sources */,
 				514981C1384F66B055401254 /* ModelTests.swift in Sources */,
 				563DA275111031BB4FCE5CF4 /* NetworkConfigTests.swift in Sources */,
