@@ -7,6 +7,57 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Bitcoin — address checksums
+
+- **Nothing in the app ever verified a Bitcoin address checksum.**
+  `Bech32.decode` said so in its own documentation — "Checksum is NOT
+  validated — call sites receive already-validated addresses from
+  `AddressValidator`" — and `AddressValidator.validateBitcoin` checked
+  the prefix, the length and the alphabet, and stopped. Each layer
+  deferred to the other, so the polymod was never run anywhere, and the
+  legacy path never called `Base58Check.decode` even though it has
+  always verified the truncated double-SHA256 correctly.
+
+  A single mistyped character is the whole failure. `bc1qw508…` entered
+  as `bc1qq508…` keeps the `bc1` prefix, the exact length and an
+  alphabet of nothing but bech32 characters, so both checks passed. It
+  then decoded to witness program `051e76e8…` where the real address is
+  `751e76e8…` — a different 20-byte hash160, a different address, one
+  nobody holds a key for. The transaction was built, signed by a full
+  MPC ceremony, and broadcast. Catching exactly this is the reason
+  bech32 has a checksum at all, and BIP-173 chose a polynomial that
+  detects any four or fewer character errors.
+
+- **Both layers now verify.** `Bech32.decode` runs the BIP-173 polymod
+  and reports which constant matched; `AddressValidator` routes segwit
+  addresses through it and legacy ones through `Base58Check.decode`, so
+  a typo is refused on the send screen rather than in the middle of a
+  signing ceremony.
+
+- **The witness version and the checksum constant are now checked
+  together.** BIP-350 pairs them: v0 must be bech32, v1 and above
+  bech32m. Verifying "some" constant is not enough — a v0 program with
+  a bech32m checksum, or a taproot address with a bech32 one, is a
+  string no other wallet reads the way we would. That rule, the 2–40
+  byte program range, the v0-is-20-or-32 rule and the version ceiling
+  of 16 all live in one `Bech32.decodeSegwit`, which the validator and
+  the signer both go through.
+
+- **Mixed case and over-length input are rejected.** The checksum is
+  defined over a single case, so accepting a mixture verifies a string
+  the user did not type; BIP-173 caps an address at 90 characters
+  because that is the range over which the error-detection guarantee
+  holds.
+
+  Covered by 33 new cases against BIP-173 and BIP-350's published
+  vectors. Ten mutations were introduced and each failed a test:
+  corrupting a polymod generator, dropping the mixed-case rule,
+  dropping the length cap, ignoring the version/constant pairing,
+  removing the program-length range, allowing any v0 program length,
+  allowing versions above 16, swapping the bech32 constant for
+  bech32m's, and reverting each of the validator's two paths to the
+  length-and-alphabet checks they used to do.
+
 ### Bitcoin — replace-by-fee
 
 - **"Speed up" could pay the recipient twice.** A fee bump is only a fee
