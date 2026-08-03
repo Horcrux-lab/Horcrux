@@ -68,7 +68,7 @@ final class BlockchainServiceTests: XCTestCase {
         }
 
         let balance = try await service.ethBalance(
-            address: "0x742d35Cc6634C0532925a3b844Bc9e7595f2bD18",
+            address: "0x742D35CC6634C0532925a3B844Bc9E7595F2bD18",
             rpcURL: "https://rpc.test"
         )
         // hexToDecimal converts to UInt64 decimal string
@@ -140,7 +140,7 @@ final class BlockchainServiceTests: XCTestCase {
 
         let balance = try await service.erc20Balance(
             tokenContract: "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
-            ownerAddress: "0x742d35Cc6634C0532925a3b844Bc9e7595f2bD18",
+            ownerAddress: "0x742D35CC6634C0532925a3B844Bc9E7595F2bD18",
             rpcURL: "https://rpc.test"
         )
         XCTAssertEqual(balance, "1000000", "Should decode ERC-20 balance correctly")
@@ -189,7 +189,7 @@ final class BlockchainServiceTests: XCTestCase {
 
         do {
             _ = try await service.ethBalance(
-                address: "0x742d35Cc6634C0532925a3b844Bc9e7595f2bD18",
+                address: "0x742D35CC6634C0532925a3B844Bc9E7595F2bD18",
                 rpcURL: "https://rpc.test"
             )
             XCTFail("Should have thrown a timeout error")

@@ -12,7 +12,7 @@ final class SigningViewModelTests: XCTestCase {
             id: "test-wallet",
             name: "Test Wallet",
             chain: chain,
-            address: "0x742d35Cc6634C0532925a3b844Bc9e7595f2bD18",
+            address: "0x742D35CC6634C0532925a3B844Bc9E7595F2bD18",
             groupPublicKey: Data([0x02, 0x03, 0x04]),
             threshold: 2,
             totalParties: 3,
@@ -154,8 +154,8 @@ final class SigningViewModelTests: XCTestCase {
 
     func testShortRecipientFormatsLongAddress() {
         let vm = SigningViewModel(wallet: makeWallet())
-        vm.recipientAddress = "0x742d35Cc6634C0532925a3b844Bc9e7595f2bD18"
-        XCTAssertTrue(vm.shortRecipient.contains("0x742d"), "Should contain address prefix")
+        vm.recipientAddress = "0x742D35CC6634C0532925a3B844Bc9E7595F2bD18"
+        XCTAssertTrue(vm.shortRecipient.contains("0x742D"), "Should contain address prefix")
         XCTAssertTrue(vm.shortRecipient.contains("bD18"), "Should contain address suffix")
         XCTAssertTrue(vm.shortRecipient.count < vm.recipientAddress.count, "Should be shortened")
     }
@@ -248,7 +248,7 @@ final class SigningViewModelTests: XCTestCase {
     func testResignToSameRecipientKeepsRecipientAndTokenResetsRest() {
         let vm = SigningViewModel(wallet: makeWallet())
         vm.step = .complete
-        vm.recipientAddress = "0x742d35Cc6634C0532925a3b844Bc9e7595f2bD18"
+        vm.recipientAddress = "0x742D35CC6634C0532925a3B844Bc9E7595F2bD18"
         vm.amount = "1.5"
         vm.estimatedFee = "0.0012 ETH"
         vm.txHash = "0xdeadbeef"
@@ -270,7 +270,7 @@ final class SigningViewModelTests: XCTestCase {
 
         // Sticky fields kept.
         XCTAssertEqual(vm.recipientAddress,
-                       "0x742d35Cc6634C0532925a3b844Bc9e7595f2bD18",
+                       "0x742D35CC6634C0532925a3B844Bc9E7595F2bD18",
                        "Recipient must stick so the user can re-send")
         // Everything else cleared back to compose-fresh defaults.
         XCTAssertEqual(vm.step, .compose)

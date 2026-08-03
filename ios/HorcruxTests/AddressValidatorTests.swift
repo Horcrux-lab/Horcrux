@@ -7,7 +7,7 @@ final class AddressValidatorTests: XCTestCase {
     // MARK: - Ethereum
 
     func testValidEthAddress() {
-        XCTAssertNil(AddressValidator.errorMessage(for: "0x742d35Cc6634C0532925a3b844Bc9e7595f2bD18", chain: .ethereum))
+        XCTAssertNil(AddressValidator.errorMessage(for: "0x742D35CC6634C0532925a3B844Bc9E7595F2bD18", chain: .ethereum))
     }
 
     func testValidEthAddressAllLowercase() {
@@ -15,7 +15,7 @@ final class AddressValidatorTests: XCTestCase {
     }
 
     func testInvalidEthAddressMissingPrefix() {
-        XCTAssertNotNil(AddressValidator.errorMessage(for: "742d35Cc6634C0532925a3b844Bc9e7595f2bD18", chain: .ethereum))
+        XCTAssertNotNil(AddressValidator.errorMessage(for: "742D35CC6634C0532925a3B844Bc9E7595F2bD18", chain: .ethereum))
     }
 
     func testInvalidEthAddressTooShort() {
@@ -23,7 +23,7 @@ final class AddressValidatorTests: XCTestCase {
     }
 
     func testInvalidEthAddressTooLong() {
-        XCTAssertNotNil(AddressValidator.errorMessage(for: "0x742d35Cc6634C0532925a3b844Bc9e7595f2bD18aa", chain: .ethereum))
+        XCTAssertNotNil(AddressValidator.errorMessage(for: "0x742D35CC6634C0532925a3B844Bc9E7595F2bD18aa", chain: .ethereum))
     }
 
     func testInvalidEthAddressNonHex() {
@@ -92,7 +92,7 @@ final class AddressValidatorTests: XCTestCase {
     // MARK: - Cross-chain
 
     func testEthAddressInvalidForBtc() {
-        XCTAssertNotNil(AddressValidator.errorMessage(for: "0x742d35Cc6634C0532925a3b844Bc9e7595f2bD18", chain: .bitcoin))
+        XCTAssertNotNil(AddressValidator.errorMessage(for: "0x742D35CC6634C0532925a3B844Bc9E7595F2bD18", chain: .bitcoin))
     }
 
     func testBtcAddressInvalidForEth() {
@@ -225,5 +225,82 @@ final class AddressValidatorTests: XCTestCase {
     func testRejectsALegacyLitecoinAddressWithASingleCharacterTypo() {
         XCTAssertNotNil(AddressValidator.errorMessage(
             for: "LM2WMpR1Rp6j3Sa59cMXMs1SPzj9eXpGc2", chain: .litecoin))
+    }
+
+    // MARK: - Ethereum — EIP-55
+
+    /// EIP-55 puts a checksum in the *case* of an address's letters: hash
+    /// the lowercase address, and each letter is uppercase exactly when
+    /// its nibble of the hash is >= 8. A mistyped address keeps the 0x
+    /// prefix, the 42-character length and the hex alphabet, so only the
+    /// checksum catches it — and every explorer and wallet hands out the
+    /// checksummed form.
+    func testRejectsAMistypedChecksummedEthereumAddress() {
+        // Last character d -> e. Still 42 characters, still hex.
+        XCTAssertNotNil(AddressValidator.errorMessage(
+            for: "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAee", chain: .ethereum))
+    }
+
+    /// Corrupting the case alone leaves the same 20 bytes but proves the
+    /// checksum is read, not just the characters.
+    func testRejectsAnEthereumAddressWithACorruptedChecksumCase() {
+        XCTAssertNotNil(AddressValidator.errorMessage(
+            for: "0x5aaeb6053F3E94C9b9A09f33669435E7Ef1BeAed", chain: .ethereum))
+        // An otherwise all-uppercase address with one lowercase letter.
+        XCTAssertNotNil(AddressValidator.errorMessage(
+            for: "0x52908400098527886E0F7030069857D2E4169Ee7", chain: .ethereum))
+    }
+
+    /// The four mixed-case vectors published with EIP-55.
+    func testAcceptsTheEIP55ReferenceVectors() {
+        for address in [
+            "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed",
+            "0xfB6916095ca1df60bB79Ce92cE3Ea74c37c5d359",
+            "0xdbF03B407c01E7cD3CBea99509d93f8DDDC8C6FB",
+            "0xD1220A0cf47c7B9Be7A2E6BA89F429762e7b9aDb",
+        ] {
+            XCTAssertNil(AddressValidator.errorMessage(for: address, chain: .ethereum), address)
+        }
+    }
+
+    /// An address written entirely in one case carries no checksum at all,
+    /// which EIP-55 explicitly permits. Rejecting those would refuse
+    /// addresses that predate the standard.
+    func testAcceptsSingleCaseEthereumAddresses() {
+        for address in [
+            "0x52908400098527886E0F7030069857D2E4169EE7",
+            "0x8617E340B3D01FA5F11F306F4090FD50E238070D",
+            "0xde709f2102306220921060314715629080e2fb77",
+            "0x27b1fdb04752bbc536007a920d24acb045561c26",
+            "0x5AAEB6053F3E94C9B9A09F33669435E7EF1BEAED",
+            "0x5aaeb6053f3e94c9b9a09f33669435e7ef1beaed",
+        ] {
+            XCTAssertNil(AddressValidator.errorMessage(for: address, chain: .ethereum), address)
+        }
+    }
+
+    /// The checksum applies to every EVM chain, not just Ethereum.
+    func testTheChecksumIsCheckedOnEveryEvmChain() {
+        for chain in Chain.allCases where chain.isEVM {
+            XCTAssertNotNil(
+                AddressValidator.errorMessage(
+                    for: "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAee", chain: chain),
+                "\(chain) should reject a bad EIP-55 checksum")
+            XCTAssertNil(
+                AddressValidator.errorMessage(
+                    for: "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed", chain: chain),
+                "\(chain) should accept a good EIP-55 checksum")
+        }
+    }
+
+    /// `Character.isHexDigit` is also true for the full-width compatibility
+    /// forms, which no hex decoder downstream reads. A full-width *digit*
+    /// slips past the case test too — it has no case — so an otherwise
+    /// lowercase address containing one would carry no checksum to fail.
+    func testRejectsFullWidthHexCharacters() {
+        XCTAssertNotNil(AddressValidator.errorMessage(
+            for: "0xde709f2102306220921060314715629080e2fb7\u{FF17}", chain: .ethereum))
+        XCTAssertNotNil(AddressValidator.errorMessage(
+            for: "0xde709f210230622092106031471562908\u{FF10}e2fb77", chain: .ethereum))
     }
 }

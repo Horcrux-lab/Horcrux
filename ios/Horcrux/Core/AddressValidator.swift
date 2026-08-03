@@ -6,6 +6,7 @@ enum AddressValidator {
     enum ValidationError: LocalizedError {
         case empty
         case invalidEthAddress
+        case invalidEthChecksum
         case invalidBtcAddress
         case invalidLtcAddress
         case invalidSolAddress
@@ -15,6 +16,8 @@ enum AddressValidator {
             switch self {
             case .empty: return "Address is empty"
             case .invalidEthAddress: return "Invalid Ethereum address (expected 0x + 40 hex chars)"
+            case .invalidEthChecksum:
+                return "Invalid Ethereum address checksum — check the address for typos"
             case .invalidBtcAddress: return "Invalid Bitcoin address"
             case .invalidLtcAddress: return "Invalid Litecoin address"
             case .invalidSolAddress: return "Invalid Solana address (expected 32-44 base58 chars)"
@@ -50,13 +53,43 @@ enum AddressValidator {
     // MARK: - Ethereum
 
     private static func validateEthereum(_ address: String) throws {
-        // Must start with 0x and be 42 characters total (0x + 40 hex)
+        // Must start with 0x and be 42 characters total (0x + 40 hex).
+        // `Character.isHexDigit` is also true for full-width forms such as
+        // "Ａ", which are not hex to anything downstream, so restrict to
+        // ASCII.
+        let body = address.dropFirst(2)
         guard address.hasPrefix("0x"),
               address.count == 42,
-              address.dropFirst(2).allSatisfy({ $0.isHexDigit }) else {
+              body.allSatisfy({ $0.isASCII && $0.isHexDigit }) else {
             throw ValidationError.invalidEthAddress
         }
-        // Optional: EIP-55 checksum validation could be added here
+        // EIP-55 hides a checksum in the *case* of the letters. An address
+        // written entirely in one case carries no checksum — the standard
+        // permits that, and addresses predating it look exactly so — but a
+        // mixed-case address is making a claim, and a mistyped one keeps
+        // the prefix, the length and the hex alphabet, so the checksum is
+        // the only thing that can refuse it.
+        let hasUpper = body.contains { $0.isUppercase }
+        let hasLower = body.contains { $0.isLowercase }
+        guard hasUpper && hasLower else { return }
+        guard String(body) == eip55Checksummed(String(body)) else {
+            throw ValidationError.invalidEthChecksum
+        }
+    }
+
+    /// EIP-55: uppercase the letter at position i exactly when nibble i of
+    /// `keccak256(lowercased address)` is 8 or greater.
+    private static func eip55Checksummed(_ body: String) -> String {
+        let lower = body.lowercased()
+        let hash = horcruxKeccak256(data: Data(lower.utf8))
+        var out = ""
+        out.reserveCapacity(lower.count)
+        for (i, c) in lower.enumerated() {
+            let byte = hash[hash.startIndex + i / 2]
+            let nibble = i % 2 == 0 ? byte >> 4 : byte & 0x0f
+            out.append(c.isLetter && nibble >= 8 ? Character(c.uppercased()) : c)
+        }
+        return out
     }
 
     // MARK: - Bitcoin
