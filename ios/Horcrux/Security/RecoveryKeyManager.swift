@@ -103,10 +103,24 @@ enum RecoveryKeyManager {
 
     // MARK: - Private
 
+    #if DEBUG
+    /// Test seam: lets tests simulate a Keychain write failure so the
+    /// `store()` error path can be exercised. Never compiled into Release.
+    static var addItemForTesting: ((CFDictionary) -> OSStatus)?
+    #endif
+
+    private static func addItem(_ query: CFDictionary) -> OSStatus {
+        #if DEBUG
+        if let hook = addItemForTesting { return hook(query) }
+        #endif
+        return SecItemAdd(query, nil)
+    }
+
     private static func store(_ data: Data) throws {
-        // Remove any stale local copy first. We must pass
-        // `kSecAttrSynchronizableAny` in the delete query so that both
-        // synced and non-synced duplicates get cleaned up.
+        // Defensive only: `store` runs solely after `load()` returned nil, and
+        // `load()` queries the same service/account with `SynchronizableAny`,
+        // so no stale copy can actually be present here. Kept so the function
+        // stays correct if `load()`'s query is ever narrowed.
         let deleteQuery: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
@@ -125,7 +139,7 @@ enum RecoveryKeyManager {
             kSecAttrAccessible as String: kSecAttrAccessibleWhenUnlocked,
             kSecAttrSynchronizable as String: kCFBooleanTrue!
         ]
-        let status = SecItemAdd(addQuery as CFDictionary, nil)
+        let status = addItem(addQuery as CFDictionary)
         guard status == errSecSuccess else {
             throw Error.storeFailed(status)
         }
