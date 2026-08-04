@@ -70,6 +70,7 @@
 		6004725264CD51E42182540D /* AddressFormatterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 937C4AF2341FA2B8BD1A9B6C /* AddressFormatterTests.swift */; };
 		601013F61A3536289EEDE6BE /* MessagePadding.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A31043E56FEF3233E692391 /* MessagePadding.swift */; };
 		62CB42B53B196669DF6313A7 /* WalletStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3B45D5364AB9F1360EFA4E5C /* WalletStoreTests.swift */; };
+		65BF8918C50EC58420ECCFB0 /* CurrencyFormatterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 58BCDAFC983209D9AEC48970 /* CurrencyFormatterTests.swift */; };
 		66A9731C91A701400FC53549 /* VaultEditSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 60FEA7C771F39F2C20D8EAC2 /* VaultEditSheet.swift */; };
 		68FDA36C87045EEE56A523D4 /* NodeSettingsV2RegressionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C75BB0B8F020796CEA28D12A /* NodeSettingsV2RegressionTests.swift */; };
 		6BD5C3447B5624A11E14BB5B /* AuditExport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5AAA4CE2B20BD8B486004E08 /* AuditExport.swift */; };
@@ -241,6 +242,7 @@
 		5521EC6BCED84EF1072F9D45 /* CustomTokensView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CustomTokensView.swift; sourceTree = "<group>"; };
 		559B2D1CE5F41320F4A9A870 /* AppState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppState.swift; sourceTree = "<group>"; };
 		576275CC33EBC4584CF819DB /* ShardHealthView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShardHealthView.swift; sourceTree = "<group>"; };
+		58BCDAFC983209D9AEC48970 /* CurrencyFormatterTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CurrencyFormatterTests.swift; sourceTree = "<group>"; };
 		5918A98EB3F7837001C759F5 /* JoinSigningView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JoinSigningView.swift; sourceTree = "<group>"; };
 		59656A475A44B175A3E01899 /* RPCRoutingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RPCRoutingTests.swift; sourceTree = "<group>"; };
 		5A4BDFACE7DEA79E19B70432 /* ApprovalRequest.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ApprovalRequest.swift; sourceTree = "<group>"; };
@@ -590,6 +592,7 @@
 				A6B362D566641A53BD4DD16E /* CertificatePinnerTests.swift */,
 				AA4AEDDD143A7A66963DD42B /* ColdPacketV2Tests.swift */,
 				69A9C998E7A806927B3E2D34 /* CreateShardViewModelTests.swift */,
+				58BCDAFC983209D9AEC48970 /* CurrencyFormatterTests.swift */,
 				FE9BA63A9EC540A7F513185B /* DecimalMathTests.swift */,
 				0996A676D3CD4B28950E3F90 /* DeepLinkRouterTests.swift */,
 				8BB50EE7E823225B340C4C0C /* DkgPeerBindingTests.swift */,
@@ -821,6 +824,7 @@
 				C7193E4A04CA16FE66E2457B /* CertificatePinnerTests.swift in Sources */,
 				F78955A107F73D76A5A94DCF /* ColdPacketV2Tests.swift in Sources */,
 				89F8EDBDD2C513909099CF0D /* CreateShardViewModelTests.swift in Sources */,
+				65BF8918C50EC58420ECCFB0 /* CurrencyFormatterTests.swift in Sources */,
 				FB1C258295F02371B59E294D /* DecimalMathTests.swift in Sources */,
 				5BC458CA15D9972155012F63 /* DeepLinkRouterTests.swift in Sources */,
 				6C4DADBAE905FE8B19A3BD46 /* DkgPeerBindingTests.swift in Sources */,
