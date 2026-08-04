@@ -5,7 +5,6 @@ enum CurrencyFormatter {
     private static let fiatFormatter: NumberFormatter = {
         let f = NumberFormatter()
         f.numberStyle = .currency
-        f.currencyCode = "USD"
         f.locale = Locale(identifier: "en_US")
         return f
     }()
@@ -38,10 +37,14 @@ enum CurrencyFormatter {
     static func compact(_ amount: Double) -> String {
         let absAmount = abs(amount)
         let sign = amount < 0 ? "-" : ""
+        // The thresholds sit half a display unit below the round magnitudes:
+        // rendering uses one decimal place, so anything from 999_950 upwards
+        // would print as "1000.0K" rather than "1.0M" if it stayed in the
+        // lower bucket. Promoting early keeps the mantissa under 1000.
         switch absAmount {
-        case 1_000_000_000...:
+        case 999_950_000...:
             return "\(sign)\(String(format: "%.1f", absAmount / 1_000_000_000))B"
-        case 1_000_000...:
+        case 999_950...:
             return "\(sign)\(String(format: "%.1f", absAmount / 1_000_000))M"
         case 1_000...:
             return "\(sign)\(String(format: "%.1f", absAmount / 1_000))K"
