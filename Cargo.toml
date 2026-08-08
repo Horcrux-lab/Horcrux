@@ -28,7 +28,7 @@ hkdf = "0.13"
 x25519-dalek = { version = "2", features = ["static_secrets"] }
 
 # Elliptic curves
-k256 = { version = "0.13", features = ["ecdsa", "arithmetic", "serde"] }
+k256 = { version = "0.14", features = ["ecdsa", "arithmetic", "serde"] }
 ed25519-dalek = { version = "2", features = ["serde", "rand_core"] }
 
 # Error handling
