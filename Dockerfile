@@ -4,7 +4,7 @@
 # which is only stabilised from Rust 1.85 — 1.80 can no longer resolve the
 # dependency graph at all. The declared workspace MSRV is therefore stale
 # and needs a separate decision; do not "restore" this to 1.80.
-FROM rust:1.97-slim-bookworm AS builder
+FROM rust:1.98-slim-bookworm AS builder
 
 # L3 (audit `docs/security-audit-2026-04.md`): build as a non-root user.
 # No runtime impact (the build artefact is the same), but it eliminates the
