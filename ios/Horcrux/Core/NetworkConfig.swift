@@ -765,6 +765,7 @@ final class NetworkConfig: ObservableObject, @unchecked Sendable {
         let deadEthereum: Set<String> = [
             "https://polygon-rpc.com",                 // "tenant disabled"
             "https://eth-sepolia.public.blastapi.io",  // "Blast API is no longer available"
+            "https://sepolia.drpc.org",               // "Not found" (Refs #59)
             // LlamaRPC went dark across every host we listed (measured
             // 2026-07-29: HTTP 521 on eth/base, connection refused on
             // polygon/arbitrum/optimism). Anyone who selected it is stuck
@@ -1574,7 +1575,6 @@ enum RPCFallbacks {
                 // Canonical PublicNode hostname, matching `publicDefaultRPC`
                 // so it dedupes for default installs.
                 "https://ethereum-sepolia-rpc.publicnode.com",
-                "https://sepolia.drpc.org",
                 "https://sepolia.gateway.tenderly.co"
             ]
         case .polygon:
